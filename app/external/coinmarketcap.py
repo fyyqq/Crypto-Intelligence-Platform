@@ -1,33 +1,47 @@
-"""CoinMarketCap API wrapper.
+"""CoinMarketCap API wrapper (Basic Free Tier).
 
-NOT CONNECTED YET. This is the boilerplate shape for Feature 1's external client —
-method signatures mirror the CMC Basic (free tier) endpoints we'll need, but the
-HTTP calls are intentionally left unimplemented pending explicit approval to
-connect live (see ai-instructions.md rules on API cost control).
+Thin client around the two endpoints Feature 1 needs. Kept dependency-free of
+any persistence/business logic — that lives in app/services/market_data_service.py.
 """
+
+import requests
 
 from app.core.config import settings
 
 
 class CoinMarketCapClient:
-    def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        timeout: int = 15,
+    ) -> None:
         self.api_key = api_key or settings.coinmarketcap_api_key
         self.base_url = base_url or settings.coinmarketcap_base_url
+        self.timeout = timeout
 
-    def get_listings_latest(self, limit: int = 500) -> dict:
-        """Maps to GET /v1/cryptocurrency/listings/latest."""
-        raise NotImplementedError(
-            "CoinMarketCap integration is pending approval — not connected yet."
+    def _get(self, path: str, params: dict | None = None) -> dict:
+        response = requests.get(
+            f"{self.base_url}{path}",
+            headers={
+                "X-CMC_PRO_API_KEY": self.api_key,
+                "Accept": "application/json",
+            },
+            params=params,
+            timeout=self.timeout,
         )
+        response.raise_for_status()
+        return response.json()
 
-    def get_category_list(self) -> dict:
-        """Maps to GET /v1/cryptocurrency/categories."""
-        raise NotImplementedError(
-            "CoinMarketCap integration is pending approval — not connected yet."
+    def get_listings_latest(self, limit: int = 500) -> list[dict]:
+        """GET /v1/cryptocurrency/listings/latest — top N coins by market cap, USD quote."""
+        payload = self._get(
+            "/v1/cryptocurrency/listings/latest",
+            params={"limit": limit, "convert": "USD"},
         )
+        return payload["data"]
 
-    def get_category(self, category_id: str) -> dict:
-        """Maps to GET /v1/cryptocurrency/category."""
-        raise NotImplementedError(
-            "CoinMarketCap integration is pending approval — not connected yet."
-        )
+    def get_category_list(self) -> list[dict]:
+        """GET /v1/cryptocurrency/categories — the full dynamic narrative/category list."""
+        payload = self._get("/v1/cryptocurrency/categories")
+        return payload["data"]

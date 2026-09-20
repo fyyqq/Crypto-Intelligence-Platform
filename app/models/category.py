@@ -21,7 +21,10 @@ class Category(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     cmc_category_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
-    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    # Not unique: CMC's /categories endpoint has no slug field (we derive one from the
+    # name, and different categories can derive the same value), and tag-derived
+    # categories from listings/latest use the tag string itself, which is unique on its own.
+    slug: Mapped[str] = mapped_column(String(255), index=True)
     description: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
