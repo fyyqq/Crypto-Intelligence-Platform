@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from frontend.components import coin_table, narrative_filter
+from frontend.components import coin_table, filter_bar, narrative_alerts, news_feed
 from frontend.state import CoinState
 
 
@@ -14,9 +14,11 @@ def index() -> rx.Component:
                 "All coins listed on CoinMarketCap, cached locally and synced once every 24 hours.",
                 color_scheme="gray",
             ),
+            filter_bar(),
             rx.hstack(
-                narrative_filter(),
-                rx.box(coin_table(), flex="1", overflow_x="auto"),
+                rx.box(news_feed(), width="300px", min_width="280px", flex_shrink="0"),
+                rx.box(coin_table(), flex="1", min_width="0"),
+                rx.box(narrative_alerts(), width="300px", min_width="280px", flex_shrink="0"),
                 spacing="4",
                 align="start",
                 width="100%",

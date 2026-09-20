@@ -22,7 +22,18 @@ def _row(row: dict) -> rx.Component:
         _change_cell(row["change_1h_display"], row["change_1h_color"]),
         _change_cell(row["change_24h_display"], row["change_24h_color"]),
         _change_cell(row["change_7d_display"], row["change_7d_color"]),
-        rx.table.cell(rx.text(row["narratives"], size="1", color_scheme="gray")),
+        rx.table.cell(
+            rx.text(
+                row["narratives"],
+                size="1",
+                color_scheme="gray",
+                white_space="nowrap",
+                overflow="hidden",
+                text_overflow="ellipsis",
+                display="block",
+                max_width="220px",
+            )
+        ),
     )
 
 
@@ -43,22 +54,27 @@ def _pagination() -> rx.Component:
 
 def coin_table() -> rx.Component:
     return rx.vstack(
-        rx.table.root(
-            rx.table.header(
-                rx.table.row(
-                    rx.table.column_header_cell("Rank"),
-                    rx.table.column_header_cell("Name"),
-                    rx.table.column_header_cell("Price"),
-                    rx.table.column_header_cell("Market Cap"),
-                    rx.table.column_header_cell("24h Volume"),
-                    rx.table.column_header_cell("1h"),
-                    rx.table.column_header_cell("24h"),
-                    rx.table.column_header_cell("7d"),
-                    rx.table.column_header_cell("Narratives"),
-                )
+        rx.box(
+            rx.table.root(
+                rx.table.header(
+                    rx.table.row(
+                        rx.table.column_header_cell("Rank"),
+                        rx.table.column_header_cell("Name"),
+                        rx.table.column_header_cell("Price"),
+                        rx.table.column_header_cell("Market Cap"),
+                        rx.table.column_header_cell("24h Volume"),
+                        rx.table.column_header_cell("1h"),
+                        rx.table.column_header_cell("24h"),
+                        rx.table.column_header_cell("7d"),
+                        rx.table.column_header_cell("Narratives"),
+                    )
+                ),
+                rx.table.body(rx.foreach(CoinState.paged_coins, _row)),
+                variant="surface",
+                width="100%",
             ),
-            rx.table.body(rx.foreach(CoinState.paged_coins, _row)),
-            variant="surface",
+            height="calc(100vh - 300px)",
+            overflow="auto",
             width="100%",
         ),
         _pagination(),
