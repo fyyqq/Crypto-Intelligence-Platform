@@ -48,7 +48,7 @@ class MarketDataService:
     def sync_listings(self) -> SyncLog:
         log = self._start_log(SyncType.LISTINGS)
         try:
-            coins = self.client.get_listings_latest(limit=500)
+            coins = self.client.get_all_listings()
             count = self._upsert_coins(coins)
             self._finish_log(log, SyncStatus.SUCCESS, count)
         except Exception as exc:  # noqa: BLE001 - surfaced via SyncLog

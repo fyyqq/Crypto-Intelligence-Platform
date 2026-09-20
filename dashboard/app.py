@@ -5,7 +5,7 @@ from data_access import load_category_names, load_coins, load_last_sync_status
 st.set_page_config(page_title="Crypto Intelligence Platform", layout="wide")
 
 st.title("📊 Crypto Intelligence Platform")
-st.caption("Top 500 coins, cached locally from CoinMarketCap and synced once every 24 hours.")
+st.caption("All coins listed on CoinMarketCap, cached locally and synced once every 24 hours.")
 
 with st.sidebar:
     st.header("Filters")
@@ -25,7 +25,7 @@ with st.sidebar:
 df = load_coins()
 
 if df.empty:
-    st.info("No cached coins yet. Waiting for the 24h scheduler's first sync to complete.")
+    st.info("No cached coins yet. Waiting for the scheduler's first sync to complete.")
 else:
     if selected_category != "All narratives":
         df = df[df["Narratives"].str.contains(selected_category, na=False)]

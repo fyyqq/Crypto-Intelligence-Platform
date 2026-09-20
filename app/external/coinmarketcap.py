@@ -33,13 +33,26 @@ class CoinMarketCapClient:
         response.raise_for_status()
         return response.json()
 
-    def get_listings_latest(self, limit: int = 500) -> list[dict]:
-        """GET /v1/cryptocurrency/listings/latest — top N coins by market cap, USD quote."""
-        payload = self._get(
-            "/v1/cryptocurrency/listings/latest",
-            params={"limit": limit, "convert": "USD"},
-        )
-        return payload["data"]
+    def get_all_listings(self, page_size: int = 5000) -> list[dict]:
+        """GET /v1/cryptocurrency/listings/latest — every currently listed coin, USD
+        quote. Paginates via `start`/`limit` (5000 is CMC's max per call) until the
+        API's own `status.total_count` is covered, so this always reflects the
+        real, current total rather than a hardcoded page size.
+        """
+        all_coins: list[dict] = []
+        start = 1
+        while True:
+            payload = self._get(
+                "/v1/cryptocurrency/listings/latest",
+                params={"start": start, "limit": page_size, "convert": "USD"},
+            )
+            page = payload["data"]
+            all_coins.extend(page)
+            total_count = payload["status"]["total_count"]
+            start += page_size
+            if not page or start > total_count:
+                break
+        return all_coins
 
     def get_category_list(self) -> list[dict]:
         """GET /v1/cryptocurrency/categories — the full dynamic narrative/category list."""
