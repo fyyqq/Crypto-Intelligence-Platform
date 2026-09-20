@@ -63,7 +63,7 @@ class CoinState(rx.State):
     selected_category: str = "All narratives"
     is_loading: bool = True
     page: int = 1
-    page_size: int = 50
+    page_size: int = 100
 
     @rx.event
     def load_coins(self):
