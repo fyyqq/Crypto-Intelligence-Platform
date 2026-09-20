@@ -82,7 +82,6 @@ class CoinState(rx.State):
                 narrative_names.update(names)
                 rows.append(
                     {
-                        "rank": coin.cmc_rank or 0,
                         "name": coin.name,
                         "symbol": coin.symbol,
                         "icon_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{coin.cmc_id}.png",
@@ -125,7 +124,11 @@ class CoinState(rx.State):
         rows = self.all_coins
         if self.selected_category != "All narratives":
             rows = [r for r in rows if self.selected_category in r["narratives"]]
-        return sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
+        rows = sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
+        # Rank reflects position by market cap in the current view (1..N),
+        # not CMC's own cmc_rank field, which has gaps/different methodology
+        # (e.g. staked derivatives) that don't match a strict market-cap order.
+        return [{**row, "rank": i} for i, row in enumerate(rows, start=1)]
 
     @rx.var(cache=True)
     def total_shown(self) -> int:
