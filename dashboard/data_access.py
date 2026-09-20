@@ -38,7 +38,9 @@ def load_coins() -> pd.DataFrame:
                 "Price (USD)": coin.price_usd,
                 "Market Cap (USD)": coin.market_cap_usd,
                 "24h Volume (USD)": coin.volume_24h_usd,
+                "1h Change (%)": coin.percent_change_1h,
                 "24h Change (%)": coin.percent_change_24h,
+                "7d Change (%)": coin.percent_change_7d,
                 "Narratives": ", ".join(sorted(c.name for c in coin.categories)),
             }
             for coin in coins

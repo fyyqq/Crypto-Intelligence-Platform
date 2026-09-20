@@ -110,7 +110,9 @@ class MarketDataService:
             coin.price_usd = quote.get("price")
             coin.market_cap_usd = quote.get("market_cap")
             coin.volume_24h_usd = quote.get("volume_24h")
+            coin.percent_change_1h = quote.get("percent_change_1h")
             coin.percent_change_24h = quote.get("percent_change_24h")
+            coin.percent_change_7d = quote.get("percent_change_7d")
             coin.last_synced_at = now
 
             # Each coin's own `tags` (e.g. "defi", "layer-1") are the real dynamic

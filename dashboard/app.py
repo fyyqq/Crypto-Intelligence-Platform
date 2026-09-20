@@ -30,6 +30,8 @@ else:
     if selected_category != "All narratives":
         df = df[df["Narratives"].str.contains(selected_category, na=False)]
 
+    df = df.sort_values("Market Cap (USD)", ascending=False, na_position="last")
+
     st.metric("Coins shown", len(df))
     st.dataframe(
         df,
@@ -39,6 +41,8 @@ else:
             "Price (USD)": st.column_config.NumberColumn(format="$%.4f"),
             "Market Cap (USD)": st.column_config.NumberColumn(format="$%,.0f"),
             "24h Volume (USD)": st.column_config.NumberColumn(format="$%,.0f"),
+            "1h Change (%)": st.column_config.NumberColumn(format="%.2f%%"),
             "24h Change (%)": st.column_config.NumberColumn(format="%.2f%%"),
+            "7d Change (%)": st.column_config.NumberColumn(format="%.2f%%"),
         },
     )

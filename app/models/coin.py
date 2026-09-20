@@ -20,7 +20,9 @@ class Coin(Base):
     price_usd: Mapped[float | None] = mapped_column(Numeric(24, 8), nullable=True)
     market_cap_usd: Mapped[float | None] = mapped_column(Numeric(24, 2), nullable=True)
     volume_24h_usd: Mapped[float | None] = mapped_column(Numeric(24, 2), nullable=True)
+    percent_change_1h: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
     percent_change_24h: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
+    percent_change_7d: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
 
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
