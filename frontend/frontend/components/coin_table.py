@@ -14,7 +14,18 @@ def _row(row: dict) -> rx.Component:
     return rx.table.row(
         rx.table.cell(row["rank"]),
         rx.table.cell(
-            rx.text(row["name"], weight="bold"), " ", rx.text(row["symbol"], color_scheme="gray")
+            rx.hstack(
+                rx.image(
+                    src=row["icon_url"],
+                    width="22px",
+                    height="22px",
+                    border_radius="50%",
+                ),
+                rx.text(row["name"], weight="bold"),
+                rx.text(row["symbol"], color_scheme="gray"),
+                spacing="2",
+                align="center",
+            )
         ),
         rx.table.cell(row["price_display"]),
         rx.table.cell(row["market_cap_display"]),
@@ -23,16 +34,7 @@ def _row(row: dict) -> rx.Component:
         _change_cell(row["change_24h_display"], row["change_24h_color"]),
         _change_cell(row["change_7d_display"], row["change_7d_color"]),
         rx.table.cell(
-            rx.text(
-                row["narratives"],
-                size="1",
-                color_scheme="gray",
-                white_space="nowrap",
-                overflow="hidden",
-                text_overflow="ellipsis",
-                display="block",
-                max_width="220px",
-            )
+            rx.badge(row["primary_narrative"], variant="outline", size="1", color_scheme="gray"),
         ),
     )
 
