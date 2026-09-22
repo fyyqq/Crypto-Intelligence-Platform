@@ -10,22 +10,22 @@ def _change_cell(text: rx.Var[str], color: rx.Var[str]) -> rx.Component:
     return rx.table.cell(rx.text(text, color=color))
 
 
-def _trend_cell(row: dict) -> rx.Component:
+def _trend_cell(data: rx.Var[list], color: rx.Var[str], is_gold: rx.Var[bool]) -> rx.Component:
     return rx.table.cell(
         rx.box(
             rx.recharts.line_chart(
                 rx.recharts.line(
                     data_key="v",
-                    stroke=row["trend_color"],
+                    stroke=color,
                     dot=False,
                     stroke_width=2,
                     is_animation_active=False,
                 ),
-                data=row["trend_data"],
+                data=data,
                 width=90,
                 height=32,
             ),
-            class_name=rx.cond(row["trend_is_gold"], "trend-gold-shine", ""),
+            class_name=rx.cond(is_gold, "trend-gold-shine", ""),
         )
     )
 
@@ -52,8 +52,9 @@ def _row(row: dict) -> rx.Component:
         rx.table.cell(row["volume_display"]),
         _change_cell(row["change_1h_display"], row["change_1h_color"]),
         _change_cell(row["change_24h_display"], row["change_24h_color"]),
+        _trend_cell(row["trend_24h_data"], row["trend_24h_color"], row["trend_24h_is_gold"]),
         _change_cell(row["change_7d_display"], row["change_7d_color"]),
-        _trend_cell(row),
+        _trend_cell(row["trend_7d_data"], row["trend_7d_color"], row["trend_7d_is_gold"]),
     )
 
 
@@ -85,8 +86,9 @@ def coin_table() -> rx.Component:
                         rx.table.column_header_cell("24h Volume"),
                         rx.table.column_header_cell("1h"),
                         rx.table.column_header_cell("24h"),
+                        rx.table.column_header_cell("24h Price"),
                         rx.table.column_header_cell("7d"),
-                        rx.table.column_header_cell("7d Trend"),
+                        rx.table.column_header_cell("7d Price"),
                     )
                 ),
                 rx.table.body(rx.foreach(CoinState.paged_coins, _row)),
