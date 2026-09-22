@@ -26,11 +26,6 @@ class Coin(SQLModel, table=True):
 
     last_synced_at: datetime | None = None
 
-    # JSON-encoded list[float] of ~168 hourly price points (7d), from CoinGecko's
-    # free markets endpoint — CMC's Basic tier has no historical-price data.
-    # Populated by scripts/fetch_sparklines.py, not the main CMC sync.
-    sparkline_7d: str | None = None
-
     categories: list[Category] = Relationship(
         back_populates="coins", link_model=CoinCategoryLink
     )

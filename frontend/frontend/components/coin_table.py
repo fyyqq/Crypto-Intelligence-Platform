@@ -10,24 +10,19 @@ def _change_cell(text: rx.Var[str], color: rx.Var[str]) -> rx.Component:
     return rx.table.cell(rx.text(text, color=color))
 
 
-def _sparkline_cell(row: dict) -> rx.Component:
+def _trend_cell(row: dict) -> rx.Component:
     return rx.table.cell(
-        rx.cond(
-            row["has_sparkline"],
-            rx.recharts.line_chart(
-                rx.recharts.line(
-                    data_key="v",
-                    stroke=row["sparkline_color"],
-                    dot=False,
-                    stroke_width=1.5,
-                    type_="monotone",
-                    is_animation_active=False,
-                ),
-                data=row["sparkline_data"],
-                width=110,
-                height=36,
+        rx.recharts.line_chart(
+            rx.recharts.line(
+                data_key="v",
+                stroke=row["trend_color"],
+                dot=False,
+                stroke_width=2,
+                is_animation_active=False,
             ),
-            rx.text("—", size="1", color_scheme="gray"),
+            data=row["trend_data"],
+            width=90,
+            height=32,
         )
     )
 
@@ -55,7 +50,7 @@ def _row(row: dict) -> rx.Component:
         _change_cell(row["change_1h_display"], row["change_1h_color"]),
         _change_cell(row["change_24h_display"], row["change_24h_color"]),
         _change_cell(row["change_7d_display"], row["change_7d_color"]),
-        _sparkline_cell(row),
+        _trend_cell(row),
     )
 
 
@@ -88,7 +83,7 @@ def coin_table() -> rx.Component:
                         rx.table.column_header_cell("1h"),
                         rx.table.column_header_cell("24h"),
                         rx.table.column_header_cell("7d"),
-                        rx.table.column_header_cell("Last 7 Days"),
+                        rx.table.column_header_cell("7d Trend"),
                     )
                 ),
                 rx.table.body(rx.foreach(CoinState.paged_coins, _row)),

@@ -2,17 +2,20 @@
 exposes a narrative filter, backed by the SQLModel tables in frontend/models.
 """
 
-import json
-
 import reflex as rx
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from frontend.models.coin import Coin
 
-# Sparklines carry ~168 hourly points; that's more detail than a ~120px-wide
-# mini chart needs and it's a lot of data to ship per row x 100 rows/page.
-_SPARKLINE_TARGET_POINTS = 40
+# CMC's Basic tier has no historical-price endpoint, and an earlier attempt to
+# source a real 7d line from CoinGecko only matched ~26% of coins (and risked
+# mismatches). Rather than show a real chart for some coins and nothing for
+# most, every coin gets a simple directional trend line instead: it only
+# encodes the sign of percent_change_7d we already have, not a fabricated
+# price path.
+_TREND_UP = [{"v": 0}, {"v": 1}]
+_TREND_DOWN = [{"v": 1}, {"v": 0}]
 
 
 def _fmt_usd(value: float) -> str:
@@ -37,18 +40,10 @@ def _pct_color(value: float) -> str:
     return "red" if value < 0 else "green"
 
 
-def _build_sparkline(raw_json: str | None) -> tuple[list[dict], str]:
-    if not raw_json:
-        return [], "gray"
-    prices: list[float] = json.loads(raw_json)
-    if len(prices) < 2:
-        return [], "gray"
-    step = max(1, len(prices) // _SPARKLINE_TARGET_POINTS)
-    sampled = prices[::step]
-    if sampled[-1] != prices[-1]:
-        sampled.append(prices[-1])
-    color = "green" if sampled[-1] >= sampled[0] else "red"
-    return [{"v": v} for v in sampled], color
+def _trend_line(percent_change_7d: float) -> tuple[list[dict], str]:
+    if percent_change_7d < 0:
+        return _TREND_DOWN, "red"
+    return _TREND_UP, "green"
 
 
 class CoinState(rx.State):
@@ -74,7 +69,7 @@ class CoinState(rx.State):
             for coin in coins:
                 names = sorted(category.name for category in coin.categories)
                 narrative_names.update(names)
-                sparkline_data, sparkline_color = _build_sparkline(coin.sparkline_7d)
+                trend_data, trend_color = _trend_line(coin.percent_change_7d or 0.0)
                 rows.append(
                     {
                         "name": coin.name,
@@ -91,9 +86,8 @@ class CoinState(rx.State):
                         "change_7d_display": _fmt_pct(coin.percent_change_7d or 0.0),
                         "change_7d_color": _pct_color(coin.percent_change_7d or 0.0),
                         "narratives": ", ".join(names),
-                        "sparkline_data": sparkline_data,
-                        "sparkline_color": sparkline_color,
-                        "has_sparkline": len(sparkline_data) > 0,
+                        "trend_data": trend_data,
+                        "trend_color": trend_color,
                     }
                 )
 
