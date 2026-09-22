@@ -7,7 +7,7 @@ from sqlmodel import SQLModel
 from alembic import context
 
 from rxconfig import config as rx_config
-from frontend.models import Category, Coin, CoinCategoryLink  # noqa: F401 - registers tables
+from frontend.models import Category, Coin, CoinCategoryLink, CoinContract  # noqa: F401 - registers tables
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

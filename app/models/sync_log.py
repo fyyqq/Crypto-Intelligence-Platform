@@ -10,6 +10,7 @@ from app.core.database import Base
 class SyncType(str, enum.Enum):
     LISTINGS = "listings"
     CATEGORIES = "categories"
+    CONTRACTS = "contracts"
 
 
 class SyncStatus(str, enum.Enum):

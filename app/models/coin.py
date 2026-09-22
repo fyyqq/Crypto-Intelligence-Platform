@@ -33,3 +33,8 @@ class Coin(Base):
     categories: Mapped[list["Category"]] = relationship(
         secondary=coin_category, back_populates="coins"
     )
+    contracts: Mapped[list["CoinContract"]] = relationship(
+        back_populates="coin",
+        cascade="all, delete-orphan",
+        order_by="CoinContract.sort_order",
+    )

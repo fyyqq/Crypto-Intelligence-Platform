@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlmodel import Field, Relationship, SQLModel
 
 from frontend.models.category import Category, CoinCategoryLink
+from frontend.models.coin_contract import CoinContract
 
 
 class Coin(SQLModel, table=True):
@@ -29,3 +30,4 @@ class Coin(SQLModel, table=True):
     categories: list[Category] = Relationship(
         back_populates="coins", link_model=CoinCategoryLink
     )
+    contracts: list[CoinContract] = Relationship(back_populates="coin")

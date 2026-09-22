@@ -4,6 +4,8 @@ Thin client around the two endpoints Feature 1 needs. Kept dependency-free of
 any persistence/business logic — that lives in app/services/market_data_service.py.
 """
 
+import time
+
 import requests
 
 from app.core.config import settings
@@ -58,3 +60,24 @@ class CoinMarketCapClient:
         """GET /v1/cryptocurrency/categories — the full dynamic narrative/category list."""
         payload = self._get("/v1/cryptocurrency/categories")
         return payload["data"]
+
+    def get_platforms_info(self, cmc_ids: list[int], batch_size: int = 100) -> dict[int, dict]:
+        """GET /v2/cryptocurrency/info, batched (CMC caps `id` at 100 per call) —
+        the `contract_address` list per coin is the only place the Basic tier
+        exposes every chain a token is deployed on (listings/latest only carries
+        a single primary `platform`). Returns {cmc_id: raw info payload}.
+        """
+        info_by_id: dict[int, dict] = {}
+        for i in range(0, len(cmc_ids), batch_size):
+            if i > 0:
+                # Basic tier caps requests at 30/min; ~2.2s of headroom per
+                # call keeps a full 82-batch sync well under that.
+                time.sleep(2.2)
+            batch = cmc_ids[i : i + batch_size]
+            payload = self._get(
+                "/v2/cryptocurrency/info",
+                params={"id": ",".join(str(cid) for cid in batch)},
+            )
+            for id_str, entry in payload["data"].items():
+                info_by_id[int(id_str)] = entry
+        return info_by_id

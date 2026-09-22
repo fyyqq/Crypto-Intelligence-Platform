@@ -76,6 +76,37 @@ def _pick_primary_narrative(names: list[str]) -> str:
     return names[0] if names else ""
 
 
+# Maps narrative keywords to a representative lucide icon for the badge.
+# Order matters (first match wins); falls back to a generic tag icon for any
+# narrative name that doesn't hit one of these — new/unseen CMC tags still
+# render correctly, just with the generic icon.
+_NARRATIVE_ICONS: tuple[tuple[str, str], ...] = (
+    ("meme", "smile"),
+    ("artificial intelligence", "cpu"),
+    (" ai", "cpu"),
+    ("gaming", "gamepad-2"),
+    ("metaverse", "gamepad-2"),
+    ("stablecoin", "dollar-sign"),
+    ("nft", "image"),
+    ("collectible", "image"),
+    ("privacy", "eye-off"),
+    ("exchange", "arrow-left-right"),
+    ("storage", "database"),
+    ("oracle", "radio"),
+    ("payment", "credit-card"),
+    ("defi", "landmark"),
+    ("layer", "layers"),
+)
+
+
+def _narrative_icon(name: str) -> str:
+    lowered = f" {name.lower()} "
+    for pattern, icon in _NARRATIVE_ICONS:
+        if pattern in lowered:
+            return icon
+    return "tag"
+
+
 class CoinState(rx.State):
     all_coins: list[dict] = []
     categories: list[str] = []
@@ -100,7 +131,7 @@ class CoinState(rx.State):
         with rx.session() as session:
             coins = session.exec(
                 select(Coin)
-                .options(selectinload(Coin.categories))
+                .options(selectinload(Coin.categories), selectinload(Coin.contracts))
                 .order_by(Coin.cmc_rank)
             ).all()
 
@@ -111,6 +142,17 @@ class CoinState(rx.State):
                 narrative_names.update(names)
                 trend_24h_data, trend_24h_color, trend_24h_shine = _trend_line(coin.percent_change_24h or 0.0)
                 trend_7d_data, trend_7d_color, trend_7d_shine = _trend_line(coin.percent_change_7d or 0.0)
+                primary_narrative = _pick_primary_narrative(names)
+
+                # A coin with no contract rows is single-chain — it IS its
+                # own chain. Otherwise the row already flagged as primary
+                # (see MarketDataService._upsert_contracts) is the main
+                # chain; everything else feeds the "other chains" dropdown.
+                chains = sorted(coin.contracts, key=lambda c: c.sort_order)
+                primary_chain = next((c for c in chains if c.is_primary), None)
+                main_chain = primary_chain.platform_name if primary_chain else coin.name
+                other_chains = [c.platform_name for c in chains if c is not primary_chain]
+
                 rows.append(
                     {
                         "name": coin.name,
@@ -132,7 +174,11 @@ class CoinState(rx.State):
                         "change_7d_display": _fmt_pct(coin.percent_change_7d or 0.0),
                         "change_7d_color": _pct_color(coin.percent_change_7d or 0.0),
                         "narratives": ", ".join(names),
-                        "primary_narrative": _pick_primary_narrative(names),
+                        "primary_narrative": primary_narrative,
+                        "primary_narrative_icon": _narrative_icon(primary_narrative),
+                        "main_chain": main_chain,
+                        "other_chains_display": "\n".join(other_chains),
+                        "has_other_chains": len(other_chains) > 0,
                         "trend_24h_data": trend_24h_data,
                         "trend_24h_color": trend_24h_color,
                         "trend_24h_shine": trend_24h_shine,

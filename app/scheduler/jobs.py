@@ -22,6 +22,9 @@ def run_market_data_sync() -> None:
     dashboard's SQLite cache is mirrored right after — this is what keeps its
     7d Trend line (green/red/gold) in step with each 24h sync automatically,
     instead of someone having to re-run scripts/port_to_reflex_sqlite.py by hand.
+    Contracts (per-coin chain list) sync on the same 24h cadence, gated by
+    their own SyncType so a listings-only run never skips them and a
+    contracts-only rerun never re-burns listings credits.
     """
     db = SessionLocal()
     try:
@@ -33,10 +36,15 @@ def run_market_data_sync() -> None:
         if service.is_sync_due(SyncType.LISTINGS):
             listings_log = service.sync_listings()
             listings_synced = listings_log.status == SyncStatus.SUCCESS
+
+        contracts_synced = False
+        if service.is_sync_due(SyncType.CONTRACTS):
+            contracts_log = service.sync_contracts()
+            contracts_synced = contracts_log.status == SyncStatus.SUCCESS
     finally:
         db.close()
 
-    if listings_synced:
+    if listings_synced or contracts_synced:
         sync_reflex_cache()
 
 

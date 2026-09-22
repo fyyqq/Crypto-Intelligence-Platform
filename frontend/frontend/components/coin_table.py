@@ -66,6 +66,76 @@ def _trend_cell(data: rx.Var[list], color: rx.Var[str], shine_class: rx.Var[str]
     )
 
 
+# rx.icon's tag must be a literal string, not a Var, so the icon name computed
+# server-side (CoinState._narrative_icon) is resolved to a component here via
+# rx.match instead of passed straight through.
+_NARRATIVE_ICON_NAMES = (
+    "smile",
+    "cpu",
+    "gamepad-2",
+    "dollar-sign",
+    "image",
+    "eye-off",
+    "arrow-left-right",
+    "database",
+    "radio",
+    "credit-card",
+    "landmark",
+    "layers",
+)
+
+
+def _narrative_icon_component(icon_name: rx.Var[str]) -> rx.Component:
+    return rx.match(
+        icon_name,
+        *[(name, rx.icon(name, size=11)) for name in _NARRATIVE_ICON_NAMES],
+        rx.icon("tag", size=11),
+    )
+
+
+def _narrative_badge(row: dict) -> rx.Component:
+    return rx.badge(
+        _narrative_icon_component(row["primary_narrative_icon"]),
+        rx.text(row["primary_narrative"]),
+        variant="outline",
+        size="1",
+        color_scheme="gray",
+    )
+
+
+def _chain_badge(row: dict) -> rx.Component:
+    chain_label = rx.hstack(
+        rx.icon("link", size=11),
+        rx.text(row["main_chain"]),
+        spacing="1",
+        align="center",
+    )
+    return rx.cond(
+        row["has_other_chains"],
+        rx.popover.root(
+            rx.popover.trigger(
+                rx.badge(
+                    chain_label,
+                    rx.icon("chevron-down", size=11),
+                    variant="surface",
+                    size="1",
+                    color_scheme="gray",
+                    cursor="pointer",
+                )
+            ),
+            rx.popover.content(
+                rx.vstack(
+                    rx.text("Also deployed on", size="1", color_scheme="gray"),
+                    rx.text(row["other_chains_display"], white_space="pre-line", size="2"),
+                    spacing="1",
+                ),
+                size="1",
+            ),
+        ),
+        rx.badge(chain_label, variant="surface", size="1", color_scheme="gray"),
+    )
+
+
 def _row(row: dict) -> rx.Component:
     return rx.table.row(
         rx.table.cell(row["rank"], vertical_align="middle"),
@@ -83,8 +153,9 @@ def _row(row: dict) -> rx.Component:
                     spacing="2",
                     align="center",
                 ),
-                rx.badge(row["primary_narrative"], variant="outline", size="1", color_scheme="gray"),
-                spacing="1",
+                _narrative_badge(row),
+                _chain_badge(row),
+                spacing="2",
                 align="start",
             ),
             vertical_align="middle",

@@ -22,6 +22,7 @@ from app.models.coin import Coin as OldCoin  # noqa: E402
 
 from frontend.models.category import Category as NewCategory  # noqa: E402
 from frontend.models.coin import Coin as NewCoin  # noqa: E402
+from frontend.models.coin_contract import CoinContract as NewCoinContract  # noqa: E402
 
 
 def sync_reflex_cache() -> tuple[int, int]:
@@ -34,12 +35,16 @@ def sync_reflex_cache() -> tuple[int, int]:
     try:
         old_categories = old_db.scalars(sa_select(OldCategory)).all()
         old_coins = old_db.scalars(
-            sa_select(OldCoin).options(selectinload(OldCoin.categories))
+            sa_select(OldCoin).options(
+                selectinload(OldCoin.categories), selectinload(OldCoin.contracts)
+            )
         ).all()
     finally:
         old_db.close()
 
     with SQLModelSession(new_engine) as new_db:
+        for contract in new_db.exec(sqlmodel_select(NewCoinContract)).all():
+            new_db.delete(contract)
         for coin in new_db.exec(sqlmodel_select(NewCoin)).all():
             new_db.delete(coin)
         for category in new_db.exec(sqlmodel_select(NewCategory)).all():
@@ -73,6 +78,16 @@ def sync_reflex_cache() -> tuple[int, int]:
                 percent_change_7d=float(old_coin.percent_change_7d) if old_coin.percent_change_7d is not None else None,
                 last_synced_at=old_coin.last_synced_at,
                 categories=[category_map[c.id] for c in old_coin.categories],
+                contracts=[
+                    NewCoinContract(
+                        platform_name=contract.platform_name,
+                        platform_symbol=contract.platform_symbol,
+                        contract_address=contract.contract_address,
+                        sort_order=contract.sort_order,
+                        is_primary=contract.is_primary,
+                    )
+                    for contract in old_coin.contracts
+                ],
             )
             new_db.add(new_coin)
         new_db.commit()

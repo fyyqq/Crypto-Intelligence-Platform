@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.external.coinmarketcap import CoinMarketCapClient
 from app.models.category import Category
 from app.models.coin import Coin
+from app.models.coin_contract import CoinContract
 from app.models.sync_log import SyncLog, SyncStatus, SyncType
 
 
@@ -50,6 +51,23 @@ class MarketDataService:
         try:
             coins = self.client.get_all_listings()
             count = self._upsert_coins(coins)
+            self._finish_log(log, SyncStatus.SUCCESS, count)
+        except Exception as exc:  # noqa: BLE001 - surfaced via SyncLog
+            self.db.rollback()
+            self._finish_log(log, SyncStatus.FAILED, 0, str(exc))
+        return log
+
+    def sync_contracts(self) -> SyncLog:
+        """Fetches each coin's cross-chain contract list from CMC's /v2/info
+        endpoint (~1 call per 100 coins). Kept as its own SyncType so it's
+        gated by the same 24h is_sync_due rule rather than adding cost every
+        listings sync.
+        """
+        log = self._start_log(SyncType.CONTRACTS)
+        try:
+            cmc_ids = [c.cmc_id for c in self.db.scalars(select(Coin)).all()]
+            info_by_id = self.client.get_platforms_info(cmc_ids)
+            count = self._upsert_contracts(info_by_id)
             self._finish_log(log, SyncStatus.SUCCESS, count)
         except Exception as exc:  # noqa: BLE001 - surfaced via SyncLog
             self.db.rollback()
@@ -135,6 +153,57 @@ class MarketDataService:
 
         self.db.commit()
         return len(coins)
+
+    def _upsert_contracts(self, info_by_id: dict[int, dict]) -> int:
+        coins_by_cmc_id = {c.cmc_id: c for c in self.db.scalars(select(Coin)).all()}
+        count = 0
+        for cmc_id, info in info_by_id.items():
+            coin = coins_by_cmc_id.get(cmc_id)
+            if coin is None:
+                continue
+
+            declared_platform = info.get("platform")
+            entries = info.get("contract_address") or []
+            if not entries and declared_platform:
+                entries = [
+                    {
+                        "contract_address": declared_platform.get("token_address"),
+                        "platform": {
+                            "name": declared_platform.get("name"),
+                            "coin": declared_platform.get("coin") or {},
+                        },
+                    }
+                ]
+
+            contracts = [
+                CoinContract(
+                    platform_name=entry["platform"]["name"],
+                    platform_symbol=entry["platform"].get("coin", {}).get("symbol"),
+                    contract_address=entry.get("contract_address"),
+                    sort_order=order,
+                )
+                for order, entry in enumerate(entries)
+                if entry.get("platform", {}).get("name")
+            ]
+
+            if contracts:
+                declared_name = (declared_platform or {}).get("name")
+                primary = next((c for c in contracts if c.platform_name == declared_name), None)
+                if primary is None:
+                    # No single declared platform (root assets like BTC/ETH/BNB, or
+                    # multi-issued stablecoins): the coin's native home is whichever
+                    # chain's own gas token is this coin itself (e.g. ETH's own
+                    # entry among its bridged copies elsewhere). Falls back to
+                    # CMC's own list order when no chain matches that way.
+                    primary = next(
+                        (c for c in contracts if c.platform_symbol == coin.symbol), contracts[0]
+                    )
+                primary.is_primary = True
+
+            coin.contracts = contracts
+            count += 1
+        self.db.commit()
+        return count
 
     @staticmethod
     def _slugify(name: str) -> str:
