@@ -33,9 +33,6 @@ def _row(row: dict) -> rx.Component:
         _change_cell(row["change_1h_display"], row["change_1h_color"]),
         _change_cell(row["change_24h_display"], row["change_24h_color"]),
         _change_cell(row["change_7d_display"], row["change_7d_color"]),
-        rx.table.cell(
-            rx.badge(row["primary_narrative"], variant="outline", size="1", color_scheme="gray"),
-        ),
     )
 
 
@@ -68,7 +65,6 @@ def coin_table() -> rx.Component:
                         rx.table.column_header_cell("1h"),
                         rx.table.column_header_cell("24h"),
                         rx.table.column_header_cell("7d"),
-                        rx.table.column_header_cell("Narratives"),
                     )
                 ),
                 rx.table.body(rx.foreach(CoinState.paged_coins, _row)),
