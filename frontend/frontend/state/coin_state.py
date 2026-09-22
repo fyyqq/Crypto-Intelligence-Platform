@@ -58,6 +58,15 @@ class CoinState(rx.State):
     page: int = 1
     page_size: int = 100
 
+    # In-page sort only: reorders the current page's rows, never re-ranks
+    # across the full coin list. sort_key is one of the raw numeric fields
+    # in each row dict (e.g. "pct_1h_raw"), or "" for the default (market-cap)
+    # order. sort_direction is "desc" (first click, biggest -> smallest, top
+    # arrow active) or "asc" (second click, smallest -> biggest, bottom arrow
+    # active). Changing page resets both, per spec.
+    sort_key: str = ""
+    sort_direction: str = ""
+
     @rx.event
     def load_coins(self):
         self.is_loading = True
@@ -81,6 +90,11 @@ class CoinState(rx.State):
                         "symbol": coin.symbol,
                         "icon_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{coin.cmc_id}.png",
                         "market_cap_usd": coin.market_cap_usd or 0.0,
+                        "price_raw": coin.price_usd or 0.0,
+                        "volume_raw": coin.volume_24h_usd or 0.0,
+                        "pct_1h_raw": coin.percent_change_1h or 0.0,
+                        "pct_24h_raw": coin.percent_change_24h or 0.0,
+                        "pct_7d_raw": coin.percent_change_7d or 0.0,
                         "price_display": _fmt_usd(coin.price_usd or 0.0),
                         "market_cap_display": _fmt_compact_usd(coin.market_cap_usd or 0.0),
                         "volume_display": _fmt_compact_usd(coin.volume_24h_usd or 0.0),
@@ -108,16 +122,32 @@ class CoinState(rx.State):
     def set_category(self, value: str):
         self.selected_category = value
         self.page = 1
+        self.sort_key = ""
+        self.sort_direction = ""
 
     @rx.event
     def next_page(self):
         if self.page < self.total_pages:
             self.page += 1
+            self.sort_key = ""
+            self.sort_direction = ""
 
     @rx.event
     def prev_page(self):
         if self.page > 1:
             self.page -= 1
+            self.sort_key = ""
+            self.sort_direction = ""
+
+    @rx.event
+    def set_sort(self, key: str):
+        if self.sort_key != key:
+            self.sort_key = key
+            self.sort_direction = "desc"
+        elif self.sort_direction == "desc":
+            self.sort_direction = "asc"
+        else:
+            self.sort_direction = "desc"
 
     @rx.var(cache=True)
     def filtered_coins(self) -> list[dict]:
@@ -142,3 +172,16 @@ class CoinState(rx.State):
     def paged_coins(self) -> list[dict]:
         start = (self.page - 1) * self.page_size
         return self.filtered_coins[start : start + self.page_size]
+
+    @rx.var(cache=True)
+    def sorted_paged_coins(self) -> list[dict]:
+        """The current page's rows, optionally re-sorted by one column.
+        Only ever reorders within this page (top 100, or whichever 100
+        the current page is) — never re-ranks across the full coin list.
+        """
+        rows = self.paged_coins
+        if not self.sort_key:
+            return rows
+        return sorted(
+            rows, key=lambda r: r[self.sort_key], reverse=self.sort_direction == "desc"
+        )

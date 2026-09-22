@@ -10,6 +10,41 @@ def _change_cell(text: rx.Var[str], color: rx.Var[str]) -> rx.Component:
     return rx.table.cell(rx.text(text, color=color))
 
 
+def _sort_icon(sort_key: str) -> rx.Component:
+    is_active_col = CoinState.sort_key == sort_key
+    up_active = is_active_col & (CoinState.sort_direction == "desc")
+    down_active = is_active_col & (CoinState.sort_direction == "asc")
+    return rx.vstack(
+        rx.icon(
+            "chevron-up",
+            size=11,
+            color=rx.cond(up_active, "var(--accent-9)", "var(--gray-8)"),
+        ),
+        rx.icon(
+            "chevron-down",
+            size=11,
+            color=rx.cond(down_active, "var(--accent-9)", "var(--gray-8)"),
+        ),
+        spacing="0",
+        align="center",
+        margin_top="-2px",
+        margin_bottom="-2px",
+    )
+
+
+def _sortable_header(label: str, sort_key: str) -> rx.Component:
+    return rx.table.column_header_cell(
+        rx.hstack(
+            rx.text(label),
+            _sort_icon(sort_key),
+            spacing="1",
+            align="center",
+            cursor="pointer",
+        ),
+        on_click=CoinState.set_sort(sort_key),
+    )
+
+
 def _trend_cell(data: rx.Var[list], color: rx.Var[str], shine_class: rx.Var[str]) -> rx.Component:
     return rx.table.cell(
         rx.box(
@@ -79,19 +114,19 @@ def coin_table() -> rx.Component:
             rx.table.root(
                 rx.table.header(
                     rx.table.row(
-                        rx.table.column_header_cell("Rank"),
+                        _sortable_header("Rank", "rank"),
                         rx.table.column_header_cell("Name"),
-                        rx.table.column_header_cell("Price"),
-                        rx.table.column_header_cell("Market Cap"),
-                        rx.table.column_header_cell("24h Volume"),
-                        rx.table.column_header_cell("1h"),
-                        rx.table.column_header_cell("24h"),
-                        rx.table.column_header_cell("7d"),
-                        rx.table.column_header_cell("24h Price"),
-                        rx.table.column_header_cell("7d Price"),
+                        _sortable_header("Price", "price_raw"),
+                        _sortable_header("Market Cap", "market_cap_usd"),
+                        _sortable_header("24h Volume", "volume_raw"),
+                        _sortable_header("1h", "pct_1h_raw"),
+                        _sortable_header("24h", "pct_24h_raw"),
+                        _sortable_header("7d", "pct_7d_raw"),
+                        _sortable_header("24h Price", "pct_24h_raw"),
+                        _sortable_header("7d Price", "pct_7d_raw"),
                     )
                 ),
-                rx.table.body(rx.foreach(CoinState.paged_coins, _row)),
+                rx.table.body(rx.foreach(CoinState.sorted_paged_coins, _row)),
                 variant="surface",
                 width="100%",
             ),
