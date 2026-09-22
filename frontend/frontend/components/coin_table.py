@@ -70,17 +70,22 @@ def _row(row: dict) -> rx.Component:
     return rx.table.row(
         rx.table.cell(row["rank"], vertical_align="middle"),
         rx.table.cell(
-            rx.hstack(
-                rx.image(
-                    src=row["icon_url"],
-                    width="22px",
-                    height="22px",
-                    border_radius="50%",
+            rx.vstack(
+                rx.hstack(
+                    rx.image(
+                        src=row["icon_url"],
+                        width="22px",
+                        height="22px",
+                        border_radius="50%",
+                    ),
+                    rx.text(row["name"], weight="bold"),
+                    rx.text(row["symbol"], color_scheme="gray"),
+                    spacing="2",
+                    align="center",
                 ),
-                rx.text(row["name"], weight="bold"),
-                rx.text(row["symbol"], color_scheme="gray"),
-                spacing="2",
-                align="center",
+                rx.badge(row["primary_narrative"], variant="outline", size="1", color_scheme="gray"),
+                spacing="1",
+                align="start",
             ),
             vertical_align="middle",
         ),
