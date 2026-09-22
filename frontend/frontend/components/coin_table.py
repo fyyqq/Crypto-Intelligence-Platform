@@ -223,9 +223,25 @@ def _pagination() -> rx.Component:
     )
 
 
+_TABLE_COLUMN_COUNT = 10
+
+
+def _skeleton_row() -> rx.Component:
+    return rx.table.row(
+        *[rx.table.cell(rx.skeleton(height="1em", width="80%")) for _ in range(_TABLE_COLUMN_COUNT)]
+    )
+
+
+def _skeleton_body() -> rx.Component:
+    # Shown while CoinState.is_filtering is true (see set_category) — a
+    # narrative filter change re-renders up to 100 rows, so this fills the
+    # round-trip gap instead of the table looking frozen.
+    return rx.table.body(*[_skeleton_row() for _ in range(10)])
+
+
 def _table_header_bar() -> rx.Component:
     return rx.box(
-        rx.heading("Top 100 Cryptocurrencies", size="5"),
+        rx.heading("Top ", CoinState.page_top_n, " Cryptocurrencies", size="5"),
         rx.hstack(
             rx.text("Coins shown", size="2", color_scheme="gray"),
             rx.heading(CoinState.total_shown, size="5"),
@@ -258,7 +274,11 @@ def coin_table() -> rx.Component:
                         rx.table.column_header_cell("7D Price"),
                     )
                 ),
-                rx.table.body(rx.foreach(CoinState.sorted_paged_coins, _row)),
+                rx.cond(
+                    CoinState.is_filtering,
+                    _skeleton_body(),
+                    rx.table.body(rx.foreach(CoinState.sorted_paged_coins, _row)),
+                ),
                 variant="surface",
                 width="100%",
             ),

@@ -127,6 +127,7 @@ class CoinState(rx.State):
     categories: list[str] = []
     selected_category: str = "All narratives"
     is_loading: bool = True
+    is_filtering: bool = False
     page: int = 1
     page_size: int = 100
 
@@ -161,7 +162,7 @@ class CoinState(rx.State):
 
                 # A coin with no contract rows is single-chain — it IS its
                 # own chain. Otherwise the row already flagged as primary
-                # (see MarketDataService._upsert_contracts) is the main
+                # (see MarketDataService._upsert_contracts) is the primary
                 # chain; everything else feeds the "other chains" dropdown.
                 chains = sorted(coin.contracts, key=lambda c: c.sort_order)
                 primary_chain = next((c for c in chains if c.is_primary), None)
@@ -220,10 +221,17 @@ class CoinState(rx.State):
 
     @rx.event
     def set_category(self, value: str):
+        # Re-filtering + re-rendering up to 100 rows (images, badges,
+        # popovers) has a noticeable round trip; the first yield flushes
+        # is_filtering=True to the client immediately so the skeleton shows
+        # before the actual (comparatively slow) table re-render happens.
+        self.is_filtering = True
+        yield
         self.selected_category = value
         self.page = 1
         self.sort_key = ""
         self.sort_direction = ""
+        self.is_filtering = False
 
     @rx.event
     def next_page(self):
@@ -269,6 +277,14 @@ class CoinState(rx.State):
     @rx.var(cache=True)
     def total_pages(self) -> int:
         return max(1, -(-self.total_shown // self.page_size))
+
+    @rx.var(cache=True)
+    def page_top_n(self) -> int:
+        """The table title's "Top N" — page 1 is 100, page 2 is 200, and so
+        on, capped to how many coins are actually in view (so a narrow
+        narrative filter doesn't claim "Top 100" when there are only 20).
+        """
+        return min(self.page * self.page_size, self.total_shown)
 
     @rx.var(cache=True)
     def paged_coins(self) -> list[dict]:

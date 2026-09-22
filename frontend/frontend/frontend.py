@@ -19,7 +19,7 @@ def index() -> rx.Component:
                 rx.box(news_feed(), width="300px", min_width="280px", flex_shrink="0"),
                 rx.box(coin_table(), flex="1", min_width="0", overflow="hidden"),
                 rx.box(narrative_alerts(), width="300px", min_width="280px", flex_shrink="0"),
-                spacing="4",
+                spacing="8",
                 align="start",
                 width="100%",
             ),
