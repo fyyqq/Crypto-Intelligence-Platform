@@ -49,7 +49,6 @@ def filter_bar() -> rx.Component:
         rx.divider(orientation="vertical", height="1.5em"),
         rx.text("Group by CMC narrative", size="2", color_scheme="gray"),
         _narrative_pill_slider(),
-        rx.spacer(),
         rx.text("Coins shown", size="2", color_scheme="gray"),
         rx.heading(CoinState.total_shown, size="5"),
         spacing="3",

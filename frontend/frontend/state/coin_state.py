@@ -2,6 +2,8 @@
 exposes a narrative filter, backed by the SQLModel tables in frontend/models.
 """
 
+from collections import Counter
+
 import reflex as rx
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -149,10 +151,10 @@ class CoinState(rx.State):
             ).all()
 
             rows: list[dict] = []
-            narrative_names: set[str] = set()
+            narrative_counts: Counter[str] = Counter()
             for coin in coins:
                 names = sorted(category.name for category in coin.categories)
-                narrative_names.update(names)
+                narrative_counts.update(names)
                 trend_24h_data, trend_24h_color, trend_24h_shine = _trend_line(coin.percent_change_24h or 0.0)
                 trend_7d_data, trend_7d_color, trend_7d_shine = _trend_line(coin.percent_change_7d or 0.0)
                 primary_narrative = _pick_primary_narrative(names)
@@ -209,7 +211,11 @@ class CoinState(rx.State):
                 )
 
         self.all_coins = rows
-        self.categories = ["All narratives", *sorted(narrative_names)]
+        # Top 10 by number of coins carrying that tag — out of ~600 dynamic
+        # CMC categories, this keeps the filter pill bar to the narratives
+        # that actually matter for most coins shown, not an alphabetical cut.
+        top_narratives = [name for name, _ in narrative_counts.most_common(10)]
+        self.categories = ["All narratives", *top_narratives]
         self.is_loading = False
 
     @rx.event
