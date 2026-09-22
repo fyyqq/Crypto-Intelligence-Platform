@@ -10,7 +10,7 @@ def _change_cell(text: rx.Var[str], color: rx.Var[str]) -> rx.Component:
     return rx.table.cell(rx.text(text, color=color))
 
 
-def _trend_cell(data: rx.Var[list], color: rx.Var[str], is_gold: rx.Var[bool]) -> rx.Component:
+def _trend_cell(data: rx.Var[list], color: rx.Var[str], shine_class: rx.Var[str]) -> rx.Component:
     return rx.table.cell(
         rx.box(
             rx.recharts.line_chart(
@@ -25,7 +25,7 @@ def _trend_cell(data: rx.Var[list], color: rx.Var[str], is_gold: rx.Var[bool]) -
                 width=90,
                 height=32,
             ),
-            class_name=rx.cond(is_gold, "trend-gold-shine", ""),
+            class_name=shine_class.to(str),
         )
     )
 
@@ -52,9 +52,9 @@ def _row(row: dict) -> rx.Component:
         rx.table.cell(row["volume_display"]),
         _change_cell(row["change_1h_display"], row["change_1h_color"]),
         _change_cell(row["change_24h_display"], row["change_24h_color"]),
-        _trend_cell(row["trend_24h_data"], row["trend_24h_color"], row["trend_24h_is_gold"]),
         _change_cell(row["change_7d_display"], row["change_7d_color"]),
-        _trend_cell(row["trend_7d_data"], row["trend_7d_color"], row["trend_7d_is_gold"]),
+        _trend_cell(row["trend_24h_data"], row["trend_24h_color"], row["trend_24h_shine"]),
+        _trend_cell(row["trend_7d_data"], row["trend_7d_color"], row["trend_7d_shine"]),
     )
 
 
@@ -86,8 +86,8 @@ def coin_table() -> rx.Component:
                         rx.table.column_header_cell("24h Volume"),
                         rx.table.column_header_cell("1h"),
                         rx.table.column_header_cell("24h"),
-                        rx.table.column_header_cell("24h Price"),
                         rx.table.column_header_cell("7d"),
+                        rx.table.column_header_cell("24h Price"),
                         rx.table.column_header_cell("7d Price"),
                     )
                 ),
