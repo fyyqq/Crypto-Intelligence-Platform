@@ -1,0 +1,15 @@
+/* 7d Trend column: gold "shine" pulse for coins up more than +100% in 7 days. */
+@keyframes gold-shine {
+  0%, 100% {
+    filter: drop-shadow(0 0 1px gold) drop-shadow(0 0 2px gold);
+    opacity: 1;
+  }
+  50% {
+    filter: drop-shadow(0 0 6px gold) drop-shadow(0 0 10px gold);
+    opacity: 0.75;
+  }
+}
+
+.trend-gold-shine {
+  animation: gold-shine 1.6s ease-in-out infinite;
+}

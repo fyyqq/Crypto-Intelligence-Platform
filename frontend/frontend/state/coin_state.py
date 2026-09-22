@@ -40,10 +40,12 @@ def _pct_color(value: float) -> str:
     return "red" if value < 0 else "green"
 
 
-def _trend_line(percent_change_7d: float) -> tuple[list[dict], str]:
+def _trend_line(percent_change_7d: float) -> tuple[list[dict], str, bool]:
+    if percent_change_7d > 100:
+        return _TREND_UP, "gold", True
     if percent_change_7d < 0:
-        return _TREND_DOWN, "red"
-    return _TREND_UP, "green"
+        return _TREND_DOWN, "red", False
+    return _TREND_UP, "green", False
 
 
 class CoinState(rx.State):
@@ -69,7 +71,7 @@ class CoinState(rx.State):
             for coin in coins:
                 names = sorted(category.name for category in coin.categories)
                 narrative_names.update(names)
-                trend_data, trend_color = _trend_line(coin.percent_change_7d or 0.0)
+                trend_data, trend_color, trend_is_gold = _trend_line(coin.percent_change_7d or 0.0)
                 rows.append(
                     {
                         "name": coin.name,
@@ -88,6 +90,7 @@ class CoinState(rx.State):
                         "narratives": ", ".join(names),
                         "trend_data": trend_data,
                         "trend_color": trend_color,
+                        "trend_is_gold": trend_is_gold,
                     }
                 )
 

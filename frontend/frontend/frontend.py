@@ -32,5 +32,5 @@ def index() -> rx.Component:
     )
 
 
-app = rx.App()
+app = rx.App(stylesheets=["/styles.css"])
 app.add_page(index, on_load=CoinState.load_coins)

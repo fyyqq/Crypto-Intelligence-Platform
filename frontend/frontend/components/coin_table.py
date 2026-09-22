@@ -12,17 +12,20 @@ def _change_cell(text: rx.Var[str], color: rx.Var[str]) -> rx.Component:
 
 def _trend_cell(row: dict) -> rx.Component:
     return rx.table.cell(
-        rx.recharts.line_chart(
-            rx.recharts.line(
-                data_key="v",
-                stroke=row["trend_color"],
-                dot=False,
-                stroke_width=2,
-                is_animation_active=False,
+        rx.box(
+            rx.recharts.line_chart(
+                rx.recharts.line(
+                    data_key="v",
+                    stroke=row["trend_color"],
+                    dot=False,
+                    stroke_width=2,
+                    is_animation_active=False,
+                ),
+                data=row["trend_data"],
+                width=90,
+                height=32,
             ),
-            data=row["trend_data"],
-            width=90,
-            height=32,
+            class_name=rx.cond(row["trend_is_gold"], "trend-gold-shine", ""),
         )
     )
 
