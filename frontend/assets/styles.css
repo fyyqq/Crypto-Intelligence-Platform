@@ -89,3 +89,71 @@
 .chain-scroll-btn:hover {
   background: var(--gray-6);
 }
+
+/* Narrative filter: same draggable/arrow-scrollable pill-slider mechanics as
+   the chain carousel above, reused here for the "Group by CMC narrative"
+   filter (see assets/chain_pills.js, which drives both by class name). */
+.narrative-pills-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 480px;
+  min-width: 0;
+}
+
+.narrative-pills-track {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+
+.narrative-pills-track::-webkit-scrollbar {
+  display: none;
+}
+
+.narrative-pills-track.grabbing {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+
+.narrative-pill {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--gray-4);
+  border: 1px solid var(--gray-6);
+  cursor: pointer;
+  font-size: 0.8em;
+}
+
+.narrative-pill:hover {
+  background: var(--gray-6);
+}
+
+.narrative-pill-active {
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+  color: white;
+}
+
+.narrative-scroll-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--gray-4);
+  cursor: pointer;
+}
+
+.narrative-scroll-btn:hover {
+  background: var(--gray-6);
+}

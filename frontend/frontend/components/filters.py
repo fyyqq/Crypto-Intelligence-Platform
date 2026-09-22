@@ -5,6 +5,39 @@ import reflex as rx
 from frontend.state import CoinState
 
 
+def _narrative_pill(name: rx.Var[str]) -> rx.Component:
+    return rx.box(
+        rx.text(name, size="1"),
+        on_click=CoinState.set_category(name),
+        class_name=rx.cond(
+            CoinState.selected_category == name,
+            "narrative-pill narrative-pill-active",
+            "narrative-pill",
+        ),
+    )
+
+
+def _narrative_pill_slider() -> rx.Component:
+    # Drag-to-scroll and the arrow buttons are wired up once, globally, via
+    # the delegated listeners in frontend.py's index() (assets/chain_pills.js
+    # — shared with the chain dropdown's carousel).
+    return rx.box(
+        rx.box(
+            rx.icon("chevron-left", size=14),
+            class_name="narrative-scroll-btn narrative-scroll-left",
+        ),
+        rx.box(
+            rx.foreach(CoinState.categories, _narrative_pill),
+            class_name="narrative-pills-track",
+        ),
+        rx.box(
+            rx.icon("chevron-right", size=14),
+            class_name="narrative-scroll-btn narrative-scroll-right",
+        ),
+        class_name="narrative-pills-wrap",
+    )
+
+
 def filter_bar() -> rx.Component:
     return rx.hstack(
         rx.hstack(
@@ -15,12 +48,7 @@ def filter_bar() -> rx.Component:
         ),
         rx.divider(orientation="vertical", height="1.5em"),
         rx.text("Group by CMC narrative", size="2", color_scheme="gray"),
-        rx.select(
-            CoinState.categories,
-            value=CoinState.selected_category,
-            on_change=CoinState.set_category,
-            width="260px",
-        ),
+        _narrative_pill_slider(),
         rx.spacer(),
         rx.text("Coins shown", size="2", color_scheme="gray"),
         rx.heading(CoinState.total_shown, size="5"),
