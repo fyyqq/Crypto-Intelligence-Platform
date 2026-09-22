@@ -223,8 +223,25 @@ def _pagination() -> rx.Component:
     )
 
 
+def _table_header_bar() -> rx.Component:
+    return rx.box(
+        rx.heading("Top 100 Cryptocurrencies", size="5"),
+        rx.hstack(
+            rx.text("Coins shown", size="2", color_scheme="gray"),
+            rx.heading(CoinState.total_shown, size="5"),
+            spacing="2",
+            align="center",
+        ),
+        display="flex",
+        justify_content="space-between",
+        align_items="center",
+        width="100%",
+    )
+
+
 def coin_table() -> rx.Component:
     return rx.vstack(
+        _table_header_bar(),
         rx.box(
             rx.table.root(
                 rx.table.header(

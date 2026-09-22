@@ -34,6 +34,12 @@ def _narrative_pill_slider() -> rx.Component:
             rx.icon("chevron-right", size=14),
             class_name="narrative-scroll-btn narrative-scroll-right",
         ),
+        # Placeholder for an upcoming "expand to see all narratives" action —
+        # not wired up yet, just the icon.
+        rx.box(
+            rx.icon("chevron-down", size=14),
+            class_name="narrative-scroll-btn narrative-expand-toggle",
+        ),
         class_name="narrative-pills-wrap",
     )
 
@@ -49,8 +55,6 @@ def filter_bar() -> rx.Component:
         rx.divider(orientation="vertical", height="1.5em"),
         rx.text("Group by CMC narrative", size="2", color_scheme="gray"),
         _narrative_pill_slider(),
-        rx.text("Coins shown", size="2", color_scheme="gray"),
-        rx.heading(CoinState.total_shown, size="5"),
         spacing="3",
         align="center",
         width="100%",
