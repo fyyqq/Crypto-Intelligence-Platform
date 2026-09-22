@@ -61,9 +61,10 @@ class CoinState(rx.State):
     # In-page sort only: reorders the current page's rows, never re-ranks
     # across the full coin list. sort_key is one of the raw numeric fields
     # in each row dict (e.g. "pct_1h_raw"), or "" for the default (market-cap)
-    # order. sort_direction is "desc" (first click, biggest -> smallest, top
-    # arrow active) or "asc" (second click, smallest -> biggest, bottom arrow
-    # active). Changing page resets both, per spec.
+    # order. sort_direction cycles "desc" (1st click, biggest -> smallest, top
+    # arrow active) -> "asc" (2nd click, smallest -> biggest, bottom arrow
+    # active) -> neutral (3rd click, both "", back to default order).
+    # Changing page also resets both, per spec.
     sort_key: str = ""
     sort_direction: str = ""
 
@@ -147,7 +148,9 @@ class CoinState(rx.State):
         elif self.sort_direction == "desc":
             self.sort_direction = "asc"
         else:
-            self.sort_direction = "desc"
+            # Third click on the same column: back to neutral/default order.
+            self.sort_key = ""
+            self.sort_direction = ""
 
     @rx.var(cache=True)
     def filtered_coins(self) -> list[dict]:

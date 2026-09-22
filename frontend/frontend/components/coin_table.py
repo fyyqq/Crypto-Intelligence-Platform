@@ -7,7 +7,7 @@ from frontend.state import CoinState
 
 
 def _change_cell(text: rx.Var[str], color: rx.Var[str]) -> rx.Component:
-    return rx.table.cell(rx.text(text, color=color))
+    return rx.table.cell(rx.text(text, color=color), vertical_align="middle")
 
 
 def _sort_icon(sort_key: str) -> rx.Component:
@@ -61,13 +61,14 @@ def _trend_cell(data: rx.Var[list], color: rx.Var[str], shine_class: rx.Var[str]
                 height=32,
             ),
             class_name=shine_class.to(str),
-        )
+        ),
+        vertical_align="middle",
     )
 
 
 def _row(row: dict) -> rx.Component:
     return rx.table.row(
-        rx.table.cell(row["rank"]),
+        rx.table.cell(row["rank"], vertical_align="middle"),
         rx.table.cell(
             rx.hstack(
                 rx.image(
@@ -80,11 +81,12 @@ def _row(row: dict) -> rx.Component:
                 rx.text(row["symbol"], color_scheme="gray"),
                 spacing="2",
                 align="center",
-            )
+            ),
+            vertical_align="middle",
         ),
-        rx.table.cell(row["price_display"]),
-        rx.table.cell(row["market_cap_display"]),
-        rx.table.cell(row["volume_display"]),
+        rx.table.cell(row["price_display"], vertical_align="middle"),
+        rx.table.cell(row["market_cap_display"], vertical_align="middle"),
+        rx.table.cell(row["volume_display"], vertical_align="middle"),
         _change_cell(row["change_1h_display"], row["change_1h_color"]),
         _change_cell(row["change_24h_display"], row["change_24h_color"]),
         _change_cell(row["change_7d_display"], row["change_7d_color"]),
