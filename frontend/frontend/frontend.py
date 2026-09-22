@@ -27,6 +27,7 @@ def index() -> rx.Component:
             padding="2em",
             width="100%",
         ),
+        rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
     )

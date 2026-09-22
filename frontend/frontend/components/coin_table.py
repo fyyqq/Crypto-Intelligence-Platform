@@ -103,6 +103,42 @@ def _narrative_badge(row: dict) -> rx.Component:
     )
 
 
+_CHAIN_PILL_SLOTS = 10
+
+
+def _chain_pill(name: rx.Var[str]) -> rx.Component:
+    return rx.cond(
+        name == "",
+        rx.fragment(),
+        rx.cond(
+            name == "More Chain",
+            rx.box(
+                rx.text("More Chain", size="1", weight="bold"),
+                class_name="chain-pill chain-pill-more",
+            ),
+            rx.box(rx.text(name, size="1"), class_name="chain-pill"),
+        ),
+    )
+
+
+def _chain_carousel(row: dict) -> rx.Component:
+    # rx.foreach can't iterate a list nested inside an Any-typed dict value,
+    # so CoinState precomputes 10 fixed chain_pill_N slots ("" = unused)
+    # instead of a real list here.
+    # Drag-to-scroll and the arrow buttons are wired up once, globally, via
+    # the delegated listeners in frontend.py's index() (assets/chain_pills.js)
+    # so they work for every row's popover without per-row JS.
+    return rx.box(
+        rx.box(rx.icon("chevron-left", size=14), class_name="chain-scroll-btn chain-scroll-left"),
+        rx.box(
+            *[_chain_pill(row[f"chain_pill_{i}"]) for i in range(1, _CHAIN_PILL_SLOTS + 1)],
+            class_name="chain-pills-track",
+        ),
+        rx.box(rx.icon("chevron-right", size=14), class_name="chain-scroll-btn chain-scroll-right"),
+        class_name="chain-pills-wrap",
+    )
+
+
 def _chain_badge(row: dict) -> rx.Component:
     chain_label = rx.hstack(
         rx.icon("link", size=11),
@@ -126,10 +162,11 @@ def _chain_badge(row: dict) -> rx.Component:
             rx.popover.content(
                 rx.vstack(
                     rx.text("Also deployed on", size="1", color_scheme="gray"),
-                    rx.text(row["other_chains_display"], white_space="pre-line", size="2"),
-                    spacing="1",
+                    _chain_carousel(row),
+                    spacing="2",
                 ),
                 size="1",
+                style={"max-width": "320px"},
             ),
         ),
         rx.badge(chain_label, variant="surface", size="1", color_scheme="gray"),

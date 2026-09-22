@@ -29,3 +29,63 @@
 .trend-red-shine {
   animation: red-shine 1.6s ease-in-out infinite;
 }
+
+/* Chain dropdown: a draggable, arrow-scrollable pill carousel (see
+   assets/chain_pills.js for the scroll/drag behavior). */
+.chain-pills-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.chain-pills-track {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+
+.chain-pills-track::-webkit-scrollbar {
+  display: none;
+}
+
+.chain-pills-track.grabbing {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+
+.chain-pill {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--gray-4);
+  border: 1px solid var(--gray-6);
+}
+
+.chain-pill-more {
+  background: var(--accent-4);
+  border: 1px solid var(--accent-7);
+  color: var(--accent-11);
+}
+
+.chain-scroll-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--gray-4);
+  cursor: pointer;
+}
+
+.chain-scroll-btn:hover {
+  background: var(--gray-6);
+}
