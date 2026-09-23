@@ -193,6 +193,16 @@
   right: 0;
 }
 
+/* Filter sidebar (filters.py::_narrative_pills / _chain_filter_pills) —
+   pills wrap onto multiple lines instead of the horizontal drag/arrow
+   slider used elsewhere, since this filter now lives in the narrower
+   1st-column sidebar next to the coin table, not a full-width top bar. */
+.filter-pills-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 /* Chain filter (filters.py::_chain_filter_slider) — same draggable/
    arrow-scrollable pill-slider mechanics and look as the narrative filter
    above, just its own class names so the two combine independently instead

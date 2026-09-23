@@ -630,8 +630,8 @@ def _news_card(item: dict) -> rx.Component:
             wrap="wrap",
         ),
         padding="0.85em",
-        border="1px solid var(--orange-a6)",
         border_radius="8px",
+        background="var(--gray-a2)",
         width="100%",
     )
 

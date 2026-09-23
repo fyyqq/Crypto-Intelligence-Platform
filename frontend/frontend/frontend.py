@@ -70,11 +70,11 @@ def index() -> rx.Component:
                 "Tracking crypto markets in real time, mapping every asset into dynamic narratives, with AI-powered news correlation on the way.",
                 color_scheme="gray",
             ),
-            filter_bar(),
+            news_feed(),
             narrative_alerts(),
             rx.hstack(
                 rx.box(
-                    news_feed(),
+                    filter_bar(),
                     width="300px",
                     min_width="280px",
                     flex_shrink="0",
