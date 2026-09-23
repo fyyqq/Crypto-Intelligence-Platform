@@ -450,12 +450,17 @@ class CoinState(rx.State):
 
     @rx.event(background=True)
     async def live_sync_loop(self):
-        """Keeps whichever page/filter a session is looking at fresh every
-        60s for as long as that browser tab stays open — started once via
-        on_load. Rule 4 (API Optimization & Cost Control) still holds for
-        the full ~8,000-coin universe (24h cadence, sync_hot_listings'
-        top-500/1h cadence); this only ever touches the <=500 coins
-        actually on screen, one lightweight quotes/latest call at a time.
+        """Keeps the global top 100 coins (by market cap, regardless of
+        whatever page/filter is on screen) fresh every 60s for as long as
+        that browser tab stays open — started once via on_load — plus
+        whichever page/filter the session is actually looking at right now,
+        if that's a different set (e.g. a user parked on page 3). Top 100
+        coins are the ones every session cares about most (Bitcoin, Ethereum,
+        etc.), so those stay live even while someone's browsing deeper pages,
+        not just whatever happens to be on screen. Rule 4 (API Optimization &
+        Cost Control) still holds for the full ~8,000-coin universe (24h
+        cadence, sync_hot_listings' top-500/1h cadence); this only ever
+        touches <=200 coins, one lightweight quotes/latest call at a time.
         """
         async with self:
             if self._is_live_syncing:
@@ -472,7 +477,17 @@ class CoinState(rx.State):
                 # completed yet, and checking first would break out before
                 # ever syncing anything.
                 async with self:
-                    cmc_ids = [row["cmc_id"] for row in self.sorted_paged_coins]
+                    top_100_ids = [
+                        row["cmc_id"]
+                        for row in sorted(
+                            self.all_coins, key=lambda r: r["market_cap_usd"], reverse=True
+                        )[:100]
+                    ]
+                    visible_ids = [row["cmc_id"] for row in self.sorted_paged_coins]
+                    # dict.fromkeys dedupes while preserving order — avoids a
+                    # duplicate CMC API lookup for coins in both sets (the
+                    # common case: page 1 IS the top 100).
+                    cmc_ids = list(dict.fromkeys([*top_100_ids, *visible_ids]))
                 if cmc_ids:
                     updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, cmc_ids)
                     async with self:
