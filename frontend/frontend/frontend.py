@@ -57,7 +57,7 @@ def _header_bar() -> rx.Component:
                         light=rx.image(src="/logo_light.png", height="28px"),
                         dark=rx.image(src="/logo_dark.png", height="28px"),
                     ),
-                    rx.heading("Repace", size="6"),
+                    rx.heading("Repace", size="6", color="white"),
                     spacing="2",
                     align="center",
                 ),
