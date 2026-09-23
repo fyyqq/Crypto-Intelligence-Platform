@@ -180,23 +180,6 @@
   color: var(--accent-11);
 }
 
-/* All ~600 narratives, wrapped below the slider (see
-   filters.py::_expanded_narratives_grid) instead of appended to the
-   horizontal track — capped to 10 pills per row. */
-.narrative-expanded-grid {
-  display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  gap: 6px;
-  width: 100%;
-  padding-top: 4px;
-}
-
-.narrative-expanded-grid .narrative-pill {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: center;
-}
-
 .narrative-scroll-btn {
   flex-shrink: 0;
   display: flex;
@@ -226,5 +209,5 @@
 }
 
 .narrative-scroll-right {
-  right: 30px;
+  right: 0;
 }
