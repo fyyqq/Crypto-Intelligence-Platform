@@ -287,7 +287,16 @@ def _pagination_bar(pill: bool = False) -> rx.Component:
         width="100%",
         style={"row-gap": "0.5em"},
         class_name="pagination-pill" if pill else "",
-        padding="0.6em 1.4em" if pill else "0.75em 0",
+        # Matches the plain bottom-bar's padding on mobile even for the
+        # pill=True (top) bar, since its rounded/bordered look is itself
+        # disabled below 768px (see styles.css's .pagination-pill media
+        # query) — otherwise the pill's own padding would look mismatched
+        # once the border/background it was designed for is gone.
+        padding=(
+            ["0.75em 0", "0.75em 0", "0.6em 1.4em", "0.6em 1.4em", "0.6em 1.4em"]
+            if pill
+            else "0.75em 0"
+        ),
     )
 
 

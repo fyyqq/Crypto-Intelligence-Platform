@@ -82,10 +82,16 @@
   background: var(--gray-4);
 }
 
-.pagination-pill {
-  border-radius: 999px;
-  border: 1px solid var(--gray-a5);
-  background: var(--gray-2);
+/* Below 768px (mobile), the top pagination bar drops the pill/bordered look
+   and renders plain — same as the bottom pagination bar's own design
+   (coin_table.py::_pagination_bar, pill=False) — rather than keeping the
+   rounded-pill container on a screen too narrow for it to look right. */
+@media (min-width: 768px) {
+  .pagination-pill {
+    border-radius: 999px;
+    border: 1px solid var(--gray-a5);
+    background: var(--gray-2);
+  }
 }
 
 /* Narrative filter: a draggable, arrow-scrollable pill slider for "Group by
@@ -373,6 +379,24 @@
   right: 0;
 }
 
+/* Below 768px (mobile only — iPad and up keep the horizontal slider): the
+   "Targeted Narrative + Coin" alerts expand to full-width cards stacked
+   vertically instead of a horizontal drag-scroller, and the now-unneeded
+   scroll arrows hide. narrative_alerts.py's _alert_card() width already
+   goes to 100% at this breakpoint to match. */
+@media (max-width: 767px) {
+  .alerts-slider-track {
+    flex-direction: column;
+    overflow-x: visible;
+    cursor: auto;
+    padding: 2px 0;
+  }
+
+  .alerts-scroll-btn {
+    display: none;
+  }
+}
+
 /* News feed: same draggable/arrow-scrollable slider mechanics as the
    narrative + chain filter pills and the targeted narrative alerts above
    (assets/chain_pills.js), just news cards instead of pills/alert cards. */
@@ -470,7 +494,16 @@
    alternative (page-level overflow) is worse. */
 @media (max-width: 1365px) {
   .coin-table-scroll-fix {
-    overflow-x: auto;
+    /* overflow-x:auto alone hit the CSS Overflow spec's quirk where a
+       "visible" cross-axis value gets forced to "auto" too when the other
+       axis isn't visible — that silently turned this box into a vertical
+       scroll container as well (0 extra scrollHeight, so invisible in a
+       desktop check), which on a real touchscreen can capture/trap the
+       vertical scroll gesture instead of letting it chain through to the
+       page, making the footer feel unreachable. overflow-y: hidden below
+       rules that out explicitly — this box only ever scrolls horizontally. */
+    overflow-x: scroll;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
   }
 }

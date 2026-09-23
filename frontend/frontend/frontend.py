@@ -64,7 +64,12 @@ def _header_bar() -> rx.Component:
                         light=rx.image(src="/logo_light.png", height="28px"),
                         dark=rx.image(src="/logo_dark.png", height="28px"),
                     ),
-                    rx.heading("Repace", size="6", color="white"),
+                    # White reads fine against the header's dark background
+                    # in dark mode, but is invisible against its light-mode
+                    # background — needs to flip to black there.
+                    rx.heading(
+                        "Repace", size="6", color=rx.color_mode_cond(light="black", dark="white")
+                    ),
                     spacing="2",
                     align="center",
                 ),
