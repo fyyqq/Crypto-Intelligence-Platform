@@ -10,7 +10,7 @@ def _narrative_pill(name: rx.Var[str]) -> rx.Component:
         rx.text(name, size="1"),
         on_click=CoinState.set_category(name),
         class_name=rx.cond(
-            CoinState.selected_category == name,
+            CoinState.active_category == name,
             "narrative-pill narrative-pill-active",
             "narrative-pill",
         ),

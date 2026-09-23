@@ -126,6 +126,11 @@ class CoinState(rx.State):
     all_coins: list[dict] = []
     categories: list[str] = []
     selected_category: str = "All narratives"
+    # Drives just the pill's active/blue highlight. Kept separate from
+    # selected_category (which drives the actual re-filter/re-sort of up to
+    # 8154 coins) so the clicked pill highlights instantly instead of
+    # waiting on that heavier computation to finish.
+    active_category: str = "All narratives"
     is_loading: bool = True
     is_filtering: bool = False
     page: int = 1
@@ -162,7 +167,7 @@ class CoinState(rx.State):
 
                 # A coin with no contract rows is single-chain — it IS its
                 # own chain. Otherwise the row already flagged as primary
-                # (see MarketDataService._upsert_contracts) is the primary
+                # (see MarketDataService._upsert_contracts) is the main
                 # chain; everything else feeds the "other chains" dropdown.
                 chains = sorted(coin.contracts, key=lambda c: c.sort_order)
                 primary_chain = next((c for c in chains if c.is_primary), None)
@@ -221,10 +226,11 @@ class CoinState(rx.State):
 
     @rx.event
     def set_category(self, value: str):
-        # Re-filtering + re-rendering up to 100 rows (images, badges,
-        # popovers) has a noticeable round trip; the first yield flushes
-        # is_filtering=True to the client immediately so the skeleton shows
-        # before the actual (comparatively slow) table re-render happens.
+        # active_category has no dependent computed vars, so this first
+        # flush (pill turns blue + skeleton shows) is instant. Only the
+        # second flush, after the actual re-filter/re-sort runs, updates
+        # selected_category — that's the part with a noticeable round trip.
+        self.active_category = value
         self.is_filtering = True
         yield
         self.selected_category = value

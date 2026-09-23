@@ -224,11 +224,35 @@ def _pagination() -> rx.Component:
 
 
 _TABLE_COLUMN_COUNT = 10
+# Matches CoinState.page_size (always 100) so the skeleton fills the same
+# row count — and, via the 3-line Name cell mirroring _row's real stack of
+# icon/name row + narrative badge + chain badge, roughly the same per-row
+# height — as the real table, instead of collapsing to a handful of thin
+# rows while filtering.
+_SKELETON_ROW_COUNT = 100
+
+
+def _skeleton_name_cell() -> rx.Component:
+    return rx.table.cell(
+        rx.vstack(
+            rx.skeleton(height="1.2em", width="70%"),
+            rx.skeleton(height="1em", width="50%"),
+            rx.skeleton(height="1em", width="55%"),
+            spacing="2",
+            align="start",
+        ),
+        vertical_align="middle",
+    )
 
 
 def _skeleton_row() -> rx.Component:
     return rx.table.row(
-        *[rx.table.cell(rx.skeleton(height="1em", width="80%")) for _ in range(_TABLE_COLUMN_COUNT)]
+        rx.table.cell(rx.skeleton(height="1em", width="60%")),
+        _skeleton_name_cell(),
+        *[
+            rx.table.cell(rx.skeleton(height="1em", width="80%"))
+            for _ in range(_TABLE_COLUMN_COUNT - 2)
+        ],
     )
 
 
@@ -236,7 +260,7 @@ def _skeleton_body() -> rx.Component:
     # Shown while CoinState.is_filtering is true (see set_category) — a
     # narrative filter change re-renders up to 100 rows, so this fills the
     # round-trip gap instead of the table looking frozen.
-    return rx.table.body(*[_skeleton_row() for _ in range(10)])
+    return rx.table.body(*[_skeleton_row() for _ in range(_SKELETON_ROW_COUNT)])
 
 
 def _table_header_bar() -> rx.Component:
