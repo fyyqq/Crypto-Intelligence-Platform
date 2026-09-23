@@ -22,7 +22,7 @@ class MarketDataService:
         self.db = db
         self.client = client or CoinMarketCapClient()
 
-    def is_sync_due(self, sync_type: SyncType) -> bool:
+    def is_sync_due(self, sync_type: SyncType, interval_hours: int | None = None) -> bool:
         stmt = (
             select(SyncLog)
             .where(SyncLog.sync_type == sync_type, SyncLog.status == SyncStatus.SUCCESS)
@@ -32,7 +32,8 @@ class MarketDataService:
         last_success = self.db.scalars(stmt).first()
         if last_success is None:
             return True
-        cutoff = datetime.utcnow() - timedelta(hours=settings.sync_interval_hours)
+        hours = interval_hours if interval_hours is not None else settings.sync_interval_hours
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
         return last_success.started_at < cutoff
 
     def sync_categories(self) -> SyncLog:
@@ -51,6 +52,41 @@ class MarketDataService:
         try:
             coins = self.client.get_all_listings()
             count = self._upsert_coins(coins)
+            self._finish_log(log, SyncStatus.SUCCESS, count)
+        except Exception as exc:  # noqa: BLE001 - surfaced via SyncLog
+            self.db.rollback()
+            self._finish_log(log, SyncStatus.FAILED, 0, str(exc))
+        return log
+
+    def sync_hot_listings(self) -> SyncLog:
+        """Frequent, cheap refresh (see settings.hot_sync_interval_hours) of
+        just the top settings.hot_sync_top_n coins' quote fields (price,
+        market cap, 24h volume, 1h/24h/7d % change) — a single listings/latest
+        call. Never creates coins or touches categories/tags/contracts; that
+        stays on the slower full sync_listings/sync_contracts cadence.
+        """
+        log = self._start_log(SyncType.LISTINGS_HOT)
+        try:
+            coins = self.client.get_top_listings(settings.hot_sync_top_n)
+            count = self._upsert_quotes(coins)
+            self._finish_log(log, SyncStatus.SUCCESS, count)
+        except Exception as exc:  # noqa: BLE001 - surfaced via SyncLog
+            self.db.rollback()
+            self._finish_log(log, SyncStatus.FAILED, 0, str(exc))
+        return log
+
+    def sync_ids(self, cmc_ids: list[int]) -> SyncLog:
+        """View-driven refresh: just the given coins' quote fields, called
+        on demand for whichever page a Reflex session is actually looking
+        at (see frontend/state/coin_state.py's live sync loop), regardless
+        of rank. Not gated by is_sync_due — the caller's own polling
+        interval controls the cadence. Never creates coins or touches
+        categories/tags/contracts.
+        """
+        log = self._start_log(SyncType.LISTINGS_RANGE)
+        try:
+            coins = self.client.get_quotes_by_ids(cmc_ids)
+            count = self._upsert_quotes(coins)
             self._finish_log(log, SyncStatus.SUCCESS, count)
         except Exception as exc:  # noqa: BLE001 - surfaced via SyncLog
             self.db.rollback()
@@ -153,6 +189,33 @@ class MarketDataService:
 
         self.db.commit()
         return len(coins)
+
+    def _upsert_quotes(self, coins: list[dict]) -> int:
+        """Quote-only counterpart to _upsert_coins for the hot sync: updates
+        price/market_cap/volume/percent_change fields on coins that already
+        exist from a full sync_listings run, skips any CMC id we haven't
+        seen yet (that coin will appear on the next full sync), and never
+        touches name/slug/tags/categories.
+        """
+        existing_coins = {c.cmc_id: c for c in self.db.scalars(select(Coin)).all()}
+        now = datetime.utcnow()
+        count = 0
+        for payload in coins:
+            coin = existing_coins.get(payload["id"])
+            if coin is None:
+                continue
+            quote = payload["quote"]["USD"]
+            coin.cmc_rank = payload.get("cmc_rank")
+            coin.price_usd = quote.get("price")
+            coin.market_cap_usd = quote.get("market_cap")
+            coin.volume_24h_usd = quote.get("volume_24h")
+            coin.percent_change_1h = quote.get("percent_change_1h")
+            coin.percent_change_24h = quote.get("percent_change_24h")
+            coin.percent_change_7d = quote.get("percent_change_7d")
+            coin.last_synced_at = now
+            count += 1
+        self.db.commit()
+        return count
 
     def _upsert_contracts(self, info_by_id: dict[int, dict]) -> int:
         coins_by_cmc_id = {c.cmc_id: c for c in self.db.scalars(select(Coin)).all()}

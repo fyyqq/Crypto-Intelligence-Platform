@@ -48,6 +48,27 @@ def run_market_data_sync() -> None:
         sync_reflex_cache()
 
 
+def run_hot_listings_sync() -> None:
+    """Runs every HOT_SYNC_INTERVAL_HOURS (default 1h): a single cheap
+    listings/latest call for just the top HOT_SYNC_TOP_N coins, so their
+    price/market cap/volume/1h/24h/7d stay near-live between the slower
+    full 24h sync_listings runs (which cover the entire ~8,000-coin
+    universe and are what protect the free-tier credit limit per Rule 4).
+    """
+    db = SessionLocal()
+    try:
+        service = MarketDataService(db)
+        hot_synced = False
+        if service.is_sync_due(SyncType.LISTINGS_HOT, interval_hours=settings.hot_sync_interval_hours):
+            hot_log = service.sync_hot_listings()
+            hot_synced = hot_log.status == SyncStatus.SUCCESS
+    finally:
+        db.close()
+
+    if hot_synced:
+        sync_reflex_cache()
+
+
 def start_scheduler() -> None:
     if scheduler.running:
         return
@@ -56,6 +77,14 @@ def start_scheduler() -> None:
         trigger="interval",
         hours=settings.sync_interval_hours,
         id="market_data_sync",
+        replace_existing=True,
+        next_run_time=datetime.now(),
+    )
+    scheduler.add_job(
+        run_hot_listings_sync,
+        trigger="interval",
+        hours=settings.hot_sync_interval_hours,
+        id="hot_listings_sync",
         replace_existing=True,
         next_run_time=datetime.now(),
     )

@@ -13,7 +13,9 @@ An automated crypto intelligence platform that tracks market data dynamically fr
 2. **Step-by-Step Execution:** Do NOT build multiple features at once. Wait for human review and approval for the current feature before moving to the next.
 3. **No Hardcoded Narratives:** All token categorization and narrative grouping must be fetched dynamically from the CoinMarketCap API tags/categories endpoint. 
 4. **API Optimization & Cost Control:** 
-   - Execute the CoinMarketCap sync strictly once every 24 hours (24H Cron) to check for new coin listings and protect the free tier credit limit.
+   - Execute the full CoinMarketCap sync (every coin currently listed on CMC — not a Top-N subset — plus categories and per-coin contracts) strictly once every 24 hours (24H Cron) to check for new coin listings and protect the free tier credit limit.
+   - A separate, cheap "hot" sync refreshes just the top N coins' quote (price/market cap/volume/1h/24h/7d) every HOT_SYNC_INTERVAL_HOURS (default 1h, top 500) via a single listings/latest call — see app/scheduler/jobs.py::run_hot_listings_sync. It never re-fetches the full ~8,000-coin universe or touches categories/contracts, so it stays cheap even at hourly cadence.
+   - A view-driven live sync refreshes just whichever page a Reflex session is actually looking at (≤500 coins, whatever the current pagination/narrative/chain filter shows) every 60 seconds, plus immediately on every pagination or filter change — see frontend/state/coin_state.py::live_sync_loop and sync_visible_page (cross-imports app.services.market_data_service.MarketDataService.sync_ids). It only ever touches the coins currently on screen, never the full universe, so it stays cheap even at a 1-minute cadence per viewer.
    - Cache all market data locally to minimize API consumption.
 5. **Incremental Reflex UI Build:** Every time a backend service or data collection pipeline is nearly complete, immediately build its corresponding Reflex frontend view component. Do not wait until the entire project is finished to build the design.
 6. **MCP Workflow Automation (Mandatory):**
@@ -23,8 +25,8 @@ An automated crypto intelligence platform that tracks market data dynamically fr
 ## 🗺️ Feature Roadmap (Iterative Build Plan)
 
 ### 📌 Feature 1: Dynamic Market Data Sync & Dashboard (Current Focus)
-- **Backend Service:** Build a background scheduler that runs strictly once every 24 hours (24H Cron) using CoinMarketCap Basic Free API to fetch the Top 500 coins and dynamic categories. Save them to the local SQLite cache via SQLModel.
-- **Frontend (Reflex UI):** Build a modern dark-mode interactive data table component to display the Top 500 assets, featuring an interactive Reflex State dropdown filter to sort assets dynamically by their dynamic narrative categories.
+- **Backend Service:** Build a background scheduler that runs strictly once every 24 hours (24H Cron) using CoinMarketCap Basic Free API to fetch every coin currently listed on CMC (not a Top-N subset) and dynamic categories. Layer on a cheap hourly "hot" sync for the top 500 coins' quotes, plus a view-driven live sync that refreshes whichever page a viewer is on every 60 seconds (see Rule 4). Save everything to the local SQLite cache via SQLModel.
+- **Frontend (Reflex UI):** Build a modern dark-mode interactive data table component to display all listed assets, paginated (50/100/200/500 rows per page), featuring an interactive Reflex State pill filter to narrow assets dynamically by their dynamic narrative categories and chain.
 - STATUS: ⏳ IN PROGRESS
 
 ### 📌 Feature 2: Knowledge Base & AI Business Model Agent

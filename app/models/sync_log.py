@@ -11,6 +11,8 @@ class SyncType(str, enum.Enum):
     LISTINGS = "listings"
     CATEGORIES = "categories"
     CONTRACTS = "contracts"
+    LISTINGS_HOT = "listings_hot"
+    LISTINGS_RANGE = "listings_range"
 
 
 class SyncStatus(str, enum.Enum):
