@@ -84,9 +84,8 @@
 
 .pagination-pill {
   border-radius: 999px;
-  border: 1px solid var(--accent-7);
+  border: 1px solid var(--accent-8);
   background: var(--gray-2);
-  box-shadow: 0 0 0 1px var(--accent-a5), 0 4px 18px var(--accent-a4);
 }
 
 /* Narrative filter: a draggable, arrow-scrollable pill slider for "Group by

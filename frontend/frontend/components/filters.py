@@ -95,8 +95,15 @@ def filter_bar() -> rx.Component:
         # being scoped to just the first row. height="auto" overrides
         # Radix's own height: var(--separator-size) (which defaults to a
         # percentage that resolves to 0 inside this auto-height flex row),
-        # letting plain flexbox align-self: stretch size it instead.
-        rx.divider(orientation="vertical", align_self="stretch", height="auto"),
+        # letting plain flexbox align-self: stretch size it instead. The
+        # default gray separator is nearly invisible on this dark
+        # background (~19% opacity), so it's given an explicit white color.
+        rx.divider(
+            orientation="vertical",
+            align_self="stretch",
+            height="auto",
+            style={"background": "rgba(255, 255, 255, 0.5)"},
+        ),
         rx.vstack(
             rx.hstack(
                 rx.text("Group by CMC narrative", size="2", color_scheme="gray"),
@@ -104,6 +111,7 @@ def filter_bar() -> rx.Component:
                 spacing="3",
                 align="center",
                 width="100%",
+                min_width="0",
             ),
             rx.hstack(
                 rx.text("Filter by chain", size="2", color_scheme="gray"),
@@ -111,13 +119,16 @@ def filter_bar() -> rx.Component:
                 spacing="3",
                 align="center",
                 width="100%",
+                min_width="0",
             ),
             spacing="3",
             width="100%",
+            min_width="0",
         ),
         spacing="3",
         align="center",
         width="100%",
+        min_width="0",
         padding="0.85em 1em",
         border="1px solid var(--gray-a5)",
         border_radius="8px",
