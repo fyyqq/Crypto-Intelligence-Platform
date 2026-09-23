@@ -21,7 +21,12 @@ def _profile_pill() -> rx.Component:
         ),
         rx.box(
             rx.icon("user", size=22, color="var(--gray-9)"),
-            aspect_ratio="1",
+            # Fixed equal width/height (not aspect_ratio + align="stretch")
+            # — that combination rendered as an oval in practice, not a
+            # circle. A fixed size plus the default center alignment below
+            # keeps it a true circle with even spacing on every side.
+            width="44px",
+            height="44px",
             border_radius="9999px",
             background="var(--gray-a5)",
             display="flex",
@@ -30,12 +35,7 @@ def _profile_pill() -> rx.Component:
             flex_shrink="0",
         ),
         spacing="3",
-        # stretch (not center) so the avatar box has no explicit height and
-        # instead grows to match the text column's height via flexbox's
-        # cross-axis stretch — aspect_ratio="1" above then keeps it square/
-        # circular as it grows. The pill's own padding (right/top/bottom
-        # below) is what keeps the avatar from touching the pill's edge.
-        align="stretch",
+        align="center",
         padding="0.35em 0.35em 0.35em 1em",
         border="1px solid var(--gray-a6)",
         border_radius="9999px",
