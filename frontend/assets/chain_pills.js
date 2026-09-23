@@ -208,3 +208,22 @@
   });
   equalizeHeights();
 })();
+
+// Pagination: instant visual flip on click, before the backend sleep resolves.
+// The state will also update (active_page_str), but this handler ensures the
+// visual highlight appears synchronously with the click, not after the 250ms
+// skeleton delay and re-render.
+(function () {
+  if (window.__paginationClickInit) return;
+  window.__paginationClickInit = true;
+
+  document.addEventListener("click", (e) => {
+    const pageNumber = e.target.closest(".page-number:not(.page-number-active)");
+    if (pageNumber) {
+      document
+        .querySelectorAll(".page-number-active")
+        .forEach((el) => el.classList.remove("page-number-active"));
+      pageNumber.classList.add("page-number-active");
+    }
+  });
+})();

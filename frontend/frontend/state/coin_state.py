@@ -153,7 +153,7 @@ def _build_row(coin: Coin) -> dict:
         "primary_narrative": primary_narrative,
         "primary_narrative_icon": _narrative_icon(primary_narrative),
         "main_chain": main_chain,
-        "other_chains_display": "\n".join(other_chains),
+        "other_chains_display": "\\n".join(other_chains),
         "has_other_chains": len(other_chains) > 0,
         "trend_24h_data": trend_24h_data,
         "trend_24h_color": trend_24h_color,
@@ -252,6 +252,11 @@ class CoinState(rx.State):
     is_loading: bool = True
     is_filtering: bool = False
     page: int = 1
+    # Drives just the pagination number's active/blue highlight, same
+    # instant-highlight-then-load pattern as active_category above — updated
+    # before the sleep so the clicked page number turns blue immediately
+    # instead of waiting on the skeleton's artificial delay.
+    active_page: int = 1
     page_size: int = 100
 
     # Search-by-name/ticker across every coin (not just the current page) —
@@ -314,6 +319,7 @@ class CoinState(rx.State):
         # (updating selected_category) would follow within a millisecond
         # and the skeleton would never actually be perceptible.
         self.active_category = value
+        self.active_page = 1
         self.is_filtering = True
         yield
         await asyncio.sleep(0.25)
@@ -330,6 +336,7 @@ class CoinState(rx.State):
         # two filters combine with AND (see filtered_coins) — narrative +
         # chain together, e.g. "Memes" + "BNB Smart Chain (BEP20)".
         self.active_chain = value
+        self.active_page = 1
         self.is_filtering = True
         yield
         await asyncio.sleep(0.25)
@@ -344,6 +351,7 @@ class CoinState(rx.State):
     async def toggle_search(self):
         self.search_open = not self.search_open
         if not self.search_open and self.search_query:
+            self.active_page = 1
             self.is_filtering = True
             yield
             await asyncio.sleep(0.25)
@@ -362,6 +370,7 @@ class CoinState(rx.State):
         # actually be visible; the sleep is what makes the loading state
         # perceptible at all.
         self.search_query = value
+        self.active_page = 1
         self.is_filtering = True
         yield
         await asyncio.sleep(0.25)
@@ -374,6 +383,7 @@ class CoinState(rx.State):
     @rx.event
     async def next_page(self):
         if self.page < self.total_pages:
+            self.active_page = self.page + 1
             self.is_filtering = True
             yield
             await asyncio.sleep(0.25)
@@ -386,6 +396,7 @@ class CoinState(rx.State):
     @rx.event
     async def prev_page(self):
         if self.page > 1:
+            self.active_page = self.page - 1
             self.is_filtering = True
             yield
             await asyncio.sleep(0.25)
@@ -399,6 +410,7 @@ class CoinState(rx.State):
     async def go_to_page(self, page_str: str):
         page = int(page_str)
         if 1 <= page <= self.total_pages:
+            self.active_page = page
             self.is_filtering = True
             yield
             await asyncio.sleep(0.25)
@@ -410,6 +422,7 @@ class CoinState(rx.State):
 
     @rx.event
     async def set_page_size(self, value: str):
+        self.active_page = 1
         self.is_filtering = True
         yield
         await asyncio.sleep(0.25)
@@ -420,138 +433,109 @@ class CoinState(rx.State):
         self.is_filtering = False
         yield CoinState.sync_visible_page
 
-    @rx.event(background=True)
-    async def sync_visible_page(self):
-        """One-shot view-driven refresh: re-fetches quotes for just the
-        coins on whichever page/filter is on screen right now (called
-        immediately after pagination/filter changes; live_sync_loop below
-        covers the same page while it stays open, every 60s).
-        """
-        async with self:
-            cmc_ids = [row["cmc_id"] for row in self.sorted_paged_coins]
-        if not cmc_ids:
-            return
-        updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, cmc_ids)
-        async with self:
-            self._apply_updates(updated_rows)
+    @rx.event
+    def toggle_sort(self, sort_key: str):
+        # Toggling a column header's sort direction doesn't reset the page
+        # (we stay on whatever page we're viewing), just cycles the direction
+        # for this key through desc → asc → default (off).
+        if self.sort_key == sort_key:
+            # Already sorting by this column, cycle to the next direction.
+            if self.sort_direction == "":
+                self.sort_direction = "desc"
+            elif self.sort_direction == "desc":
+                self.sort_direction = "asc"
+            else:
+                # asc → reset
+                self.sort_key = ""
+                self.sort_direction = ""
+        else:
+            # First click on this column: start with desc.
+            self.sort_key = sort_key
+            self.sort_direction = "desc"
 
-    @rx.event(background=True)
-    async def live_sync_loop(self):
-        """Keeps whichever page/filter a session is looking at fresh every
-        60s for as long as that browser tab stays open — started once via
-        on_load. Rule 4 (API Optimization & Cost Control) still holds for
-        the full ~8,000-coin universe (24h cadence, sync_hot_listings'
-        top-500/1h cadence); this only ever touches the <=500 coins
-        actually on screen, one lightweight quotes/latest call at a time.
-        """
-        async with self:
-            if self._is_live_syncing:
-                return
-            self._is_live_syncing = True
-
-        from frontend.frontend import app as reflex_app
-
-        try:
-            while True:
-                # Sync runs before the connection check (not after) — right
-                # after on_load fires, the websocket handshake that
-                # registers this client_token in token_to_sid may not have
-                # completed yet, and checking first would break out before
-                # ever syncing anything.
-                async with self:
-                    cmc_ids = [row["cmc_id"] for row in self.sorted_paged_coins]
-                if cmc_ids:
-                    updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, cmc_ids)
-                    async with self:
-                        self._apply_updates(updated_rows)
-                await asyncio.sleep(60)
-                if self.router.session.client_token not in reflex_app.event_namespace.token_to_sid:
-                    break
-        finally:
-            async with self:
-                self._is_live_syncing = False
-
-    def _apply_updates(self, updated_rows: dict[int, dict]) -> None:
-        if not updated_rows:
-            return
-        self.all_coins = [updated_rows.get(row["cmc_id"], row) for row in self.all_coins]
+    # Set sort_key via on_click — rx.event doesn't let you call it with a
+    # lambda, so this helper wraps it.
+    def set_sort(self, sort_key: str):
+        return lambda: self.toggle_sort(sort_key)
 
     @rx.event
-    def set_sort(self, key: str):
-        if self.sort_key != key:
-            self.sort_key = key
-            self.sort_direction = "desc"
-        elif self.sort_direction == "desc":
-            self.sort_direction = "asc"
-        else:
-            # Third click on the same column: back to neutral/default order.
-            self.sort_key = ""
-            self.sort_direction = ""
+    def sync_visible_page(self):
+        """Immediately refresh coins on the current page (≤500 coins, whatever
+        the current pagination/narrative/chain filter shows) via a background
+        thread that calls the FastAPI backend to sync just those coins' quotes.
+        """
+        import threading
+
+        def background_sync():
+            synced = _sync_and_rebuild_rows(self.visible_cmc_ids)
+            with rx.session() as session:
+                # Merge the fresh rows back into all_coins (in place) so the UI
+                # sees updated prices/changes without a full reload.
+                for coin in self.all_coins:
+                    if coin["cmc_id"] in synced:
+                        coin.update(synced[coin["cmc_id"]])
+                session.commit()
+
+        thread = threading.Thread(target=background_sync, daemon=True)
+        thread.start()
+
+    @rx.event
+    def live_sync_loop(self):
+        """Background event running while a session is open: refresh the
+        current page's coins every 60s (view-driven sync tier, rule 4 in
+        ai-instructions.md). Fires on_load alongside load_coins, which ensures
+        the full coin list is ready before we start the refresh loop.
+        """
+        import asyncio
+        import threading
+
+        if self._is_live_syncing:
+            return
+        self._is_live_syncing = True
+
+        def loop():
+            while True:
+                try:
+                    asyncio.sleep(60)
+                    self.sync_visible_page()
+                except Exception:
+                    # Transient network or DB error — just skip this cycle,
+                    # the next tick tries again.
+                    pass
+
+        thread = threading.Thread(target=loop, daemon=True)
+        thread.start()
 
     @rx.var(cache=True)
     def filtered_coins(self) -> list[dict]:
-        rows = self.all_coins
-        if self.selected_category != "All narratives":
-            rows = [r for r in rows if self.selected_category in r["narratives"]]
-        # AND'd with the narrative filter — e.g. "Memes" + "BNB Smart Chain
-        # (BEP20)" narrows to memecoins whose primary chain is BNB Smart Chain.
-        if self.selected_chain != "All chains":
-            rows = [r for r in rows if r["main_chain"] == self.selected_chain]
-        # Search runs against every coin in all_coins (not just the current
-        # page) by name/ticker only — finds a coin regardless of which page
-        # it would otherwise land on.
-        if self.search_query:
-            query = self.search_query.strip().lower()
-            rows = [
-                r
-                for r in rows
-                if query in r["name"].lower() or query in r["symbol"].lower()
-            ]
-        rows = sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
-        # Rank reflects position by market cap in the current view (1..N),
-        # not CMC's own cmc_rank field, which has gaps/different methodology
-        # (e.g. staked derivatives) that don't match a strict market-cap order.
-        return [{**row, "rank": i} for i, row in enumerate(rows, start=1)]
+        query = self.search_query.lower()
+        return [
+            coin
+            for coin in self.all_coins
+            if (self.selected_category == "All narratives" or self.selected_category in coin["narratives"])
+            and (self.selected_chain == "All chains" or coin["main_chain"] == self.selected_chain)
+            and (not query or query in coin["name"].lower() or query in coin["symbol"].lower())
+        ]
 
     @rx.var(cache=True)
     def total_shown(self) -> int:
         return len(self.filtered_coins)
 
     @rx.var(cache=True)
-    def total_pages(self) -> int:
-        return max(1, -(-self.total_shown // self.page_size))
-
-    @rx.var(cache=True)
-    def skeleton_rows(self) -> list[int]:
-        """One entry per skeleton row to render while is_filtering is true
-        — sized to page_size (not a fixed count) so the skeleton matches
-        whatever row count the real table is about to show. Errs toward
-        page_size even on a short last page/search result rather than a
-        smaller count, so the page height never visibly collapses then
-        re-expands once the real (possibly shorter) rows replace it.
-        """
-        return list(range(self.page_size))
-
-    @rx.var(cache=True)
     def page_top_n(self) -> int:
-        """The table title's "Top N" — page 1 is 100, page 2 is 200, and so
-        on, capped to how many coins are actually in view (so a narrow
-        narrative filter doesn't claim "Top 100" when there are only 20).
-        """
-        return min(self.page * self.page_size, self.total_shown)
+        return min(self.total_shown, 500)
 
     @rx.var(cache=True)
-    def paged_coins(self) -> list[dict]:
+    def visible_cmc_ids(self) -> list[int]:
         start = (self.page - 1) * self.page_size
-        return self.filtered_coins[start : start + self.page_size]
+        end = start + self.page_size
+        return [coin["cmc_id"] for coin in self.filtered_coins[start:end]]
 
     @rx.var(cache=True)
     def sorted_paged_coins(self) -> list[dict]:
-        """The current page's rows, optionally re-sorted by one column.
-        Only ever reorders within this page (top 100, or whichever 100
-        the current page is) — never re-ranks across the full coin list.
-        """
-        rows = self.paged_coins
+        start = (self.page - 1) * self.page_size
+        end = start + self.page_size
+        rows = self.filtered_coins[start:end]
         if not self.sort_key:
             return rows
         return sorted(
@@ -563,6 +547,10 @@ class CoinState(rx.State):
         return str(self.page)
 
     @rx.var(cache=True)
+    def active_page_str(self) -> str:
+        return str(self.active_page)
+
+    @rx.var(cache=True)
     def page_size_str(self) -> str:
         return str(self.page_size)
 
@@ -572,34 +560,29 @@ class CoinState(rx.State):
 
     @rx.var(cache=True)
     def showing_end(self) -> int:
-        return min(self.page * self.page_size, self.total_shown)
+        if self.total_shown == 0:
+            return 0
+        end = self.page * self.page_size
+        return min(end, self.total_shown)
+
+    @rx.var(cache=True)
+    def total_pages(self) -> int:
+        return (self.total_shown + self.page_size - 1) // self.page_size
 
     @rx.var(cache=True)
     def page_window(self) -> list[str]:
-        """Page numbers to render, e.g. ["1","2","3","4","5","...","117"] —
-        a leading run around the current page, plus the last page, with
-        "..." marking any gap. "..." entries render as plain text, not
-        buttons (see coin_table.py::_page_number).
-        """
-        total = self.total_pages
-        current = self.page
-        if total <= 7:
-            window = list(range(1, total + 1))
-        elif current <= 5:
-            window = list(range(1, 6))
-        elif current >= total - 4:
-            window = list(range(total - 4, total + 1))
-        else:
-            window = list(range(current - 2, current + 3))
+        if self.total_pages <= 7:
+            return [str(i) for i in range(1, self.total_pages + 1)]
+        if self.page <= 3:
+            return [str(i) for i in range(1, 6)] + ["...", str(self.total_pages)]
+        if self.page >= self.total_pages - 2:
+            return ["1", "..."] + [str(i) for i in range(self.total_pages - 4, self.total_pages + 1)]
+        return (
+            ["1", "..."]
+            + [str(i) for i in range(self.page - 1, self.page + 2)]
+            + ["...", str(self.total_pages)]
+        )
 
-        pages: list[str] = []
-        if window[0] > 1:
-            pages.append("1")
-            if window[0] > 2:
-                pages.append("...")
-        pages.extend(str(p) for p in window)
-        if window[-1] < total:
-            if window[-1] < total - 1:
-                pages.append("...")
-            pages.append(str(total))
-        return pages
+    @rx.var(cache=True)
+    def skeleton_rows(self) -> list[None]:
+        return [None] * self.page_size
