@@ -14,15 +14,15 @@ def _profile_pill() -> rx.Component:
     # of a fixed hex value.
     return rx.hstack(
         rx.vstack(
-            rx.text("Fyqq", size="4", weight="bold"),
+            rx.text("Fyqq", size="2", weight="bold"),
             rx.badge("Standard", color_scheme="gray", size="1"),
             spacing="1",
             align="start",
         ),
         rx.box(
-            rx.icon("user", size=20, color="var(--gray-9)"),
-            width="48px",
-            height="48px",
+            rx.icon("user", size=14, color="var(--gray-9)"),
+            width="32px",
+            height="32px",
             border_radius="9999px",
             background="var(--gray-a5)",
             display="flex",
@@ -30,42 +30,57 @@ def _profile_pill() -> rx.Component:
             justify_content="center",
             flex_shrink="0",
         ),
-        spacing="4",
+        spacing="3",
         align="center",
-        padding="0.5em 0.5em 0.5em 1.5em",
+        padding="0.35em 0.35em 0.35em 1em",
         border="1px solid var(--gray-a6)",
         border_radius="9999px",
         background="var(--gray-a2)",
     )
 
 
+def _header_bar() -> rx.Component:
+    # A proper full-bleed nav bar (bottom border + shadow separating it from
+    # the scrollable content below) instead of the header just being the
+    # first row of the same padded content column — logo/heading/color-mode
+    # icon/profile pill are all sized down to fit a nav bar's compact scale
+    # rather than the oversized hero-like proportions this had before.
+    return rx.box(
+        rx.hstack(
+            rx.hstack(
+                rx.link(
+                    rx.color_mode_cond(
+                        light=rx.image(src="/logo_light.png", height="28px"),
+                        dark=rx.image(src="/logo_dark.png", height="28px"),
+                    ),
+                    href="/",
+                ),
+                rx.heading("Repace", size="6"),
+                spacing="2",
+                align="center",
+            ),
+            rx.hstack(
+                rx.color_mode.button(size="2"),
+                _profile_pill(),
+                spacing="3",
+                align="center",
+            ),
+            justify="between",
+            align="center",
+            width="100%",
+        ),
+        width="100%",
+        padding="0.85em 2em",
+        border_bottom="1px solid var(--gray-a5)",
+        box_shadow="0 2px 6px rgba(0, 0, 0, 0.12)",
+        background="var(--gray-2)",
+    )
+
+
 def index() -> rx.Component:
     return rx.box(
+        _header_bar(),
         rx.vstack(
-            rx.hstack(
-                rx.hstack(
-                    rx.link(
-                        rx.color_mode_cond(
-                            light=rx.image(src="/logo_light.png", height="2.2em"),
-                            dark=rx.image(src="/logo_dark.png", height="2.2em"),
-                        ),
-                        href="/",
-                    ),
-                    rx.heading("Repace", size="8"),
-                    spacing="3",
-                    align="center",
-                ),
-                rx.hstack(
-                    rx.color_mode.button(),
-                    _profile_pill(),
-                    spacing="3",
-                    align="center",
-                ),
-                justify="between",
-                align="center",
-                width="100%",
-                padding_right="25px",
-            ),
             rx.text(
                 "Tracking crypto markets in real time, mapping every asset into dynamic narratives, with AI-powered news correlation on the way.",
                 color_scheme="gray",
