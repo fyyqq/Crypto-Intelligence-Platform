@@ -109,19 +109,6 @@ def _narrative_icon(name: str) -> str:
     return "tag"
 
 
-_CHAIN_PILL_SLOTS = 10
-
-
-def _chain_pill_slots(other_chains: list[str]) -> dict[str, str]:
-    shown = other_chains[:_CHAIN_PILL_SLOTS]
-    if len(other_chains) > _CHAIN_PILL_SLOTS:
-        shown = shown[: _CHAIN_PILL_SLOTS - 1] + ["More Chain"]
-    slots = {f"chain_pill_{i}": "" for i in range(1, _CHAIN_PILL_SLOTS + 1)}
-    for i, name in enumerate(shown, start=1):
-        slots[f"chain_pill_{i}"] = name
-    return slots
-
-
 class CoinState(rx.State):
     all_coins: list[dict] = []
     categories: list[str] = []
@@ -203,14 +190,7 @@ class CoinState(rx.State):
                         "primary_narrative": primary_narrative,
                         "primary_narrative_icon": _narrative_icon(primary_narrative),
                         "main_chain": main_chain,
-                        # rx.foreach can't iterate a list nested inside an
-                        # Any-typed dict value, so the scrollable chain
-                        # carousel gets 10 fixed slots instead — the last one
-                        # becomes a "More Chain" marker pill when there are
-                        # more than 10 — "" means the slot is unused. Nothing
-                        # here is a hardcoded chain list; it's purely a
-                        # display cap on whatever CMC actually returned.
-                        **_chain_pill_slots(other_chains),
+                        "other_chains_display": "\n".join(other_chains),
                         "has_other_chains": len(other_chains) > 0,
                         "trend_24h_data": trend_24h_data,
                         "trend_24h_color": trend_24h_color,
