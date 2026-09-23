@@ -9,10 +9,14 @@
   if (window.__chainPillsInit) return;
   window.__chainPillsInit = true;
 
-  const WRAP_SELECTOR = ".narrative-pills-wrap, .chain-filter-pills-wrap";
-  const TRACK_SELECTOR = ".narrative-pills-track, .chain-filter-pills-track";
-  const LEFT_BTN_SELECTOR = ".narrative-scroll-left, .chain-filter-scroll-left";
-  const RIGHT_BTN_SELECTOR = ".narrative-scroll-right, .chain-filter-scroll-right";
+  const WRAP_SELECTOR =
+    ".narrative-pills-wrap, .chain-filter-pills-wrap, .alerts-slider-wrap";
+  const TRACK_SELECTOR =
+    ".narrative-pills-track, .chain-filter-pills-track, .alerts-slider-track";
+  const LEFT_BTN_SELECTOR =
+    ".narrative-scroll-left, .chain-filter-scroll-left, .alerts-scroll-left";
+  const RIGHT_BTN_SELECTOR =
+    ".narrative-scroll-right, .chain-filter-scroll-right, .alerts-scroll-right";
 
   // Hides an arrow once its end of the track is reached (nothing left to
   // scroll that direction), instead of always showing both.
@@ -38,7 +42,11 @@
     const wrap = (leftBtn || rightBtn).closest(WRAP_SELECTOR);
     const track = wrap && wrap.querySelector(TRACK_SELECTOR);
     if (track) {
-      track.scrollBy({ left: leftBtn ? -160 : 160, behavior: "smooth" });
+      // Scroll by one card/pill's width (plus its gap) instead of a fixed
+      // pixel amount, since news cards are much wider than filter pills.
+      const first = track.firstElementChild;
+      const step = first ? first.getBoundingClientRect().width + 12 : 160;
+      track.scrollBy({ left: leftBtn ? -step : step, behavior: "smooth" });
     }
   });
 
@@ -122,4 +130,81 @@
     },
     true
   );
+})();
+
+// Caps the sidebar news card list's height at exactly 10.5 cards' worth of
+// content (10 full cards + half of the 11th peeking in, a common "there's
+// more, scroll for it" cue) instead of the coin table's height or the
+// list's own full ~100-card natural height. Stays scrollable (overflow-y:
+// scroll, set in news_feed.py) for the rest of the items.
+(function () {
+  if (window.__newsHeightSyncInit) return;
+  window.__newsHeightSyncInit = true;
+  const CARD_COUNT = 10.5;
+
+  function syncHeight() {
+    const target = document.querySelector(".news-card-list");
+    if (!target || target.children.length < 2) return;
+    const first = target.children[0].getBoundingClientRect();
+    const second = target.children[1].getBoundingClientRect();
+    const gap = second.top - first.bottom;
+    const step = first.height + gap;
+    const height = CARD_COUNT * step - gap;
+    if (height > 0) {
+      target.style.height = height + "px";
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", syncHeight);
+  window.addEventListener("load", syncHeight);
+  window.addEventListener("resize", syncHeight);
+  // Reflex hydrates client-side after this script's own load event, so the
+  // cards may not exist yet on first paint — catch it once they mount.
+  new MutationObserver(syncHeight).observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+  syncHeight();
+})();
+
+// Equalizes every "Targeted Narrative + Coin" alert card to the tallest
+// card's natural height — percentage height (height: 100%) can't do this
+// reliably since the track's own height is intrinsic (sized by its
+// tallest child), not a definite value flex percentage children can
+// resolve against.
+(function () {
+  if (window.__alertCardHeightSyncInit) return;
+  window.__alertCardHeightSyncInit = true;
+
+  function equalizeHeights() {
+    const track = document.querySelector(".alerts-slider-track");
+    if (!track) return;
+    const cards = Array.from(track.children);
+    if (!cards.length) return;
+    cards.forEach(function (c) {
+      c.style.height = "auto";
+    });
+    const maxHeight = Math.max.apply(
+      null,
+      cards.map(function (c) {
+        return c.getBoundingClientRect().height;
+      })
+    );
+    cards.forEach(function (c) {
+      c.style.height = maxHeight + "px";
+    });
+  }
+
+  let resizeTimer;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(equalizeHeights, 150);
+  });
+  document.addEventListener("DOMContentLoaded", equalizeHeights);
+  window.addEventListener("load", equalizeHeights);
+  new MutationObserver(equalizeHeights).observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+  equalizeHeights();
 })();

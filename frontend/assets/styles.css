@@ -84,7 +84,7 @@
 
 .pagination-pill {
   border-radius: 999px;
-  border: 1px solid var(--accent-8);
+  border: 1px solid var(--gray-a5);
   background: var(--gray-2);
 }
 
@@ -111,7 +111,9 @@
   scroll-behavior: smooth;
   cursor: grab;
   scrollbar-width: none;
-  padding: 2px 24px;
+  /* No left padding — the first pill sits flush against the wrap's left
+     edge, and the left arrow floats over it instead of reserving space. */
+  padding: 2px 24px 2px 0;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -211,7 +213,9 @@
   scroll-behavior: smooth;
   cursor: grab;
   scrollbar-width: none;
-  padding: 2px 24px;
+  /* No left padding — the first pill sits flush against the wrap's left
+     edge, and the left arrow floats over it instead of reserving space. */
+  padding: 2px 24px 2px 0;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -289,4 +293,148 @@
 
 .chain-filter-scroll-right {
   right: 0;
+}
+
+/* Targeted narrative alerts: same draggable/arrow-scrollable slider
+   mechanics as the narrative + chain filter pills above
+   (assets/chain_pills.js), just horizontal alert cards instead of pills. */
+.alerts-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  position: relative;
+}
+
+.alerts-slider-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: none;
+  /* No left padding — the first card sits flush against the wrap's left
+     edge, and the left arrow floats over it instead of reserving space. */
+  padding: 2px 32px 2px 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.alerts-slider-track::-webkit-scrollbar {
+  display: none;
+}
+
+.alerts-slider-track.grabbing {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+
+.alerts-scroll-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--gray-4);
+  cursor: pointer;
+}
+
+.alerts-scroll-btn:hover {
+  background: var(--gray-6);
+}
+
+.alerts-scroll-left,
+.alerts-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.alerts-scroll-left {
+  left: 0;
+}
+
+.alerts-scroll-right {
+  right: 0;
+}
+
+/* Radix's Table always wraps its rows in an internal ScrollArea (for its
+   own horizontal-scroll support), which — being a scroll container itself
+   — becomes the reference frame for any position:sticky descendant instead
+   of the page/viewport, breaking the sticky header (see
+   coin_table.py::_STICKY_HEADER_STYLE). Scoped to this table specifically
+   (not `.rt-ScrollAreaRoot` globally) since Select dropdowns elsewhere
+   use the same Radix component and still need real scrolling. */
+.coin-table-scroll-fix .rt-ScrollAreaRoot,
+.coin-table-scroll-fix .rt-ScrollAreaViewport,
+.coin-table-scroll-fix .rt-TableRootTable {
+  overflow: visible !important;
+}
+
+/* Coin search: the icon button and the input+clear-icon wrapper both stay
+   mounted permanently (see coin_table.py::_coin_search) — only the
+   .coin-search-open class toggles, so the width/opacity transition below
+   animates smoothly instead of the two states just swapping instantly. */
+.coin-search-container {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.coin-search-toggle-icon {
+  cursor: pointer;
+  color: var(--gray-10);
+  flex-shrink: 0;
+  opacity: 1;
+  max-width: 24px;
+  transition: opacity 0.2s ease, max-width 0.25s ease, margin 0.25s ease;
+}
+
+.coin-search-toggle-icon:hover {
+  color: var(--accent-9);
+}
+
+.coin-search-container.coin-search-open .coin-search-toggle-icon {
+  opacity: 0;
+  max-width: 0;
+  pointer-events: none;
+}
+
+.coin-search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 0.3s ease, opacity 0.2s ease;
+}
+
+.coin-search-container.coin-search-open .coin-search-input-wrap {
+  max-width: 260px;
+  opacity: 1;
+  margin-left: 0.5em;
+}
+
+/* Radix's own rt-TextFieldRoot background/border/focus-ring rules live
+   inside a CSS @layer in Reflex's compiled global stylesheet, which
+   outranks any override attempted from a plain stylesheet class or even
+   an inline style — so this search input intentionally just uses Radix's
+   own variant="surface" look (including its default focus ring) rather
+   than fighting that cascade. Only sizing (width) is customized. */
+
+.coin-search-clear-icon {
+  cursor: pointer;
+  color: var(--gray-9);
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.coin-search-clear-icon:hover {
+  color: var(--accent-9);
 }

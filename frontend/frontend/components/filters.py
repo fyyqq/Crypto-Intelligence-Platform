@@ -102,32 +102,33 @@ def filter_bar() -> rx.Component:
             spacing="2",
             align="center",
         ),
-        # Stretches to the full height of the two rows beside it, instead of
-        # being scoped to just the first row. height="auto" overrides
-        # Radix's own height: var(--separator-size) (which defaults to a
-        # percentage that resolves to 0 inside this auto-height flex row),
-        # letting plain flexbox align-self: stretch size it instead. The
-        # default gray separator is nearly invisible on this dark
-        # background (~19% opacity), so it's given an explicit white color.
-        rx.divider(
-            orientation="vertical",
-            align_self="stretch",
-            height="auto",
-            style={"background": "rgba(255, 255, 255, 0.5)"},
-        ),
         rx.vstack(
             rx.hstack(
-                rx.text("Group by CMC narrative", size="2", color_scheme="gray"),
+                rx.text(
+                    "Group by CMC narrative",
+                    size="2",
+                    color_scheme="gray",
+                    white_space="nowrap",
+                    flex_shrink="0",
+                    width="160px",
+                ),
                 _narrative_pill_slider(),
-                spacing="3",
+                spacing="5",
                 align="center",
                 width="100%",
                 min_width="0",
             ),
             rx.hstack(
-                rx.text("Filter by chain", size="2", color_scheme="gray"),
+                rx.text(
+                    "Filter by chain",
+                    size="2",
+                    color_scheme="gray",
+                    white_space="nowrap",
+                    flex_shrink="0",
+                    width="160px",
+                ),
                 _chain_filter_slider(),
-                spacing="3",
+                spacing="5",
                 align="center",
                 width="100%",
                 min_width="0",
@@ -135,6 +136,7 @@ def filter_bar() -> rx.Component:
             spacing="3",
             width="100%",
             min_width="0",
+            margin_left="1.25em",
         ),
         spacing="3",
         align="center",
