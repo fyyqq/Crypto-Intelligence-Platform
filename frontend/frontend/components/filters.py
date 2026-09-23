@@ -19,11 +19,24 @@ def _narrative_pill(name: rx.Var[str]) -> rx.Component:
 
 
 def _more_narratives_pill() -> rx.Component:
-    # No feature wired up yet — just a placeholder link.
-    return rx.link(
-        rx.text("More Narrative", size="1", weight="bold"),
-        href="#view-all-narrative",
-        underline="none",
+    # Toggles CoinState.categories between the top-10-by-count cut and every
+    # narrative; the same pill relabels to "Show Less" to collapse back.
+    return rx.box(
+        rx.hstack(
+            rx.text(
+                rx.cond(CoinState.narratives_expanded, "Show Less", "More Narrative"),
+                size="1",
+                weight="bold",
+            ),
+            rx.cond(
+                CoinState.narratives_expanded,
+                rx.icon("chevron-up", size=12),
+                rx.icon("chevron-down", size=12),
+            ),
+            spacing="1",
+            align="center",
+        ),
+        on_click=CoinState.toggle_narratives_expanded,
         class_name="narrative-pill narrative-pill-more",
     )
 
@@ -52,11 +65,23 @@ def _chain_filter_pill(name: rx.Var[str]) -> rx.Component:
 
 
 def _more_chains_pill() -> rx.Component:
-    # No feature wired up yet — just a placeholder link.
-    return rx.link(
-        rx.text("More Chain", size="1", weight="bold"),
-        href="#view-all-chain",
-        underline="none",
+    # Same expand/collapse toggle pattern as _more_narratives_pill above.
+    return rx.box(
+        rx.hstack(
+            rx.text(
+                rx.cond(CoinState.chains_expanded, "Show Less", "More Chain"),
+                size="1",
+                weight="bold",
+            ),
+            rx.cond(
+                CoinState.chains_expanded,
+                rx.icon("chevron-up", size=12),
+                rx.icon("chevron-down", size=12),
+            ),
+            spacing="1",
+            align="center",
+        ),
+        on_click=CoinState.toggle_chains_expanded,
         class_name="chain-filter-pill chain-filter-pill-more",
     )
 
