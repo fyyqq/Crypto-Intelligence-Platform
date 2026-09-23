@@ -454,6 +454,27 @@
   overflow: visible !important;
 }
 
+/* Below "1280px" (desktop, where the coin table shows all 10 columns and has
+   the most horizontal budget — see coin_table.py's _COL_FROM_* breakpoints):
+   even with fewer columns shown, the table's natural width (badges, chart
+   columns, etc. all need real space) can still slightly exceed what's left
+   next to the 300px filter sidebar once it goes side-by-side at 992px+
+   (frontend.py's index() direction flip) — measured ~35px over budget at
+   1024px (iPad landscape). Rather than let that push the whole PAGE into
+   horizontal scroll (dragging the fixed header/footer sideways with it),
+   scope local horizontal scrolling to just this table. Trade-off: the sticky
+   column header (coin_table.py::_STICKY_HEADER_STYLE) now sticks relative to
+   this box instead of the page in that range, so it stops "following" while
+   vertically scrolling a long list — acceptable since swipe-to-scroll a data
+   table horizontally is a familiar pattern on tablet/phone, and the
+   alternative (page-level overflow) is worse. */
+@media (max-width: 1365px) {
+  .coin-table-scroll-fix {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 /* Coin search: the icon button and the input+clear-icon wrapper both stay
    mounted permanently (see coin_table.py::_coin_search) — only the
    .coin-search-open class toggles, so the width/opacity transition below
@@ -497,6 +518,14 @@
   max-width: 260px;
   opacity: 1;
   margin-left: 0.5em;
+}
+
+/* Matches the input's own responsive width (coin_table.py::_coin_search)
+   at the same breakpoints, so the wrap's max-width never clips it. */
+@media (max-width: 767px) {
+  .coin-search-container.coin-search-open .coin-search-input-wrap {
+    max-width: 190px;
+  }
 }
 
 /* Radix's own rt-TextFieldRoot background/border/focus-ring rules live

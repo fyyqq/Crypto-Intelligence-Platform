@@ -6,8 +6,12 @@ import reflex as rx
 from frontend.state import CoinState
 
 
-def _change_cell(text: rx.Var[str], color: rx.Var[str]) -> rx.Component:
-    return rx.table.cell(rx.text(text, color=color), vertical_align="middle")
+def _change_cell(text: rx.Var[str], color: rx.Var[str], display: list[str] | None = None) -> rx.Component:
+    return rx.table.cell(
+        rx.text(text, color=color),
+        vertical_align="middle",
+        **({"display": display} if display else {}),
+    )
 
 
 def _sort_icon(sort_key: str) -> rx.Component:
@@ -39,8 +43,23 @@ _STICKY_HEADER_STYLE = {
     "background_color": "var(--gray-2)",
 }
 
+# Responsive column visibility, [base, sm, md, lg, xl] (iPhone-4-width up to
+# desktop) — Rank/Name/Price/24H always show; everything else drops off at
+# progressively wider breakpoints so a phone-width table isn't crushed to
+# unreadable columns instead of just showing fewer of them. Same array is
+# applied to a column's header cell and every row's matching body cell so
+# they hide/show in sync.
+_COL_ALWAYS = ["table-cell"] * 5
+_COL_FROM_SM = ["none", "table-cell", "table-cell", "table-cell", "table-cell"]
+_COL_FROM_MD = ["none", "none", "table-cell", "table-cell", "table-cell"]
+# Volume/1H/the two trend charts wait until "xl" (desktop, 1280px), not "lg"
+# (992px, iPad landscape) — at "lg" the layout has already gone side-by-side
+# with the 300px filter sidebar (see frontend.py), and the full 10-column
+# table doesn't fit that budget at 1024px even though it looks fine alone.
+_COL_FROM_XL = ["none", "none", "none", "none", "table-cell"]
 
-def _sortable_header(label: str, sort_key: str) -> rx.Component:
+
+def _sortable_header(label: str, sort_key: str, display: list[str] = _COL_ALWAYS) -> rx.Component:
     return rx.table.column_header_cell(
         rx.hstack(
             rx.text(label),
@@ -50,11 +69,14 @@ def _sortable_header(label: str, sort_key: str) -> rx.Component:
             cursor="pointer",
         ),
         on_click=CoinState.set_sort(sort_key),
+        display=display,
         **_STICKY_HEADER_STYLE,
     )
 
 
-def _trend_cell(data: rx.Var[list], color: rx.Var[str], shine_class: rx.Var[str]) -> rx.Component:
+def _trend_cell(
+    data: rx.Var[list], color: rx.Var[str], shine_class: rx.Var[str], display: list[str] = _COL_ALWAYS
+) -> rx.Component:
     return rx.table.cell(
         rx.box(
             rx.recharts.line_chart(
@@ -73,6 +95,7 @@ def _trend_cell(data: rx.Var[list], color: rx.Var[str], shine_class: rx.Var[str]
             class_name=shine_class.to(str),
         ),
         vertical_align="middle",
+        display=display,
     )
 
 
@@ -171,13 +194,13 @@ def _row(row: dict) -> rx.Component:
             vertical_align="middle",
         ),
         rx.table.cell(row["price_display"], vertical_align="middle"),
-        rx.table.cell(row["market_cap_display"], vertical_align="middle"),
-        rx.table.cell(row["volume_display"], vertical_align="middle"),
-        _change_cell(row["change_1h_display"], row["change_1h_color"]),
+        rx.table.cell(row["market_cap_display"], vertical_align="middle", display=_COL_FROM_MD),
+        rx.table.cell(row["volume_display"], vertical_align="middle", display=_COL_FROM_XL),
+        _change_cell(row["change_1h_display"], row["change_1h_color"], display=_COL_FROM_XL),
         _change_cell(row["change_24h_display"], row["change_24h_color"]),
-        _change_cell(row["change_7d_display"], row["change_7d_color"]),
-        _trend_cell(row["trend_24h_data"], row["trend_24h_color"], row["trend_24h_shine"]),
-        _trend_cell(row["trend_7d_data"], row["trend_7d_color"], row["trend_7d_shine"]),
+        _change_cell(row["change_7d_display"], row["change_7d_color"], display=_COL_FROM_SM),
+        _trend_cell(row["trend_24h_data"], row["trend_24h_color"], row["trend_24h_shine"], display=_COL_FROM_XL),
+        _trend_cell(row["trend_7d_data"], row["trend_7d_color"], row["trend_7d_shine"], display=_COL_FROM_XL),
     )
 
 
@@ -215,6 +238,8 @@ def _pagination_controls() -> rx.Component:
         ),
         spacing="1",
         align="center",
+        justify="center",
+        wrap="wrap",
     )
 
 
@@ -233,6 +258,11 @@ def _rows_per_page_selector() -> rx.Component:
 
 
 def _pagination_bar(pill: bool = False) -> rx.Component:
+    # wrap (not the old rx.spacer()-based layout) so this degrades to a
+    # multi-line stack instead of overflowing once "Showing ... results" +
+    # up to 7 page numbers + the rows selector no longer fit one row (phone
+    # widths). justify="between" keeps the original 3-group spread on desktop
+    # where everything still fits on one line.
     return rx.hstack(
         rx.text(
             "Showing ",
@@ -245,19 +275,20 @@ def _pagination_bar(pill: bool = False) -> rx.Component:
             size="2",
             color_scheme="gray",
             white_space="nowrap",
+            # Hidden below "sm" (480px) — on an iPhone-4-width screen there
+            # isn't room for this text alongside the page controls too.
+            display=["none", "flex", "flex", "flex", "flex"],
         ),
-        rx.spacer(),
         _pagination_controls(),
-        rx.spacer(),
         _rows_per_page_selector(),
         align="center",
+        justify="between",
+        wrap="wrap",
         width="100%",
+        style={"row-gap": "0.5em"},
         class_name="pagination-pill" if pill else "",
         padding="0.6em 1.4em" if pill else "0.75em 0",
     )
-
-
-_TABLE_COLUMN_COUNT = 10
 
 
 def _skeleton_name_cell() -> rx.Component:
@@ -273,13 +304,28 @@ def _skeleton_name_cell() -> rx.Component:
     )
 
 
+# Same display array, in the same column order, as the real header/row cells
+# below — otherwise the skeleton would show more columns than the table it's
+# about to be replaced by, and the page width would jump once real rows land.
+_SKELETON_COL_DISPLAYS = (
+    _COL_ALWAYS,  # Price
+    _COL_FROM_MD,  # Market Cap
+    _COL_FROM_XL,  # 24H Volume
+    _COL_FROM_XL,  # 1H
+    _COL_ALWAYS,  # 24H
+    _COL_FROM_SM,  # 7D
+    _COL_FROM_XL,  # 24H Price chart
+    _COL_FROM_XL,  # 7D Price chart
+)
+
+
 def _skeleton_row(_: rx.Var) -> rx.Component:
     return rx.table.row(
         rx.table.cell(rx.skeleton(height="1em", width="60%")),
         _skeleton_name_cell(),
         *[
-            rx.table.cell(rx.skeleton(height="1em", width="80%"))
-            for _ in range(_TABLE_COLUMN_COUNT - 2)
+            rx.table.cell(rx.skeleton(height="1em", width="80%"), display=display)
+            for display in _SKELETON_COL_DISPLAYS
         ],
     )
 
@@ -322,7 +368,7 @@ def _coin_search() -> rx.Component:
                     radius="full",
                     variant="surface",
                     class_name="coin-search-input",
-                    style={"width": "220px"},
+                    width=["150px", "180px", "220px", "220px", "220px"],
                 ),
                 debounce_timeout=300,
             ),
@@ -349,6 +395,7 @@ def _table_header_bar() -> rx.Component:
             _coin_search(),
             spacing="3",
             align="center",
+            wrap="wrap",
         ),
         rx.hstack(
             rx.text("Total Coins:", size="2", color_scheme="gray"),
@@ -357,9 +404,11 @@ def _table_header_bar() -> rx.Component:
             align="center",
         ),
         display="flex",
+        flex_wrap="wrap",
         justify_content="space-between",
         align_items="center",
         width="100%",
+        style={"row-gap": "0.5em"},
     )
 
 
@@ -374,13 +423,13 @@ def coin_table() -> rx.Component:
                         _sortable_header("Rank", "rank"),
                         rx.table.column_header_cell("Name", **_STICKY_HEADER_STYLE),
                         _sortable_header("Price", "price_raw"),
-                        _sortable_header("Market Cap", "market_cap_usd"),
-                        _sortable_header("24H Volume", "volume_raw"),
-                        _sortable_header("1H", "pct_1h_raw"),
+                        _sortable_header("Market Cap", "market_cap_usd", display=_COL_FROM_MD),
+                        _sortable_header("24H Volume", "volume_raw", display=_COL_FROM_XL),
+                        _sortable_header("1H", "pct_1h_raw", display=_COL_FROM_XL),
                         _sortable_header("24H", "pct_24h_raw"),
-                        _sortable_header("7D", "pct_7d_raw"),
-                        rx.table.column_header_cell("24H Price", **_STICKY_HEADER_STYLE),
-                        rx.table.column_header_cell("7D Price", **_STICKY_HEADER_STYLE),
+                        _sortable_header("7D", "pct_7d_raw", display=_COL_FROM_SM),
+                        rx.table.column_header_cell("24H Price", display=_COL_FROM_XL, **_STICKY_HEADER_STYLE),
+                        rx.table.column_header_cell("7D Price", display=_COL_FROM_XL, **_STICKY_HEADER_STYLE),
                     )
                 ),
                 rx.cond(

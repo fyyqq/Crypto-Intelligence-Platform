@@ -18,6 +18,11 @@ def _profile_pill() -> rx.Component:
             rx.badge("Standard", color_scheme="gray", size="1"),
             spacing="1",
             align="start",
+            # Hidden below the iPad-portrait breakpoint (md, 768px) — on a
+            # phone-width header there isn't room for both this text column
+            # and the color-mode button, so the pill collapses to just the
+            # avatar there.
+            display=["none", "none", "flex", "flex", "flex"],
         ),
         rx.box(
             rx.icon("user", size=22, color="var(--gray-9)"),
@@ -36,7 +41,9 @@ def _profile_pill() -> rx.Component:
         ),
         spacing="3",
         align="center",
-        padding="0.35em 0.35em 0.35em 1em",
+        # Symmetric padding once the text column above is hidden (avatar
+        # only), back to the wider left padding once it reappears at md+.
+        padding=["0.35em", "0.35em", "0.35em 0.35em 0.35em 1em", "0.35em 0.35em 0.35em 1em", "0.35em 0.35em 0.35em 1em"],
         border="1px solid var(--gray-a6)",
         border_radius="9999px",
         background="var(--gray-a2)",
@@ -75,7 +82,7 @@ def _header_bar() -> rx.Component:
             width="100%",
         ),
         width="100%",
-        padding="0.85em 2em",
+        padding=["0.6em 1em", "0.6em 1em", "0.75em 1.5em", "0.85em 2em", "0.85em 2em"],
         border_bottom="1px solid var(--gray-a5)",
         box_shadow="0 2px 6px rgba(0, 0, 0, 0.12)",
         background="var(--gray-2)",
@@ -91,8 +98,12 @@ def index() -> rx.Component:
             rx.hstack(
                 rx.box(
                     filter_bar(),
-                    width="300px",
-                    min_width="280px",
+                    # Full width and stacked above the table below the "lg"
+                    # breakpoint (992px, roughly iPad landscape) — a fixed
+                    # 300px sidebar next to a 10-column table has no room to
+                    # breathe on an iPad portrait or any phone.
+                    width=["100%", "100%", "100%", "300px", "300px"],
+                    min_width=["0", "0", "0", "280px", "280px"],
                     flex_shrink="0",
                 ),
                 rx.box(
@@ -101,12 +112,19 @@ def index() -> rx.Component:
                     min_width="0",
                     width="100%",
                 ),
+                # Reflex's named breakpoints don't line up 1:1 with its own
+                # plain-list positional breakpoints (named "lg" = 1280px, but
+                # list index 3 used for width/min_width above = 992px) — "md"
+                # is the named key that actually corresponds to 992px, which
+                # is what lines this flip up with the sidebar's own width
+                # breakpoint instead of firing 288px later than intended.
+                direction=rx.breakpoints(initial="column", md="row"),
                 align="stretch",
                 width="100%",
                 style={"gap": "25px"},
             ),
             spacing="4",
-            padding="2em",
+            padding=["1em", "1em", "1.5em", "2em", "2em"],
             width="100%",
         ),
         footer(),

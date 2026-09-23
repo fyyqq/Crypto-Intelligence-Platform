@@ -632,7 +632,9 @@ def _news_card(item: dict) -> rx.Component:
         padding="0.85em",
         border_radius="8px",
         background="var(--gray-a2)",
-        width="320px",
+        # Narrower on phone widths — a 320px card on a 320px-wide iPhone 4
+        # viewport would leave no room to see the slider is scrollable.
+        width=["240px", "260px", "300px", "320px", "320px"],
         flex_shrink="0",
         height="100%",
     )

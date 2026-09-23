@@ -83,19 +83,22 @@ def footer() -> rx.Component:
                     spacing="4",
                     align="start",
                 ),
-                rx.spacer(),
                 rx.hstack(
                     *[
                         _footer_link_column(title, links)
                         for title, links in _FOOTER_LINK_COLUMNS
                     ],
-                    spacing="8",
+                    # named "sm" = 768px (matches the 768px used elsewhere
+                    # via plain-list position 2) — named "md" is 992px.
+                    spacing=rx.breakpoints(initial="5", sm="8"),
                     align="start",
+                    wrap="wrap",
                 ),
                 width="100%",
                 align="start",
                 justify="between",
                 wrap="wrap",
+                style={"row-gap": "2em"},
             ),
             rx.divider(),
             rx.hstack(
@@ -104,7 +107,6 @@ def footer() -> rx.Component:
                     size="1",
                     color_scheme="gray",
                 ),
-                rx.spacer(),
                 rx.hstack(
                     rx.link(
                         "Privacy Policy", href="#", underline="none", size="1", color_scheme="gray"
@@ -116,15 +118,18 @@ def footer() -> rx.Component:
                         "Cookie Settings", href="#", underline="none", size="1", color_scheme="gray"
                     ),
                     spacing="4",
+                    wrap="wrap",
                 ),
                 width="100%",
                 align="center",
+                justify="between",
                 wrap="wrap",
+                style={"row-gap": "0.5em"},
             ),
             spacing="5",
             width="100%",
         ),
         width="100%",
-        padding="2.5em 2em",
+        padding=["1.5em 1em", "1.5em 1.5em", "2em 1.5em", "2.5em 2em", "2.5em 2em"],
         border_top="1px solid var(--gray-a5)",
     )

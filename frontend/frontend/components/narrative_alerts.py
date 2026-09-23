@@ -215,7 +215,9 @@ def _alert_card(item: dict) -> rx.Component:
         padding="0.85em",
         border_radius="8px",
         background="var(--gray-a2)",
-        width="340px",
+        # Narrower on phone widths — a 340px card on a 320px-wide iPhone 4
+        # viewport would leave no room to see the slider is scrollable.
+        width=["250px", "270px", "310px", "340px", "340px"],
         flex_shrink="0",
         height="100%",
         overflow_y="scroll",
@@ -265,12 +267,16 @@ def narrative_alerts() -> rx.Component:
     return rx.vstack(
         rx.text("TARGETED NARRATIVE ALERTS", size="1", color_scheme="gray", weight="bold"),
         rx.box(
-            rx.heading("Targeted Narrative + Coin", size="5"),
+            # named "sm" = 768px (matches the 768px used elsewhere via
+            # plain-list position 2) — named "md" is 992px.
+            rx.heading("Targeted Narrative + Coin", size=rx.breakpoints(initial="4", sm="5")),
             _more_impact_link(),
             display="flex",
+            flex_wrap="wrap",
             justify_content="space-between",
             align_items="center",
             width="100%",
+            style={"row-gap": "0.25em"},
         ),
         _alerts_slider(),
         spacing="3",
