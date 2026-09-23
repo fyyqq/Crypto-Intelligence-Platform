@@ -131,6 +131,9 @@ class CoinState(rx.State):
     # 8154 coins) so the clicked pill highlights instantly instead of
     # waiting on that heavier computation to finish.
     active_category: str = "All narratives"
+    chains: list[str] = []
+    selected_chain: str = "All chains"
+    active_chain: str = "All chains"
     is_loading: bool = True
     is_filtering: bool = False
     page: int = 1
@@ -158,6 +161,7 @@ class CoinState(rx.State):
 
             rows: list[dict] = []
             narrative_counts: Counter[str] = Counter()
+            chain_counts: Counter[str] = Counter()
             for coin in coins:
                 names = sorted(category.name for category in coin.categories)
                 narrative_counts.update(names)
@@ -173,6 +177,7 @@ class CoinState(rx.State):
                 primary_chain = next((c for c in chains if c.is_primary), None)
                 main_chain = primary_chain.platform_name if primary_chain else coin.name
                 other_chains = [c.platform_name for c in chains if c is not primary_chain]
+                chain_counts.update([main_chain])
 
                 rows.append(
                     {
@@ -222,6 +227,11 @@ class CoinState(rx.State):
         # that actually matter for most coins shown, not an alphabetical cut.
         top_narratives = [name for name, _ in narrative_counts.most_common(10)]
         self.categories = ["All narratives", *top_narratives]
+        # Top 10 chains by number of coins whose primary/native chain it is
+        # — same "most common" approach as narratives, dynamically computed
+        # each sync rather than a fixed chain list.
+        top_chains = [name for name, _ in chain_counts.most_common(10)]
+        self.chains = ["All chains", *top_chains]
         self.is_loading = False
 
     @rx.event
@@ -234,6 +244,20 @@ class CoinState(rx.State):
         self.is_filtering = True
         yield
         self.selected_category = value
+        self.page = 1
+        self.sort_key = ""
+        self.sort_direction = ""
+        self.is_filtering = False
+
+    @rx.event
+    def set_chain(self, value: str):
+        # Same instant-highlight-then-refilter pattern as set_category. The
+        # two filters combine with AND (see filtered_coins) — narrative +
+        # chain together, e.g. "Memes" + "BNB Smart Chain (BEP20)".
+        self.active_chain = value
+        self.is_filtering = True
+        yield
+        self.selected_chain = value
         self.page = 1
         self.sort_key = ""
         self.sort_direction = ""
@@ -270,6 +294,10 @@ class CoinState(rx.State):
         rows = self.all_coins
         if self.selected_category != "All narratives":
             rows = [r for r in rows if self.selected_category in r["narratives"]]
+        # AND'd with the narrative filter — e.g. "Memes" + "BNB Smart Chain
+        # (BEP20)" narrows to memecoins whose primary chain is BNB Smart Chain.
+        if self.selected_chain != "All chains":
+            rows = [r for r in rows if r["main_chain"] == self.selected_chain]
         rows = sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
         # Rank reflects position by market cap in the current view (1..N),
         # not CMC's own cmc_rank field, which has gaps/different methodology

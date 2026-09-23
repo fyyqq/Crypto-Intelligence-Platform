@@ -220,3 +220,97 @@
 .narrative-scroll-right {
   right: 0;
 }
+
+/* Chain filter (filters.py::_chain_filter_slider) — same draggable/
+   arrow-scrollable pill-slider mechanics and look as the narrative filter
+   above, just its own class names so the two combine independently instead
+   of sharing state through shared selectors. */
+.chain-filter-pills-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+}
+
+.chain-filter-pills-track {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: none;
+  padding: 2px 24px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.chain-filter-pills-track::-webkit-scrollbar {
+  display: none;
+}
+
+.chain-filter-pills-track.grabbing {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+
+.chain-filter-pill {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--gray-4);
+  border: 1px solid var(--gray-6);
+  cursor: pointer;
+  font-size: 0.8em;
+}
+
+.chain-filter-pill:hover {
+  background: var(--gray-6);
+}
+
+.chain-filter-pill-active {
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+  color: white;
+}
+
+.chain-filter-pill-active:hover {
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+  color: white;
+}
+
+.chain-filter-scroll-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--gray-4);
+  cursor: pointer;
+}
+
+.chain-filter-scroll-btn:hover {
+  background: var(--gray-6);
+}
+
+.chain-filter-scroll-left,
+.chain-filter-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.chain-filter-scroll-left {
+  left: 0;
+}
+
+.chain-filter-scroll-right {
+  right: 0;
+}

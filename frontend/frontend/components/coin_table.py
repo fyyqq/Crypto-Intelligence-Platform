@@ -53,6 +53,7 @@ def _trend_cell(data: rx.Var[list], color: rx.Var[str], shine_class: rx.Var[str]
                     data_key="v",
                     stroke=color,
                     dot=False,
+                    active_dot=False,
                     stroke_width=2,
                     is_animation_active=False,
                 ),

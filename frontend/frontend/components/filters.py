@@ -1,4 +1,4 @@
-"""Top filter bar (moved out of the sidebar) for the narrative filter."""
+"""Top filter bar (moved out of the sidebar) for the narrative + chain filters."""
 
 import reflex as rx
 
@@ -30,7 +30,7 @@ def _more_narratives_pill() -> rx.Component:
 def _narrative_pill_slider() -> rx.Component:
     # Drag-to-scroll and the arrow buttons are wired up once, globally, via
     # the delegated listeners in frontend.py's index() (assets/chain_pills.js
-    # — shared with the chain dropdown's carousel).
+    # — shared with the chain dropdown's carousel and the chain filter below).
     return rx.box(
         rx.box(
             rx.icon("chevron-left", size=14),
@@ -49,19 +49,64 @@ def _narrative_pill_slider() -> rx.Component:
     )
 
 
-def filter_bar() -> rx.Component:
-    return rx.hstack(
-        rx.hstack(
-            rx.icon("list-filter", size=16),
-            rx.text("Filters", weight="bold"),
-            spacing="2",
-            align="center",
+def _chain_filter_pill(name: rx.Var[str]) -> rx.Component:
+    return rx.box(
+        rx.text(name, size="1"),
+        on_click=CoinState.set_chain(name),
+        class_name=rx.cond(
+            CoinState.active_chain == name,
+            "chain-filter-pill chain-filter-pill-active",
+            "chain-filter-pill",
         ),
-        rx.divider(orientation="vertical", height="1.5em"),
-        rx.text("Group by CMC narrative", size="2", color_scheme="gray"),
-        _narrative_pill_slider(),
+    )
+
+
+def _chain_filter_slider() -> rx.Component:
+    # Same drag/arrow mechanics as the narrative slider (assets/chain_pills.js
+    # matches these class names too), just its own top-10-by-count list so it
+    # can combine with the narrative filter (AND) instead of replacing it —
+    # e.g. "Memes" + "BNB Smart Chain (BEP20)".
+    return rx.box(
+        rx.box(
+            rx.icon("chevron-left", size=14),
+            class_name="chain-filter-scroll-btn chain-filter-scroll-left",
+        ),
+        rx.box(
+            rx.foreach(CoinState.chains, _chain_filter_pill),
+            class_name="chain-filter-pills-track",
+        ),
+        rx.box(
+            rx.icon("chevron-right", size=14),
+            class_name="chain-filter-scroll-btn chain-filter-scroll-right",
+        ),
+        class_name="chain-filter-pills-wrap",
+    )
+
+
+def filter_bar() -> rx.Component:
+    return rx.vstack(
+        rx.hstack(
+            rx.hstack(
+                rx.icon("list-filter", size=16),
+                rx.text("Filters", weight="bold"),
+                spacing="2",
+                align="center",
+            ),
+            rx.divider(orientation="vertical", height="1.5em"),
+            rx.text("Group by CMC narrative", size="2", color_scheme="gray"),
+            _narrative_pill_slider(),
+            spacing="3",
+            align="center",
+            width="100%",
+        ),
+        rx.hstack(
+            rx.text("Filter by chain", size="2", color_scheme="gray"),
+            _chain_filter_slider(),
+            spacing="3",
+            align="center",
+            width="100%",
+        ),
         spacing="3",
-        align="center",
         width="100%",
         padding="0.85em 1em",
         border="1px solid var(--gray-a5)",

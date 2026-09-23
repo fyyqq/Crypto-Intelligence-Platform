@@ -1,7 +1,8 @@
 // Delegated (document-level) handlers for every draggable/arrow-scrollable
 // pill slider on the page: the chain dropdown's carousel (see
-// components/coin_table.py::_chain_carousel) and the narrative filter bar
-// (see components/filters.py::_narrative_pill_slider). Both use the same
+// components/coin_table.py::_chain_carousel), the narrative filter bar (see
+// components/filters.py::_narrative_pill_slider), and the chain filter bar
+// (see components/filters.py::_chain_filter_slider). All three use the same
 // mechanics, just different class names, and delegation means this works
 // for content that doesn't exist yet at page-load time (a coin's popover
 // only mounts once opened) — no per-element binding/rebinding needed.
@@ -9,10 +10,10 @@
   if (window.__chainPillsInit) return;
   window.__chainPillsInit = true;
 
-  const WRAP_SELECTOR = ".chain-pills-wrap, .narrative-pills-wrap";
-  const TRACK_SELECTOR = ".chain-pills-track, .narrative-pills-track";
-  const LEFT_BTN_SELECTOR = ".chain-scroll-left, .narrative-scroll-left";
-  const RIGHT_BTN_SELECTOR = ".chain-scroll-right, .narrative-scroll-right";
+  const WRAP_SELECTOR = ".chain-pills-wrap, .narrative-pills-wrap, .chain-filter-pills-wrap";
+  const TRACK_SELECTOR = ".chain-pills-track, .narrative-pills-track, .chain-filter-pills-track";
+  const LEFT_BTN_SELECTOR = ".chain-scroll-left, .narrative-scroll-left, .chain-filter-scroll-left";
+  const RIGHT_BTN_SELECTOR = ".chain-scroll-right, .narrative-scroll-right, .chain-filter-scroll-right";
 
   // Hides an arrow once its end of the track is reached (nothing left to
   // scroll that direction), instead of always showing both.
