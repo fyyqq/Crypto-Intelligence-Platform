@@ -239,23 +239,14 @@ def _sync_and_rebuild_rows(cmc_ids: list[int]) -> dict[int, dict]:
 
 class CoinState(rx.State):
     all_coins: list[dict] = []
-    # Full narrative list, ranked by coin count desc — backend-only since the
-    # `categories` computed var below (sliced to 10, or all when expanded) is
-    # what actually gets sent to/rendered on the client.
-    _all_narrative_names: list[str] = []
-    # "More Narrative" expands the pill bar from the top-10 cut to every
-    # narrative; "Show Less" (same pill, toggled) collapses it back.
-    narratives_expanded: bool = False
+    categories: list[str] = []
     selected_category: str = "All narratives"
     # Drives just the pill's active/blue highlight. Kept separate from
     # selected_category (which drives the actual re-filter/re-sort of up to
     # 8154 coins) so the clicked pill highlights instantly instead of
     # waiting on that heavier computation to finish.
     active_category: str = "All narratives"
-    # Full chain list, ranked by coin count desc — same expand/collapse
-    # pattern as narratives above, backend-only for the same reason.
-    _all_chain_names: list[str] = []
-    chains_expanded: bool = False
+    chains: list[str] = []
     selected_chain: str = "All chains"
     active_chain: str = "All chains"
     is_loading: bool = True
@@ -307,21 +298,17 @@ class CoinState(rx.State):
                 rows.append(row)
 
         self.all_coins = rows
-        # Ranked by number of coins carrying that tag, most common first —
-        # `categories` (see computed vars below) slices this to the top 10
-        # by default, or shows everything once "More Narrative" is clicked.
-        self._all_narrative_names = [name for name, _ in narrative_counts.most_common()]
-        # Same ranked-list/expand pattern for chains.
-        self._all_chain_names = [name for name, _ in chain_counts.most_common()]
+        # Top 20 by number of coins carrying that tag — out of ~600 dynamic
+        # CMC categories, this keeps the filter pill bar to the narratives
+        # that actually matter for most coins shown, not an alphabetical cut.
+        top_narratives = [name for name, _ in narrative_counts.most_common(20)]
+        self.categories = ["All narratives", *top_narratives]
+        # Top 20 chains by number of coins whose primary/native chain it is
+        # — same "most common" approach as narratives, dynamically computed
+        # each sync rather than a fixed chain list.
+        top_chains = [name for name, _ in chain_counts.most_common(20)]
+        self.chains = ["All chains", *top_chains]
         self.is_loading = False
-
-    @rx.event
-    def toggle_narratives_expanded(self):
-        self.narratives_expanded = not self.narratives_expanded
-
-    @rx.event
-    def toggle_chains_expanded(self):
-        self.chains_expanded = not self.chains_expanded
 
     @rx.event
     async def set_category(self, value: str):
@@ -513,16 +500,6 @@ class CoinState(rx.State):
             # Third click on the same column: back to neutral/default order.
             self.sort_key = ""
             self.sort_direction = ""
-
-    @rx.var(cache=True)
-    def categories(self) -> list[str]:
-        names = self._all_narrative_names if self.narratives_expanded else self._all_narrative_names[:10]
-        return ["All narratives", *names]
-
-    @rx.var(cache=True)
-    def chains(self) -> list[str]:
-        names = self._all_chain_names if self.chains_expanded else self._all_chain_names[:10]
-        return ["All chains", *names]
 
     @rx.var(cache=True)
     def filtered_coins(self) -> list[dict]:

@@ -192,7 +192,7 @@ def _page_number(page_str: rx.Var[str]) -> rx.Component:
             rx.text(page_str, size="2"),
             on_click=CoinState.go_to_page(page_str),
             class_name=rx.cond(
-                CoinState.page_str == page_str,
+                CoinState.active_page_str == page_str,
                 "page-number page-number-active",
                 "page-number",
             ),
@@ -351,7 +351,7 @@ def _table_header_bar() -> rx.Component:
             align="center",
         ),
         rx.hstack(
-            rx.text("Coins shown", size="2", color_scheme="gray"),
+            rx.text("Total Coins:", size="2", color_scheme="gray"),
             rx.heading(CoinState.total_shown, size="5"),
             spacing="2",
             align="center",
