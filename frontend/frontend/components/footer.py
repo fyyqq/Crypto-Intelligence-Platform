@@ -56,14 +56,18 @@ def footer() -> rx.Component:
         rx.vstack(
             rx.hstack(
                 rx.vstack(
-                    rx.hstack(
-                        rx.color_mode_cond(
-                            light=rx.image(src="/logo_light.png", height="28px"),
-                            dark=rx.image(src="/logo_dark.png", height="28px"),
+                    rx.link(
+                        rx.hstack(
+                            rx.color_mode_cond(
+                                light=rx.image(src="/logo_light.png", height="28px"),
+                                dark=rx.image(src="/logo_dark.png", height="28px"),
+                            ),
+                            rx.heading("Repace", size="6"),
+                            spacing="2",
+                            align="center",
                         ),
-                        rx.heading("Repace", size="6"),
-                        spacing="2",
-                        align="center",
+                        href="/",
+                        underline="none",
                     ),
                     rx.text(
                         "Tracking crypto markets in real time, mapping every asset into "

@@ -51,17 +51,18 @@ def _header_bar() -> rx.Component:
     # rather than the oversized hero-like proportions this had before.
     return rx.box(
         rx.hstack(
-            rx.hstack(
-                rx.link(
+            rx.link(
+                rx.hstack(
                     rx.color_mode_cond(
                         light=rx.image(src="/logo_light.png", height="28px"),
                         dark=rx.image(src="/logo_dark.png", height="28px"),
                     ),
-                    href="/",
+                    rx.heading("Repace", size="6"),
+                    spacing="2",
+                    align="center",
                 ),
-                rx.heading("Repace", size="6"),
-                spacing="2",
-                align="center",
+                href="/",
+                underline="none",
             ),
             rx.hstack(
                 rx.color_mode.button(size="2"),
