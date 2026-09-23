@@ -659,29 +659,34 @@ def _news_slider() -> rx.Component:
     )
 
 
+def _more_news_link() -> rx.Component:
+    # No feature wired up yet — same placeholder-link pattern as
+    # narrative_alerts.py's _more_impact_link(), matching design.
+    return rx.link(
+        rx.hstack(
+            rx.text("More News", size="2", weight="bold"),
+            rx.icon("arrow-right", size=14),
+            spacing="1",
+            align="center",
+        ),
+        href="#view-all-news",
+        underline="none",
+        color_scheme="indigo",
+    )
+
+
 def news_feed() -> rx.Component:
     return rx.vstack(
         rx.text("GLOBAL INTELLIGENCE FEED", size="1", color_scheme="gray", weight="bold"),
         rx.box(
             rx.heading("All News", size="5"),
-            rx.hstack(
-                rx.text("News shown", size="2", color_scheme="gray"),
-                rx.heading(len(NEWS_ITEMS), size="5"),
-                spacing="2",
-                align="center",
-            ),
+            _more_news_link(),
             display="flex",
             justify_content="space-between",
             align_items="center",
             width="100%",
         ),
         _news_slider(),
-        rx.link(
-            rx.button("More News", variant="soft", width="100%"),
-            href="#view-all-news",
-            underline="none",
-            width="100%",
-        ),
         spacing="3",
         width="100%",
         align_items="stretch",
