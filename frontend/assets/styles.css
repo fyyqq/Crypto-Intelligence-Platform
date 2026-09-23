@@ -373,6 +373,74 @@
   right: 0;
 }
 
+/* News feed: same draggable/arrow-scrollable slider mechanics as the
+   narrative + chain filter pills and the targeted narrative alerts above
+   (assets/chain_pills.js), just news cards instead of pills/alert cards. */
+.news-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  position: relative;
+}
+
+.news-slider-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: none;
+  /* No left padding — the first card sits flush against the wrap's left
+     edge, and the left arrow floats over it instead of reserving space. */
+  padding: 2px 32px 2px 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.news-slider-track::-webkit-scrollbar {
+  display: none;
+}
+
+.news-slider-track.grabbing {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+
+.news-scroll-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--gray-4);
+  cursor: pointer;
+}
+
+.news-scroll-btn:hover {
+  background: var(--gray-6);
+}
+
+.news-scroll-left,
+.news-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.news-scroll-left {
+  left: 0;
+}
+
+.news-scroll-right {
+  right: 0;
+}
+
 /* Radix's Table always wraps its rows in an internal ScrollArea (for its
    own horizontal-scroll support), which — being a scroll container itself
    — becomes the reference frame for any position:sticky descendant instead

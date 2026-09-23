@@ -632,7 +632,30 @@ def _news_card(item: dict) -> rx.Component:
         padding="0.85em",
         border_radius="8px",
         background="var(--gray-a2)",
-        width="100%",
+        width="320px",
+        flex_shrink="0",
+        height="100%",
+    )
+
+
+def _news_slider() -> rx.Component:
+    # Same draggable/arrow-scrollable slider mechanics as the narrative
+    # alerts (assets/chain_pills.js — its selectors include these
+    # news-slider class names too), just news cards instead of alert cards.
+    return rx.box(
+        rx.box(
+            rx.icon("chevron-left", size=14),
+            class_name="news-scroll-btn news-scroll-left",
+        ),
+        rx.box(
+            *[_news_card(item) for item in NEWS_ITEMS],
+            class_name="news-slider-track",
+        ),
+        rx.box(
+            rx.icon("chevron-right", size=14),
+            class_name="news-scroll-btn news-scroll-right",
+        ),
+        class_name="news-slider-wrap",
     )
 
 
@@ -652,14 +675,7 @@ def news_feed() -> rx.Component:
             align_items="center",
             width="100%",
         ),
-        rx.vstack(
-            *[_news_card(item) for item in NEWS_ITEMS],
-            spacing="2",
-            width="100%",
-            class_name="news-card-list",
-            justify_content="start",
-            overflow_y="scroll",
-        ),
+        _news_slider(),
         rx.link(
             rx.button("More News", variant="soft", width="100%"),
             href="#view-all-news",

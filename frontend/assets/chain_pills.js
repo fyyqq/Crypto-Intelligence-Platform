@@ -10,13 +10,13 @@
   window.__chainPillsInit = true;
 
   const WRAP_SELECTOR =
-    ".narrative-pills-wrap, .chain-filter-pills-wrap, .alerts-slider-wrap";
+    ".narrative-pills-wrap, .chain-filter-pills-wrap, .alerts-slider-wrap, .news-slider-wrap";
   const TRACK_SELECTOR =
-    ".narrative-pills-track, .chain-filter-pills-track, .alerts-slider-track";
+    ".narrative-pills-track, .chain-filter-pills-track, .alerts-slider-track, .news-slider-track";
   const LEFT_BTN_SELECTOR =
-    ".narrative-scroll-left, .chain-filter-scroll-left, .alerts-scroll-left";
+    ".narrative-scroll-left, .chain-filter-scroll-left, .alerts-scroll-left, .news-scroll-left";
   const RIGHT_BTN_SELECTOR =
-    ".narrative-scroll-right, .chain-filter-scroll-right, .alerts-scroll-right";
+    ".narrative-scroll-right, .chain-filter-scroll-right, .alerts-scroll-right, .news-scroll-right";
 
   // Hides an arrow once its end of the track is reached (nothing left to
   // scroll that direction), instead of always showing both.
@@ -132,53 +132,19 @@
   );
 })();
 
-// Caps the sidebar news card list's height at exactly 10.5 cards' worth of
-// content (10 full cards + half of the 11th peeking in, a common "there's
-// more, scroll for it" cue) instead of the coin table's height or the
-// list's own full ~100-card natural height. Stays scrollable (overflow-y:
-// scroll, set in news_feed.py) for the rest of the items.
+// Equalizes every card in a horizontal slider track to the tallest card's
+// natural height — percentage height (height: 100%) can't do this reliably
+// since the track's own height is intrinsic (sized by its tallest child),
+// not a definite value flex percentage children can resolve against. Covers
+// both the "Targeted Narrative + Coin" alerts and the news slider (same
+// mechanics, different card content — see narrative_alerts.py / news_feed.py).
 (function () {
-  if (window.__newsHeightSyncInit) return;
-  window.__newsHeightSyncInit = true;
-  const CARD_COUNT = 10.5;
+  if (window.__cardHeightSyncInit) return;
+  window.__cardHeightSyncInit = true;
 
-  function syncHeight() {
-    const target = document.querySelector(".news-card-list");
-    if (!target || target.children.length < 2) return;
-    const first = target.children[0].getBoundingClientRect();
-    const second = target.children[1].getBoundingClientRect();
-    const gap = second.top - first.bottom;
-    const step = first.height + gap;
-    const height = CARD_COUNT * step - gap;
-    if (height > 0) {
-      target.style.height = height + "px";
-    }
-  }
+  const EQUALIZE_TRACK_SELECTOR = ".alerts-slider-track, .news-slider-track";
 
-  document.addEventListener("DOMContentLoaded", syncHeight);
-  window.addEventListener("load", syncHeight);
-  window.addEventListener("resize", syncHeight);
-  // Reflex hydrates client-side after this script's own load event, so the
-  // cards may not exist yet on first paint — catch it once they mount.
-  new MutationObserver(syncHeight).observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
-  syncHeight();
-})();
-
-// Equalizes every "Targeted Narrative + Coin" alert card to the tallest
-// card's natural height — percentage height (height: 100%) can't do this
-// reliably since the track's own height is intrinsic (sized by its
-// tallest child), not a definite value flex percentage children can
-// resolve against.
-(function () {
-  if (window.__alertCardHeightSyncInit) return;
-  window.__alertCardHeightSyncInit = true;
-
-  function equalizeHeights() {
-    const track = document.querySelector(".alerts-slider-track");
-    if (!track) return;
+  function equalizeTrack(track) {
     const cards = Array.from(track.children);
     if (!cards.length) return;
     cards.forEach(function (c) {
@@ -193,6 +159,10 @@
     cards.forEach(function (c) {
       c.style.height = maxHeight + "px";
     });
+  }
+
+  function equalizeHeights() {
+    document.querySelectorAll(EQUALIZE_TRACK_SELECTOR).forEach(equalizeTrack);
   }
 
   let resizeTimer;
