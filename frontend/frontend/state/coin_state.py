@@ -2,6 +2,7 @@
 exposes a narrative filter, backed by the SQLModel tables in frontend/models.
 """
 
+import asyncio
 from collections import Counter
 
 import reflex as rx
@@ -109,6 +110,133 @@ def _narrative_icon(name: str) -> str:
     return "tag"
 
 
+def _build_row(coin: Coin) -> dict:
+    """Builds one table row dict from a Coin (with categories/contracts
+    eager-loaded). Shared by load_coins (full load) and the view-driven
+    live sync (refreshes just the coins on whichever page is on screen).
+    """
+    names = sorted(category.name for category in coin.categories)
+    trend_24h_data, trend_24h_color, trend_24h_shine = _trend_line(coin.percent_change_24h or 0.0)
+    trend_7d_data, trend_7d_color, trend_7d_shine = _trend_line(coin.percent_change_7d or 0.0)
+    primary_narrative = _pick_primary_narrative(names)
+
+    # A coin with no contract rows is single-chain — it IS its own chain.
+    # Otherwise the row already flagged as primary (see
+    # MarketDataService._upsert_contracts) is the main chain; everything
+    # else feeds the "other chains" dropdown.
+    chains = sorted(coin.contracts, key=lambda c: c.sort_order)
+    primary_chain = next((c for c in chains if c.is_primary), None)
+    main_chain = primary_chain.platform_name if primary_chain else coin.name
+    other_chains = [c.platform_name for c in chains if c is not primary_chain]
+
+    return {
+        "cmc_id": coin.cmc_id,
+        "name": coin.name,
+        "symbol": coin.symbol,
+        "icon_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{coin.cmc_id}.png",
+        "market_cap_usd": coin.market_cap_usd or 0.0,
+        "price_raw": coin.price_usd or 0.0,
+        "volume_raw": coin.volume_24h_usd or 0.0,
+        "pct_1h_raw": coin.percent_change_1h or 0.0,
+        "pct_24h_raw": coin.percent_change_24h or 0.0,
+        "pct_7d_raw": coin.percent_change_7d or 0.0,
+        "price_display": _fmt_usd(coin.price_usd or 0.0),
+        "market_cap_display": _fmt_compact_usd(coin.market_cap_usd or 0.0),
+        "volume_display": _fmt_compact_usd(coin.volume_24h_usd or 0.0),
+        "change_1h_display": _fmt_pct(coin.percent_change_1h or 0.0),
+        "change_1h_color": _pct_color(coin.percent_change_1h or 0.0),
+        "change_24h_display": _fmt_pct(coin.percent_change_24h or 0.0),
+        "change_24h_color": _pct_color(coin.percent_change_24h or 0.0),
+        "change_7d_display": _fmt_pct(coin.percent_change_7d or 0.0),
+        "change_7d_color": _pct_color(coin.percent_change_7d or 0.0),
+        "narratives": ", ".join(names),
+        "primary_narrative": primary_narrative,
+        "primary_narrative_icon": _narrative_icon(primary_narrative),
+        "main_chain": main_chain,
+        "other_chains_display": "\n".join(other_chains),
+        "has_other_chains": len(other_chains) > 0,
+        "trend_24h_data": trend_24h_data,
+        "trend_24h_color": trend_24h_color,
+        "trend_24h_shine": trend_24h_shine,
+        "trend_7d_data": trend_7d_data,
+        "trend_7d_color": trend_7d_color,
+        "trend_7d_shine": trend_7d_shine,
+    }
+
+
+def _sync_and_rebuild_rows(cmc_ids: list[int]) -> dict[int, dict]:
+    """Blocking work for the view-driven live sync: refreshes the given
+    coins' quotes in Postgres (cross-package call into the FastAPI
+    backend's own service, same pattern as reflex_cache_service.py's
+    Postgres->Reflex mirror), mirrors just those rows into the Reflex
+    SQLite cache, and returns freshly-built row dicts keyed by cmc_id.
+    Runs in a thread (see CoinState.sync_visible_page) since it's all
+    synchronous network/DB calls.
+    """
+    import sys
+    from pathlib import Path
+
+    from sqlalchemy import select as sa_select
+
+    # Reflex's own process runs with only frontend/ on sys.path — the
+    # project root (parent of both app/ and frontend/) needs adding before
+    # `app.*` can be imported, same cross-package pattern as
+    # reflex_cache_service.py uses in the other direction.
+    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+    from app.models.coin import Coin as OldCoin
+    from app.models.sync_log import SyncStatus
+    from app.services.market_data_service import MarketDataService
+
+    old_db = OldSessionLocal()
+    try:
+        sync_log = MarketDataService(old_db).sync_ids(cmc_ids)
+        if sync_log.status != SyncStatus.SUCCESS:
+            # Transient CMC/network hiccup — skip this cycle rather than
+            # mirroring stale Postgres data into Reflex's cache; the next
+            # tick (60s, or the next page/filter change) tries again.
+            return {}
+        fresh_by_id = {
+            c.cmc_id: c
+            for c in old_db.scalars(sa_select(OldCoin).where(OldCoin.cmc_id.in_(cmc_ids))).all()
+        }
+    finally:
+        old_db.close()
+
+    with rx.session() as session:
+        rows = session.exec(select(Coin).where(Coin.cmc_id.in_(cmc_ids))).all()
+        for row in rows:
+            fresh = fresh_by_id.get(row.cmc_id)
+            if fresh is None:
+                continue
+            row.cmc_rank = fresh.cmc_rank
+            row.price_usd = float(fresh.price_usd) if fresh.price_usd is not None else None
+            row.market_cap_usd = float(fresh.market_cap_usd) if fresh.market_cap_usd is not None else None
+            row.volume_24h_usd = float(fresh.volume_24h_usd) if fresh.volume_24h_usd is not None else None
+            row.percent_change_1h = (
+                float(fresh.percent_change_1h) if fresh.percent_change_1h is not None else None
+            )
+            row.percent_change_24h = (
+                float(fresh.percent_change_24h) if fresh.percent_change_24h is not None else None
+            )
+            row.percent_change_7d = (
+                float(fresh.percent_change_7d) if fresh.percent_change_7d is not None else None
+            )
+            row.last_synced_at = fresh.last_synced_at
+            session.add(row)
+        session.commit()
+
+        updated_coins = session.exec(
+            select(Coin)
+            .where(Coin.cmc_id.in_(cmc_ids))
+            .options(selectinload(Coin.categories), selectinload(Coin.contracts))
+        ).all()
+        return {coin.cmc_id: _build_row(coin) for coin in updated_coins}
+
+
 class CoinState(rx.State):
     all_coins: list[dict] = []
     categories: list[str] = []
@@ -126,6 +254,11 @@ class CoinState(rx.State):
     page: int = 1
     page_size: int = 100
 
+    # Search-by-name/ticker across every coin (not just the current page) —
+    # search_open toggles the magnifying-glass icon into the input field.
+    search_open: bool = False
+    search_query: str = ""
+
     # In-page sort only: reorders the current page's rows, never re-ranks
     # across the full coin list. sort_key is one of the raw numeric fields
     # in each row dict (e.g. "pct_1h_raw"), or "" for the default (market-cap)
@@ -135,6 +268,10 @@ class CoinState(rx.State):
     # Changing page also resets both, per spec.
     sort_key: str = ""
     sort_direction: str = ""
+
+    # Backend-only (not sent to the client): guards live_sync_loop against
+    # starting twice for the same session (e.g. on_load firing again).
+    _is_live_syncing: bool = False
 
     @rx.event
     def load_coins(self):
@@ -150,56 +287,10 @@ class CoinState(rx.State):
             narrative_counts: Counter[str] = Counter()
             chain_counts: Counter[str] = Counter()
             for coin in coins:
-                names = sorted(category.name for category in coin.categories)
-                narrative_counts.update(names)
-                trend_24h_data, trend_24h_color, trend_24h_shine = _trend_line(coin.percent_change_24h or 0.0)
-                trend_7d_data, trend_7d_color, trend_7d_shine = _trend_line(coin.percent_change_7d or 0.0)
-                primary_narrative = _pick_primary_narrative(names)
-
-                # A coin with no contract rows is single-chain — it IS its
-                # own chain. Otherwise the row already flagged as primary
-                # (see MarketDataService._upsert_contracts) is the main
-                # chain; everything else feeds the "other chains" dropdown.
-                chains = sorted(coin.contracts, key=lambda c: c.sort_order)
-                primary_chain = next((c for c in chains if c.is_primary), None)
-                main_chain = primary_chain.platform_name if primary_chain else coin.name
-                other_chains = [c.platform_name for c in chains if c is not primary_chain]
-                chain_counts.update([main_chain])
-
-                rows.append(
-                    {
-                        "name": coin.name,
-                        "symbol": coin.symbol,
-                        "icon_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{coin.cmc_id}.png",
-                        "market_cap_usd": coin.market_cap_usd or 0.0,
-                        "price_raw": coin.price_usd or 0.0,
-                        "volume_raw": coin.volume_24h_usd or 0.0,
-                        "pct_1h_raw": coin.percent_change_1h or 0.0,
-                        "pct_24h_raw": coin.percent_change_24h or 0.0,
-                        "pct_7d_raw": coin.percent_change_7d or 0.0,
-                        "price_display": _fmt_usd(coin.price_usd or 0.0),
-                        "market_cap_display": _fmt_compact_usd(coin.market_cap_usd or 0.0),
-                        "volume_display": _fmt_compact_usd(coin.volume_24h_usd or 0.0),
-                        "change_1h_display": _fmt_pct(coin.percent_change_1h or 0.0),
-                        "change_1h_color": _pct_color(coin.percent_change_1h or 0.0),
-                        "change_24h_display": _fmt_pct(coin.percent_change_24h or 0.0),
-                        "change_24h_color": _pct_color(coin.percent_change_24h or 0.0),
-                        "change_7d_display": _fmt_pct(coin.percent_change_7d or 0.0),
-                        "change_7d_color": _pct_color(coin.percent_change_7d or 0.0),
-                        "narratives": ", ".join(names),
-                        "primary_narrative": primary_narrative,
-                        "primary_narrative_icon": _narrative_icon(primary_narrative),
-                        "main_chain": main_chain,
-                        "other_chains_display": "\n".join(other_chains),
-                        "has_other_chains": len(other_chains) > 0,
-                        "trend_24h_data": trend_24h_data,
-                        "trend_24h_color": trend_24h_color,
-                        "trend_24h_shine": trend_24h_shine,
-                        "trend_7d_data": trend_7d_data,
-                        "trend_7d_color": trend_7d_color,
-                        "trend_7d_shine": trend_7d_shine,
-                    }
-                )
+                narrative_counts.update(category.name for category in coin.categories)
+                row = _build_row(coin)
+                chain_counts.update([row["main_chain"]])
+                rows.append(row)
 
         self.all_coins = rows
         # Top 10 by number of coins carrying that tag — out of ~600 dynamic
@@ -215,62 +306,175 @@ class CoinState(rx.State):
         self.is_loading = False
 
     @rx.event
-    def set_category(self, value: str):
+    async def set_category(self, value: str):
         # active_category has no dependent computed vars, so this first
-        # flush (pill turns blue + skeleton shows) is instant. Only the
-        # second flush, after the actual re-filter/re-sort runs, updates
-        # selected_category — that's the part with a noticeable round trip.
+        # flush (pill turns blue + skeleton shows) is instant. The sleep
+        # below is what keeps the skeleton visible — re-filtering an
+        # in-memory list is itself instant, so without it the second flush
+        # (updating selected_category) would follow within a millisecond
+        # and the skeleton would never actually be perceptible.
         self.active_category = value
         self.is_filtering = True
         yield
+        await asyncio.sleep(0.25)
         self.selected_category = value
         self.page = 1
         self.sort_key = ""
         self.sort_direction = ""
         self.is_filtering = False
+        yield CoinState.sync_visible_page
 
     @rx.event
-    def set_chain(self, value: str):
+    async def set_chain(self, value: str):
         # Same instant-highlight-then-refilter pattern as set_category. The
         # two filters combine with AND (see filtered_coins) — narrative +
         # chain together, e.g. "Memes" + "BNB Smart Chain (BEP20)".
         self.active_chain = value
         self.is_filtering = True
         yield
+        await asyncio.sleep(0.25)
         self.selected_chain = value
         self.page = 1
         self.sort_key = ""
         self.sort_direction = ""
         self.is_filtering = False
+        yield CoinState.sync_visible_page
 
     @rx.event
-    def next_page(self):
+    async def toggle_search(self):
+        self.search_open = not self.search_open
+        if not self.search_open and self.search_query:
+            self.is_filtering = True
+            yield
+            await asyncio.sleep(0.25)
+            self.search_query = ""
+            self.page = 1
+            self.is_filtering = False
+            yield CoinState.sync_visible_page
+
+    @rx.event
+    async def set_search_query(self, value: str):
+        # search_query updates immediately (keeps the input's own value in
+        # sync). The skeleton — not the new, already-filtered rows — is
+        # what actually renders until the flush below. Re-filtering an
+        # in-memory list is itself instant, so without the artificial
+        # delay the skeleton would flash for under a millisecond and never
+        # actually be visible; the sleep is what makes the loading state
+        # perceptible at all.
+        self.search_query = value
+        self.is_filtering = True
+        yield
+        await asyncio.sleep(0.25)
+        self.page = 1
+        self.sort_key = ""
+        self.sort_direction = ""
+        self.is_filtering = False
+        yield CoinState.sync_visible_page
+
+    @rx.event
+    async def next_page(self):
         if self.page < self.total_pages:
+            self.is_filtering = True
+            yield
+            await asyncio.sleep(0.25)
             self.page += 1
             self.sort_key = ""
             self.sort_direction = ""
+            self.is_filtering = False
+            yield CoinState.sync_visible_page
 
     @rx.event
-    def prev_page(self):
+    async def prev_page(self):
         if self.page > 1:
+            self.is_filtering = True
+            yield
+            await asyncio.sleep(0.25)
             self.page -= 1
             self.sort_key = ""
             self.sort_direction = ""
+            self.is_filtering = False
+            yield CoinState.sync_visible_page
 
     @rx.event
-    def go_to_page(self, page_str: str):
+    async def go_to_page(self, page_str: str):
         page = int(page_str)
         if 1 <= page <= self.total_pages:
+            self.is_filtering = True
+            yield
+            await asyncio.sleep(0.25)
             self.page = page
             self.sort_key = ""
             self.sort_direction = ""
+            self.is_filtering = False
+            yield CoinState.sync_visible_page
 
     @rx.event
-    def set_page_size(self, value: str):
+    async def set_page_size(self, value: str):
+        self.is_filtering = True
+        yield
+        await asyncio.sleep(0.25)
         self.page_size = int(value)
         self.page = 1
         self.sort_key = ""
         self.sort_direction = ""
+        self.is_filtering = False
+        yield CoinState.sync_visible_page
+
+    @rx.event(background=True)
+    async def sync_visible_page(self):
+        """One-shot view-driven refresh: re-fetches quotes for just the
+        coins on whichever page/filter is on screen right now (called
+        immediately after pagination/filter changes; live_sync_loop below
+        covers the same page while it stays open, every 60s).
+        """
+        async with self:
+            cmc_ids = [row["cmc_id"] for row in self.sorted_paged_coins]
+        if not cmc_ids:
+            return
+        updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, cmc_ids)
+        async with self:
+            self._apply_updates(updated_rows)
+
+    @rx.event(background=True)
+    async def live_sync_loop(self):
+        """Keeps whichever page/filter a session is looking at fresh every
+        60s for as long as that browser tab stays open — started once via
+        on_load. Rule 4 (API Optimization & Cost Control) still holds for
+        the full ~8,000-coin universe (24h cadence, sync_hot_listings'
+        top-500/1h cadence); this only ever touches the <=500 coins
+        actually on screen, one lightweight quotes/latest call at a time.
+        """
+        async with self:
+            if self._is_live_syncing:
+                return
+            self._is_live_syncing = True
+
+        from frontend.frontend import app as reflex_app
+
+        try:
+            while True:
+                # Sync runs before the connection check (not after) — right
+                # after on_load fires, the websocket handshake that
+                # registers this client_token in token_to_sid may not have
+                # completed yet, and checking first would break out before
+                # ever syncing anything.
+                async with self:
+                    cmc_ids = [row["cmc_id"] for row in self.sorted_paged_coins]
+                if cmc_ids:
+                    updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, cmc_ids)
+                    async with self:
+                        self._apply_updates(updated_rows)
+                await asyncio.sleep(60)
+                if self.router.session.client_token not in reflex_app.event_namespace.token_to_sid:
+                    break
+        finally:
+            async with self:
+                self._is_live_syncing = False
+
+    def _apply_updates(self, updated_rows: dict[int, dict]) -> None:
+        if not updated_rows:
+            return
+        self.all_coins = [updated_rows.get(row["cmc_id"], row) for row in self.all_coins]
 
     @rx.event
     def set_sort(self, key: str):
@@ -293,6 +497,16 @@ class CoinState(rx.State):
         # (BEP20)" narrows to memecoins whose primary chain is BNB Smart Chain.
         if self.selected_chain != "All chains":
             rows = [r for r in rows if r["main_chain"] == self.selected_chain]
+        # Search runs against every coin in all_coins (not just the current
+        # page) by name/ticker only — finds a coin regardless of which page
+        # it would otherwise land on.
+        if self.search_query:
+            query = self.search_query.strip().lower()
+            rows = [
+                r
+                for r in rows
+                if query in r["name"].lower() or query in r["symbol"].lower()
+            ]
         rows = sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
         # Rank reflects position by market cap in the current view (1..N),
         # not CMC's own cmc_rank field, which has gaps/different methodology
@@ -306,6 +520,17 @@ class CoinState(rx.State):
     @rx.var(cache=True)
     def total_pages(self) -> int:
         return max(1, -(-self.total_shown // self.page_size))
+
+    @rx.var(cache=True)
+    def skeleton_rows(self) -> list[int]:
+        """One entry per skeleton row to render while is_filtering is true
+        — sized to page_size (not a fixed count) so the skeleton matches
+        whatever row count the real table is about to show. Errs toward
+        page_size even on a short last page/search result rather than a
+        smaller count, so the page height never visibly collapses then
+        re-expands once the real (possibly shorter) rows replace it.
+        """
+        return list(range(self.page_size))
 
     @rx.var(cache=True)
     def page_top_n(self) -> int:

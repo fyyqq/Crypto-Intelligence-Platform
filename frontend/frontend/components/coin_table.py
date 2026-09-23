@@ -32,6 +32,14 @@ def _sort_icon(sort_key: str) -> rx.Component:
     )
 
 
+_STICKY_HEADER_STYLE = {
+    "position": "sticky",
+    "top": "0",
+    "z_index": "2",
+    "background_color": "var(--gray-2)",
+}
+
+
 def _sortable_header(label: str, sort_key: str) -> rx.Component:
     return rx.table.column_header_cell(
         rx.hstack(
@@ -42,6 +50,7 @@ def _sortable_header(label: str, sort_key: str) -> rx.Component:
             cursor="pointer",
         ),
         on_click=CoinState.set_sort(sort_key),
+        **_STICKY_HEADER_STYLE,
     )
 
 
@@ -58,7 +67,7 @@ def _trend_cell(data: rx.Var[list], color: rx.Var[str], shine_class: rx.Var[str]
                     is_animation_active=False,
                 ),
                 data=data,
-                width=90,
+                width=80,
                 height=32,
             ),
             class_name=shine_class.to(str),
@@ -249,12 +258,6 @@ def _pagination_bar(pill: bool = False) -> rx.Component:
 
 
 _TABLE_COLUMN_COUNT = 10
-# Matches CoinState.page_size (always 100) so the skeleton fills the same
-# row count — and, via the 3-line Name cell mirroring _row's real stack of
-# icon/name row + narrative badge + chain badge, roughly the same per-row
-# height — as the real table, instead of collapsing to a handful of thin
-# rows while filtering.
-_SKELETON_ROW_COUNT = 100
 
 
 def _skeleton_name_cell() -> rx.Component:
@@ -270,7 +273,7 @@ def _skeleton_name_cell() -> rx.Component:
     )
 
 
-def _skeleton_row() -> rx.Component:
+def _skeleton_row(_: rx.Var) -> rx.Component:
     return rx.table.row(
         rx.table.cell(rx.skeleton(height="1em", width="60%")),
         _skeleton_name_cell(),
@@ -282,15 +285,71 @@ def _skeleton_row() -> rx.Component:
 
 
 def _skeleton_body() -> rx.Component:
-    # Shown while CoinState.is_filtering is true (see set_category) — a
-    # narrative filter change re-renders up to 100 rows, so this fills the
-    # round-trip gap instead of the table looking frozen.
-    return rx.table.body(*[_skeleton_row() for _ in range(_SKELETON_ROW_COUNT)])
+    # Shown while CoinState.is_filtering is true (narrative/chain/search
+    # filter changes, pagination, rows-per-page) — matches
+    # CoinState.page_size exactly (not a fixed count) so the skeleton fills
+    # the same row count the real table is about to show, instead of the
+    # page height jumping when the real rows replace it.
+    return rx.table.body(rx.foreach(CoinState.skeleton_rows, _skeleton_row))
+
+
+def _coin_search() -> rx.Component:
+    # Click the magnifying glass to expand it into a debounced search field
+    # (name/ticker only) that queries every coin, not just the current
+    # page — see CoinState.filtered_coins. Whatever it finds flows through
+    # the same pagination/live-sync pipeline as any other filter, so
+    # results still refresh every 60s.
+    #
+    # Both the icon button and the input stay permanently mounted (only a
+    # class toggles) instead of being swapped via rx.cond — animating a
+    # CSS width/opacity transition needs the same DOM node to persist
+    # across the open/closed state, not a full component swap.
+    return rx.box(
+        rx.icon(
+            "search",
+            size=16,
+            class_name="coin-search-toggle-icon",
+            on_click=CoinState.toggle_search,
+        ),
+        rx.box(
+            rx.debounce_input(
+                rx.input(
+                    rx.input.slot(rx.icon("search", size=14)),
+                    placeholder="Search coin name or ticker...",
+                    value=CoinState.search_query,
+                    on_change=CoinState.set_search_query,
+                    size="2",
+                    radius="full",
+                    variant="surface",
+                    class_name="coin-search-input",
+                    style={"width": "220px"},
+                ),
+                debounce_timeout=300,
+            ),
+            rx.icon(
+                "x",
+                size=14,
+                class_name="coin-search-clear-icon",
+                on_click=CoinState.toggle_search,
+            ),
+            class_name="coin-search-input-wrap",
+        ),
+        class_name=rx.cond(
+            CoinState.search_open,
+            "coin-search-container coin-search-open",
+            "coin-search-container",
+        ),
+    )
 
 
 def _table_header_bar() -> rx.Component:
     return rx.box(
-        rx.heading("Top ", CoinState.page_top_n, " Cryptocurrencies", size="5"),
+        rx.hstack(
+            rx.heading("Top ", CoinState.page_top_n, " Cryptocurrencies", size="5"),
+            _coin_search(),
+            spacing="3",
+            align="center",
+        ),
         rx.hstack(
             rx.text("Coins shown", size="2", color_scheme="gray"),
             rx.heading(CoinState.total_shown, size="5"),
@@ -313,15 +372,15 @@ def coin_table() -> rx.Component:
                 rx.table.header(
                     rx.table.row(
                         _sortable_header("Rank", "rank"),
-                        rx.table.column_header_cell("Name"),
+                        rx.table.column_header_cell("Name", **_STICKY_HEADER_STYLE),
                         _sortable_header("Price", "price_raw"),
                         _sortable_header("Market Cap", "market_cap_usd"),
                         _sortable_header("24H Volume", "volume_raw"),
                         _sortable_header("1H", "pct_1h_raw"),
                         _sortable_header("24H", "pct_24h_raw"),
                         _sortable_header("7D", "pct_7d_raw"),
-                        rx.table.column_header_cell("24H Price"),
-                        rx.table.column_header_cell("7D Price"),
+                        rx.table.column_header_cell("24H Price", **_STICKY_HEADER_STYLE),
+                        rx.table.column_header_cell("7D Price", **_STICKY_HEADER_STYLE),
                     )
                 ),
                 rx.cond(
@@ -334,6 +393,7 @@ def coin_table() -> rx.Component:
             ),
             height="max-content",
             width="100%",
+            class_name="coin-table-scroll-fix",
         ),
         _pagination_bar(pill=False),
         width="100%",
