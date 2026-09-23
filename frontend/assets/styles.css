@@ -31,12 +31,17 @@
 }
 
 /* Chain dropdown: a draggable, arrow-scrollable pill carousel (see
-   assets/chain_pills.js for the scroll/drag behavior). */
+   assets/chain_pills.js for the scroll/drag behavior). The arrow buttons
+   are absolutely positioned overlays rather than normal flex siblings of
+   the track — otherwise hiding/showing one at a scroll end changes the
+   track's own clientWidth, which shifts what "reached the end" means right
+   as it's being computed, and an arrow can get stuck never fully hiding. */
 .chain-pills-wrap {
   display: flex;
   align-items: center;
   gap: 4px;
   max-width: 100%;
+  position: relative;
 }
 
 .chain-pills-track {
@@ -46,7 +51,9 @@
   scroll-behavior: smooth;
   cursor: grab;
   scrollbar-width: none;
-  padding: 2px 0;
+  padding: 2px 24px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .chain-pills-track::-webkit-scrollbar {
@@ -90,6 +97,22 @@
   background: var(--gray-6);
 }
 
+.chain-scroll-left,
+.chain-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.chain-scroll-left {
+  left: 0;
+}
+
+.chain-scroll-right {
+  right: 0;
+}
+
 /* Narrative filter: same draggable/arrow-scrollable pill-slider mechanics as
    the chain carousel above, reused here for the "Group by CMC narrative"
    filter (see assets/chain_pills.js, which drives both by class name). */
@@ -99,6 +122,7 @@
   gap: 4px;
   flex: 1 1 auto;
   min-width: 0;
+  position: relative;
 }
 
 .narrative-pills-track {
@@ -108,7 +132,9 @@
   scroll-behavior: smooth;
   cursor: grab;
   scrollbar-width: none;
-  padding: 2px 0;
+  padding: 2px 24px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .narrative-pills-track::-webkit-scrollbar {
@@ -148,6 +174,29 @@
   color: white;
 }
 
+.narrative-pill-more {
+  background: var(--accent-4);
+  border: 1px solid var(--accent-7);
+  color: var(--accent-11);
+}
+
+/* All ~600 narratives, wrapped below the slider (see
+   filters.py::_expanded_narratives_grid) instead of appended to the
+   horizontal track — capped to 10 pills per row. */
+.narrative-expanded-grid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  padding-top: 4px;
+}
+
+.narrative-expanded-grid .narrative-pill {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
 .narrative-scroll-btn {
   flex-shrink: 0;
   display: flex;
@@ -162,4 +211,20 @@
 
 .narrative-scroll-btn:hover {
   background: var(--gray-6);
+}
+
+.narrative-scroll-left,
+.narrative-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.narrative-scroll-left {
+  left: 0;
+}
+
+.narrative-scroll-right {
+  right: 30px;
 }

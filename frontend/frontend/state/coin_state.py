@@ -125,6 +125,10 @@ def _chain_pill_slots(other_chains: list[str]) -> dict[str, str]:
 class CoinState(rx.State):
     all_coins: list[dict] = []
     categories: list[str] = []
+    # Every narrative (~600), for the expanded grid — categories above stays
+    # capped to the top 10 for the pill slider itself.
+    all_categories: list[str] = []
+    narratives_expanded: bool = False
     selected_category: str = "All narratives"
     # Drives just the pill's active/blue highlight. Kept separate from
     # selected_category (which drives the actual re-filter/re-sort of up to
@@ -222,7 +226,12 @@ class CoinState(rx.State):
         # that actually matter for most coins shown, not an alphabetical cut.
         top_narratives = [name for name, _ in narrative_counts.most_common(10)]
         self.categories = ["All narratives", *top_narratives]
+        self.all_categories = ["All narratives", *[name for name, _ in narrative_counts.most_common()]]
         self.is_loading = False
+
+    @rx.event
+    def toggle_narratives_expanded(self):
+        self.narratives_expanded = not self.narratives_expanded
 
     @rx.event
     def set_category(self, value: str):
