@@ -30,6 +30,15 @@
   animation: red-shine 1.6s ease-in-out infinite;
 }
 
+/* The 24h/7d Price trend-line charts are focusable (recharts sets
+   tabindex="0" for keyboard a11y), so clicking one shows the browser's
+   default focus outline around the whole chart. Keep the line itself,
+   just drop that outline. */
+.recharts-surface:focus,
+.recharts-surface:focus-visible {
+  outline: none;
+}
+
 /* Chain dropdown: a draggable, arrow-scrollable pill carousel (see
    assets/chain_pills.js for the scroll/drag behavior). The arrow buttons
    are absolutely positioned overlays rather than normal flex siblings of
