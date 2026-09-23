@@ -84,29 +84,39 @@ def _chain_filter_slider() -> rx.Component:
 
 
 def filter_bar() -> rx.Component:
-    return rx.vstack(
+    return rx.hstack(
         rx.hstack(
-            rx.hstack(
-                rx.icon("list-filter", size=16),
-                rx.text("Filters", weight="bold"),
-                spacing="2",
-                align="center",
-            ),
-            rx.divider(orientation="vertical", height="1.5em"),
-            rx.text("Group by CMC narrative", size="2", color_scheme="gray"),
-            _narrative_pill_slider(),
-            spacing="3",
+            rx.icon("list-filter", size=16),
+            rx.text("Filters", weight="bold"),
+            spacing="2",
             align="center",
-            width="100%",
         ),
-        rx.hstack(
-            rx.text("Filter by chain", size="2", color_scheme="gray"),
-            _chain_filter_slider(),
+        # Stretches to the full height of the two rows beside it, instead of
+        # being scoped to just the first row. height="auto" overrides
+        # Radix's own height: var(--separator-size) (which defaults to a
+        # percentage that resolves to 0 inside this auto-height flex row),
+        # letting plain flexbox align-self: stretch size it instead.
+        rx.divider(orientation="vertical", align_self="stretch", height="auto"),
+        rx.vstack(
+            rx.hstack(
+                rx.text("Group by CMC narrative", size="2", color_scheme="gray"),
+                _narrative_pill_slider(),
+                spacing="3",
+                align="center",
+                width="100%",
+            ),
+            rx.hstack(
+                rx.text("Filter by chain", size="2", color_scheme="gray"),
+                _chain_filter_slider(),
+                spacing="3",
+                align="center",
+                width="100%",
+            ),
             spacing="3",
-            align="center",
             width="100%",
         ),
         spacing="3",
+        align="center",
         width="100%",
         padding="0.85em 1em",
         border="1px solid var(--gray-a5)",
