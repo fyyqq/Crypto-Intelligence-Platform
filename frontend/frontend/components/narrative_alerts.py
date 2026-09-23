@@ -2,9 +2,17 @@
 
 import reflex as rx
 
+_SOURCE_COLORS = {
+    "Bloomberg": "blue",
+    "Cointelegraph": "green",
+    "Reuters": "orange",
+    "CoinDesk": "purple",
+}
+
 ALERTS = [
     {
         "narrative": "REAL-WORLD ASSETS (RWA)",
+        "source": "Bloomberg",
         "hot": False,
         "coin_symbol": "ONDO",
         "time": "10m ago",
@@ -13,6 +21,7 @@ ALERTS = [
     },
     {
         "narrative": "LAYER 1",
+        "source": "Cointelegraph",
         "hot": True,
         "coin_symbol": "SOL",
         "time": "35m ago",
@@ -21,6 +30,7 @@ ALERTS = [
     },
     {
         "narrative": "REAL-WORLD ASSETS (RWA)",
+        "source": "Reuters",
         "hot": True,
         "coin_symbol": "ONDO",
         "time": "1h ago",
@@ -29,6 +39,7 @@ ALERTS = [
     },
     {
         "narrative": "AI AGENTS",
+        "source": "CoinDesk",
         "hot": False,
         "coin_symbol": "RENDER",
         "time": "2h ago",
@@ -37,6 +48,7 @@ ALERTS = [
     },
     {
         "narrative": "DEFI",
+        "source": "Bloomberg",
         "hot": False,
         "coin_symbol": "AAVE",
         "time": "45m ago",
@@ -45,6 +57,7 @@ ALERTS = [
     },
     {
         "narrative": "MEMES",
+        "source": "Cointelegraph",
         "hot": True,
         "coin_symbol": "PEPE",
         "time": "1h ago",
@@ -53,6 +66,7 @@ ALERTS = [
     },
     {
         "narrative": "LAYER 2",
+        "source": "Reuters",
         "hot": False,
         "coin_symbol": "ARB",
         "time": "1h ago",
@@ -61,6 +75,7 @@ ALERTS = [
     },
     {
         "narrative": "RESTAKING",
+        "source": "CoinDesk",
         "hot": True,
         "coin_symbol": "ETHFI",
         "time": "2h ago",
@@ -69,6 +84,7 @@ ALERTS = [
     },
     {
         "narrative": "AI AGENTS",
+        "source": "Bloomberg",
         "hot": False,
         "coin_symbol": "FET",
         "time": "2h ago",
@@ -77,6 +93,7 @@ ALERTS = [
     },
     {
         "narrative": "GAMING",
+        "source": "Cointelegraph",
         "hot": False,
         "coin_symbol": "IMX",
         "time": "3h ago",
@@ -85,6 +102,7 @@ ALERTS = [
     },
     {
         "narrative": "STABLECOIN",
+        "source": "Reuters",
         "hot": True,
         "coin_symbol": "USDe",
         "time": "3h ago",
@@ -93,6 +111,7 @@ ALERTS = [
     },
     {
         "narrative": "ORACLE",
+        "source": "CoinDesk",
         "hot": False,
         "coin_symbol": "LINK",
         "time": "4h ago",
@@ -101,6 +120,7 @@ ALERTS = [
     },
     {
         "narrative": "DEPIN",
+        "source": "Bloomberg",
         "hot": True,
         "coin_symbol": "HNT",
         "time": "4h ago",
@@ -109,6 +129,7 @@ ALERTS = [
     },
     {
         "narrative": "REAL-WORLD ASSETS (RWA)",
+        "source": "Cointelegraph",
         "hot": False,
         "coin_symbol": "POLYX",
         "time": "5h ago",
@@ -117,6 +138,7 @@ ALERTS = [
     },
     {
         "narrative": "PRIVACY",
+        "source": "Reuters",
         "hot": False,
         "coin_symbol": "ZEC",
         "time": "6h ago",
@@ -125,6 +147,7 @@ ALERTS = [
     },
     {
         "narrative": "LAYER 1",
+        "source": "CoinDesk",
         "hot": False,
         "coin_symbol": "AVAX",
         "time": "7h ago",
@@ -133,6 +156,7 @@ ALERTS = [
     },
     {
         "narrative": "DEFI",
+        "source": "Bloomberg",
         "hot": True,
         "coin_symbol": "PENDLE",
         "time": "8h ago",
@@ -141,6 +165,7 @@ ALERTS = [
     },
     {
         "narrative": "BITCOIN ECOSYSTEM",
+        "source": "Cointelegraph",
         "hot": False,
         "coin_symbol": "STX",
         "time": "9h ago",
@@ -149,6 +174,7 @@ ALERTS = [
     },
     {
         "narrative": "TOKENIZED ASSETS",
+        "source": "Reuters",
         "hot": False,
         "coin_symbol": "MKR",
         "time": "10h ago",
@@ -157,6 +183,7 @@ ALERTS = [
     },
     {
         "narrative": "INFRASTRUCTURE",
+        "source": "CoinDesk",
         "hot": True,
         "coin_symbol": "GRT",
         "time": "11h ago",
@@ -169,40 +196,83 @@ ALERTS = [
 def _alert_card(item: dict) -> rx.Component:
     return rx.box(
         rx.hstack(
-            rx.badge(f"NARRATIVE: {item['narrative']}", color_scheme="orange", size="1"),
+            rx.badge(item["source"], color_scheme=_SOURCE_COLORS.get(item["source"], "gray"), size="1"),
             rx.spacer(),
-            rx.text("🔥" if item["hot"] else item["time"], size="1", color_scheme="gray"),
+            rx.text(item["time"], size="1", color_scheme="gray"),
             width="100%",
             align="center",
         ),
         rx.hstack(
-            rx.badge(item["coin_symbol"], color_scheme="indigo", margin_top="0.6em"),
+            rx.badge(item["coin_symbol"], color_scheme="indigo", size="1"),
+            rx.badge(item["narrative"], color_scheme="orange", size="1"),
+            margin_top="0.5em",
             width="100%",
+            direction="row-reverse",
+            justify="end",
         ),
         rx.text(item["headline"], weight="bold", size="2", margin_top="0.4em"),
         rx.text(item["body"], size="1", color_scheme="gray", margin_top="0.3em"),
         padding="0.85em",
-        border_left="3px solid var(--orange-9)",
         border_radius="8px",
         background="var(--gray-a2)",
-        width="100%",
+        width="340px",
+        flex_shrink="0",
+        height="100%",
+        overflow_y="scroll",
+    )
+
+
+def _alerts_slider() -> rx.Component:
+    # Same draggable/arrow-scrollable mechanics as the news slider
+    # (assets/chain_pills.js — its selectors include these alerts-slider
+    # class names too), just alert cards instead of news cards.
+    return rx.box(
+        rx.box(
+            rx.icon("chevron-left", size=14),
+            class_name="alerts-scroll-btn alerts-scroll-left",
+        ),
+        rx.box(
+            *[_alert_card(item) for item in ALERTS],
+            class_name="alerts-slider-track",
+        ),
+        rx.box(
+            rx.icon("chevron-right", size=14),
+            class_name="alerts-scroll-btn alerts-scroll-right",
+        ),
+        class_name="alerts-slider-wrap",
+    )
+
+
+def _more_impact_link() -> rx.Component:
+    # No feature wired up yet — will surface which coins/narratives a news
+    # item affects once that correlation feature is built (see
+    # news_feed.py's matching link for the same upcoming feature).
+    return rx.link(
+        rx.hstack(
+            rx.text("More Impact", size="2", weight="bold"),
+            rx.icon("arrow-right", size=14),
+            spacing="1",
+            align="center",
+        ),
+        href="#view-news-impact",
+        underline="none",
+        color_scheme="indigo",
+        margin_left="1.5em",
     )
 
 
 def narrative_alerts() -> rx.Component:
     return rx.vstack(
         rx.text("TARGETED NARRATIVE ALERTS", size="1", color_scheme="gray", weight="bold"),
-        rx.heading("Targeted Narrative + Coin", size="5"),
         rx.box(
-            rx.vstack(
-                *[_alert_card(item) for item in ALERTS],
-                spacing="2",
-                width="100%",
-            ),
-            height="calc(100vh - 300px)",
-            overflow="auto",
+            rx.heading("Targeted Narrative + Coin", size="5"),
+            _more_impact_link(),
+            display="flex",
+            justify_content="space-between",
+            align_items="center",
             width="100%",
         ),
+        _alerts_slider(),
         spacing="3",
         width="100%",
         align_items="stretch",
