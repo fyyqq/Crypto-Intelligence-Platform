@@ -20,8 +20,8 @@ def _narrative_pill(name: rx.Var[str]) -> rx.Component:
 def _more_narratives_pill() -> rx.Component:
     # No feature wired up yet — just a placeholder link.
     return rx.link(
-        rx.text("More Chain", size="1", weight="bold"),
-        href="#view-all-chain",
+        rx.text("More Narrative", size="1", weight="bold"),
+        href="#view-all-narrative",
         underline="none",
         class_name="narrative-pill narrative-pill-more",
     )
@@ -61,6 +61,16 @@ def _chain_filter_pill(name: rx.Var[str]) -> rx.Component:
     )
 
 
+def _more_chains_pill() -> rx.Component:
+    # No feature wired up yet — just a placeholder link.
+    return rx.link(
+        rx.text("More Chain", size="1", weight="bold"),
+        href="#view-all-chain",
+        underline="none",
+        class_name="chain-filter-pill chain-filter-pill-more",
+    )
+
+
 def _chain_filter_slider() -> rx.Component:
     # Same drag/arrow mechanics as the narrative slider (assets/chain_pills.js
     # matches these class names too), just its own top-10-by-count list so it
@@ -73,6 +83,7 @@ def _chain_filter_slider() -> rx.Component:
         ),
         rx.box(
             rx.foreach(CoinState.chains, _chain_filter_pill),
+            _more_chains_pill(),
             class_name="chain-filter-pills-track",
         ),
         rx.box(

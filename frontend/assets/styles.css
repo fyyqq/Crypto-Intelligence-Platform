@@ -241,6 +241,12 @@
   background: var(--gray-6);
 }
 
+.chain-filter-pill-more {
+  background: var(--accent-4);
+  border: 1px solid var(--accent-7);
+  color: var(--accent-11);
+}
+
 .chain-filter-pill-active {
   background: var(--accent-9);
   border-color: var(--accent-9);
