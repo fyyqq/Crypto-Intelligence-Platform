@@ -172,18 +172,79 @@ def _row(row: dict) -> rx.Component:
     )
 
 
-def _pagination() -> rx.Component:
-    return rx.hstack(
-        rx.button("Prev", on_click=CoinState.prev_page, disabled=CoinState.page <= 1),
-        rx.text("Page ", CoinState.page, " / ", CoinState.total_pages),
-        rx.button(
-            "Next", on_click=CoinState.next_page, disabled=CoinState.page >= CoinState.total_pages
+_PAGE_SIZE_OPTIONS = ["50", "100", "200", "500"]
+
+
+def _page_number(page_str: rx.Var[str]) -> rx.Component:
+    return rx.cond(
+        page_str == "...",
+        rx.text("...", size="2", color_scheme="gray", padding_x="0.3em"),
+        rx.box(
+            rx.text(page_str, size="2"),
+            on_click=CoinState.go_to_page(page_str),
+            class_name=rx.cond(
+                CoinState.page_str == page_str,
+                "page-number page-number-active",
+                "page-number",
+            ),
         ),
-        spacing="3",
+    )
+
+
+def _pagination_controls() -> rx.Component:
+    return rx.hstack(
+        rx.box(
+            rx.icon("chevron-left", size=16),
+            on_click=CoinState.prev_page,
+            class_name="page-arrow-btn",
+        ),
+        rx.foreach(CoinState.page_window, _page_number),
+        rx.box(
+            rx.icon("chevron-right", size=16),
+            on_click=CoinState.next_page,
+            class_name="page-arrow-btn",
+        ),
+        spacing="1",
         align="center",
-        justify="end",
+    )
+
+
+def _rows_per_page_selector() -> rx.Component:
+    return rx.hstack(
+        rx.text("Rows", size="2", color_scheme="gray"),
+        rx.select(
+            _PAGE_SIZE_OPTIONS,
+            value=CoinState.page_size_str,
+            on_change=CoinState.set_page_size,
+            size="2",
+        ),
+        spacing="2",
+        align="center",
+    )
+
+
+def _pagination_bar(pill: bool = False) -> rx.Component:
+    return rx.hstack(
+        rx.text(
+            "Showing ",
+            CoinState.showing_start,
+            " to ",
+            CoinState.showing_end,
+            " of ",
+            CoinState.total_shown,
+            " results",
+            size="2",
+            color_scheme="gray",
+            white_space="nowrap",
+        ),
+        rx.spacer(),
+        _pagination_controls(),
+        rx.spacer(),
+        _rows_per_page_selector(),
+        align="center",
         width="100%",
-        padding_y="0.75em",
+        class_name="pagination-pill" if pill else "",
+        padding="0.6em 1.4em" if pill else "0.75em 0",
     )
 
 
@@ -246,6 +307,7 @@ def _table_header_bar() -> rx.Component:
 def coin_table() -> rx.Component:
     return rx.vstack(
         _table_header_bar(),
+        _pagination_bar(pill=True),
         rx.box(
             rx.table.root(
                 rx.table.header(
@@ -273,6 +335,6 @@ def coin_table() -> rx.Component:
             height="max-content",
             width="100%",
         ),
-        _pagination(),
+        _pagination_bar(pill=False),
         width="100%",
     )

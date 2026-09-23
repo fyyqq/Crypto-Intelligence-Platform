@@ -258,6 +258,21 @@ class CoinState(rx.State):
             self.sort_direction = ""
 
     @rx.event
+    def go_to_page(self, page_str: str):
+        page = int(page_str)
+        if 1 <= page <= self.total_pages:
+            self.page = page
+            self.sort_key = ""
+            self.sort_direction = ""
+
+    @rx.event
+    def set_page_size(self, value: str):
+        self.page_size = int(value)
+        self.page = 1
+        self.sort_key = ""
+        self.sort_direction = ""
+
+    @rx.event
     def set_sort(self, key: str):
         if self.sort_key != key:
             self.sort_key = key
@@ -317,3 +332,49 @@ class CoinState(rx.State):
         return sorted(
             rows, key=lambda r: r[self.sort_key], reverse=self.sort_direction == "desc"
         )
+
+    @rx.var(cache=True)
+    def page_str(self) -> str:
+        return str(self.page)
+
+    @rx.var(cache=True)
+    def page_size_str(self) -> str:
+        return str(self.page_size)
+
+    @rx.var(cache=True)
+    def showing_start(self) -> int:
+        return 0 if self.total_shown == 0 else (self.page - 1) * self.page_size + 1
+
+    @rx.var(cache=True)
+    def showing_end(self) -> int:
+        return min(self.page * self.page_size, self.total_shown)
+
+    @rx.var(cache=True)
+    def page_window(self) -> list[str]:
+        """Page numbers to render, e.g. ["1","2","3","4","5","...","117"] —
+        a leading run around the current page, plus the last page, with
+        "..." marking any gap. "..." entries render as plain text, not
+        buttons (see coin_table.py::_page_number).
+        """
+        total = self.total_pages
+        current = self.page
+        if total <= 7:
+            window = list(range(1, total + 1))
+        elif current <= 5:
+            window = list(range(1, 6))
+        elif current >= total - 4:
+            window = list(range(total - 4, total + 1))
+        else:
+            window = list(range(current - 2, current + 3))
+
+        pages: list[str] = []
+        if window[0] > 1:
+            pages.append("1")
+            if window[0] > 2:
+                pages.append("...")
+        pages.extend(str(p) for p in window)
+        if window[-1] < total:
+            if window[-1] < total - 1:
+                pages.append("...")
+            pages.append(str(total))
+        return pages

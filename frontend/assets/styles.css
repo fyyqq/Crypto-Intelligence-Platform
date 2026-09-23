@@ -39,6 +39,56 @@
   outline: none;
 }
 
+/* Pagination: numbered pages with a circular active indicator, plus a
+   rounded-pill container variant used above the table
+   (coin_table.py::_pagination_bar). */
+.page-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.page-number:hover {
+  background: var(--gray-4);
+}
+
+.page-number-active {
+  background: var(--accent-9);
+  color: white;
+}
+
+.page-number-active:hover {
+  background: var(--accent-9);
+}
+
+.page-arrow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: var(--gray-11);
+}
+
+.page-arrow-btn:hover {
+  background: var(--gray-4);
+}
+
+.pagination-pill {
+  border-radius: 999px;
+  border: 1px solid var(--accent-7);
+  background: var(--gray-2);
+  box-shadow: 0 0 0 1px var(--accent-a5), 0 4px 18px var(--accent-a4);
+}
+
 /* Narrative filter: a draggable, arrow-scrollable pill slider for "Group by
    CMC narrative" (see assets/chain_pills.js for the scroll/drag behavior).
    The arrow buttons are absolutely positioned overlays rather than normal
