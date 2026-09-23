@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from frontend.components import coin_table, filter_bar, narrative_alerts, news_feed
+from frontend.components import coin_table, filter_bar, footer, narrative_alerts, news_feed
 from frontend.state import CoinState
 
 
@@ -85,10 +85,6 @@ def index() -> rx.Component:
     return rx.box(
         _header_bar(),
         rx.vstack(
-            rx.text(
-                "Tracking crypto markets in real time, mapping every asset into dynamic narratives, with AI-powered news correlation on the way.",
-                color_scheme="gray",
-            ),
             news_feed(),
             narrative_alerts(),
             rx.hstack(
@@ -112,6 +108,7 @@ def index() -> rx.Component:
             padding="2em",
             width="100%",
         ),
+        footer(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
