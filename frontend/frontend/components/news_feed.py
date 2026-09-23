@@ -46,6 +46,102 @@ NEWS_ITEMS = [
         "headline": "Ondo Finance expands tokenized treasury products across chains",
         "tags": ["RWA", "Ondo"],
     },
+    {
+        "source": "Bloomberg",
+        "time": "5h ago",
+        "headline": "Coinbase deepens institutional custody partnerships amid ETF inflows",
+        "tags": ["Institutional", "ETF"],
+    },
+    {
+        "source": "Reuters",
+        "time": "6h ago",
+        "headline": "EU regulators finalize MiCA guidance for stablecoin issuers",
+        "tags": ["Regulation", "Stablecoin"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "7h ago",
+        "headline": "Restaking protocols surpass $15B in total value locked",
+        "tags": ["Restaking", "DeFi"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "8h ago",
+        "headline": "Base network activity surges on new memecoin launches",
+        "tags": ["Base", "Memes"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "9h ago",
+        "headline": "Grayscale files for spot Solana ETF alongside rivals",
+        "tags": ["ETF", "Solana"],
+    },
+    {
+        "source": "Reuters",
+        "time": "10h ago",
+        "headline": "Hong Kong expands licensed exchange framework for retail investors",
+        "tags": ["Regulation", "Asia"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "11h ago",
+        "headline": "Arbitrum DAO approves treasury diversification proposal",
+        "tags": ["Arbitrum", "DAO"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "12h ago",
+        "headline": "Bitcoin miners accelerate hashrate expansion ahead of halving cycle",
+        "tags": ["Mining", "Bitcoin"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "13h ago",
+        "headline": "Tether reports record quarterly profit on reserve yield",
+        "tags": ["Stablecoin", "Earnings"],
+    },
+    {
+        "source": "Reuters",
+        "time": "14h ago",
+        "headline": "Singapore central bank pilots wholesale CBDC settlement",
+        "tags": ["CBDC", "Regulation"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "15h ago",
+        "headline": "Uniswap Labs unveils cross-chain swap aggregation update",
+        "tags": ["DeFi", "Uniswap"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "16h ago",
+        "headline": "NFT marketplace volume rebounds on gaming asset demand",
+        "tags": ["NFT", "Gaming"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "18h ago",
+        "headline": "Fidelity expands crypto custody services for pension clients",
+        "tags": ["Institutional", "Custody"],
+    },
+    {
+        "source": "Reuters",
+        "time": "20h ago",
+        "headline": "South Korea proposes revised digital asset taxation timeline",
+        "tags": ["Regulation", "Tax"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "22h ago",
+        "headline": "Polygon rolls out zk-rollup upgrade to cut settlement costs",
+        "tags": ["Polygon", "Layer 2"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "1d ago",
+        "headline": "Liquid staking derivatives near all-time high market share",
+        "tags": ["Staking", "DeFi"],
+    },
 ]
 
 
