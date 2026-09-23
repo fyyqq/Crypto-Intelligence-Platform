@@ -16,9 +16,13 @@ def index() -> rx.Component:
             ),
             filter_bar(),
             rx.hstack(
-                rx.box(news_feed(), width="300px", min_width="280px", flex_shrink="0"),
-                rx.box(coin_table(), flex="1", min_width="0", overflow="hidden"),
-                rx.box(narrative_alerts(), width="300px", min_width="280px", flex_shrink="0"),
+                rx.box(
+                    rx.vstack(news_feed(), narrative_alerts(), spacing="8", width="100%"),
+                    width="300px",
+                    min_width="280px",
+                    flex_shrink="0",
+                ),
+                rx.box(coin_table(), flex="1", min_width="0", overflow="hidden", width="100%"),
                 spacing="8",
                 align="start",
                 width="100%",
