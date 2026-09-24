@@ -737,7 +737,13 @@ class CoinState(rx.State):
             "toolbarbg": "131722" if theme == "dark" else "f1f3f6",
             "backgroundColor": "#000000",
             "gridColor": "#000000",
-            "hidesidetoolbar": "0",
+            # Underscored key is the one this widget actually reads — the
+            # earlier "hidesidetoolbar" (no underscore) was silently
+            # ignored, leaving the drawing-tools sidebar hidden (its
+            # default) regardless of its "0" value. Confirmed live that
+            # this one shows the left toolbar while the black background/
+            # grid above stay intact.
+            "hide_side_toolbar": "0",
             "saveimage": "0",
             "withdateranges": "1",
             "studies": "[]",

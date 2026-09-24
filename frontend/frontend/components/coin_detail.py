@@ -272,8 +272,7 @@ def _links_section(coin: dict) -> rx.Component:
     # _extract_urls) — every social platform CMC actually returns for that
     # field (twitter, source_code/github, chat/telegram, reddit, facebook),
     # each row/icon only rendering when that coin declared it, rather than
-    # showing a dead placeholder link. Audits stays dummy (no CertiK-
-    # equivalent data source).
+    # showing a dead placeholder link.
     return rx.vstack(
         rx.cond(
             coin["has_website"] | coin["has_whitepaper"],
@@ -335,11 +334,6 @@ def _links_section(coin: dict) -> rx.Component:
                     on_click=[rx.set_clipboard(coin["contract_address"]), CoinState.show_copied_toast],
                 ),
             ),
-        ),
-        _link_row(
-            "Audits",
-            _icon_circle(rx.icon("shield-check", size=15)),
-            _icon_circle(rx.icon("shield", size=15)),
         ),
         rx.cond(
             coin["has_explorer"],
@@ -551,9 +545,10 @@ def _chart_column() -> rx.Component:
             border_radius="10px",
             overflow="hidden",
             # Fixed black regardless of light/dark mode — the widget's own
-            # "overrides" param (see CoinState._tradingview_iframe_src)
-            # forces the same black on the actual chart pane/grid, so this
-            # is just the placeholder shown before the iframe paints.
+            # backgroundColor/gridColor params (see CoinState.
+            # _tradingview_iframe_src) force the same black on the actual
+            # chart pane/grid, so this is just the placeholder shown before
+            # the iframe paints.
             background="#000000",
         ),
         spacing="3",
@@ -664,21 +659,21 @@ def _sentiment_column() -> rx.Component:
                 spacing="1",
                 align="start",
             ),
-            spacing="6",
+            justify="between",
             width="100%",
         ),
         rx.box(
             rx.vstack(
                 *[_post_card(post, i) for i, post in enumerate(_DUMMY_POSTS)], spacing="3", width="100%"
             ),
-            # Tall enough to show exactly 4.5 cards, with the sliced-off
+            # Tall enough to show exactly 3.5 cards, with the sliced-off
             # half acting as a "there's more, scroll" cue — overflow_y=
             # "auto" + hide-scrollbar keeps it genuinely scrollable without
             # the scrollbar chrome (styles.css, same technique used
-            # elsewhere on this page). 754px = 4.5 * a real card's measured
-            # height (156.78px) + 4 * the vstack's own gap (12px, from
+            # elsewhere on this page). 585px = 3.5 * a real card's measured
+            # height (156.78px) + 3 * the vstack's own gap (12px, from
             # spacing="3") between them.
-            height="754px",
+            height="585px",
             overflow_y="auto",
             class_name="hide-scrollbar",
             width="100%",
@@ -840,7 +835,7 @@ def _targeted_news_section() -> rx.Component:
             align="center",
             wrap="wrap",
         ),
-        # Same fixed-height, 4.5-card scrollable box as the sentiment
+        # Same fixed-height, 3.5-card scrollable box as the sentiment
         # column's _post_card list right above it (both now live in the same
         # sidebar column) — hide-scrollbar keeps it genuinely scrollable
         # without the scrollbar chrome (styles.css).
@@ -850,7 +845,7 @@ def _targeted_news_section() -> rx.Component:
                 spacing="3",
                 width="100%",
             ),
-            height="754px",
+            height="585px",
             overflow_y="auto",
             class_name="hide-scrollbar",
             width="100%",
