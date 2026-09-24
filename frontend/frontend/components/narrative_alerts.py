@@ -215,11 +215,12 @@ def _alert_card(item: dict) -> rx.Component:
         padding="0.85em",
         border_radius="8px",
         background="var(--gray-a2)",
-        # Full width on mobile (styles.css switches .alerts-slider-track to
-        # a vertical stack there, so there's no more horizontal slider to
-        # size a card against) — the fixed widths only apply from iPad
-        # portrait up, where the horizontal drag-slider is still in play.
-        width=["100%", "100%", "310px", "340px", "340px"],
+        # Narrower on phone widths — a 340px card on a 320px-wide iPhone 4
+        # viewport would leave no room to see the slider is scrollable.
+        # Stays a horizontal drag-slider at every width, matching the news
+        # slider's design (news_feed.py::_news_card) rather than expanding
+        # to full-width stacked cards on mobile.
+        width=["250px", "270px", "310px", "340px", "340px"],
         flex_shrink="0",
         height="100%",
         overflow_y="scroll",

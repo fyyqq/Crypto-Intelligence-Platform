@@ -150,12 +150,6 @@
     cards.forEach(function (c) {
       c.style.height = "auto";
     });
-    // On mobile, styles.css switches .alerts-slider-track to a vertical
-    // stack (flex-direction: column) — equalizing every card to the
-    // tallest one only makes sense for a horizontal row of cards; in a
-    // column stack it would just force short cards to carry a lot of
-    // empty space, so leave heights at "auto" there.
-    if (getComputedStyle(track).flexDirection === "column") return;
     const maxHeight = Math.max.apply(
       null,
       cards.map(function (c) {

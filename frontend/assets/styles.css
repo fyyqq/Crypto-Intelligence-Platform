@@ -379,24 +379,6 @@
   right: 0;
 }
 
-/* Below 768px (mobile only — iPad and up keep the horizontal slider): the
-   "Targeted Narrative + Coin" alerts expand to full-width cards stacked
-   vertically instead of a horizontal drag-scroller, and the now-unneeded
-   scroll arrows hide. narrative_alerts.py's _alert_card() width already
-   goes to 100% at this breakpoint to match. */
-@media (max-width: 767px) {
-  .alerts-slider-track {
-    flex-direction: column;
-    overflow-x: visible;
-    cursor: auto;
-    padding: 2px 0;
-  }
-
-  .alerts-scroll-btn {
-    display: none;
-  }
-}
-
 /* News feed: same draggable/arrow-scrollable slider mechanics as the
    narrative + chain filter pills and the targeted narrative alerts above
    (assets/chain_pills.js), just news cards instead of pills/alert cards. */
