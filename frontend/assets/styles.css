@@ -505,6 +505,12 @@
     overflow-x: scroll;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
+    /* Pairs with coin_table.py's _STICKY_HEADER_STYLE transform — forcing
+       this scroll container onto its own compositing layer too helps Safari
+       repaint the sticky header cleanly during horizontal scroll instead of
+       leaving a stale ghosted patch behind. */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
   }
 }
 

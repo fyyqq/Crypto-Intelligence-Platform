@@ -41,6 +41,14 @@ _STICKY_HEADER_STYLE = {
     "top": "0",
     "z_index": "2",
     "background_color": "var(--gray-2)",
+    # Forces each sticky header cell onto its own GPU compositing layer.
+    # Without this, Safari has a known rendering bug where a `position:
+    # sticky` element inside a horizontally-scrolling container (this
+    # table, since .coin-table-scroll-fix went overflow-x: scroll) leaves a
+    # stale/ghosted partial repaint of the header behind while scrolling,
+    # until something forces a full repaint — visible as a translucent
+    # overlay patch covering part of the header/rows.
+    "transform": "translateZ(0)",
 }
 
 # Responsive column visibility, [base, sm, md, lg, xl] (iPhone-4-width up to
