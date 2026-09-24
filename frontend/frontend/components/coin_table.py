@@ -414,6 +414,37 @@ def _coin_search() -> rx.Component:
             "coin-search-container coin-search-open",
             "coin-search-container",
         ),
+        # Hidden below 768px — replaced there by _mobile_search_bar()'s
+        # always-expanded field (no toggle icon, full width, its own row
+        # below the heading) instead of this icon-triggered popover version.
+        display=["none", "none", "flex", "flex", "flex"],
+    )
+
+
+def _mobile_search_bar() -> rx.Component:
+    # Mobile-only counterpart to _coin_search() above: no magnifying-glass
+    # toggle, no open/close animation — just the field itself, permanently
+    # visible, full width, sitting on its own row below the heading/total-
+    # coins row (see _table_header_bar()). Binds to the same
+    # CoinState.search_query/set_search_query as the desktop version; only
+    # one of the two is ever visible at a given width, so they can't get out
+    # of sync with each other.
+    return rx.box(
+        rx.debounce_input(
+            rx.input(
+                rx.input.slot(rx.icon("search", size=14)),
+                placeholder="Search coin name or ticker...",
+                value=CoinState.search_query,
+                on_change=CoinState.set_search_query,
+                size="2",
+                radius="full",
+                variant="surface",
+                width="100%",
+            ),
+            debounce_timeout=300,
+        ),
+        width="100%",
+        display=["block", "block", "none", "none", "none"],
     )
 
 
@@ -432,6 +463,10 @@ def _table_header_bar() -> rx.Component:
             spacing="2",
             align="center",
         ),
+        # Below 768px, the search field's own row — width:100% forces the
+        # wrapping flex row above to always break onto a new line for it,
+        # placing it beneath both the heading and "Total Coins" rows.
+        _mobile_search_bar(),
         display="flex",
         flex_wrap="wrap",
         justify_content="space-between",

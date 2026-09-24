@@ -93,9 +93,10 @@ def _footer_link_column(title: str, links: tuple[str, ...]) -> rx.Component:
             for label in links
         ],
         spacing="3",
-        # Centered below 768px (mobile), left-aligned from iPad-portrait up
-        # — matches the outer link-columns row's own mobile-centering below.
-        align=rx.breakpoints(initial="center", sm="start"),
+        # Centered through tablet sizes (below 1280px), left-aligned only at
+        # true desktop widths — matches the outer link-columns row's own
+        # centering below.
+        align=rx.breakpoints(initial="center", lg="start"),
     )
 
 
@@ -157,21 +158,21 @@ def footer() -> rx.Component:
                         color_scheme="gray",
                         size="2",
                         max_width="380px",
-                        # Centered text below 768px, matching the block's
-                        # own mobile-centering below.
-                        text_align=["center", "center", "left", "left", "left"],
+                        # Centered through tablet sizes (below 1280px),
+                        # matching the block's own centering below.
+                        text_align=["center", "center", "center", "center", "left"],
                     ),
                     rx.hstack(
                         *[_footer_social_icon(name, href) for name, href in _SOCIAL_LINKS],
                         spacing="2",
-                        justify=rx.breakpoints(initial="center", sm="start"),
+                        justify=rx.breakpoints(initial="center", lg="start"),
                         width="100%",
                     ),
                     spacing="4",
-                    # Centered below 768px (mobile) — left-aligned (the
-                    # original design) from iPad-portrait up, where there's
-                    # room for the left/right two-block layout below.
-                    align=rx.breakpoints(initial="center", sm="start"),
+                    # Centered through tablet sizes (below 1280px) — the
+                    # left/right two-block layout only splits apart at true
+                    # desktop widths.
+                    align=rx.breakpoints(initial="center", lg="start"),
                     width=["100%", "100%", "auto", "auto", "auto"],
                 ),
                 rx.hstack(
@@ -183,13 +184,13 @@ def footer() -> rx.Component:
                     # via plain-list position 2) — named "md" is 992px.
                     spacing=rx.breakpoints(initial="5", sm="8"),
                     align="start",
-                    justify=rx.breakpoints(initial="center", sm="start"),
+                    justify=rx.breakpoints(initial="center", lg="start"),
                     wrap="wrap",
                     width=["100%", "100%", "auto", "auto", "auto"],
                 ),
                 width="100%",
-                align=rx.breakpoints(initial="center", sm="start"),
-                justify=rx.breakpoints(initial="center", sm="between"),
+                align=rx.breakpoints(initial="center", lg="start"),
+                justify=rx.breakpoints(initial="center", lg="between"),
                 wrap="wrap",
                 style={"row-gap": "2em"},
             ),
@@ -212,11 +213,11 @@ def footer() -> rx.Component:
                     ),
                     spacing="4",
                     wrap="wrap",
-                    justify=rx.breakpoints(initial="center", sm="start"),
+                    justify=rx.breakpoints(initial="center", lg="start"),
                 ),
                 width="100%",
                 align="center",
-                justify=rx.breakpoints(initial="center", sm="between"),
+                justify=rx.breakpoints(initial="center", lg="between"),
                 wrap="wrap",
                 style={"row-gap": "0.5em"},
             ),
