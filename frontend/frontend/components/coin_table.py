@@ -221,6 +221,9 @@ def _row(row: dict) -> rx.Component:
         _change_cell(row["change_7d_display"], row["change_7d_color"], display=_COL_FROM_SM),
         _trend_cell(row["trend_24h_data"], row["trend_24h_color"], row["trend_24h_shine"], display=_COL_FROM_LG),
         _trend_cell(row["trend_7d_data"], row["trend_7d_color"], row["trend_7d_shine"], display=_COL_FROM_LG),
+        on_click=CoinState.go_to_coin(row["symbol"]),
+        cursor="pointer",
+        _hover={"background_color": "var(--gray-a3)"},
     )
 
 
@@ -444,8 +447,6 @@ def _mobile_search_bar() -> rx.Component:
             debounce_timeout=300,
         ),
         width="100%",
-        # Extra breathing room above this row, separating it from the
-        # heading/"Total Coins" row above it on mobile (per user request).
         margin_top="0.75em",
         display=["block", "block", "none", "none", "none"],
     )

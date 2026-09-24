@@ -4,6 +4,7 @@ exposes a narrative filter, backed by the SQLModel tables in frontend/models.
 
 import asyncio
 from collections import Counter
+from urllib.parse import urlencode
 
 import reflex as rx
 from sqlalchemy.orm import selectinload
@@ -37,6 +38,14 @@ def _fmt_compact_usd(value: float) -> str:
 
 def _fmt_pct(value: float) -> str:
     return f"{value:+.2f}%"
+
+
+def _fmt_compact_number(value: float) -> str:
+    """Abbreviated plain (non-$) count for supply figures, e.g. 19.87M."""
+    for threshold, suffix in ((1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")):
+        if value >= threshold:
+            return f"{value / threshold:,.2f}{suffix}"
+    return f"{value:,.2f}"
 
 
 def _pct_color(value: float) -> str:
@@ -129,6 +138,19 @@ def _build_row(coin: Coin) -> dict:
     main_chain = primary_chain.platform_name if primary_chain else coin.name
     other_chains = [c.platform_name for c in chains if c is not primary_chain]
 
+    # Native coins (BTC, ETH, SOL...) have no contract rows at all — only
+    # tokens deployed on top of another chain have a real address to show.
+    contract_address = (primary_chain.contract_address if primary_chain else None) or ""
+    contract_address_display = (
+        f"{contract_address[:6]}...{contract_address[-4:]}" if len(contract_address) > 14 else contract_address
+    )
+
+    vol_mkt_cap_pct = (
+        coin.volume_24h_usd / coin.market_cap_usd * 100
+        if coin.volume_24h_usd and coin.market_cap_usd
+        else None
+    )
+
     return {
         "cmc_id": coin.cmc_id,
         "name": coin.name,
@@ -150,11 +172,54 @@ def _build_row(coin: Coin) -> dict:
         "change_7d_display": _fmt_pct(coin.percent_change_7d or 0.0),
         "change_7d_color": _pct_color(coin.percent_change_7d or 0.0),
         "narratives": ", ".join(names),
+        "narrative_list": names,
         "primary_narrative": primary_narrative,
         "primary_narrative_icon": _narrative_icon(primary_narrative),
         "main_chain": main_chain,
         "other_chains_display": "\n".join(other_chains),
         "has_other_chains": len(other_chains) > 0,
+        "platform_list": [main_chain, *other_chains],
+        "contract_address": contract_address,
+        "contract_address_display": contract_address_display,
+        "has_contract": bool(contract_address),
+        # Real, already-fetched data (see MarketDataService._upsert_coins/
+        # _upsert_quotes) that just wasn't persisted before now. Liq/Mkt Cap
+        # and Holders still have no equivalent field on CMC's Basic tier
+        # (Liquidity Score is a paid-tier metric; holder counts need a
+        # separate blockchain-explorer API), so those two stay "—".
+        "vol_mkt_cap_display": f"{vol_mkt_cap_pct:.2f}%" if vol_mkt_cap_pct is not None else "—",
+        "fdv_display": (
+            _fmt_compact_usd(coin.fully_diluted_market_cap)
+            if coin.fully_diluted_market_cap
+            else "—"
+        ),
+        "circulating_supply_display": (
+            f"{_fmt_compact_number(coin.circulating_supply)} {coin.symbol}"
+            if coin.circulating_supply
+            else "—"
+        ),
+        "total_supply_display": (
+            f"{_fmt_compact_number(coin.total_supply)} {coin.symbol}" if coin.total_supply else "—"
+        ),
+        "max_supply_display": (
+            f"{_fmt_compact_number(coin.max_supply)} {coin.symbol}" if coin.max_supply else "—"
+        ),
+        "website_url": coin.website_url or "",
+        "whitepaper_url": coin.whitepaper_url or "",
+        "twitter_url": coin.twitter_url or "",
+        "telegram_url": coin.telegram_url or "",
+        "source_code_url": coin.source_code_url or "",
+        "explorer_url": coin.explorer_url or "",
+        "reddit_url": coin.reddit_url or "",
+        "facebook_url": coin.facebook_url or "",
+        "has_website": bool(coin.website_url),
+        "has_whitepaper": bool(coin.whitepaper_url),
+        "has_twitter": bool(coin.twitter_url),
+        "has_telegram": bool(coin.telegram_url),
+        "has_source_code": bool(coin.source_code_url),
+        "has_explorer": bool(coin.explorer_url),
+        "has_reddit": bool(coin.reddit_url),
+        "has_facebook": bool(coin.facebook_url),
         "trend_24h_data": trend_24h_data,
         "trend_24h_color": trend_24h_color,
         "trend_24h_shine": trend_24h_shine,
@@ -277,6 +342,8 @@ class CoinState(rx.State):
     # Backend-only (not sent to the client): guards live_sync_loop against
     # starting twice for the same session (e.g. on_load firing again).
     _is_live_syncing: bool = False
+    # Same guard as _is_live_syncing above, for detail_sync_loop.
+    _is_detail_syncing: bool = False
 
     @rx.event
     def load_coins(self):
@@ -503,6 +570,101 @@ class CoinState(rx.State):
         if not updated_rows:
             return
         self.all_coins = [updated_rows.get(row["cmc_id"], row) for row in self.all_coins]
+
+    @rx.event
+    def go_to_coin(self, symbol: str):
+        return rx.redirect(f"/coin/{symbol.lower()}")
+
+    @rx.var(cache=True)
+    def selected_coin(self) -> dict:
+        """Looks up the coin for the current /coin/[symbol] route straight
+        out of the already-cached all_coins list — no extra DB query needed
+        since load_coins (shared on_load with the homepage) already loaded
+        the full universe.
+
+        `self.symbol` is not declared anywhere on this class — Reflex
+        auto-injects it as a computed var on the root State once
+        app.add_page registers the "/coin/[symbol]" dynamic route (see
+        BaseState.setup_dynamic_args), the same mechanism the framework
+        docs describe for a `[pid]`-style route.
+
+        Tickers aren't unique on CMC — plenty of low-cap/scam tokens reuse a
+        popular symbol — so ties are broken by market cap. Someone visiting
+        "/coin/eth" almost always means Ethereum, not an obscure same-ticker
+        micro-cap.
+        """
+        symbol = self.symbol.strip().lower()
+        if not symbol:
+            return {}
+        matches = [row for row in self.all_coins if row["symbol"].lower() == symbol]
+        if not matches:
+            return {}
+        return max(matches, key=lambda r: r["market_cap_usd"])
+
+    @rx.var(cache=True)
+    def selected_coin_found(self) -> bool:
+        return bool(self.selected_coin)
+
+    @rx.event(background=True)
+    async def detail_sync_loop(self):
+        """Keeps just the single coin shown on this /coin/[symbol] page
+        fresh every 60s for as long as the tab stays open — same sync
+        primitive as live_sync_loop (rule 4: cheap, targeted quotes/latest
+        calls only), just scoped to the one coin being viewed instead of the
+        homepage's top-100/visible-page set.
+        """
+        async with self:
+            if self._is_detail_syncing:
+                return
+            self._is_detail_syncing = True
+
+        from frontend.frontend import app as reflex_app
+
+        try:
+            while True:
+                async with self:
+                    cmc_id = self.selected_coin.get("cmc_id")
+                if cmc_id:
+                    updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, [cmc_id])
+                    async with self:
+                        self._apply_updates(updated_rows)
+                await asyncio.sleep(60)
+                async with self:
+                    still_connected = (
+                        self.router.session.client_token in reflex_app.event_namespace.token_to_sid
+                    )
+                if not still_connected:
+                    break
+        finally:
+            async with self:
+                self._is_detail_syncing = False
+
+    @rx.var(cache=True)
+    def tradingview_iframe_src(self) -> str:
+        """Public, no-API-key TradingView "widgetembed" iframe URL. CMC's
+        Basic tier has no historical OHLCV endpoint (see the _TREND_UP/
+        _TREND_DOWN note above), so this is the only way to show a genuinely
+        real, live-updating candlestick chart without a paid CMC plan or a
+        custom price-history pipeline. Assumes the coin trades against USDT
+        on Binance, which covers most top-ranked coins shown on the homepage
+        but is a known gap for smaller/unlisted ones — TradingView just
+        fails to resolve the symbol in that case.
+        """
+        symbol = (self.selected_coin.get("symbol") or "BTC").upper()
+        params = {
+            "symbol": f"BINANCE:{symbol}USDT",
+            "interval": "60",
+            "theme": "dark",
+            "style": "1",
+            "locale": "en",
+            "toolbarbg": "131722",
+            "hidesidetoolbar": "0",
+            "saveimage": "0",
+            "withdateranges": "1",
+            "studies": "[]",
+            "hideideas": "1",
+        }
+        return f"https://www.tradingview.com/widgetembed/?{urlencode(params)}"
 
     @rx.event
     def set_sort(self, key: str):
