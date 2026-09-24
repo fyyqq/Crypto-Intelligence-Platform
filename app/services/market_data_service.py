@@ -167,6 +167,10 @@ class MarketDataService:
             coin.percent_change_1h = quote.get("percent_change_1h")
             coin.percent_change_24h = quote.get("percent_change_24h")
             coin.percent_change_7d = quote.get("percent_change_7d")
+            coin.circulating_supply = payload.get("circulating_supply")
+            coin.total_supply = payload.get("total_supply")
+            coin.max_supply = payload.get("max_supply")
+            coin.fully_diluted_market_cap = quote.get("fully_diluted_market_cap")
             coin.last_synced_at = now
 
             # Each coin's own `tags` (e.g. "defi", "layer-1") are the real dynamic
@@ -212,6 +216,10 @@ class MarketDataService:
             coin.percent_change_1h = quote.get("percent_change_1h")
             coin.percent_change_24h = quote.get("percent_change_24h")
             coin.percent_change_7d = quote.get("percent_change_7d")
+            coin.circulating_supply = payload.get("circulating_supply")
+            coin.total_supply = payload.get("total_supply")
+            coin.max_supply = payload.get("max_supply")
+            coin.fully_diluted_market_cap = quote.get("fully_diluted_market_cap")
             coin.last_synced_at = now
             count += 1
         self.db.commit()
@@ -224,6 +232,9 @@ class MarketDataService:
             coin = coins_by_cmc_id.get(cmc_id)
             if coin is None:
                 continue
+
+            for field, value in self._extract_urls(info).items():
+                setattr(coin, field, value)
 
             declared_platform = info.get("platform")
             entries = info.get("contract_address") or []
@@ -267,6 +278,37 @@ class MarketDataService:
             count += 1
         self.db.commit()
         return count
+
+    @staticmethod
+    def _extract_urls(info: dict) -> dict[str, str | None]:
+        """Pulls website/whitepaper/social/explorer links out of /v2/info's
+        `urls` object — each field there is a list (CMC lets a project
+        declare more than one), so this just takes the first entry. `chat`
+        mixes Telegram/Discord/Gitter/etc — only a link actually containing
+        "t.me" is trusted as Telegram (the UI shows a Telegram icon for this
+        field, so falling back to some other chat link there would mislabel
+        it); coins whose only declared chat isn't Telegram just get no
+        telegram_url rather than a wrongly-badged link.
+        """
+        urls = info.get("urls") or {}
+
+        def first(key: str) -> str | None:
+            values = urls.get(key) or []
+            return values[0] if values else None
+
+        chat_links = urls.get("chat") or []
+        telegram = next((link for link in chat_links if "t.me" in link), None)
+
+        return {
+            "website_url": first("website"),
+            "whitepaper_url": first("technical_doc"),
+            "twitter_url": first("twitter"),
+            "telegram_url": telegram,
+            "source_code_url": first("source_code"),
+            "explorer_url": first("explorer"),
+            "reddit_url": first("reddit"),
+            "facebook_url": first("facebook"),
+        }
 
     @staticmethod
     def _slugify(name: str) -> str:

@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from frontend.components import coin_table, filter_bar, footer, narrative_alerts, news_feed
+from frontend.components import coin_detail_page, coin_table, filter_bar, footer, narrative_alerts, news_feed
 from frontend.state import CoinState
 
 
@@ -139,7 +139,36 @@ def index() -> rx.Component:
     )
 
 
+def coin_detail() -> rx.Component:
+    # min_height (not height) so the page can grow past one viewport when
+    # its content needs it — a hard height="100vh" was tried to make the
+    # chart fill the screen, but that clipped the *whole page* into one
+    # viewport (forcing every column, footer included, into a fixed budget)
+    # instead of just bounding the chart. The chart now keeps its own fixed
+    # height independent of page height (see coin_detail.py's
+    # _CHART_HEIGHTS), so this root just needs a normal min-height floor.
+    return rx.box(
+        _header_bar(),
+        coin_detail_page(),
+        footer(),
+        min_height="100vh",
+        width="100%",
+        display="flex",
+        flex_direction="column",
+    )
+
+
 app = rx.App(stylesheets=["/styles.css"])
+# Dynamic routes must be registered before static ones (Reflex route-matching
+# order), so /coin/[symbol] is added ahead of the "/" index page below.
+# Ticker-based (not cmc_id-based) per explicit request — CoinState.
+# selected_coin breaks ties by market cap since tickers aren't unique on CMC.
+app.add_page(
+    coin_detail,
+    route="/coin/[symbol]",
+    title="Repace — Coin Detail",
+    on_load=[CoinState.load_coins, CoinState.detail_sync_loop],
+)
 app.add_page(
     index,
     title="Repace",
