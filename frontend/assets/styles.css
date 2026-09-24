@@ -30,6 +30,39 @@
   animation: red-shine 1.6s ease-in-out infinite;
 }
 
+/* Coin detail page's sentiment post cards (coin_detail.py::_post_card): a
+   trending-up/trending-down icon pulses green/red per post's dummy
+   sentiment, same shine technique as the price-move glows above. */
+@keyframes sentiment-green-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 1px #22c55e) drop-shadow(0 0 2px #22c55e);
+    opacity: 1;
+  }
+  50% {
+    filter: drop-shadow(0 0 5px #22c55e) drop-shadow(0 0 8px #22c55e);
+    opacity: 0.75;
+  }
+}
+
+@keyframes sentiment-red-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 1px #ef4444) drop-shadow(0 0 2px #ef4444);
+    opacity: 1;
+  }
+  50% {
+    filter: drop-shadow(0 0 5px #ef4444) drop-shadow(0 0 8px #ef4444);
+    opacity: 0.75;
+  }
+}
+
+.sentiment-positive-pulse {
+  animation: sentiment-green-pulse 1.6s ease-in-out infinite;
+}
+
+.sentiment-negative-pulse {
+  animation: sentiment-red-pulse 1.6s ease-in-out infinite;
+}
+
 /* The 24h/7d Price trend-line charts are focusable (recharts sets
    tabindex="0" for keyboard a11y), so clicking one shows the browser's
    default focus outline around the whole chart. Keep the line itself,

@@ -17,6 +17,7 @@ import reflex as rx
 
 from frontend.components.footer import _BRAND_ICON_PATHS
 from frontend.state import CoinState
+from frontend.state.coin_state import _fmt_compact_number
 
 # Dummy placeholder tag groups — CMC's categories API (CoinState.
 # selected_coin's real narrative_list/platform_list) has no equivalent
@@ -24,15 +25,15 @@ from frontend.state import CoinState
 _DUMMY_INDUSTRY_TAGS = ["AI & Big Data", "IoT", "Web3"]
 _DUMMY_SELF_REPORTED_TAGS = ["PoS", "Platform", "Distributed Computing"]
 
-_DUMMY_INFLUENCERS = [
-    {"name": "Solana", "sentiment": "Neutral", "icon": "circle-dot"},
-    {"name": "Wormhole", "sentiment": "Neutral", "icon": "waves"},
-    {"name": "Raydium", "sentiment": "Bullish", "icon": "radio"},
-]
-
 # Each body is split before/after a "$<SYMBOL>" mention, filled in with
 # whichever coin's page is open (see _post_card) — CoinState.selected_coin's
 # symbol is a Var, so this can't just be one static f-string per post.
+# "sentiment" drives that post's trending-up/down badge (green/positive vs
+# red/negative, see _post_card) — 3 of the 10 are genuinely negative in
+# tone, not just relabeled positive text, so the badge always matches what
+# the post actually says. This same fixed 7-positive/3-negative dummy set
+# is reused on every coin's page (only the "$<SYMBOL>" mention changes),
+# so 24h Sentiment/Mindshare below are computed from it once, not per-coin.
 _DUMMY_POSTS = [
     {
         "author": "CryptoWatcher",
@@ -43,6 +44,7 @@ _DUMMY_POSTS = [
         "likes": 128,
         "comments": 14,
         "reposts": 22,
+        "sentiment": "positive",
     },
     {
         "author": "OnChainAlpha",
@@ -53,6 +55,7 @@ _DUMMY_POSTS = [
         "likes": 76,
         "comments": 6,
         "reposts": 9,
+        "sentiment": "positive",
     },
     {
         "author": "WhaleAlertHQ",
@@ -63,6 +66,7 @@ _DUMMY_POSTS = [
         "likes": 203,
         "comments": 31,
         "reposts": 48,
+        "sentiment": "positive",
     },
     {
         "author": "QuantSignals",
@@ -73,16 +77,18 @@ _DUMMY_POSTS = [
         "likes": 95,
         "comments": 11,
         "reposts": 17,
+        "sentiment": "positive",
     },
     {
         "author": "DeFiDegenz",
         "handle": "@defidegenz",
         "time": "9h",
         "body_before": "Community sentiment around ",
-        "body_after": " has noticeably shifted more optimistic this week.",
+        "body_after": " has soured noticeably this week following the pullback in price.",
         "likes": 64,
         "comments": 8,
         "reposts": 5,
+        "sentiment": "negative",
     },
     {
         "author": "ChainScopeIO",
@@ -93,6 +99,7 @@ _DUMMY_POSTS = [
         "likes": 112,
         "comments": 19,
         "reposts": 14,
+        "sentiment": "positive",
     },
     {
         "author": "MacroTraderX",
@@ -103,26 +110,29 @@ _DUMMY_POSTS = [
         "likes": 87,
         "comments": 9,
         "reposts": 11,
+        "sentiment": "positive",
     },
     {
         "author": "TokenMetricsFan",
         "handle": "@tokenmetricsfan",
         "time": "15h",
         "body_before": "Funding rates on ",
-        "body_after": " perpetuals just went positive again after a week of neutral readings.",
+        "body_after": " perpetuals just flipped negative, signaling growing short pressure.",
         "likes": 58,
         "comments": 4,
         "reposts": 3,
+        "sentiment": "negative",
     },
     {
         "author": "CryptoInsiderNews",
         "handle": "@cryptoinsidernews",
         "time": "18h",
-        "body_before": "A new partnership rumor involving ",
-        "body_after": " is circulating, though nothing's confirmed yet.",
+        "body_before": "A wave of unconfirmed rumors around ",
+        "body_after": " is spooking traders, and confidence looks shaky right now.",
         "likes": 145,
         "comments": 27,
         "reposts": 36,
+        "sentiment": "negative",
     },
     {
         "author": "SatoshiScribe",
@@ -133,8 +143,22 @@ _DUMMY_POSTS = [
         "likes": 71,
         "comments": 7,
         "reposts": 6,
+        "sentiment": "positive",
     },
 ]
+
+_POSITIVE_COUNT = sum(1 for p in _DUMMY_POSTS if p["sentiment"] == "positive")
+_NEGATIVE_COUNT = len(_DUMMY_POSTS) - _POSITIVE_COUNT
+# 0-10 scale (7 positive / 10 posts -> 7.00), colored by whichever side has
+# the majority — matches the badge style the reference design used.
+_SENTIMENT_SCORE_DISPLAY = f"{(_POSITIVE_COUNT / len(_DUMMY_POSTS) * 10):.2f}"
+_SENTIMENT_COLOR = "green" if _POSITIVE_COUNT >= _NEGATIVE_COUNT else "red"
+# "Mindshare" as total engagement (likes+comments+reposts) across the same
+# 10 posts — a real, if simplistic, number derived from the dummy dataset
+# rather than an unrelated hardcoded one.
+_MINDSHARE_DISPLAY = _fmt_compact_number(
+    sum(p["likes"] + p["comments"] + p["reposts"] for p in _DUMMY_POSTS)
+)
 
 
 def _link_pill(*children: rx.Component, href: rx.Var[str] | str | None = None) -> rx.Component:
@@ -168,6 +192,12 @@ def _icon_circle(icon: rx.Component, size_px: str = "32px", href: rx.Var[str] | 
         align_items="center",
         justify_content="center",
         flex_shrink="0",
+        # White (not Radix's default link-blue) on every icon that's an
+        # actual clickable link — the brand SVGs already hardcode their own
+        # fill so this is a no-op for them, but lucide icons here (e.g. the
+        # Telegram "send" icon) use stroke="currentColor" and were
+        # inheriting rt-Link's blue text color without it.
+        **({"color": "white"} if href is not None else {}),
     )
     if href is None:
         return circle
@@ -381,7 +411,10 @@ def _info_column() -> rx.Component:
         rx.hstack(
             rx.image(src=coin["icon_url"], width="40px", height="40px", border_radius="50%"),
             rx.vstack(
-                rx.heading(coin["name"], size="5"),
+                # Smaller than the default size="5" — long names (e.g.
+                # "Artificial Superintelligence Alliance") otherwise wrap
+                # awkwardly next to the fixed 40px icon.
+                rx.heading(coin["name"], size="4"),
                 rx.hstack(
                     rx.text("$", coin["symbol"], color_scheme="gray", size="3"),
                     rx.badge("#", coin["cmc_rank"], color_scheme="gray", variant="surface", size="1"),
@@ -517,31 +550,19 @@ def _chart_column() -> rx.Component:
     )
 
 
-def _influencer_pill(item: dict) -> rx.Component:
-    return rx.hstack(
-        rx.icon(item["icon"], size=16, color="var(--accent-9)"),
-        rx.vstack(
-            rx.text(item["name"], size="2", weight="medium"),
-            rx.text(item["sentiment"], size="1", color_scheme="gray"),
-            spacing="0",
-            align="start",
-        ),
-        spacing="2",
-        align="center",
-        padding="0.5em 0.75em",
-        border_radius="8px",
-        background="var(--gray-a2)",
-    )
-
-
-def _post_card(post: dict) -> rx.Component:
+def _post_card(post: dict, index: int) -> rx.Component:
+    is_positive = post["sentiment"] == "positive"
     return rx.vstack(
         rx.hstack(
-            rx.box(
+            rx.image(
+                # pravatar.cc serves a fixed, real-looking placeholder photo
+                # per numeric seed (1-70) — deterministic per post index
+                # rather than truly random, so it doesn't change on every
+                # re-render/reload.
+                src=f"https://i.pravatar.cc/64?img={(index % 70) + 1}",
                 width="32px",
                 height="32px",
                 border_radius="50%",
-                background="var(--accent-a5)",
                 flex_shrink="0",
             ),
             rx.vstack(
@@ -555,8 +576,20 @@ def _post_card(post: dict) -> rx.Component:
                 spacing="0",
                 align="start",
             ),
+            rx.spacer(),
+            # Green/red pulsing trending arrow reflecting this specific
+            # post's dummy sentiment — same shine technique styles.css
+            # already uses for extreme price moves, just green/red instead
+            # of gold/red.
+            rx.icon(
+                "trending-up" if is_positive else "trending-down",
+                size=16,
+                color="#22c55e" if is_positive else "#ef4444",
+                class_name="sentiment-positive-pulse" if is_positive else "sentiment-negative-pulse",
+            ),
             spacing="2",
             align="center",
+            width="100%",
         ),
         rx.text(
             post["body_before"],
@@ -598,7 +631,7 @@ def _sentiment_column() -> rx.Component:
                 rx.hstack(rx.text("See More", size="2"), rx.icon("arrow-right", size=14), spacing="1", align="center"),
                 href="#",
                 underline="none",
-                color_scheme="indigo",
+                color="white",
             ),
             width="100%",
             align="center",
@@ -606,33 +639,28 @@ def _sentiment_column() -> rx.Component:
         rx.hstack(
             rx.vstack(
                 rx.text("24h Mindshare", size="1", color_scheme="gray"),
-                rx.hstack(
-                    rx.text("17.45K", size="5", weight="bold"),
-                    rx.text("+4.37%", size="2", color="green"),
-                    spacing="2",
-                    align="baseline",
-                ),
+                # Total engagement (likes+comments+reposts) across the same
+                # 10 dummy posts below — a real derived number, not an
+                # unrelated hardcoded one.
+                rx.text(_MINDSHARE_DISPLAY, size="5", weight="bold"),
                 spacing="1",
                 align="start",
             ),
             rx.vstack(
                 rx.text("24h Sentiment", size="1", color_scheme="gray"),
-                rx.badge("4.57", color_scheme="green", variant="solid", size="2"),
+                # positive-post-share * 10, colored by whichever side has
+                # the majority — see _POSITIVE_COUNT/_NEGATIVE_COUNT above.
+                rx.badge(_SENTIMENT_SCORE_DISPLAY, color_scheme=_SENTIMENT_COLOR, variant="solid", size="2"),
                 spacing="1",
                 align="start",
             ),
             spacing="6",
             width="100%",
         ),
-        rx.vstack(
-            rx.text("Top Influencers", size="1", color_scheme="gray"),
-            rx.hstack(*[_influencer_pill(item) for item in _DUMMY_INFLUENCERS], spacing="2", wrap="wrap"),
-            spacing="2",
-            width="100%",
-            align="start",
-        ),
         rx.box(
-            rx.vstack(*[_post_card(post) for post in _DUMMY_POSTS], spacing="3", width="100%"),
+            rx.vstack(
+                *[_post_card(post, i) for i, post in enumerate(_DUMMY_POSTS)], spacing="3", width="100%"
+            ),
             # Tall enough to show exactly 4.5 cards, with the sliced-off
             # half acting as a "there's more, scroll" cue — overflow_y=
             # "auto" + hide-scrollbar keeps it genuinely scrollable without
