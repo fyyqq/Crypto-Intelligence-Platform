@@ -156,6 +156,11 @@ def _build_row(coin: Coin) -> dict:
         "name": coin.name,
         "symbol": coin.symbol,
         "icon_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{coin.cmc_id}.png",
+        # CMC's own rank, real-time synced on every listings/quotes call —
+        # used on the coin detail page's rank badge (its "rank" key above is
+        # a market-cap-position computed fresh only in filtered_coins, which
+        # selected_coin bypasses by reading straight out of all_coins).
+        "cmc_rank": coin.cmc_rank or 0,
         "market_cap_usd": coin.market_cap_usd or 0.0,
         "price_raw": coin.price_usd or 0.0,
         "volume_raw": coin.volume_24h_usd or 0.0,
@@ -639,8 +644,7 @@ class CoinState(rx.State):
             async with self:
                 self._is_detail_syncing = False
 
-    @rx.var(cache=True)
-    def tradingview_iframe_src(self) -> str:
+    def _tradingview_iframe_src(self, theme: str) -> str:
         """Public, no-API-key TradingView "widgetembed" iframe URL. CMC's
         Basic tier has no historical OHLCV endpoint (see the _TREND_UP/
         _TREND_DOWN note above), so this is the only way to show a genuinely
@@ -649,15 +653,21 @@ class CoinState(rx.State):
         on Binance, which covers most top-ranked coins shown on the homepage
         but is a known gap for smaller/unlisted ones — TradingView just
         fails to resolve the symbol in that case.
+
+        Split into light/dark variants (see tradingview_iframe_src_light/
+        _dark below) rather than one var, since the app's color mode is a
+        client-side (next-themes) preference this server-cached var can't
+        see — the component picks between the two via rx.color_mode_cond,
+        which is a real frontend-reactive Var, not a server computation.
         """
         symbol = (self.selected_coin.get("symbol") or "BTC").upper()
         params = {
             "symbol": f"BINANCE:{symbol}USDT",
             "interval": "60",
-            "theme": "dark",
+            "theme": theme,
             "style": "1",
             "locale": "en",
-            "toolbarbg": "131722",
+            "toolbarbg": "131722" if theme == "dark" else "f1f3f6",
             "hidesidetoolbar": "0",
             "saveimage": "0",
             "withdateranges": "1",
@@ -665,6 +675,14 @@ class CoinState(rx.State):
             "hideideas": "1",
         }
         return f"https://www.tradingview.com/widgetembed/?{urlencode(params)}"
+
+    @rx.var(cache=True)
+    def tradingview_iframe_src_light(self) -> str:
+        return self._tradingview_iframe_src("light")
+
+    @rx.var(cache=True)
+    def tradingview_iframe_src_dark(self) -> str:
+        return self._tradingview_iframe_src("dark")
 
     @rx.event
     def set_sort(self, key: str):

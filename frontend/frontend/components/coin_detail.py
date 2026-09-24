@@ -30,12 +30,16 @@ _DUMMY_INFLUENCERS = [
     {"name": "Raydium", "sentiment": "Bullish", "icon": "radio"},
 ]
 
+# Each body is split before/after a "$<SYMBOL>" mention, filled in with
+# whichever coin's page is open (see _post_card) — CoinState.selected_coin's
+# symbol is a Var, so this can't just be one static f-string per post.
 _DUMMY_POSTS = [
     {
         "author": "CryptoWatcher",
         "handle": "@cryptowatcher",
         "time": "3h",
-        "body": "This coin is moving again, and this time the bigger story is the market forming around it.",
+        "body_before": "",
+        "body_after": " is moving again, and this time the bigger story is the market forming around it.",
         "likes": 128,
         "comments": 14,
         "reposts": 22,
@@ -44,10 +48,91 @@ _DUMMY_POSTS = [
         "author": "OnChainAlpha",
         "handle": "@onchainalpha",
         "time": "5h",
-        "body": "Order book looks interesting here — liquidity has been quietly building up on the bid side all day.",
+        "body_before": "Order book looks interesting on ",
+        "body_after": " — liquidity has been quietly building up on the bid side all day.",
         "likes": 76,
         "comments": 6,
         "reposts": 9,
+    },
+    {
+        "author": "WhaleAlertHQ",
+        "handle": "@whalealerthq",
+        "time": "6h",
+        "body_before": "Large wallets just accumulated a fresh batch of ",
+        "body_after": " — worth watching if this turns into a trend.",
+        "likes": 203,
+        "comments": 31,
+        "reposts": 48,
+    },
+    {
+        "author": "QuantSignals",
+        "handle": "@quantsignals",
+        "time": "8h",
+        "body_before": "Momentum indicators on ",
+        "body_after": " just flipped bullish on the 4h timeframe.",
+        "likes": 95,
+        "comments": 11,
+        "reposts": 17,
+    },
+    {
+        "author": "DeFiDegenz",
+        "handle": "@defidegenz",
+        "time": "9h",
+        "body_before": "Community sentiment around ",
+        "body_after": " has noticeably shifted more optimistic this week.",
+        "likes": 64,
+        "comments": 8,
+        "reposts": 5,
+    },
+    {
+        "author": "ChainScopeIO",
+        "handle": "@chainscopeio",
+        "time": "11h",
+        "body_before": "On-chain activity for ",
+        "body_after": " is up sharply compared to last month's average.",
+        "likes": 112,
+        "comments": 19,
+        "reposts": 14,
+    },
+    {
+        "author": "MacroTraderX",
+        "handle": "@macrotraderx",
+        "time": "13h",
+        "body_before": "",
+        "body_after": " continues to hold key support even as broader markets chop sideways.",
+        "likes": 87,
+        "comments": 9,
+        "reposts": 11,
+    },
+    {
+        "author": "TokenMetricsFan",
+        "handle": "@tokenmetricsfan",
+        "time": "15h",
+        "body_before": "Funding rates on ",
+        "body_after": " perpetuals just went positive again after a week of neutral readings.",
+        "likes": 58,
+        "comments": 4,
+        "reposts": 3,
+    },
+    {
+        "author": "CryptoInsiderNews",
+        "handle": "@cryptoinsidernews",
+        "time": "18h",
+        "body_before": "A new partnership rumor involving ",
+        "body_after": " is circulating, though nothing's confirmed yet.",
+        "likes": 145,
+        "comments": 27,
+        "reposts": 36,
+    },
+    {
+        "author": "SatoshiScribe",
+        "handle": "@satoshiscribe",
+        "time": "22h",
+        "body_before": "Long-term holders of ",
+        "body_after": " don't seem fazed by the short-term volatility at all.",
+        "likes": 71,
+        "comments": 7,
+        "reposts": 6,
     },
 ]
 
@@ -61,6 +146,11 @@ def _link_pill(*children: rx.Component, href: rx.Var[str] | str | None = None) -
         border_radius="9999px",
         background="var(--gray-a3)",
         flex_shrink="0",
+        # White text/icon (lucide icons stroke="currentColor", so this
+        # cascades to them too) on every pill that's actually a clickable
+        # link — only applied when href is set, not on the plain
+        # (non-clickable) Contract-address pill below.
+        **({"color": "white"} if href is not None else {}),
     )
     if href is None:
         return pill
@@ -114,6 +204,14 @@ _FACEBOOK_PATH = (
     " 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036 26.805 26.805 0 0 0-.733-.009c-.707 0-1.259.096-1.675"
     " .309a1.686 1.686 0 0 0-.679.622c-.258.42-.374.995-.374 1.752v1.297h3.919l-.386 2.103-.287 1.564h-3.246v8.245"
     "C19.396 23.238 24 18.179 24 12.044c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.628 3.874 10.35 9.101 11.647Z"
+)
+
+# The real X (Twitter) brand mark — lucide's "x" icon is just a plain close/
+# cross glyph, not the actual logo (see the module docstring's Simple Icons
+# note for github/reddit/facebook, same source here).
+_X_PATH = (
+    "M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993"
+    "zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"
 )
 
 
@@ -173,7 +271,7 @@ def _links_section(coin: dict) -> rx.Component:
             | coin["has_facebook"],
             _link_row(
                 "Socials",
-                rx.cond(coin["has_twitter"], _icon_circle(rx.icon("x", size=15), href=coin["twitter_url"])),
+                rx.cond(coin["has_twitter"], _icon_circle(_brand_svg_icon(_X_PATH, 15), href=coin["twitter_url"])),
                 rx.cond(coin["has_source_code"], _icon_circle(_github_icon(15), href=coin["source_code_url"])),
                 rx.cond(coin["has_telegram"], _icon_circle(rx.icon("send", size=15), href=coin["telegram_url"])),
                 rx.cond(
@@ -283,14 +381,14 @@ def _info_column() -> rx.Component:
         rx.hstack(
             rx.image(src=coin["icon_url"], width="40px", height="40px", border_radius="50%"),
             rx.vstack(
+                rx.heading(coin["name"], size="5"),
                 rx.hstack(
-                    rx.heading(coin["name"], size="5"),
-                    rx.text(coin["symbol"], color_scheme="gray", size="3"),
+                    rx.text("$", coin["symbol"], color_scheme="gray", size="3"),
+                    rx.badge("#", coin["cmc_rank"], color_scheme="gray", variant="surface", size="1"),
                     spacing="2",
                     align="center",
                 ),
-                rx.text("Rank #", coin["rank"], size="1", color_scheme="gray"),
-                spacing="0",
+                spacing="1",
                 align="start",
             ),
             rx.spacer(),
@@ -387,8 +485,14 @@ def _chart_column() -> rx.Component:
             # (a plain fixed value, not flex-derived), so rx.html's wrapping
             # div can safely take height="100%" against it and the iframe's
             # own inline height:100% then resolves correctly in turn.
+            #
+            # CoinState.tradingview_iframe_src_light/_dark are plain server-
+            # cached vars, unaware of the client's (next-themes) color-mode
+            # preference — rx.color_mode_cond is what's actually reactive to
+            # that on the frontend, so it picks between the two here rather
+            # than the state var trying to know the theme itself.
             rx.html(
-                f'<iframe src="{CoinState.tradingview_iframe_src}" style="width:100%;height:100%;border:none;" allowtransparency="true" frameborder="0"></iframe>',
+                f'<iframe src="{rx.color_mode_cond(light=CoinState.tradingview_iframe_src_light, dark=CoinState.tradingview_iframe_src_dark)}" style="width:100%;height:100%;border:none;" allowtransparency="true" frameborder="0"></iframe>',
                 width="100%",
                 height="100%",
             ),
@@ -402,7 +506,10 @@ def _chart_column() -> rx.Component:
             height=_CHART_HEIGHTS,
             border_radius="10px",
             overflow="hidden",
-            background="#131722",
+            # Matches whichever TradingView theme is actually loading above,
+            # so there's no flash of the wrong-colored box before the iframe
+            # itself paints.
+            background=rx.color_mode_cond(light="#f1f3f6", dark="#131722"),
         ),
         spacing="3",
         width="100%",
@@ -451,7 +558,14 @@ def _post_card(post: dict) -> rx.Component:
             spacing="2",
             align="center",
         ),
-        rx.text(post["body"], size="2", margin_top="0.4em"),
+        rx.text(
+            post["body_before"],
+            "$",
+            CoinState.selected_coin["symbol"],
+            post["body_after"],
+            size="2",
+            margin_top="0.4em",
+        ),
         rx.hstack(
             rx.hstack(rx.icon("heart", size=13), rx.text(post["likes"], size="1"), spacing="1", align="center"),
             rx.hstack(rx.icon("message-circle", size=13), rx.text(post["comments"], size="1"), spacing="1", align="center"),
@@ -517,7 +631,20 @@ def _sentiment_column() -> rx.Component:
             width="100%",
             align="start",
         ),
-        rx.vstack(*[_post_card(post) for post in _DUMMY_POSTS], spacing="3", width="100%"),
+        rx.box(
+            rx.vstack(*[_post_card(post) for post in _DUMMY_POSTS], spacing="3", width="100%"),
+            # Tall enough to show exactly 4.5 cards, with the sliced-off
+            # half acting as a "there's more, scroll" cue — overflow_y=
+            # "auto" + hide-scrollbar keeps it genuinely scrollable without
+            # the scrollbar chrome (styles.css, same technique used
+            # elsewhere on this page). 754px = 4.5 * a real card's measured
+            # height (156.78px) + 4 * the vstack's own gap (12px, from
+            # spacing="3") between them.
+            height="754px",
+            overflow_y="auto",
+            class_name="hide-scrollbar",
+            width="100%",
+        ),
         spacing="4",
         width="100%",
         align="start",
