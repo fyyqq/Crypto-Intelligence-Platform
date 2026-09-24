@@ -496,6 +496,22 @@
   }
 }
 
+/* Below 1280px (tablet down to iPhone-4-width phones): strip the Radix
+   "surface" variant's border/background/backdrop-blur off the table root
+   (coin_table.py's rx.table.root(variant="surface")) — that bordered-card
+   look is meant for a table sized to its container, and looks wrong wrapped
+   around a table that's now locally horizontal-scrollable at these widths
+   (.coin-table-scroll-fix above). Scoped to .coin-table-scroll-fix specifically
+   rather than .rt-TableRoot globally, since other rt-TableRoot instances
+   elsewhere in the app should keep their normal surface styling. */
+@media (max-width: 1279px) {
+  .coin-table-scroll-fix .rt-TableRoot {
+    border: 0px;
+    backdrop-filter: none;
+    background: transparent;
+  }
+}
+
 /* Coin search: the icon button and the input+clear-icon wrapper both stay
    mounted permanently (see coin_table.py::_coin_search) — only the
    .coin-search-open class toggles, so the width/opacity transition below
