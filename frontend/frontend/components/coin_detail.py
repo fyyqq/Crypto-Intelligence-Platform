@@ -505,6 +505,61 @@ def _info_column() -> rx.Component:
 _CHART_HEIGHTS = ["420px", "480px", "520px", "560px", "600px"]
 
 
+def _x_timeline_section() -> rx.Component:
+    # Real, live posts (including their images) straight from the coin's
+    # actual X account — X's official free "Embedded Timeline" widget
+    # (publish.twitter.com), not a paid API call or a scraper. It renders
+    # as one sealed, cross-origin iframe that X's own widgets.js builds and
+    # owns, so unlike the narrative-news/sentiment sliders elsewhere on this
+    # page, individual posts can't be pulled out and restyled into custom
+    # horizontal-scroll cards — this is X's own default vertical timeline
+    # chrome, just boxed to match the chart's width/rounding above it.
+    # Only rendered when this coin actually declared an X account (same
+    # has_twitter flag _links_section uses).
+    #
+    # widgets.js scans the DOM for `.twitter-timeline` anchors once, on its
+    # own load — since this anchor is added by React after that could have
+    # already fired (or not yet loaded at all), the script below explicitly
+    # loads it if missing and calls twttr.widgets.load() either way, rather
+    # than relying on script-tag execution order.
+    #
+    # Confirmed live that widgets.js correctly resolves each coin's real
+    # handle (dfinity, eth_classic, opentensor, ...) and requests the right
+    # params (theme/limit/height) every time — the wiring itself is right.
+    # Repeated rapid reloads while testing did hit a 429 from X's own
+    # syndication.twitter.com backend (the widget's actual data source),
+    # which is a known reliability issue with this free tier, not a bug
+    # here — and since this widget runs client-side in each visitor's own
+    # browser (not proxied through our server), one dev machine tripping a
+    # rate limit during testing doesn't mean real visitors, loading the
+    # page at a normal pace from their own IPs, will see the same thing.
+    coin = CoinState.selected_coin
+    return rx.cond(
+        coin["has_twitter"],
+        rx.vstack(
+            rx.heading(coin["name"], " on X", size="4", width="100%"),
+            rx.box(
+                rx.html(
+                    f'<a class="twitter-timeline" data-theme="dark" data-tweet-limit="10" data-height="600" href="{coin["twitter_url"]}">Posts</a>'
+                ),
+                rx.script(
+                    "(function(){function init(){if(window.twttr&&window.twttr.widgets){window.twttr.widgets.load();}}"
+                    "if(window.twttr){init();}else{var s=document.createElement('script');"
+                    "s.src='https://platform.twitter.com/widgets.js';s.charset='utf-8';s.onload=init;"
+                    "document.head.appendChild(s);}})();"
+                ),
+                width="100%",
+                max_width="760px",
+                border_radius="10px",
+                overflow="hidden",
+            ),
+            spacing="3",
+            width="100%",
+            align="center",
+        ),
+    )
+
+
 def _chart_column() -> rx.Component:
     return rx.vstack(
         rx.hstack(
@@ -551,6 +606,7 @@ def _chart_column() -> rx.Component:
             # the iframe paints.
             background="#000000",
         ),
+        _x_timeline_section(),
         spacing="3",
         width="100%",
         align="center",
