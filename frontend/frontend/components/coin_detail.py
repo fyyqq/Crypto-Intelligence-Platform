@@ -17,7 +17,6 @@ import reflex as rx
 
 from frontend.components.footer import _BRAND_ICON_PATHS
 from frontend.state import CoinState
-from frontend.state.coin_state import _fmt_compact_number
 
 # Dummy placeholder tag groups — CMC's categories API (CoinState.
 # selected_coin's real narrative_list/platform_list) has no equivalent
@@ -149,22 +148,23 @@ _DUMMY_POSTS = [
 
 _POSITIVE_COUNT = sum(1 for p in _DUMMY_POSTS if p["sentiment"] == "positive")
 _NEGATIVE_COUNT = len(_DUMMY_POSTS) - _POSITIVE_COUNT
-# 0-10 scale (7 positive / 10 posts -> 7.00), colored by whichever side has
-# the majority — matches the badge style the reference design used.
+# 0-10 scale (7 positive / 10 posts -> 7.00 green, 3 negative -> 3.00 red),
+# shown as two side-by-side badges — matches the reference design's badge
+# style, now split so both sides of the split are visible at once instead
+# of only whichever side has the majority.
 _SENTIMENT_SCORE_DISPLAY = f"{(_POSITIVE_COUNT / len(_DUMMY_POSTS) * 10):.2f}"
 _SENTIMENT_COLOR = "green" if _POSITIVE_COUNT >= _NEGATIVE_COUNT else "red"
-# "Mindshare" as total engagement (likes+comments+reposts) across the same
-# 10 posts — a real, if simplistic, number derived from the dummy dataset
-# rather than an unrelated hardcoded one.
-_MINDSHARE_DISPLAY = _fmt_compact_number(
-    sum(p["likes"] + p["comments"] + p["reposts"] for p in _DUMMY_POSTS)
-)
+_NEGATIVE_SENTIMENT_SCORE_DISPLAY = f"{(_NEGATIVE_COUNT / len(_DUMMY_POSTS) * 10):.2f}"
+# "Mindshare" as the exact count of sentiment posts analyzed (10, for this
+# fixed dummy dataset) rather than an engagement-sum abbreviation — the
+# request was for the exact amount of sentiment, not a compacted total.
+_MINDSHARE_DISPLAY = str(len(_DUMMY_POSTS))
 
 
 def _link_pill(
     *children: rx.Component,
     href: rx.Var[str] | str | None = None,
-    on_click: rx.EventHandler | None = None,
+    on_click: rx.EventHandler | list[rx.EventHandler] | None = None,
 ) -> rx.Component:
     pill = rx.hstack(
         *children,
@@ -329,8 +329,10 @@ def _links_section(coin: dict) -> rx.Component:
                     rx.icon("copy", size=12),
                     # Copies the full address, not the truncated display
                     # text — rx.set_clipboard is a browser-side special
-                    # event, no backend round-trip needed for this.
-                    on_click=rx.set_clipboard(coin["contract_address"]),
+                    # event, no backend round-trip needed for it — chained
+                    # with show_copied_toast, which drives the centered
+                    # "Copied" popup (see coin_detail_page()).
+                    on_click=[rx.set_clipboard(coin["contract_address"]), CoinState.show_copied_toast],
                 ),
             ),
         ),
@@ -548,10 +550,11 @@ def _chart_column() -> rx.Component:
             height=_CHART_HEIGHTS,
             border_radius="10px",
             overflow="hidden",
-            # Matches whichever TradingView theme is actually loading above,
-            # so there's no flash of the wrong-colored box before the iframe
-            # itself paints.
-            background=rx.color_mode_cond(light="#f1f3f6", dark="#131722"),
+            # Fixed black regardless of light/dark mode — the widget's own
+            # "overrides" param (see CoinState._tradingview_iframe_src)
+            # forces the same black on the actual chart pane/grid, so this
+            # is just the placeholder shown before the iframe paints.
+            background="#000000",
         ),
         spacing="3",
         width="100%",
@@ -642,18 +645,22 @@ def _sentiment_column() -> rx.Component:
         rx.hstack(
             rx.vstack(
                 rx.text("24h Mindshare", size="1", color_scheme="gray"),
-                # Total engagement (likes+comments+reposts) across the same
-                # 10 dummy posts below — a real derived number, not an
-                # unrelated hardcoded one.
+                # Exact count of sentiment posts analyzed (10 for this fixed
+                # dummy dataset) — see _MINDSHARE_DISPLAY above.
                 rx.text(_MINDSHARE_DISPLAY, size="5", weight="bold"),
                 spacing="1",
                 align="start",
             ),
             rx.vstack(
                 rx.text("24h Sentiment", size="1", color_scheme="gray"),
-                # positive-post-share * 10, colored by whichever side has
-                # the majority — see _POSITIVE_COUNT/_NEGATIVE_COUNT above.
-                rx.badge(_SENTIMENT_SCORE_DISPLAY, color_scheme=_SENTIMENT_COLOR, variant="solid", size="2"),
+                # Both sides of the split shown side by side — positive
+                # share * 10 in green, negative share * 10 in red — rather
+                # than only whichever side has the majority.
+                rx.hstack(
+                    rx.badge(_SENTIMENT_SCORE_DISPLAY, color_scheme=_SENTIMENT_COLOR, variant="solid", size="2"),
+                    rx.badge(_NEGATIVE_SENTIMENT_SCORE_DISPLAY, color_scheme="red", variant="solid", size="2"),
+                    spacing="2",
+                ),
                 spacing="1",
                 align="start",
             ),
@@ -833,12 +840,19 @@ def _targeted_news_section() -> rx.Component:
             align="center",
             wrap="wrap",
         ),
-        # Plain vertical stack, same card-list pattern as the sentiment
-        # column's _post_card list — no horizontal drag-slider, the page's
-        # own normal vertical scroll carries it instead.
-        rx.vstack(
-            *[_targeted_news_card(item) for item in _TARGETED_NEWS],
-            spacing="3",
+        # Same fixed-height, 4.5-card scrollable box as the sentiment
+        # column's _post_card list right above it (both now live in the same
+        # sidebar column) — hide-scrollbar keeps it genuinely scrollable
+        # without the scrollbar chrome (styles.css).
+        rx.box(
+            rx.vstack(
+                *[_targeted_news_card(item) for item in _TARGETED_NEWS],
+                spacing="3",
+                width="100%",
+            ),
+            height="754px",
+            overflow_y="auto",
+            class_name="hide-scrollbar",
             width="100%",
         ),
         spacing="3",
@@ -859,6 +873,33 @@ def _not_found() -> rx.Component:
     )
 
 
+def _copied_toast() -> rx.Component:
+    # Centered, fixed-position popup confirming the Contract-address copy —
+    # driven by CoinState.contract_copied, which show_copied_toast flips
+    # true then back to false after 3s. Lives once per coin_detail_page(),
+    # so it applies on every coin's page automatically.
+    return rx.cond(
+        CoinState.contract_copied,
+        rx.box(
+            rx.hstack(
+                rx.icon("check", size=16),
+                rx.text("Contract address copied to clipboard", size="2", weight="bold"),
+                spacing="2",
+                align="center",
+            ),
+            position="fixed",
+            top="50%",
+            left="50%",
+            transform="translate(-50%, -50%)",
+            background="rgba(0, 0, 0, 0.85)",
+            color="white",
+            padding="0.9em 1.4em",
+            border_radius="10px",
+            z_index="9999",
+        ),
+    )
+
+
 def coin_detail_page() -> rx.Component:
     # The row no longer forces the page into one fixed viewport height (that
     # approach — coin_detail()'s root at a hard height="100vh" plus
@@ -876,43 +917,56 @@ def coin_detail_page() -> rx.Component:
     # fixed height; a max_height matching the chart was tried here too, but
     # that just re-imposed the same "everything capped to one height" look
     # the align="start" change was meant to get away from.
-    return rx.cond(
-        CoinState.is_loading,
-        rx.center(rx.spinner(size="3"), padding="4em"),
+    return rx.fragment(
+        _copied_toast(),
         rx.cond(
-            CoinState.selected_coin_found,
-            rx.box(
-                rx.vstack(
-                    rx.hstack(
-                        rx.box(
-                            _info_column(),
-                            width=["100%", "100%", "100%", "300px", "320px"],
-                            flex_shrink="0",
-                            height="max-content",
+            CoinState.is_loading,
+            rx.center(rx.spinner(size="3"), padding="4em"),
+            rx.cond(
+                CoinState.selected_coin_found,
+                rx.box(
+                    rx.vstack(
+                        rx.hstack(
+                            rx.box(
+                                _info_column(),
+                                width=["100%", "100%", "100%", "300px", "320px"],
+                                flex_shrink="0",
+                                height="max-content",
+                            ),
+                            rx.box(
+                                _chart_column(),
+                                flex="1",
+                                min_width="0",
+                            ),
+                            rx.box(
+                                rx.vstack(
+                                    _sentiment_column(),
+                                    _targeted_news_section(),
+                                    spacing="6",
+                                    width="100%",
+                                ),
+                                width=["100%", "100%", "100%", "320px", "360px"],
+                                flex_shrink="0",
+                                height="max-content",
+                                # Both children above are fixed-width to
+                                # this box already, but this guards against
+                                # any stray horizontal bleed now that the
+                                # news cards live in this narrower sidebar
+                                # column instead of the page's full width.
+                                overflow="hidden",
+                            ),
+                            direction=rx.breakpoints(initial="column", lg="row"),
+                            align="start",
+                            width="100%",
+                            style={"gap": "25px"},
                         ),
-                        rx.box(
-                            _chart_column(),
-                            flex="1",
-                            min_width="0",
-                        ),
-                        rx.box(
-                            _sentiment_column(),
-                            width=["100%", "100%", "100%", "320px", "360px"],
-                            flex_shrink="0",
-                            height="max-content",
-                        ),
-                        direction=rx.breakpoints(initial="column", lg="row"),
-                        align="start",
+                        spacing="6",
                         width="100%",
-                        style={"gap": "25px"},
                     ),
-                    _targeted_news_section(),
-                    spacing="6",
+                    padding=["1em", "1em", "1.5em", "2em", "2em"],
                     width="100%",
                 ),
-                padding=["1em", "1em", "1.5em", "2em", "2em"],
-                width="100%",
+                _not_found(),
             ),
-            _not_found(),
         ),
     )

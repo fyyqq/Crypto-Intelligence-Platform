@@ -23,7 +23,11 @@ _TREND_DOWN = [{"v": 1}, {"v": 0}]
 
 
 def _fmt_usd(value: float) -> str:
-    return f"${value:,.2f}" if value < 1 else f"${value:,.0f}"
+    # Always 2 decimals (e.g. $3.11), even above $1 — was rounding to a
+    # whole dollar there ("$3"), which lost precision on both the homepage
+    # table's Price column and the coin detail page's big price display
+    # (both read this same price_display field).
+    return f"${value:,.2f}"
 
 
 def _fmt_compact_usd(value: float) -> str:
@@ -358,6 +362,12 @@ class CoinState(rx.State):
     # Same guard as _is_live_syncing above, for detail_sync_loop.
     _is_detail_syncing: bool = False
 
+    # Drives the coin detail page's centered "Copied to clipboard" popup —
+    # set true right when the Contract pill is clicked (see coin_detail.py's
+    # on_click list, chained after the actual rx.set_clipboard), then flips
+    # back after 3s below.
+    contract_copied: bool = False
+
     @rx.event
     def load_coins(self):
         self.is_loading = True
@@ -430,7 +440,14 @@ class CoinState(rx.State):
     @rx.event
     async def toggle_search(self):
         self.search_open = not self.search_open
-        if not self.search_open and self.search_query:
+        if self.search_open:
+            # The desktop input stays permanently mounted (only a CSS class
+            # toggles its width/opacity — see coin_table.py's _coin_search
+            # docstring), so a static auto_focus prop never refires on
+            # reopen. rx.call_script explicitly focuses it by id instead.
+            yield rx.call_script("document.getElementById('coin-search-input-field')?.focus()")
+            return
+        if self.search_query:
             self.active_page = 1
             self.is_filtering = True
             yield
@@ -588,6 +605,19 @@ class CoinState(rx.State):
     def go_to_coin(self, symbol: str):
         return rx.redirect(f"/coin/{symbol.lower()}")
 
+    @rx.event(background=True)
+    async def show_copied_toast(self):
+        """Shows the centered "Copied to clipboard" popup for exactly 3s.
+        Chained after rx.set_clipboard on the Contract pill's on_click (see
+        coin_detail.py) — that copy itself is a client-only special event,
+        so this is what actually confirms it happened.
+        """
+        async with self:
+            self.contract_copied = True
+        await asyncio.sleep(3)
+        async with self:
+            self.contract_copied = False
+
     @rx.var(cache=True)
     def selected_coin(self) -> dict:
         """Looks up the coin for the current /coin/[symbol] route straight
@@ -685,6 +715,16 @@ class CoinState(rx.State):
         withdateranges=1 still shows the 1h/4h/24h/1W/1M row so a viewer can
         zoom into a shorter window afterward; this only changes what loads
         first.
+
+        backgroundColor/gridColor force a solid black plot pane with no grid
+        lines, regardless of light/dark theme, per explicit request — these
+        are real top-level options on TradingView's free embeddable widget.
+        (The nested "overrides" param used by their paid/self-hosted
+        Charting Library, e.g. "paneProperties.background", was tried first
+        and confirmed live to have zero effect here — this free widget
+        strips that key entirely, so it silently does nothing rather than
+        erroring. backgroundColor/gridColor are the ones this widget tier
+        actually reads.)
         """
         symbol = (self.selected_coin.get("symbol") or "BTC").upper()
         params = {
@@ -695,6 +735,8 @@ class CoinState(rx.State):
             "style": "1",
             "locale": "en",
             "toolbarbg": "131722" if theme == "dark" else "f1f3f6",
+            "backgroundColor": "#000000",
+            "gridColor": "#000000",
             "hidesidetoolbar": "0",
             "saveimage": "0",
             "withdateranges": "1",

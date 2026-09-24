@@ -396,6 +396,7 @@ def _coin_search() -> rx.Component:
                     placeholder="Search coin name or ticker...",
                     value=CoinState.search_query,
                     on_change=CoinState.set_search_query,
+                    id="coin-search-input-field",
                     size="2",
                     radius="full",
                     variant="surface",
