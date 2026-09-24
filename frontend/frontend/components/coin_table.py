@@ -52,16 +52,15 @@ _STICKY_HEADER_STYLE = {
 _COL_ALWAYS = ["table-cell"] * 5
 _COL_FROM_SM = ["none", "table-cell", "table-cell", "table-cell", "table-cell"]
 _COL_FROM_MD = ["none", "none", "table-cell", "table-cell", "table-cell"]
-# Volume/1H/the two trend charts show from 992px (position 3, iPad landscape
-# and up — the same point the sidebar+table layout goes side-by-side, see
-# frontend.py) rather than being hidden all the way to desktop. All 10
-# columns are real data, not decoration, so once there's room for a
-# side-by-side layout at all they should be visible — any width the full
-# table doesn't fit in past that point (it's tight in the 992-1440px range
-# next to the 300px sidebar, including 1366px — a very common laptop width)
-# is handled by .coin-table-scroll-fix's local horizontal scroll (styles.css)
-# instead of hiding columns.
-_COL_FROM_LG = ["none", "none", "none", "table-cell", "table-cell"]
+# Volume/1H/the two trend charts used to hide below various breakpoints to
+# keep the table narrow enough to fit next to the 300px sidebar without
+# forcing horizontal scroll. Per explicit instruction, these are real data
+# columns, not decoration — they always render now, at every viewport width
+# down to iPhone 4, and .coin-table-scroll-fix's local horizontal scroll
+# (styles.css, active up to 1440px — comfortably covers every width these
+# columns need it at) is the only mechanism handling widths they don't fit,
+# rather than ever hiding them.
+_COL_FROM_LG = _COL_ALWAYS
 
 
 def _sortable_header(label: str, sort_key: str, display: list[str] = _COL_ALWAYS) -> rx.Component:
