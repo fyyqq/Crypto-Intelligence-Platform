@@ -209,6 +209,12 @@ def _alert_card(item: dict) -> rx.Component:
             width="100%",
             direction="row-reverse",
             justify="end",
+            # The longest narrative name ("REAL-WORLD ASSETS (RWA)", 23
+            # chars) plus the coin-symbol badge doesn't fit on one line at
+            # the card's narrowest width — wrap lets the second badge drop
+            # to its own line there instead of overflowing the card and
+            # visually overlapping whatever sits next to it.
+            wrap="wrap",
         ),
         rx.text(item["headline"], weight="bold", size="2", margin_top="0.4em"),
         rx.text(item["body"], size="1", color_scheme="gray", margin_top="0.3em"),
@@ -219,8 +225,10 @@ def _alert_card(item: dict) -> rx.Component:
         # viewport would leave no room to see the slider is scrollable.
         # Stays a horizontal drag-slider at every width, matching the news
         # slider's design (news_feed.py::_news_card) rather than expanding
-        # to full-width stacked cards on mobile.
-        width=["250px", "270px", "310px", "340px", "340px"],
+        # to full-width stacked cards on mobile. Widened slightly from the
+        # original 250/270px at the two smallest breakpoints for more
+        # breathing room around the coin-symbol + narrative badges.
+        width=["270px", "290px", "310px", "340px", "340px"],
         flex_shrink="0",
         height="100%",
         overflow_y="scroll",

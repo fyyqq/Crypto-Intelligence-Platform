@@ -444,6 +444,9 @@ def _mobile_search_bar() -> rx.Component:
             debounce_timeout=300,
         ),
         width="100%",
+        # Extra breathing room above this row, separating it from the
+        # heading/"Total Coins" row above it on mobile (per user request).
+        margin_top="0.75em",
         display=["block", "block", "none", "none", "none"],
     )
 
