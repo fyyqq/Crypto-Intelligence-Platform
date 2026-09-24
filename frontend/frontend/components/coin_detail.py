@@ -161,7 +161,11 @@ _MINDSHARE_DISPLAY = _fmt_compact_number(
 )
 
 
-def _link_pill(*children: rx.Component, href: rx.Var[str] | str | None = None) -> rx.Component:
+def _link_pill(
+    *children: rx.Component,
+    href: rx.Var[str] | str | None = None,
+    on_click: rx.EventHandler | None = None,
+) -> rx.Component:
     pill = rx.hstack(
         *children,
         spacing="2",
@@ -171,10 +175,11 @@ def _link_pill(*children: rx.Component, href: rx.Var[str] | str | None = None) -
         background="var(--gray-a3)",
         flex_shrink="0",
         # White text/icon (lucide icons stroke="currentColor", so this
-        # cascades to them too) on every pill that's actually a clickable
-        # link — only applied when href is set, not on the plain
-        # (non-clickable) Contract-address pill below.
-        **({"color": "white"} if href is not None else {}),
+        # cascades to them too) on every pill that's actually clickable
+        # (a real link, or the copy-to-clipboard Contract pill below) —
+        # left at the default gray only on a plain, non-interactive pill.
+        **({"color": "white"} if href is not None or on_click is not None else {}),
+        **({"on_click": on_click, "cursor": "pointer"} if on_click is not None else {}),
     )
     if href is None:
         return pill
@@ -322,6 +327,10 @@ def _links_section(coin: dict) -> rx.Component:
                     rx.text(coin["main_chain"], size="1", color_scheme="gray"),
                     rx.text(coin["contract_address_display"], size="2", weight="medium"),
                     rx.icon("copy", size=12),
+                    # Copies the full address, not the truncated display
+                    # text — rx.set_clipboard is a browser-side special
+                    # event, no backend round-trip needed for this.
+                    on_click=rx.set_clipboard(coin["contract_address"]),
                 ),
             ),
         ),
@@ -617,13 +626,7 @@ def _post_card(post: dict, index: int) -> rx.Component:
 
 def _sentiment_column() -> rx.Component:
     return rx.vstack(
-        rx.hstack(
-            rx.heading("Community", size="4"),
-            rx.spacer(),
-            rx.badge("Trade", variant="surface", color_scheme="gray"),
-            width="100%",
-            align="center",
-        ),
+        rx.heading("Community", size="4"),
         rx.hstack(
             rx.heading("Social Insights", size="3"),
             rx.spacer(),
@@ -809,30 +812,7 @@ def _targeted_news_card(item: dict) -> rx.Component:
         padding="0.85em",
         border_radius="8px",
         background="var(--gray-a2)",
-        width=["270px", "290px", "310px", "340px", "340px"],
-        flex_shrink="0",
-        height="100%",
-    )
-
-
-def _targeted_news_slider() -> rx.Component:
-    # Same draggable/arrow-scrollable slider mechanics as the homepage's
-    # narrative alerts / news feed (assets/chain_pills.js) — reuses the
-    # existing alerts-slider-* classes rather than inventing new ones.
-    return rx.box(
-        rx.box(
-            rx.icon("chevron-left", size=14),
-            class_name="alerts-scroll-btn alerts-scroll-left",
-        ),
-        rx.box(
-            *[_targeted_news_card(item) for item in _TARGETED_NEWS],
-            class_name="alerts-slider-track",
-        ),
-        rx.box(
-            rx.icon("chevron-right", size=14),
-            class_name="alerts-scroll-btn alerts-scroll-right",
-        ),
-        class_name="alerts-slider-wrap",
+        width="100%",
     )
 
 
@@ -853,7 +833,14 @@ def _targeted_news_section() -> rx.Component:
             align="center",
             wrap="wrap",
         ),
-        _targeted_news_slider(),
+        # Plain vertical stack, same card-list pattern as the sentiment
+        # column's _post_card list — no horizontal drag-slider, the page's
+        # own normal vertical scroll carries it instead.
+        rx.vstack(
+            *[_targeted_news_card(item) for item in _TARGETED_NEWS],
+            spacing="3",
+            width="100%",
+        ),
         spacing="3",
         width="100%",
         align_items="stretch",

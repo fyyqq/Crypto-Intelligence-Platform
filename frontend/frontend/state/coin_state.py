@@ -141,6 +141,14 @@ def _build_row(coin: Coin) -> dict:
     # Native coins (BTC, ETH, SOL...) have no contract rows at all — only
     # tokens deployed on top of another chain have a real address to show.
     contract_address = (primary_chain.contract_address if primary_chain else None) or ""
+    # CMC's own /v2/info data occasionally reports a placeholder like "0"
+    # for a wrapped/bridged listing that hasn't been assigned a real
+    # address yet (confirmed live on TAO's Solana-Ecosystem entry) — too
+    # short to be a genuine contract address (real ones are 26+ chars,
+    # EVM 0x... or Solana base58), so treated as "no contract" rather than
+    # displaying/copying garbage.
+    if len(contract_address) < 20:
+        contract_address = ""
     contract_address_display = (
         f"{contract_address[:6]}...{contract_address[-4:]}" if len(contract_address) > 14 else contract_address
     )
@@ -669,11 +677,20 @@ class CoinState(rx.State):
         client-side (next-themes) preference this server-cached var can't
         see — the component picks between the two via rx.color_mode_cond,
         which is a real frontend-reactive Var, not a server computation.
+
+        interval="W" + range="ALL" (rather than the previous interval="60",
+        no range) so the chart opens already zoomed out to a coin's entire
+        listing history by default — matching CMC's own coin page, which
+        opens on a weekly-candle view spanning listing low to prior ATH.
+        withdateranges=1 still shows the 1h/4h/24h/1W/1M row so a viewer can
+        zoom into a shorter window afterward; this only changes what loads
+        first.
         """
         symbol = (self.selected_coin.get("symbol") or "BTC").upper()
         params = {
             "symbol": f"{symbol}USDT",
-            "interval": "60",
+            "interval": "W",
+            "range": "ALL",
             "theme": theme,
             "style": "1",
             "locale": "en",
