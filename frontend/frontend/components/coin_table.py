@@ -41,13 +41,21 @@ _STICKY_HEADER_STYLE = {
     "top": "0",
     "z_index": "2",
     "background_color": "var(--gray-2)",
-    # Forces each sticky header cell onto its own GPU compositing layer.
-    # Without this, Safari has a known rendering bug where a `position:
-    # sticky` element inside a horizontally-scrolling container (this
-    # table, since .coin-table-scroll-fix went overflow-x: scroll) leaves a
-    # stale/ghosted partial repaint of the header behind while scrolling,
-    # until something forces a full repaint — visible as a translucent
-    # overlay patch covering part of the header/rows.
+    # `position: sticky` breaks a <th>'s normal default of auto-stretching
+    # to match its row's height — table cells with short, single-line labels
+    # ("1H", "24H") end up only as tall as their own content, while cells
+    # with two-line-wrapped labels ("Market Cap", "24H Volume") make the row
+    # itself taller, so the shorter sticky cells' background stops early and
+    # the darker table-body background shows through the gap above the row's
+    # actual bottom edge — looked like a distinct pale patch sitting over
+    # half the header. Explicit height: 100% restores the stretch-to-row-
+    # height behavior so every header cell's background covers the full row.
+    "height": "100%",
+    # Forces each sticky header cell onto its own GPU compositing layer —
+    # a defensive measure against a known WebKit/Chrome rendering glitch
+    # where a `position: sticky` element inside a horizontally-scrolling
+    # container (this table, since .coin-table-scroll-fix went overflow-x:
+    # scroll) can leave a stale partial repaint behind during scroll.
     "transform": "translateZ(0)",
 }
 
