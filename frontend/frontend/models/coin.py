@@ -25,6 +25,22 @@ class Coin(SQLModel, table=True):
     percent_change_24h: float | None = None
     percent_change_7d: float | None = None
 
+    circulating_supply: float | None = None
+    total_supply: float | None = None
+    max_supply: float | None = None
+    fully_diluted_market_cap: float | None = None
+
+    # Mirrored from the app/ backend's own Coin.* url fields (sourced from
+    # CMC's /v2/cryptocurrency/info `urls` object) via reflex_cache_service.
+    website_url: str | None = None
+    whitepaper_url: str | None = None
+    twitter_url: str | None = None
+    telegram_url: str | None = None
+    source_code_url: str | None = None
+    explorer_url: str | None = None
+    reddit_url: str | None = None
+    facebook_url: str | None = None
+
     last_synced_at: datetime | None = None
 
     categories: list[Category] = Relationship(

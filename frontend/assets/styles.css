@@ -582,3 +582,15 @@
 .coin-search-clear-icon:hover {
   color: var(--accent-9);
 }
+
+/* Coin detail page's info/sentiment side columns: still scrollable
+   (overflow-y stays auto/scroll on the element), just without the visible
+   scrollbar chrome — same technique as the narrative/chain/alerts/news
+   scroll tracks above. */
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
