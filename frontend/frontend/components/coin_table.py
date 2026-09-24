@@ -52,11 +52,16 @@ _STICKY_HEADER_STYLE = {
 _COL_ALWAYS = ["table-cell"] * 5
 _COL_FROM_SM = ["none", "table-cell", "table-cell", "table-cell", "table-cell"]
 _COL_FROM_MD = ["none", "none", "table-cell", "table-cell", "table-cell"]
-# Volume/1H/the two trend charts wait until "xl" (desktop, 1280px), not "lg"
-# (992px, iPad landscape) — at "lg" the layout has already gone side-by-side
-# with the 300px filter sidebar (see frontend.py), and the full 10-column
-# table doesn't fit that budget at 1024px even though it looks fine alone.
-_COL_FROM_XL = ["none", "none", "none", "none", "table-cell"]
+# Volume/1H/the two trend charts show from 992px (position 3, iPad landscape
+# and up — the same point the sidebar+table layout goes side-by-side, see
+# frontend.py) rather than being hidden all the way to desktop. All 10
+# columns are real data, not decoration, so once there's room for a
+# side-by-side layout at all they should be visible — any width the full
+# table doesn't fit in past that point (it's tight in the 992-1440px range
+# next to the 300px sidebar, including 1366px — a very common laptop width)
+# is handled by .coin-table-scroll-fix's local horizontal scroll (styles.css)
+# instead of hiding columns.
+_COL_FROM_LG = ["none", "none", "none", "table-cell", "table-cell"]
 
 
 def _sortable_header(label: str, sort_key: str, display: list[str] = _COL_ALWAYS) -> rx.Component:
@@ -195,12 +200,12 @@ def _row(row: dict) -> rx.Component:
         ),
         rx.table.cell(row["price_display"], vertical_align="middle"),
         rx.table.cell(row["market_cap_display"], vertical_align="middle", display=_COL_FROM_MD),
-        rx.table.cell(row["volume_display"], vertical_align="middle", display=_COL_FROM_XL),
-        _change_cell(row["change_1h_display"], row["change_1h_color"], display=_COL_FROM_XL),
+        rx.table.cell(row["volume_display"], vertical_align="middle", display=_COL_FROM_LG),
+        _change_cell(row["change_1h_display"], row["change_1h_color"], display=_COL_FROM_LG),
         _change_cell(row["change_24h_display"], row["change_24h_color"]),
         _change_cell(row["change_7d_display"], row["change_7d_color"], display=_COL_FROM_SM),
-        _trend_cell(row["trend_24h_data"], row["trend_24h_color"], row["trend_24h_shine"], display=_COL_FROM_XL),
-        _trend_cell(row["trend_7d_data"], row["trend_7d_color"], row["trend_7d_shine"], display=_COL_FROM_XL),
+        _trend_cell(row["trend_24h_data"], row["trend_24h_color"], row["trend_24h_shine"], display=_COL_FROM_LG),
+        _trend_cell(row["trend_7d_data"], row["trend_7d_color"], row["trend_7d_shine"], display=_COL_FROM_LG),
     )
 
 
@@ -319,12 +324,12 @@ def _skeleton_name_cell() -> rx.Component:
 _SKELETON_COL_DISPLAYS = (
     _COL_ALWAYS,  # Price
     _COL_FROM_MD,  # Market Cap
-    _COL_FROM_XL,  # 24H Volume
-    _COL_FROM_XL,  # 1H
+    _COL_FROM_LG,  # 24H Volume
+    _COL_FROM_LG,  # 1H
     _COL_ALWAYS,  # 24H
     _COL_FROM_SM,  # 7D
-    _COL_FROM_XL,  # 24H Price chart
-    _COL_FROM_XL,  # 7D Price chart
+    _COL_FROM_LG,  # 24H Price chart
+    _COL_FROM_LG,  # 7D Price chart
 )
 
 
@@ -433,12 +438,12 @@ def coin_table() -> rx.Component:
                         rx.table.column_header_cell("Name", **_STICKY_HEADER_STYLE),
                         _sortable_header("Price", "price_raw"),
                         _sortable_header("Market Cap", "market_cap_usd", display=_COL_FROM_MD),
-                        _sortable_header("24H Volume", "volume_raw", display=_COL_FROM_XL),
-                        _sortable_header("1H", "pct_1h_raw", display=_COL_FROM_XL),
+                        _sortable_header("24H Volume", "volume_raw", display=_COL_FROM_LG),
+                        _sortable_header("1H", "pct_1h_raw", display=_COL_FROM_LG),
                         _sortable_header("24H", "pct_24h_raw"),
                         _sortable_header("7D", "pct_7d_raw", display=_COL_FROM_SM),
-                        rx.table.column_header_cell("24H Price", display=_COL_FROM_XL, **_STICKY_HEADER_STYLE),
-                        rx.table.column_header_cell("7D Price", display=_COL_FROM_XL, **_STICKY_HEADER_STYLE),
+                        rx.table.column_header_cell("24H Price", display=_COL_FROM_LG, **_STICKY_HEADER_STYLE),
+                        rx.table.column_header_cell("7D Price", display=_COL_FROM_LG, **_STICKY_HEADER_STYLE),
                     )
                 ),
                 rx.cond(

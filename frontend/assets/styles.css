@@ -478,21 +478,21 @@
   overflow: visible !important;
 }
 
-/* Below "1280px" (desktop, where the coin table shows all 10 columns and has
-   the most horizontal budget — see coin_table.py's _COL_FROM_* breakpoints):
-   even with fewer columns shown, the table's natural width (badges, chart
-   columns, etc. all need real space) can still slightly exceed what's left
-   next to the 300px filter sidebar once it goes side-by-side at 992px+
-   (frontend.py's index() direction flip) — measured ~35px over budget at
-   1024px (iPad landscape). Rather than let that push the whole PAGE into
-   horizontal scroll (dragging the fixed header/footer sideways with it),
-   scope local horizontal scrolling to just this table. Trade-off: the sticky
-   column header (coin_table.py::_STICKY_HEADER_STYLE) now sticks relative to
-   this box instead of the page in that range, so it stops "following" while
-   vertically scrolling a long list — acceptable since swipe-to-scroll a data
-   table horizontally is a familiar pattern on tablet/phone, and the
-   alternative (page-level overflow) is worse. */
-@media (max-width: 1365px) {
+/* All 10 columns now show from 992px up (coin_table.py's _COL_FROM_LG) — the
+   table is real data, not decoration, so it shouldn't hide any of it once
+   there's a side-by-side sidebar+table layout at all. But the full table's
+   natural width (badges, chart columns, etc. all need real space) can still
+   slightly exceed what's left next to the 300px filter sidebar in the
+   992-1440px range — measured ~35px over budget at 1024px (iPad landscape)
+   and ~61px at 1366px (a very common laptop width). Rather than let that push
+   the whole PAGE into horizontal scroll (dragging the fixed header/footer
+   sideways with it), scope local horizontal scrolling to just this table.
+   Trade-off: the sticky column header (coin_table.py::_STICKY_HEADER_STYLE)
+   now sticks relative to this box instead of the page in that range, so it
+   stops "following" while vertically scrolling a long list — acceptable
+   since swipe-to-scroll a data table horizontally is a familiar pattern, and
+   the alternative (page-level overflow) is worse. */
+@media (max-width: 1440px) {
   .coin-table-scroll-fix {
     /* overflow-x:auto alone hit the CSS Overflow spec's quirk where a
        "visible" cross-axis value gets forced to "auto" too when the other
