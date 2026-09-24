@@ -452,7 +452,7 @@ def _info_column() -> rx.Component:
                 _stat_row("FDV", coin["fdv_display"]),
                 # No Basic-tier CMC equivalent for these two: Liquidity Score
                 # is a paid-tier metric, holder counts need a separate
-                # blockchain-explorer API — stay dummy “—” placeholders.
+                # blockchain-explorer API — stay dummy "—" placeholders.
                 _stat_row("Liq/Mkt Cap", "—"),
                 _stat_row("Total supply", coin["total_supply_display"]),
                 _stat_row("Max supply", coin["max_supply_display"]),
@@ -679,6 +679,187 @@ def _sentiment_column() -> rx.Component:
     )
 
 
+_NEWS_SOURCE_COLORS = {
+    "Bloomberg": "blue",
+    "Cointelegraph": "green",
+    "Reuters": "orange",
+    "CoinDesk": "purple",
+}
+
+# Same "$<SYMBOL>"-style dynamic mention as _DUMMY_POSTS, but each item here
+# mentions either the coin's ticker OR its primary narrative (CMC's real,
+# dynamically-synced category — see CoinState._build_row's primary_narrative)
+# — "mention" picks which Var this item's headline is built around. 10 items,
+# no duplicates, same fixed dataset reused on every coin's page (only the
+# actual $<SYMBOL>/narrative text substituted per coin).
+_TARGETED_NEWS = [
+    {
+        "source": "Bloomberg",
+        "time": "20m ago",
+        "mention": "ticker",
+        "headline_before": "",
+        "headline_after": " gains fresh institutional coverage after its latest roadmap update",
+        "body": "Analysts note growing interest from allocators tracking the project's execution against its public milestones.",
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "1h ago",
+        "mention": "narrative",
+        "headline_before": "",
+        "headline_after": " narrative broadens as new protocols enter the race",
+        "body": "Momentum in the space continues to build as builders ship competing implementations.",
+    },
+    {
+        "source": "Reuters",
+        "time": "2h ago",
+        "mention": "ticker",
+        "headline_before": "Exchange inflows for ",
+        "headline_after": " tick higher amid renewed trading activity",
+        "body": "Higher exchange balances often precede short-term volatility as traders reposition.",
+    },
+    {
+        "source": "CoinDesk",
+        "time": "3h ago",
+        "mention": "ticker",
+        "headline_before": "",
+        "headline_after": " developer activity climbs on fresh GitHub commit data",
+        "body": "Weekly commit counts suggest the core team is shipping at a faster cadence than last quarter.",
+    },
+    {
+        "source": "Bloomberg",
+        "time": "5h ago",
+        "mention": "narrative",
+        "headline_before": "Capital rotates back into ",
+        "headline_after": " tokens as risk appetite improves",
+        "body": "Traders point to the sector's recent underperformance as a reason for the renewed interest.",
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "7h ago",
+        "mention": "ticker",
+        "headline_before": "",
+        "headline_after": " community proposal targets improved incentive design",
+        "body": "The governance forum discussion has drawn unusually high engagement from long-term holders.",
+    },
+    {
+        "source": "Reuters",
+        "time": "9h ago",
+        "mention": "ticker",
+        "headline_before": "Analysts flag ",
+        "headline_after": " as a name to watch heading into next quarter",
+        "body": "The commentary cites a mix of technical setup and upcoming catalysts as reasons for the call.",
+    },
+    {
+        "source": "CoinDesk",
+        "time": "12h ago",
+        "mention": "narrative",
+        "headline_before": "",
+        "headline_after": " projects see renewed venture funding interest",
+        "body": "Several early-stage rounds closed this week, signaling investor appetite hasn't cooled.",
+    },
+    {
+        "source": "Bloomberg",
+        "time": "16h ago",
+        "mention": "ticker",
+        "headline_before": "",
+        "headline_after": " liquidity deepens across major trading venues",
+        "body": "Tighter spreads and larger order-book depth typically make for smoother price discovery.",
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "1d ago",
+        "mention": "narrative",
+        "headline_before": "Regulatory clarity could be a tailwind for ",
+        "headline_after": " tokens",
+        "body": "Industry participants say clearer rules would likely accelerate institutional participation.",
+    },
+]
+
+
+def _targeted_news_card(item: dict) -> rx.Component:
+    coin = CoinState.selected_coin
+    # coin["symbol"]/["primary_narrative"] come off a plain `dict`-typed
+    # selected_coin var, so Reflex sees them as Any — .to(str) is needed
+    # before "+" concatenation works (same issue _real_tag_group hit).
+    mention = (
+        "$" + coin["symbol"].to(str) if item["mention"] == "ticker" else coin["primary_narrative"].to(str)
+    )
+    return rx.box(
+        rx.hstack(
+            rx.badge(item["source"], color_scheme=_NEWS_SOURCE_COLORS.get(item["source"], "gray"), size="1"),
+            rx.spacer(),
+            rx.text(item["time"], size="1", color_scheme="gray"),
+            width="100%",
+            align="center",
+        ),
+        rx.hstack(
+            rx.badge(coin["symbol"], color_scheme="indigo", size="1"),
+            rx.badge(coin["primary_narrative"], color_scheme="orange", size="1"),
+            margin_top="0.5em",
+            width="100%",
+            direction="row-reverse",
+            justify="end",
+            wrap="wrap",
+        ),
+        rx.text(
+            item["headline_before"], mention, item["headline_after"],
+            weight="bold", size="2", margin_top="0.4em",
+        ),
+        rx.text(item["body"], size="1", color_scheme="gray", margin_top="0.3em"),
+        padding="0.85em",
+        border_radius="8px",
+        background="var(--gray-a2)",
+        width=["270px", "290px", "310px", "340px", "340px"],
+        flex_shrink="0",
+        height="100%",
+    )
+
+
+def _targeted_news_slider() -> rx.Component:
+    # Same draggable/arrow-scrollable slider mechanics as the homepage's
+    # narrative alerts / news feed (assets/chain_pills.js) — reuses the
+    # existing alerts-slider-* classes rather than inventing new ones.
+    return rx.box(
+        rx.box(
+            rx.icon("chevron-left", size=14),
+            class_name="alerts-scroll-btn alerts-scroll-left",
+        ),
+        rx.box(
+            *[_targeted_news_card(item) for item in _TARGETED_NEWS],
+            class_name="alerts-slider-track",
+        ),
+        rx.box(
+            rx.icon("chevron-right", size=14),
+            class_name="alerts-scroll-btn alerts-scroll-right",
+        ),
+        class_name="alerts-slider-wrap",
+    )
+
+
+def _targeted_news_section() -> rx.Component:
+    coin = CoinState.selected_coin
+    return rx.vstack(
+        rx.text("TARGETED NARRATIVE NEWS", size="1", color_scheme="gray", weight="bold"),
+        rx.hstack(
+            rx.heading(coin["name"], " News", size="5"),
+            rx.link(
+                rx.hstack(rx.text("More News", size="2", weight="bold"), rx.icon("arrow-right", size=14), spacing="1", align="center"),
+                href="#",
+                underline="none",
+                color="white",
+            ),
+            width="100%",
+            justify="between",
+            align="center",
+            wrap="wrap",
+        ),
+        _targeted_news_slider(),
+        spacing="3",
+        width="100%",
+        align_items="stretch",
+    )
+
+
 def _not_found() -> rx.Component:
     return rx.vstack(
         rx.heading("Coin not found", size="5"),
@@ -714,28 +895,33 @@ def coin_detail_page() -> rx.Component:
         rx.cond(
             CoinState.selected_coin_found,
             rx.box(
-                rx.hstack(
-                    rx.box(
-                        _info_column(),
-                        width=["100%", "100%", "100%", "300px", "320px"],
-                        flex_shrink="0",
-                        height="max-content",
+                rx.vstack(
+                    rx.hstack(
+                        rx.box(
+                            _info_column(),
+                            width=["100%", "100%", "100%", "300px", "320px"],
+                            flex_shrink="0",
+                            height="max-content",
+                        ),
+                        rx.box(
+                            _chart_column(),
+                            flex="1",
+                            min_width="0",
+                        ),
+                        rx.box(
+                            _sentiment_column(),
+                            width=["100%", "100%", "100%", "320px", "360px"],
+                            flex_shrink="0",
+                            height="max-content",
+                        ),
+                        direction=rx.breakpoints(initial="column", lg="row"),
+                        align="start",
+                        width="100%",
+                        style={"gap": "25px"},
                     ),
-                    rx.box(
-                        _chart_column(),
-                        flex="1",
-                        min_width="0",
-                    ),
-                    rx.box(
-                        _sentiment_column(),
-                        width=["100%", "100%", "100%", "320px", "360px"],
-                        flex_shrink="0",
-                        height="max-content",
-                    ),
-                    direction=rx.breakpoints(initial="column", lg="row"),
-                    align="start",
+                    _targeted_news_section(),
+                    spacing="6",
                     width="100%",
-                    style={"gap": "25px"},
                 ),
                 padding=["1em", "1em", "1.5em", "2em", "2em"],
                 width="100%",

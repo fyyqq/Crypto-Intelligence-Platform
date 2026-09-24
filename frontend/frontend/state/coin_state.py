@@ -649,10 +649,20 @@ class CoinState(rx.State):
         Basic tier has no historical OHLCV endpoint (see the _TREND_UP/
         _TREND_DOWN note above), so this is the only way to show a genuinely
         real, live-updating candlestick chart without a paid CMC plan or a
-        custom price-history pipeline. Assumes the coin trades against USDT
-        on Binance, which covers most top-ranked coins shown on the homepage
-        but is a known gap for smaller/unlisted ones — TradingView just
-        fails to resolve the symbol in that case.
+        custom price-history pipeline.
+
+        No hardcoded exchange prefix (previously "BINANCE:{symbol}USDT") —
+        confirmed live that this was cutting price history short for coins
+        Binance listed later than other venues (e.g. /coin/tao only showed
+        roughly half its real listing history on BINANCE:TAOUSDT). A bare
+        "{symbol}USDT" lets TradingView's own symbol search resolve to
+        whichever venue it considers primary, which is often — but not
+        guaranteed to be — the one with the longest history; there's no
+        free API that exposes "earliest listing across every CEX/DEX" to
+        pick deterministically. allow_symbol_change=1 is the honest
+        fallback: it keeps TradingView's own exchange switcher available
+        so a viewer can manually pick a different venue if this default
+        still doesn't have full history.
 
         Split into light/dark variants (see tradingview_iframe_src_light/
         _dark below) rather than one var, since the app's color mode is a
@@ -662,7 +672,7 @@ class CoinState(rx.State):
         """
         symbol = (self.selected_coin.get("symbol") or "BTC").upper()
         params = {
-            "symbol": f"BINANCE:{symbol}USDT",
+            "symbol": f"{symbol}USDT",
             "interval": "60",
             "theme": theme,
             "style": "1",
@@ -673,6 +683,7 @@ class CoinState(rx.State):
             "withdateranges": "1",
             "studies": "[]",
             "hideideas": "1",
+            "allow_symbol_change": "1",
         }
         return f"https://www.tradingview.com/widgetembed/?{urlencode(params)}"
 

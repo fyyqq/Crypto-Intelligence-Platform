@@ -151,6 +151,10 @@ def coin_detail() -> rx.Component:
         _header_bar(),
         coin_detail_page(),
         footer(),
+        # Needed for the new targeted-narrative-news slider's drag/arrow
+        # behavior (coin_detail.py) — index() loads this same script for
+        # its own sliders, but this page never did until it had one too.
+        rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
         display="flex",
