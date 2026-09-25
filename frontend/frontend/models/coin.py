@@ -42,6 +42,10 @@ class Coin(SQLModel, table=True):
     reddit_url: str | None = None
     facebook_url: str | None = None
     description: str | None = None
+    # Mirrored from app/services/business_summary_service.py's on-demand
+    # AI-generated "what does this coin do / how does it make money"
+    # explainer (see coin_detail.py's _business_summary_section).
+    business_summary: str | None = None
 
     # Mirrored from the app/ backend's on-demand X-post cache (see
     # app/services/social_service.py) — cached_tweets is a plain JSON column

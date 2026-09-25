@@ -274,6 +274,11 @@ def _build_row(coin: Coin) -> dict:
         "has_facebook": bool(coin.facebook_url),
         "description": coin.description or "",
         "has_description": bool(coin.description),
+        # AI-generated business-model explainer (see
+        # app/services/business_summary_service.py), refreshed on-demand via
+        # CoinState.refresh_business_summary rather than by this row build.
+        "business_summary": coin.business_summary or "",
+        "has_business_summary": bool(coin.business_summary),
         # Cached X posts (see app/services/social_service.py) — already
         # normalized {text, image_url, has_image, url, time_display, likes,
         # replies, retweets} dicts, refreshed on-demand via
@@ -459,6 +464,54 @@ def _fetch_better_description(symbol: str) -> tuple[int, str] | None:
             session.commit()
 
     return cmc_id, fresh
+
+
+def _fetch_business_summary(symbol: str) -> tuple[int, str] | None:
+    """Blocking work for the on-demand business-summary refresh (see
+    CoinState.refresh_business_summary) — same lookup-by-ticker-in-Postgres
+    pattern as _fetch_social_posts/_fetch_better_description above,
+    delegating to business_summary_service's own TTL gate (settings.
+    business_summary_ttl_days), so most calls here just replay the already-
+    cached summary rather than re-hitting OpenRouter. Returns None if no
+    coin matches this ticker or nothing was generated.
+    """
+    import sys
+    from pathlib import Path
+
+    from sqlalchemy import select as sa_select
+    from sqlalchemy.orm import selectinload
+
+    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+    from app.models.coin import Coin as OldCoin
+    from app.services.business_summary_service import get_business_summary
+
+    old_db = OldSessionLocal()
+    try:
+        matches = old_db.scalars(
+            sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol)).options(selectinload(OldCoin.categories))
+        ).all()
+        if not matches:
+            return None
+        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
+        summary = get_business_summary(old_db, coin)
+        if not summary:
+            return None
+        cmc_id = coin.cmc_id
+    finally:
+        old_db.close()
+
+    with rx.session() as session:
+        row = session.exec(select(Coin).where(Coin.cmc_id == cmc_id)).first()
+        if row is not None:
+            row.business_summary = summary
+            session.add(row)
+            session.commit()
+
+    return cmc_id, summary
 
 
 class CoinState(rx.State):
@@ -873,6 +926,30 @@ class CoinState(rx.State):
         async with self:
             self.all_coins = [
                 {**row, "description": description, "has_description": True}
+                if row["cmc_id"] == cmc_id
+                else row
+                for row in self.all_coins
+            ]
+
+    @rx.event(background=True)
+    async def refresh_business_summary(self):
+        """One-shot, on-demand refresh of this coin's AI business-model
+        summary — fired once per page view (see frontend.py's
+        /coin/[symbol] on_load), same pattern as refresh_coin_description
+        above. Usually a fast no-op: business_summary_service only
+        regenerates once per settings.business_summary_ttl_days (60d
+        default), or immediately skips if OPENROUTER_API_KEY isn't set.
+        """
+        symbol = self.symbol.strip()
+        if not symbol:
+            return
+        result = await asyncio.to_thread(_fetch_business_summary, symbol)
+        if result is None:
+            return
+        cmc_id, summary = result
+        async with self:
+            self.all_coins = [
+                {**row, "business_summary": summary, "has_business_summary": True}
                 if row["cmc_id"] == cmc_id
                 else row
                 for row in self.all_coins

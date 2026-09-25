@@ -31,5 +31,39 @@ class Settings(BaseSettings):
     coinmarketcap_api_key: str = ""
     coinmarketcap_base_url: str = "https://pro-api.coinmarketcap.com"
 
+    # On-demand X (Twitter) post caching (see app/services/social_service.py)
+    # — replaces the free embed widget, which X's own syndication backend
+    # rate-limits unpredictably. apify_actor_id defaults to a placeholder;
+    # whichever actor is actually configured must return per-tweet text +
+    # image URLs, since SocialService._normalize's field-name guessing is
+    # written against the common shapes seen across Apify's X-scraper
+    # actors, not one specific schema.
+    apify_api_token: str = ""
+    apify_actor_id: str = "apidojo~tweet-scraper"
+    social_cache_ttl_hours: int = 4
+
+    # On-demand "About the business" summary (see
+    # app/services/business_summary_service.py) — Feature 2's AI Business
+    # Model Agent per ai-instructions.md, generated via OpenRouter rather
+    # than a direct per-provider API key so the model can be swapped without
+    # a code change. Refreshed periodically (not once-forever like
+    # description_synced_at) since a project's real business model can
+    # change over time in a way its own CMC/CoinGecko description won't
+    # reflect.
+    openrouter_api_key: str = ""
+    # ai-instructions.md's roadmap named "Claude 3.5 Sonnet" for this feature,
+    # but that model has since been retired from OpenRouter (confirmed live —
+    # it now 404s with "No endpoints found"), and this project's own
+    # OpenRouter account is on the free tier with $0 credit balance, which
+    # 402s on every paid model regardless of price (confirmed live against
+    # both anthropic/claude-sonnet-5 and the far cheaper claude-haiku-4.5).
+    # Defaults to a capable :free-suffixed model instead — no cost, works
+    # within OpenRouter's free-tier daily request quota (50/day, checked via
+    # /api/v1/key) — see business_summary_service.py's retry handling for
+    # this tier's other characteristic: transient 429s from its shared
+    # provider pool, not a real quota problem.
+    openrouter_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
+    business_summary_ttl_days: int = 60
+
 
 settings = Settings()

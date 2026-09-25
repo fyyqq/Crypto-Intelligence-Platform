@@ -71,6 +71,17 @@ class Coin(Base):
     # of being clobbered back to boilerplate.
     description_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # AI-generated "what does this coin do / how does it make money" plain-
+    # language explainer (see app/services/business_summary_service.py —
+    # Feature 2's AI Business Model Agent per ai-instructions.md), built from
+    # this coin's own name/category/description via OpenRouter rather than a
+    # fetched whitepaper. business_summary_updated_at gates regeneration to
+    # once per settings.business_summary_ttl_days — periodic (not one-time
+    # like description_synced_at above) since a project's real business
+    # model can genuinely change over time.
+    business_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    business_summary_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     # On-demand X (Twitter) post cache (see app/services/social_service.py)
     # — x_username is parsed from twitter_url above the first time a coin's
     # detail page is viewed; cached_tweets holds up to 10 already-normalized

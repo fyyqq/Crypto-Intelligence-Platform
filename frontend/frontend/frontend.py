@@ -180,6 +180,7 @@ app.add_page(
         CoinState.detail_sync_loop,
         CoinState.refresh_social_posts,
         CoinState.refresh_coin_description,
+        CoinState.refresh_business_summary,
     ],
 )
 app.add_page(

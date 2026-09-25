@@ -367,6 +367,12 @@ def _links_section(coin: dict) -> rx.Component:
                                 spacing="2",
                             ),
                             size="1",
+                            # Fixed height + its own scroll — a coin with many
+                            # declared socials was rendering a popover taller
+                            # than the viewport with no way to scroll it,
+                            # spilling off/overlapping the page underneath.
+                            max_height="240px",
+                            overflow_y="auto",
                         ),
                     ),
                 ),
@@ -421,6 +427,14 @@ def _links_section(coin: dict) -> rx.Component:
                                 align="start",
                             ),
                             size="1",
+                            # Same fixed-height + scroll fix as the Socials
+                            # dropdown above — a coin bridged/wrapped across
+                            # many chains was rendering a popover taller than
+                            # the viewport with no scroll, overlapping the
+                            # page underneath instead of scrolling its own
+                            # list.
+                            max_height="240px",
+                            overflow_y="auto",
                         ),
                     ),
                 ),
@@ -841,6 +855,26 @@ def _about_section() -> rx.Component:
     )
 
 
+def _business_summary_section() -> rx.Component:
+    # Same styled text box as _about_section's inner container, but no
+    # heading/icon row per explicit request — just the text container,
+    # filled with an AI-generated (not CMC/CoinGecko-sourced) plain-language
+    # explainer of what the coin does, its business model, and how it makes
+    # money, aimed at someone new to crypto (see
+    # app/services/business_summary_service.py).
+    coin = CoinState.selected_coin
+    return rx.cond(
+        coin["has_business_summary"],
+        rx.box(
+            rx.text(coin["business_summary"], size="2", color_scheme="gray", style={"white-space": "pre-wrap"}),
+            padding="1.25em",
+            border_radius="10px",
+            background="var(--gray-a2)",
+            width="100%",
+        ),
+    )
+
+
 def _chart_column() -> rx.Component:
     return rx.vstack(
         rx.hstack(
@@ -889,6 +923,7 @@ def _chart_column() -> rx.Component:
         ),
         _x_timeline_section(),
         _about_section(),
+        _business_summary_section(),
         spacing="3",
         width="100%",
         align="center",
