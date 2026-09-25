@@ -103,6 +103,50 @@ def _parse_business_summary_sections(raw: str) -> list[dict]:
     return sections
 
 
+# OpenRouter model slugs are "<provider>/<model-name>[:variant]" — only the
+# providers actually reachable through this project's free-tier account are
+# named here (see settings.openrouter_model); any other provider still gets
+# a sensible title-cased fallback rather than breaking the badge.
+_PROVIDER_DISPLAY_NAMES = {
+    "openai": "OpenAI",
+    "anthropic": "Anthropic",
+    "google": "Google",
+    "meta": "Meta",
+    "meta-llama": "Meta",
+    "mistralai": "Mistral AI",
+    "nvidia": "NVIDIA",
+    "deepseek": "DeepSeek",
+    "qwen": "Qwen",
+    "x-ai": "xAI",
+    "z-ai": "Z.ai",
+    "cohere": "Cohere",
+}
+
+_MODEL_UNIT_SUFFIX = re.compile(r"^\d+(\.\d+)?[bmkt]$", re.IGNORECASE)
+
+
+def _format_model_badge(raw_model: str) -> dict:
+    """Turns an OpenRouter model slug (e.g. "nvidia/nemotron-3-ultra-550b-
+    a55b:free") into {provider, provider_display, model_display} for
+    coin_detail.py's attribution badge — provider drives which brand icon
+    renders, provider_display/model_display are the shown text. Capped to
+    the model name's first 3 words for a short badge (e.g. "Nemotron 3
+    Ultra") rather than the full, much longer raw slug.
+    """
+    if not raw_model:
+        return {"provider": "", "provider_display": "", "model_display": ""}
+    slug = raw_model.split(":")[0]
+    provider, _, model_part = slug.partition("/")
+    provider_display = _PROVIDER_DISPLAY_NAMES.get(provider, provider.replace("-", " ").title())
+    words = [w for w in model_part.split("-") if w][:3]
+    pretty_words = [w.upper() if _MODEL_UNIT_SUFFIX.match(w) else w.capitalize() for w in words]
+    return {
+        "provider": provider,
+        "provider_display": provider_display,
+        "model_display": " ".join(pretty_words) or provider_display,
+    }
+
+
 # CMC's Basic tier has no historical-price endpoint, and an earlier attempt to
 # source a real 7d line from CoinGecko only matched ~26% of coins (and risked
 # mismatches). Rather than show a real chart for some coins and nothing for
@@ -376,6 +420,9 @@ def _build_row(coin: Coin) -> dict:
         "business_summary": coin.business_summary or "",
         "has_business_summary": bool(coin.business_summary),
         "business_summary_sections": _parse_business_summary_sections(coin.business_summary or ""),
+        # {provider, provider_display, model_display} for the attribution
+        # badge (see coin_detail.py's _business_summary_section).
+        "business_summary_model_badge": _format_model_badge(coin.business_summary_model or ""),
         # Cached X posts (see app/services/social_service.py) — already
         # normalized {text, image_url, has_image, url, time_display, likes,
         # replies, retweets} dicts, refreshed on-demand via
@@ -563,7 +610,7 @@ def _fetch_better_description(symbol: str) -> tuple[int, str] | None:
     return cmc_id, fresh
 
 
-def _fetch_business_summary(symbol: str) -> tuple[int, str] | None:
+def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None] | None:
     """Blocking work for the on-demand business-summary refresh (see
     CoinState.refresh_business_summary) — same lookup-by-ticker-in-Postgres
     pattern as _fetch_social_posts/_fetch_better_description above,
@@ -598,6 +645,7 @@ def _fetch_business_summary(symbol: str) -> tuple[int, str] | None:
         if not summary:
             return None
         cmc_id = coin.cmc_id
+        model = coin.business_summary_model
     finally:
         old_db.close()
 
@@ -605,10 +653,11 @@ def _fetch_business_summary(symbol: str) -> tuple[int, str] | None:
         row = session.exec(select(Coin).where(Coin.cmc_id == cmc_id)).first()
         if row is not None:
             row.business_summary = summary
+            row.business_summary_model = model
             session.add(row)
             session.commit()
 
-    return cmc_id, summary
+    return cmc_id, summary, model
 
 
 class CoinState(rx.State):
@@ -1059,7 +1108,7 @@ class CoinState(rx.State):
         result = await asyncio.to_thread(_fetch_business_summary, symbol)
         if result is None:
             return
-        cmc_id, summary = result
+        cmc_id, summary, model = result
         async with self:
             self.all_coins = [
                 {
@@ -1067,6 +1116,7 @@ class CoinState(rx.State):
                     "business_summary": summary,
                     "has_business_summary": True,
                     "business_summary_sections": _parse_business_summary_sections(summary),
+                    "business_summary_model_badge": _format_model_badge(model or ""),
                 }
                 if row["cmc_id"] == cmc_id
                 else row
