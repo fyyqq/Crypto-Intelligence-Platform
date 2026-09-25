@@ -938,7 +938,7 @@ def _x_timeline_section() -> rx.Component:
                     href=coin["twitter_url"],
                     is_external=True,
                     underline="none",
-                    # Same color_scheme="indigo" pattern as the "More News"/
+                    # Same color_scheme="indigo" pattern as the "View More"/
                     # "See More" links elsewhere on this page.
                     color_scheme="indigo",
                 ),
@@ -1159,19 +1159,156 @@ def _business_summary_section() -> rx.Component:
             border_radius="10px",
             background="var(--gray-a2)",
             width="100%",
-            # Glowing outer shadow (explicit request) marking this card as
-            # worth reading — indigo to match this page's other "real
-            # action" accents (links, badges) rather than an arbitrary hue.
-            box_shadow="0 0 24px 2px var(--indigo-a5)",
+            # Reduced glow (was 0 0 24px 2px) + an explicit solid royalblue
+            # border per explicit request — the border now does most of the
+            # "this card is distinct" work, so the shadow only needs to be a
+            # subtle accent rather than the primary cue.
+            box_shadow="0 0 10px 1px var(--indigo-a4)",
+            border="5px solid royalblue",
+        ),
+    )
+
+
+def _market_pairs_filter_button(label: str, value: str) -> rx.Component:
+    is_active = CoinState.market_pairs_filter == value
+    return rx.box(
+        rx.text(label, size="2", weight="medium"),
+        on_click=CoinState.set_market_pairs_filter(value),
+        padding="0.35em 1em",
+        border_radius="8px",
+        cursor="pointer",
+        background=rx.cond(is_active, "var(--gray-a5)", "transparent"),
+    )
+
+
+def _market_pair_row(pair: dict, index: int) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(rx.text(index + 1, size="2", color_scheme="gray")),
+        rx.table.cell(
+            rx.hstack(
+                rx.cond(
+                    pair["exchange_icon_url"] != "",
+                    rx.image(src=pair["exchange_icon_url"], width="20px", height="20px", border_radius="4px"),
+                    # CoinGecko's bulk exchange listing (see
+                    # market_pairs_service.py's _get_exchange_logo_map) only
+                    # covers centralized exchanges — a DEX (or any exchange
+                    # it doesn't list) falls back to this rather than a
+                    # broken image icon.
+                    rx.box(
+                        rx.icon("building-2", size=12),
+                        width="20px",
+                        height="20px",
+                        border_radius="4px",
+                        background="var(--gray-a4)",
+                        display="flex",
+                        align_items="center",
+                        justify_content="center",
+                        flex_shrink="0",
+                    ),
+                ),
+                rx.text(pair["exchange_name"], size="2", weight="medium"),
+                rx.badge(pair["market_type_label"], size="1", color_scheme=pair["market_type_color"], variant="surface"),
+                spacing="2",
+                align="center",
+            ),
+            vertical_align="middle",
+        ),
+        rx.table.cell(rx.text(pair["market_pair"], size="2"), vertical_align="middle"),
+        rx.table.cell(rx.text(pair["price_display"], size="2"), vertical_align="middle"),
+        rx.table.cell(rx.text(pair["volume_display"], size="2"), vertical_align="middle"),
+        rx.table.cell(rx.text(pair["volume_pct_display"], size="2"), vertical_align="middle"),
+        rx.table.cell(rx.text(pair["last_updated_display"], size="1", color_scheme="gray"), vertical_align="middle"),
+        _hover={"background_color": "var(--gray-a3)"},
+    )
+
+
+def _market_pairs_section() -> rx.Component:
+    # Real per-exchange price/volume from CoinGecko's free API (see
+    # app/services/market_pairs_service.py's module docstring — CMC's own
+    # equivalent endpoint 403s on this project's Basic/free CMC plan),
+    # capped to the top 10 CEX + top 10 DEX by 24h volume per explicit
+    # request. Open Interest/Funding Rate/Spread (derivatives-specific)
+    # aren't shown — this data is spot-markets only on any free-tier
+    # provider we use.
+    coin = CoinState.selected_coin
+    return rx.cond(
+        coin["has_market_pairs"],
+        rx.vstack(
+            rx.hstack(
+                rx.vstack(
+                    rx.heading(coin["name"], " Markets", size="4"),
+                    rx.text("Affiliate disclosures", size="1", color_scheme="gray"),
+                    spacing="0",
+                    align="start",
+                ),
+                rx.spacer(),
+                rx.hstack(
+                    _market_pairs_filter_button("All", "all"),
+                    _market_pairs_filter_button("CEX", "cex"),
+                    _market_pairs_filter_button("DEX", "dex"),
+                    spacing="1",
+                    background="var(--gray-a3)",
+                    padding="0.25em",
+                    border_radius="10px",
+                ),
+                width="100%",
+                align="center",
+                wrap="wrap",
+            ),
+            rx.box(
+                rx.table.root(
+                    rx.table.header(
+                        rx.table.row(
+                            rx.table.column_header_cell("#"),
+                            rx.table.column_header_cell("Exchange"),
+                            rx.table.column_header_cell("Pair"),
+                            rx.table.column_header_cell("Price"),
+                            rx.table.column_header_cell("24h Volume"),
+                            rx.table.column_header_cell("Volume %"),
+                            rx.table.column_header_cell("Last Updated"),
+                        ),
+                    ),
+                    rx.table.body(
+                        rx.foreach(CoinState.filtered_market_pairs, _market_pair_row),
+                    ),
+                    variant="surface",
+                    width="100%",
+                ),
+                overflow_x="auto",
+                width="100%",
+                class_name="visible-scrollbar",
+            ),
+            spacing="3",
+            width="100%",
+            align="start",
         ),
     )
 
 
 def _chart_column() -> rx.Component:
+    coin = CoinState.selected_coin
     return rx.vstack(
         rx.hstack(
-            rx.heading(CoinState.selected_coin["name"], " Live Chart", size="4"),
-            spacing="1",
+            rx.heading(coin["name"], " Live Chart", size="4"),
+            # AI-generated business-model classification (see
+            # business_summary_service.py's CATEGORY: line) — more specific
+            # than the broad CMC narrative tags shown elsewhere on this page
+            # (e.g. "Real World Assets (RWA)" vs. this badge's "Tokenized
+            # Public Funds / Treasuries"). Pulsing glow (see styles.css's
+            # .category-badge-glow) marks it worth noticing; only renders
+            # once the AI summary has actually generated one.
+            rx.cond(
+                coin["has_business_model_category"],
+                rx.badge(
+                    coin["business_model_category"],
+                    color_scheme="indigo",
+                    variant="surface",
+                    radius="full",
+                    size="2",
+                    class_name="category-badge-glow",
+                ),
+            ),
+            justify="between",
             align="center",
             # width="100%" so this row spans the vstack instead of
             # shrink-wrapping — without it, the vstack's own align="center"
@@ -1216,6 +1353,7 @@ def _chart_column() -> rx.Component:
         _x_timeline_section(),
         _about_section(),
         _business_summary_section(),
+        _market_pairs_section(),
         spacing="3",
         width="100%",
         align="center",
