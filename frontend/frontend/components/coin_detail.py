@@ -587,29 +587,85 @@ def _x_timeline_section() -> rx.Component:
     # than relying on script-tag execution order.
     #
     # Confirmed live that widgets.js correctly resolves each coin's real
-    # handle (dfinity, eth_classic, opentensor, ...) and requests the right
-    # params (theme/limit/height) every time — the wiring itself is right.
-    # Repeated rapid reloads while testing did hit a 429 from X's own
-    # syndication.twitter.com backend (the widget's actual data source),
-    # which is a known reliability issue with this free tier, not a bug
-    # here — and since this widget runs client-side in each visitor's own
-    # browser (not proxied through our server), one dev machine tripping a
-    # rate limit during testing doesn't mean real visitors, loading the
-    # page at a normal pace from their own IPs, will see the same thing.
+    # handle (dfinity, eth_classic, opentensor, altszn, dogecoin...) and
+    # requests the right params (theme/limit/height) every time — the wiring
+    # itself is right. What's NOT reliable is X's own syndication.twitter.com
+    # backend (the widget's actual tweet-data source): a fresh 429 from it,
+    # reproduced live on two unrelated coins outside any rapid-testing loop,
+    # is a genuine, currently-reproducible failure mode of this free tier —
+    # and when it 429s, X's own widget JS silently sets its iframe to
+    # display:none, so the whole section otherwise just collapses to an
+    # empty box with no error shown. Since this runs client-side in each
+    # visitor's own browser (not proxied through our server), a real
+    # visitor hits it whenever X's backend rate-limits *their* IP, not just
+    # during our testing — a silent blank box was never an acceptable
+    # steady-state, so the poll below detects that collapse and swaps in a
+    # plain link to the coin's real X profile instead.
     coin = CoinState.selected_coin
     return rx.cond(
         coin["has_twitter"],
         rx.vstack(
             rx.heading(coin["name"], " on X", size="4", width="100%"),
             rx.box(
-                rx.html(
-                    f'<a class="twitter-timeline" data-theme="dark" data-tweet-limit="10" data-height="600" href="{coin["twitter_url"]}">Posts</a>'
+                rx.box(
+                    rx.html(
+                        f'<a class="twitter-timeline" data-theme="dark" data-tweet-limit="10" data-height="600" href="{coin["twitter_url"]}">Posts</a>'
+                    ),
+                    id="x-timeline-embed",
+                ),
+                rx.link(
+                    rx.hstack(
+                        _brand_svg_icon(_X_PATH, 18),
+                        rx.text("View live posts on X", size="3", weight="medium"),
+                        rx.icon("external-link", size=14),
+                        spacing="2",
+                        align="center",
+                    ),
+                    id="x-timeline-fallback",
+                    href=coin["twitter_url"],
+                    is_external=True,
+                    underline="none",
+                    color="white",
+                    display="none",
+                    padding="2em",
+                    border_radius="10px",
+                    background="var(--gray-a2)",
+                    width="100%",
+                    justify="center",
                 ),
                 rx.script(
-                    "(function(){function init(){if(window.twttr&&window.twttr.widgets){window.twttr.widgets.load();}}"
-                    "if(window.twttr){init();}else{var s=document.createElement('script');"
-                    "s.src='https://platform.twitter.com/widgets.js';s.charset='utf-8';s.onload=init;"
-                    "document.head.appendChild(s);}})();"
+                    """
+                    (function(){
+                      function loadWidget(){
+                        if(window.twttr && window.twttr.widgets){
+                          window.twttr.widgets.load(document.getElementById('x-timeline-embed'));
+                        }
+                      }
+                      if(window.twttr){
+                        loadWidget();
+                      } else {
+                        var s=document.createElement('script');
+                        s.src='https://platform.twitter.com/widgets.js';
+                        s.charset='utf-8';
+                        s.onload=loadWidget;
+                        document.head.appendChild(s);
+                      }
+                      var attempts=0;
+                      var checker=setInterval(function(){
+                        attempts++;
+                        var embed=document.getElementById('x-timeline-embed');
+                        var fallback=document.getElementById('x-timeline-fallback');
+                        if(!embed || !fallback){ clearInterval(checker); return; }
+                        var frame=embed.querySelector('iframe');
+                        if(frame && frame.offsetHeight > 0){ clearInterval(checker); return; }
+                        if(attempts >= 6){
+                          clearInterval(checker);
+                          embed.style.display='none';
+                          fallback.style.display='flex';
+                        }
+                      }, 1000);
+                    })();
+                    """
                 ),
                 width="100%",
                 max_width="760px",

@@ -821,11 +821,25 @@ class CoinState(rx.State):
         # it would otherwise land on.
         if self.search_query:
             query = self.search_query.strip().lower()
+            # A search is a lookup for one specific, known coin, so its rank
+            # should be the coin's real global position by market cap across
+            # every coin (e.g. XRP is #5) — not its position within the
+            # arbitrarily narrowed search-result list, which previously
+            # showed "1" for a single match regardless of that coin's actual
+            # standing.
+            global_rank_by_id = {
+                row["cmc_id"]: i
+                for i, row in enumerate(
+                    sorted(self.all_coins, key=lambda r: r["market_cap_usd"], reverse=True),
+                    start=1,
+                )
+            }
             rows = [
-                r
+                {**r, "rank": global_rank_by_id[r["cmc_id"]]}
                 for r in rows
                 if query in r["name"].lower() or query in r["symbol"].lower()
             ]
+            return sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
         rows = sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
         # Rank reflects position by market cap in the current view (1..N),
         # not CMC's own cmc_rank field, which has gaps/different methodology
