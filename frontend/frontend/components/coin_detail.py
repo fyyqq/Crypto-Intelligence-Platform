@@ -398,13 +398,12 @@ def _links_section(coin: dict) -> rx.Component:
                                     coin["other_chain_contracts"].to(list[dict]),
                                     lambda c: _link_pill(
                                         rx.text(c["platform_name"], size="1", color_scheme="gray"),
-                                        rx.hstack(
-                                            rx.text(c["contract_address_display"], size="1", weight="medium"),
-                                            rx.icon("copy", size=10),
-                                            spacing="1",
-                                            align="center",
-                                        ),
-                                        stacked=True,
+                                        rx.text(c["contract_address_display"], size="1", weight="medium"),
+                                        rx.icon("copy", size=10),
+                                        # Not stacked (unlike the main Contract pill above) — the
+                                        # narrow-300px-column overlap that stacking fixed there
+                                        # doesn't apply inside this popover, which has plenty of
+                                        # its own width, so a single row reads cleaner here.
                                         on_click=[
                                             rx.set_clipboard(c["contract_address"]),
                                             CoinState.show_copied_toast,
@@ -915,6 +914,13 @@ def _sentiment_column() -> rx.Component:
             # spacing="3") between them.
             height="585px",
             overflow_y="auto",
+            # Explicit, not left to default "visible" — per the CSS Overflow
+            # spec, a "visible" cross-axis value gets silently forced to
+            # "auto" too once the other axis is non-visible (same quirk
+            # documented in styles.css's .coin-table-scroll-fix), which was
+            # showing an unwanted horizontal scrollbar whenever a card's
+            # content ran even slightly wider than this box.
+            overflow_x="hidden",
             class_name="hide-scrollbar",
             width="100%",
         ),
@@ -1087,6 +1093,8 @@ def _targeted_news_section() -> rx.Component:
             ),
             height="585px",
             overflow_y="auto",
+            # See _sentiment_column's identical box for why this is explicit.
+            overflow_x="hidden",
             class_name="hide-scrollbar",
             width="100%",
         ),
