@@ -424,10 +424,18 @@ def _build_row(coin: Coin) -> dict:
         # badge (see coin_detail.py's _business_summary_section).
         "business_summary_model_badge": _format_model_badge(coin.business_summary_model or ""),
         # Short AI-generated business-model classification (see
-        # business_summary_service.py's CATEGORY: line) shown as a glowing
-        # badge next to the live-chart heading (see coin_detail.py).
+        # business_summary_service.py's CATEGORY: line) shown as a badge
+        # next to the live-chart heading (see coin_detail.py). Only ever set
+        # on-demand the first time a coin's business summary is generated
+        # (rate-limited by OpenRouter's free tier), so most coins never get
+        # one within a session — category_badge_display below is what
+        # coin_detail.py actually renders, falling back to this coin's real
+        # CMC narrative tag so every coin's page still shows *some* badge
+        # instead of the row next to the heading sometimes being empty.
         "business_model_category": coin.business_model_category or "",
         "has_business_model_category": bool(coin.business_model_category),
+        "category_badge_display": coin.business_model_category or primary_narrative,
+        "has_category_badge_display": bool(coin.business_model_category or primary_narrative),
         # Cached CEX/DEX market pairs (see
         # app/services/market_pairs_service.py), refreshed on-demand via
         # CoinState.refresh_market_pairs rather than by this row build.
@@ -790,11 +798,13 @@ class CoinState(rx.State):
     # previous coin's expanded state.
     about_expanded: bool = False
 
-    # Drives the Markets section's All/CEX/DEX filter tabs (see
+    # Drives the Markets section's CEX/DEX filter tabs (see
     # coin_detail.py's _market_pairs_section) — purely a client-side filter
     # over the already-fetched top-10-CEX + top-10-DEX list, no new fetch.
+    # No "All" option (removed per explicit request — CEX and DEX are shown
+    # as two separate lists, never combined), so this defaults to "cex".
     # Reset in load_coins for the same reason about_expanded is.
-    market_pairs_filter: str = "all"
+    market_pairs_filter: str = "cex"
 
     @rx.event
     def toggle_about_expanded(self):
@@ -808,7 +818,7 @@ class CoinState(rx.State):
     def load_coins(self):
         self.is_loading = True
         self.about_expanded = False
-        self.market_pairs_filter = "all"
+        self.market_pairs_filter = "cex"
         with rx.session() as session:
             coins = session.exec(
                 select(Coin)
@@ -1090,14 +1100,14 @@ class CoinState(rx.State):
     def filtered_market_pairs(self) -> list[dict]:
         """selected_coin's market_pairs, narrowed by market_pairs_filter —
         purely in-memory (the full top-10-CEX + top-10-DEX list is already
-        fetched), same instant-filter spirit as filtered_coins.
+        fetched), same instant-filter spirit as filtered_coins. Only "cex"/
+        "dex" are valid values (no "all" — see market_pairs_filter), so
+        anything else falls back to the CEX list.
         """
         pairs = self.selected_coin.get("market_pairs", [])
-        if self.market_pairs_filter == "cex":
-            return [p for p in pairs if not p["is_dex"]]
         if self.market_pairs_filter == "dex":
             return [p for p in pairs if p["is_dex"]]
-        return pairs
+        return [p for p in pairs if not p["is_dex"]]
 
     @rx.event(background=True)
     async def detail_sync_loop(self):
@@ -1218,6 +1228,13 @@ class CoinState(rx.State):
                     "business_summary_model_badge": _format_model_badge(model or ""),
                     "business_model_category": category,
                     "has_business_model_category": bool(category),
+                    # Real AI category now overrides whatever narrative-tag
+                    # fallback category_badge_display was showing (see
+                    # _build_row) — falls back again to that same
+                    # already-computed narrative if this generation didn't
+                    # produce one.
+                    "category_badge_display": category or row["primary_narrative"],
+                    "has_category_badge_display": bool(category or row["primary_narrative"]),
                 }
                 if row["cmc_id"] == cmc_id
                 else row
