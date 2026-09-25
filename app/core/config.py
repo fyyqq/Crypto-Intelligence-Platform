@@ -57,12 +57,17 @@ class Settings(BaseSettings):
     # OpenRouter account is on the free tier with $0 credit balance, which
     # 402s on every paid model regardless of price (confirmed live against
     # both anthropic/claude-sonnet-5 and the far cheaper claude-haiku-4.5).
-    # Defaults to a capable :free-suffixed model instead — no cost, works
-    # within OpenRouter's free-tier daily request quota (50/day, checked via
-    # /api/v1/key) — see business_summary_service.py's retry handling for
-    # this tier's other characteristic: transient 429s from its shared
-    # provider pool, not a real quota problem.
-    openrouter_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
+    # Defaults to the largest :free-suffixed model available instead (550B
+    # params, easily the biggest free option on OpenRouter at the time this
+    # was checked) — no cost, works within OpenRouter's free-tier daily
+    # request quota (50/day, checked via /api/v1/key) — see
+    # business_summary_service.py's retry handling for this tier's other
+    # characteristic: transient 429s from its shared provider pool, not a
+    # real quota problem. Coin.business_summary_model records whichever
+    # model actually served each generation (from the API response itself),
+    # so the UI's attribution badge stays accurate even after this default
+    # changes.
+    openrouter_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     business_summary_ttl_days: int = 60
 
 

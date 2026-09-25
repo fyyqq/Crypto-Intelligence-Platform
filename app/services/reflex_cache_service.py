@@ -90,6 +90,7 @@ def sync_reflex_cache() -> tuple[int, int]:
                 facebook_url=old_coin.facebook_url,
                 description=old_coin.description,
                 business_summary=old_coin.business_summary,
+                business_summary_model=old_coin.business_summary_model,
                 x_username=old_coin.x_username,
                 cached_tweets=old_coin.cached_tweets,
                 last_social_update=old_coin.last_social_update,

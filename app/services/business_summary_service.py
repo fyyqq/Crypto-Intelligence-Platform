@@ -76,7 +76,12 @@ def _build_user_prompt(coin: Coin) -> str:
     )
 
 
-def _fetch_from_openrouter(coin: Coin) -> str | None:
+def _fetch_from_openrouter(coin: Coin) -> tuple[str, str] | None:
+    """Returns (content, model) on success — `model` is the API response's
+    own "model" field (which model actually served the request), not just
+    settings.openrouter_model, since OpenRouter can route a request to a
+    specific provider/variant that isn't identical to the requested slug.
+    """
     if not settings.openrouter_api_key:
         logger.info("OPENROUTER_API_KEY not configured — skipping business summary for %s", coin.symbol)
         return None
@@ -122,7 +127,9 @@ def _fetch_from_openrouter(coin: Coin) -> str | None:
             logger.warning("Business summary generation for %s returned no choices: %r", coin.symbol, data)
             return None
         content = (choices[0].get("message") or {}).get("content", "").strip()
-        return content or None
+        if not content:
+            return None
+        return content, (data.get("model") or settings.openrouter_model)
     return None
 
 
@@ -136,11 +143,13 @@ def get_business_summary(db: Session, coin: Coin) -> str | None:
     if not needs_refresh(coin):
         return coin.business_summary
 
-    fresh = _fetch_from_openrouter(coin)
-    if fresh is None:
+    result = _fetch_from_openrouter(coin)
+    if result is None:
         return coin.business_summary
 
+    fresh, model = result
     coin.business_summary = fresh
+    coin.business_summary_model = model
     coin.business_summary_updated_at = datetime.utcnow()
     db.add(coin)
     db.commit()

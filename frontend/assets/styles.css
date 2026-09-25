@@ -480,6 +480,74 @@
   right: 0;
 }
 
+/* Coin detail's X posts slider: same draggable/arrow-scrollable slider
+   mechanics as the news feed above (assets/chain_pills.js), just real
+   scraped X-post cards (see coin_detail.py::_x_post_card) instead of news
+   cards — replaces the old sealed embed-widget iframe, whose data backend
+   rate-limited unpredictably. */
+.x-posts-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  position: relative;
+}
+
+.x-posts-slider-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: none;
+  padding: 2px 32px 2px 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.x-posts-slider-track::-webkit-scrollbar {
+  display: none;
+}
+
+.x-posts-slider-track.grabbing {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+
+.x-posts-scroll-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--gray-4);
+  cursor: pointer;
+}
+
+.x-posts-scroll-btn:hover {
+  background: var(--gray-6);
+}
+
+.x-posts-scroll-left,
+.x-posts-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.x-posts-scroll-left {
+  left: 0;
+}
+
+.x-posts-scroll-right {
+  right: 0;
+}
+
 /* Radix's Table always wraps its rows in an internal ScrollArea (for its
    own horizontal-scroll support), which — being a scroll container itself
    — becomes the reference frame for any position:sticky descendant instead
@@ -626,4 +694,28 @@
 
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* Opposite of .hide-scrollbar above — the Contract/Socials "+N more"
+   dropdown popovers want their scrollability to be obvious at a glance
+   (explicit request: a coin bridged across many chains should visibly show
+   there's a scrollable list, not rely on the OS's auto-hiding overlay
+   scrollbar), so this gives them a thin, always-visible, styled one
+   instead of the platform default. */
+.visible-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-a8) transparent;
+}
+
+.visible-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.visible-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.visible-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--gray-a8);
+  border-radius: 9999px;
 }
