@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
 
 from frontend.models.category import Category, CoinCategoryLink
@@ -40,6 +41,16 @@ class Coin(SQLModel, table=True):
     explorer_url: str | None = None
     reddit_url: str | None = None
     facebook_url: str | None = None
+    description: str | None = None
+
+    # Mirrored from the app/ backend's on-demand X-post cache (see
+    # app/services/social_service.py) — cached_tweets is a plain JSON column
+    # (SQLite has no JSONB) holding up to 10 already-normalized
+    # {text, image_url, has_image, url, time_display, likes, replies,
+    # retweets} dicts.
+    x_username: str | None = None
+    cached_tweets: list | None = Field(default=None, sa_column=Column(JSON))
+    last_social_update: datetime | None = None
 
     last_synced_at: datetime | None = None
 

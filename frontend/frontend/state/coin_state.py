@@ -272,6 +272,14 @@ def _build_row(coin: Coin) -> dict:
         "has_explorer": bool(coin.explorer_url),
         "has_reddit": bool(coin.reddit_url),
         "has_facebook": bool(coin.facebook_url),
+        "description": coin.description or "",
+        "has_description": bool(coin.description),
+        # Cached X posts (see app/services/social_service.py) — already
+        # normalized {text, image_url, has_image, url, time_display, likes,
+        # replies, retweets} dicts, refreshed on-demand via
+        # CoinState.refresh_social_posts rather than by this row build.
+        "cached_tweets": coin.cached_tweets or [],
+        "has_cached_tweets": bool(coin.cached_tweets),
         "trend_24h_data": trend_24h_data,
         "trend_24h_color": trend_24h_color,
         "trend_24h_shine": trend_24h_shine,
@@ -352,6 +360,57 @@ def _sync_and_rebuild_rows(cmc_ids: list[int]) -> dict[int, dict]:
             .options(selectinload(Coin.categories), selectinload(Coin.contracts))
         ).all()
         return {coin.cmc_id: _build_row(coin) for coin in updated_coins}
+
+
+def _fetch_social_posts(symbol: str) -> tuple[int, list[dict]] | None:
+    """Blocking work for the on-demand X-post refresh (see CoinState.
+    refresh_social_posts): finds the coin by ticker directly in Postgres —
+    not via self.selected_coin, so this doesn't race load_coins for the same
+    on_load — using the same highest-market-cap tie-break CoinState.
+    selected_coin uses (tickers aren't unique on CMC), then delegates to
+    SocialService (app/services/social_service.py), which enforces its own
+    4h cache window: most calls here just replay the already-cached tweets
+    rather than re-hitting the scraper API. Mirrors the refreshed fields
+    into the Reflex SQLite cache directly (same cross-package pattern as
+    _sync_and_rebuild_rows above) so they survive independently of the next
+    24h/1h full mirror rebuild. Returns None if no coin matches this ticker.
+    """
+    import sys
+    from pathlib import Path
+
+    from sqlalchemy import select as sa_select
+
+    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+    from app.models.coin import Coin as OldCoin
+    from app.services.social_service import SocialService
+
+    old_db = OldSessionLocal()
+    try:
+        matches = old_db.scalars(sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol))).all()
+        if not matches:
+            return None
+        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
+        tweets = SocialService(old_db).get_tweets(coin)
+        cmc_id = coin.cmc_id
+        x_username = coin.x_username
+        last_social_update = coin.last_social_update
+    finally:
+        old_db.close()
+
+    with rx.session() as session:
+        row = session.exec(select(Coin).where(Coin.cmc_id == cmc_id)).first()
+        if row is not None:
+            row.x_username = x_username
+            row.cached_tweets = tweets
+            row.last_social_update = last_social_update
+            session.add(row)
+            session.commit()
+
+    return cmc_id, tweets
 
 
 class CoinState(rx.State):
@@ -717,6 +776,37 @@ class CoinState(rx.State):
             async with self:
                 self._is_detail_syncing = False
 
+    @rx.event(background=True)
+    async def refresh_social_posts(self):
+        """One-shot, on-demand refresh of this coin's cached X posts — fired
+        once per page view (see frontend.py's /coin/[symbol] on_load), not on
+        a loop like detail_sync_loop above: SocialService itself enforces a
+        4h cache window (settings.social_cache_ttl_hours), so most page
+        views just replay the already-cached tweets rather than re-hitting
+        the scraper API.
+
+        Looks the coin up by ticker directly in Postgres (see
+        _fetch_social_posts) rather than through self.selected_coin, so it
+        never races load_coins for the same on_load — if this finishes
+        before load_coins populates all_coins, the fresh tweets are still
+        safely on disk in the Reflex SQLite mirror by the time load_coins
+        (and _build_row) actually reads it.
+        """
+        symbol = self.symbol.strip()
+        if not symbol:
+            return
+        result = await asyncio.to_thread(_fetch_social_posts, symbol)
+        if result is None:
+            return
+        cmc_id, tweets = result
+        async with self:
+            self.all_coins = [
+                {**row, "cached_tweets": tweets, "has_cached_tweets": bool(tweets)}
+                if row["cmc_id"] == cmc_id
+                else row
+                for row in self.all_coins
+            ]
+
     def _tradingview_iframe_src(self, theme: str) -> str:
         """Public, no-API-key TradingView "widgetembed" iframe URL. CMC's
         Basic tier has no historical OHLCV endpoint (see the _TREND_UP/
@@ -751,17 +841,20 @@ class CoinState(rx.State):
         zoom into a shorter window afterward; this only changes what loads
         first.
 
-        backgroundColor/gridColor force a solid black plot pane with no grid
-        lines, regardless of light/dark theme, per explicit request — these
-        are real top-level options on TradingView's free embeddable widget.
-        (The nested "overrides" param used by their paid/self-hosted
-        Charting Library, e.g. "paneProperties.background", was tried first
-        and confirmed live to have zero effect here — this free widget
-        strips that key entirely, so it silently does nothing rather than
-        erroring. backgroundColor/gridColor are the ones this widget tier
-        actually reads.)
+        backgroundColor/gridColor force a solid plot pane with no visible
+        grid lines (grid color matches the background exactly, so lines
+        blend in) — these are real top-level options on TradingView's free
+        embeddable widget. (The nested "overrides" param used by their
+        paid/self-hosted Charting Library, e.g. "paneProperties.background",
+        was tried first and confirmed live to have zero effect here — this
+        free widget strips that key entirely, so it silently does nothing
+        rather than erroring. backgroundColor/gridColor are the ones this
+        widget tier actually reads.) Follows `theme` now (black in dark
+        mode, white in light mode) rather than a fixed black regardless of
+        theme — matches the rest of the page's own light/dark switching.
         """
         symbol = (self.selected_coin.get("symbol") or "BTC").upper()
+        pane_color = "#000000" if theme == "dark" else "#ffffff"
         params = {
             "symbol": f"{symbol}USDT",
             "interval": "W",
@@ -770,8 +863,8 @@ class CoinState(rx.State):
             "style": "1",
             "locale": "en",
             "toolbarbg": "131722" if theme == "dark" else "f1f3f6",
-            "backgroundColor": "#000000",
-            "gridColor": "#000000",
+            "backgroundColor": pane_color,
+            "gridColor": pane_color,
             # Underscored key is the one this widget actually reads — the
             # earlier "hidesidetoolbar" (no underscore) was silently
             # ignored, leaving the drawing-tools sidebar hidden (its

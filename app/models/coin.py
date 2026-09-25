@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Numeric, String
+from sqlalchemy import JSON, DateTime, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -51,6 +51,28 @@ class Coin(Base):
     explorer_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     reddit_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     facebook_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Free-text project description, straight from the same /v2/info payload
+    # website_url etc. above already come from — no new API call, just one
+    # more field persisted from a response we already fetch. Text (not a
+    # bounded String) since CMC's community-submitted descriptions vary
+    # wildly in length with no documented cap.
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # On-demand X (Twitter) post cache (see app/services/social_service.py)
+    # — x_username is parsed from twitter_url above the first time a coin's
+    # detail page is viewed; cached_tweets holds up to 10 already-normalized
+    # {text, image_url, has_image, url, time_display, likes, replies,
+    # retweets} dicts from the last successful scraper call.
+    # last_social_update gates re-scraping to once per
+    # settings.social_cache_ttl_hours, protecting scraper API credits the
+    # same way the CMC sync cadences protect CMC's. Plain JSON (not
+    # Postgres's JSONB) since nothing here ever queries *inside* the array —
+    # it's only ever read/written whole — and a plain JSON type mirrors
+    # cleanly to the Reflex SQLite cache, which has no JSONB equivalent.
+    x_username: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    cached_tweets: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    last_social_update: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -186,16 +186,23 @@ def _link_pill(
         background="var(--gray-a3)",
         flex_shrink="1" if stacked else "0",
         max_width="100%",
-        # White text/icon (lucide icons stroke="currentColor", so this
-        # cascades to them too) on every pill that's actually clickable
-        # (a real link, or the copy-to-clipboard Contract pill below) —
-        # left at the default gray only on a plain, non-interactive pill.
-        **({"color": "white"} if href is not None or on_click is not None else {}),
+        # A copy-action pill (Contract: on_click, no href — nothing to
+        # navigate away to) gets plain dark-in-light/white-in-dark text
+        # instead — confirmed live that a hardcoded white here was
+        # unreadable in light mode. A real link's color comes from
+        # color_scheme="indigo" on the rx.link wrapper below instead
+        # (same already-theme-correct pattern news_feed.py's "More News"
+        # link uses), since a plain rx.flex has no equivalent of its own.
+        **(
+            {"color": rx.color_mode_cond(light="var(--gray-12)", dark="white")}
+            if href is None and on_click is not None
+            else {}
+        ),
         **({"on_click": on_click, "cursor": "pointer"} if on_click is not None else {}),
     )
     if href is None:
         return pill
-    return rx.link(pill, href=href, is_external=True, underline="none")
+    return rx.link(pill, href=href, is_external=True, underline="none", color_scheme="indigo")
 
 
 def _icon_circle(icon: rx.Component, size_px: str = "24px", href: rx.Var[str] | str | None = None) -> rx.Component:
@@ -209,12 +216,12 @@ def _icon_circle(icon: rx.Component, size_px: str = "24px", href: rx.Var[str] | 
         align_items="center",
         justify_content="center",
         flex_shrink="0",
-        # White (not Radix's default link-blue) on every icon that's an
-        # actual clickable link — the brand SVGs already hardcode their own
-        # fill so this is a no-op for them, but lucide icons here (e.g. the
-        # Telegram "send" icon) use stroke="currentColor" and were
-        # inheriting rt-Link's blue text color without it.
-        **({"color": "white"} if href is not None else {}),
+        # Dark-in-light/white-in-dark (not a hardcoded white, which was
+        # unreadable in light mode) on every icon that's an actual clickable
+        # link — the brand SVGs already hardcode their own fill so this is a
+        # no-op for them, but lucide icons here (e.g. the Telegram "send"
+        # icon) use stroke="currentColor" and pick this up.
+        **({"color": rx.color_mode_cond(light="var(--gray-12)", dark="white")} if href is not None else {}),
     )
     if href is None:
         return circle
@@ -488,7 +495,11 @@ def _stat_row(label: str, value: rx.Var | str) -> rx.Component:
     return rx.hstack(
         rx.text(label, size="1", color_scheme="gray"),
         rx.spacer(),
-        rx.text(value, size="2", weight="medium"),
+        # text_align="right" — a long value (e.g. a supply figure with its
+        # ticker suffix) wraps onto a second line in this narrow column, and
+        # without an explicit alignment the shorter wrapped line centered
+        # itself instead of lining up against the row's own right edge.
+        rx.text(value, size="2", weight="medium", text_align="right"),
         width="100%",
         justify="between",
     )
@@ -643,6 +654,51 @@ def _x_post_card(post: dict) -> rx.Component:
     )
 
 
+def _x_slider_arrow_fix_script() -> rx.Component:
+    # Shared by both _x_posts_slider and _x_fallback_slider below — both
+    # mount asynchronously (real cards swap in once CoinState.
+    # refresh_social_posts's background fetch completes; the fallback swaps
+    # in immediately but still after the surrounding page's own async
+    # pieces), unlike the news/alerts sliders' static dummy data, which is
+    # already present in the DOM by the time chain_pills.js's
+    # MutationObserver runs its first scan. Confirmed live that other
+    # mutations elsewhere on the page keep firing around this same moment
+    # (the chart iframe loading, the targeted-news list rendering, ...), and
+    # whichever one happens to land last decides the arrows' final
+    # visibility based on chain_pills.js's shared, delegated listener —
+    # sometimes with stale (mid-reconciliation, near-zero) measurements.
+    # Rather than race that shared listener's timing, this computes and
+    # sets the correct visibility directly against this specific track,
+    # polling briefly until the numbers stop changing across two
+    # consecutive checks (i.e. layout has genuinely settled), so it's
+    # correct regardless of what else the page is doing.
+    return rx.script(
+        "(function(){"
+        "var lastKey=null, stableCount=0;"
+        "var iv=setInterval(function(){"
+        "var t=document.querySelector('.x-posts-slider-track');"
+        "if(!t){return;}"
+        "var wrap=t.closest('.x-posts-slider-wrap');"
+        "var leftBtn=wrap && wrap.querySelector('.x-posts-scroll-left');"
+        "var rightBtn=wrap && wrap.querySelector('.x-posts-scroll-right');"
+        "if(!leftBtn||!rightBtn){return;}"
+        "var key=t.scrollLeft+':'+t.clientWidth+':'+t.scrollWidth;"
+        "if(key===lastKey){"
+        "stableCount++;"
+        "}else{"
+        "stableCount=0; lastKey=key;"
+        "}"
+        "var atStart=t.scrollLeft<=1;"
+        "var atEnd=t.scrollLeft+t.clientWidth>=t.scrollWidth-1;"
+        "leftBtn.style.display=atStart?'none':'flex';"
+        "rightBtn.style.display=atEnd?'none':'flex';"
+        "if(stableCount>=2){clearInterval(iv);}"
+        "}, 200);"
+        "setTimeout(function(){clearInterval(iv);}, 3000);"
+        "})();"
+    )
+
+
 def _x_posts_slider(coin: dict) -> rx.Component:
     # Same draggable/arrow-scrollable slider mechanics as the news/alerts
     # sliders (assets/chain_pills.js — its selectors include these
@@ -654,76 +710,67 @@ def _x_posts_slider(coin: dict) -> rx.Component:
             class_name="x-posts-slider-track",
         ),
         rx.box(rx.icon("chevron-right", size=14), class_name="x-posts-scroll-btn x-posts-scroll-right"),
-        rx.script(
-            # This slider mounts asynchronously (swapped in once
-            # CoinState.refresh_social_posts's background fetch completes,
-            # replacing _x_fallback_link), unlike the news/alerts sliders'
-            # static dummy data, which is already present in the DOM by the
-            # time chain_pills.js's MutationObserver runs its first scan.
-            # Confirmed live that other mutations elsewhere on the page keep
-            # firing around this same moment (the chart iframe loading, the
-            # targeted-news list rendering, ...), and whichever one happens
-            # to land last decides the arrows' final visibility based on
-            # chain_pills.js's shared, delegated listener — sometimes with
-            # stale (mid-reconciliation, near-zero) measurements. Rather
-            # than race that shared listener's timing, this computes and
-            # sets the correct visibility directly against this specific
-            # track, polling briefly until the numbers stop changing across
-            # two consecutive checks (i.e. layout has genuinely settled),
-            # so it's correct regardless of what else the page is doing.
-            "(function(){"
-            "var lastKey=null, stableCount=0;"
-            "var iv=setInterval(function(){"
-            "var t=document.querySelector('.x-posts-slider-track');"
-            "if(!t){return;}"
-            "var wrap=t.closest('.x-posts-slider-wrap');"
-            "var leftBtn=wrap && wrap.querySelector('.x-posts-scroll-left');"
-            "var rightBtn=wrap && wrap.querySelector('.x-posts-scroll-right');"
-            "if(!leftBtn||!rightBtn){return;}"
-            "var key=t.scrollLeft+':'+t.clientWidth+':'+t.scrollWidth;"
-            "if(key===lastKey){"
-            "stableCount++;"
-            "}else{"
-            "stableCount=0; lastKey=key;"
-            "}"
-            "var atStart=t.scrollLeft<=1;"
-            "var atEnd=t.scrollLeft+t.clientWidth>=t.scrollWidth-1;"
-            "leftBtn.style.display=atStart?'none':'flex';"
-            "rightBtn.style.display=atEnd?'none':'flex';"
-            "if(stableCount>=2){clearInterval(iv);}"
-            "}, 200);"
-            "setTimeout(function(){clearInterval(iv);}, 3000);"
-            "})();"
-        ),
+        _x_slider_arrow_fix_script(),
         class_name="x-posts-slider-wrap",
     )
 
 
-def _x_fallback_link(coin: dict) -> rx.Component:
+def _x_skeleton_card(url: rx.Var[str]) -> rx.Component:
+    # A single skeleton placeholder — same size/shape as a real _x_post_card
+    # so the fallback slider (see _x_fallback_slider) reads as "posts are
+    # coming" rather than fabricating fake tweet text/engagement numbers,
+    # which the rest of this page's actually-dummy sections (_post_card,
+    # _targeted_news_card) are explicit, documented placeholders for but
+    # this section isn't — X posts have a real backend (SocialService),
+    # it's just not always available (see _x_timeline_section). Still
+    # clickable straight through to the coin's real X profile.
+    return rx.link(
+        rx.vstack(
+            rx.box(width="90%", height="12px", background="var(--gray-a5)", border_radius="4px"),
+            rx.box(width="70%", height="12px", background="var(--gray-a5)", border_radius="4px"),
+            rx.box(width="95%", height="12px", background="var(--gray-a5)", border_radius="4px"),
+            rx.spacer(),
+            rx.hstack(
+                _brand_svg_icon(_X_PATH, 14),
+                rx.text("View on X", size="1", color_scheme="gray"),
+                spacing="1",
+                align="center",
+            ),
+            align_items="stretch",
+            spacing="2",
+            height="100%",
+        ),
+        href=url,
+        is_external=True,
+        underline="none",
+        color="inherit",
+        padding="0.85em",
+        border_radius="10px",
+        background="var(--gray-a2)",
+        width=["240px", "260px", "300px", "320px", "320px"],
+        flex_shrink="0",
+        height="220px",
+    )
+
+
+def _x_fallback_slider(coin: dict) -> rx.Component:
     # Shown while no cached tweets are available yet — either the on-demand
     # scraper fetch (CoinState.refresh_social_posts) hasn't completed for
     # this coin's first-ever view, the scraper API isn't configured
     # (settings.apify_api_token empty), or a real fetch attempt failed with
-    # nothing already cached to fall back to. A plain link out is always
-    # better than an empty section either way.
-    return rx.link(
-        rx.hstack(
-            _brand_svg_icon(_X_PATH, 18),
-            rx.text("View live posts on X", size="3", weight="medium"),
-            rx.icon("external-link", size=14),
-            spacing="2",
-            align="center",
+    # nothing already cached to fall back to. Same horizontal-scroll-with-
+    # arrows shape as the real _x_posts_slider (10 cards, ~3.5 visible) per
+    # explicit request, rather than a single plain link — each card still
+    # links out to the coin's real X profile.
+    return rx.box(
+        rx.box(rx.icon("chevron-left", size=14), class_name="x-posts-scroll-btn x-posts-scroll-left"),
+        rx.box(
+            *[_x_skeleton_card(coin["twitter_url"]) for _ in range(10)],
+            class_name="x-posts-slider-track",
         ),
-        href=coin["twitter_url"],
-        is_external=True,
-        underline="none",
-        color="white",
-        padding="2em",
-        border_radius="10px",
-        background="var(--gray-a2)",
-        width="100%",
-        max_width="760px",
-        justify="center",
+        rx.box(rx.icon("chevron-right", size=14), class_name="x-posts-scroll-btn x-posts-scroll-right"),
+        _x_slider_arrow_fix_script(),
+        class_name="x-posts-slider-wrap",
     )
 
 
@@ -735,10 +782,42 @@ def _x_timeline_section() -> rx.Component:
         coin["has_twitter"],
         rx.vstack(
             rx.heading(coin["name"], " on X", size="4", width="100%"),
-            rx.cond(coin["has_cached_tweets"], _x_posts_slider(coin), _x_fallback_link(coin)),
+            rx.cond(coin["has_cached_tweets"], _x_posts_slider(coin), _x_fallback_slider(coin)),
             spacing="3",
             width="100%",
             align="center",
+        ),
+    )
+
+
+def _about_section() -> rx.Component:
+    # Real, free-text project description straight from CMC's /v2/info
+    # payload (see app/services/market_data_service.py::_upsert_contracts —
+    # same response website_url/whitepaper_url/etc. already come from, so
+    # this is free: no new API call, just one more field persisted from a
+    # response already fetched). No collapse/expand toggle per explicit
+    # request — always shown in full, unlike the reference design's
+    # dropdown-style card.
+    coin = CoinState.selected_coin
+    return rx.cond(
+        coin["has_description"],
+        rx.vstack(
+            rx.hstack(
+                rx.heading("About ", coin["name"], size="4"),
+                rx.icon("info", size=16, color="var(--gray-9)"),
+                spacing="2",
+                align="center",
+            ),
+            rx.box(
+                rx.text(coin["description"], size="2", color_scheme="gray", style={"white-space": "pre-wrap"}),
+                padding="1.25em",
+                border_radius="10px",
+                background="var(--gray-a2)",
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+            align="start",
         ),
     )
 
@@ -782,14 +861,15 @@ def _chart_column() -> rx.Component:
             height=_CHART_HEIGHTS,
             border_radius="10px",
             overflow="hidden",
-            # Fixed black regardless of light/dark mode — the widget's own
-            # backgroundColor/gridColor params (see CoinState.
-            # _tradingview_iframe_src) force the same black on the actual
-            # chart pane/grid, so this is just the placeholder shown before
-            # the iframe paints.
-            background="#000000",
+            # Matches CoinState._tradingview_iframe_src's own theme-aware
+            # backgroundColor/gridColor (black in dark mode, white in light
+            # mode) — this is just the placeholder shown before the iframe
+            # paints, so it should already look like the chart that's about
+            # to load rather than always black.
+            background=rx.color_mode_cond(light="#ffffff", dark="#000000"),
         ),
         _x_timeline_section(),
+        _about_section(),
         spacing="3",
         width="100%",
         align="center",
@@ -871,7 +951,10 @@ def _sentiment_column() -> rx.Component:
                 rx.hstack(rx.text("See More", size="2"), rx.icon("arrow-right", size=14), spacing="1", align="center"),
                 href="#",
                 underline="none",
-                color="white",
+                # Same color_scheme="indigo" pattern as news_feed.py's "More
+                # News" link — a hardcoded color="white" here was unreadable
+                # in light mode.
+                color_scheme="indigo",
             ),
             width="100%",
             align="center",
@@ -1074,7 +1157,9 @@ def _targeted_news_section() -> rx.Component:
                 rx.hstack(rx.text("More News", size="2", weight="bold"), rx.icon("arrow-right", size=14), spacing="1", align="center"),
                 href="#",
                 underline="none",
-                color="white",
+                # Same color_scheme="indigo" pattern as news_feed.py's own
+                # "More News" link on the homepage.
+                color_scheme="indigo",
             ),
             width="100%",
             justify="between",

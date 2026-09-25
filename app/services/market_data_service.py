@@ -235,6 +235,7 @@ class MarketDataService:
 
             for field, value in self._extract_urls(info).items():
                 setattr(coin, field, value)
+            coin.description = info.get("description")
 
             declared_platform = info.get("platform")
             entries = info.get("contract_address") or []

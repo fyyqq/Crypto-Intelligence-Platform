@@ -88,6 +88,10 @@ def sync_reflex_cache() -> tuple[int, int]:
                 explorer_url=old_coin.explorer_url,
                 reddit_url=old_coin.reddit_url,
                 facebook_url=old_coin.facebook_url,
+                description=old_coin.description,
+                x_username=old_coin.x_username,
+                cached_tweets=old_coin.cached_tweets,
+                last_social_update=old_coin.last_social_update,
                 last_synced_at=old_coin.last_synced_at,
                 categories=[category_map[c.id] for c in old_coin.categories],
                 contracts=[
