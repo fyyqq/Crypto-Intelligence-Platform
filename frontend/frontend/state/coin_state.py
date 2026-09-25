@@ -3,6 +3,7 @@ exposes a narrative filter, backed by the SQLModel tables in frontend/models.
 """
 
 import asyncio
+import re
 from collections import Counter
 from urllib.parse import urlencode
 
@@ -11,6 +12,96 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from frontend.models.coin import Coin
+
+# Eye-catching, mutually distinct colors for the About/AI-summary keyword
+# underline highlight — picked for contrast against both light and dark
+# mode's gray-a2 card background (see coin_detail.py's _render_highlight_
+# token), not tied to any single brand color the way indigo/green links
+# elsewhere on this page are.
+_HIGHLIGHT_COLORS = [
+    "#22d3ee", "#fb923c", "#f472b6", "#a78bfa", "#a3e635", "#fbbf24", "#38bdf8", "#fb7185",
+]
+
+# Generic crypto/investor-relevant terms and value patterns worth calling
+# out in free-text project descriptions/summaries — deliberately broad
+# (not tied to any one coin's vocabulary, e.g. Ethereum's) since this same
+# list highlights across every coin's page. Numeric patterns (dollar
+# amounts, percentages, "N per second"/"N annually") catch concrete
+# figures an investor would actually stop and read, alongside the named
+# concepts.
+_HIGHLIGHT_KEYWORDS = (
+    r"layer\s*[123]\b", r"layer\s*one\b", r"layer\s*two\b", r"business model",
+    r"market cap(?:italization)?", r"total supply", r"circulating supply",
+    r"max(?:imum)? supply", r"staking", r"validators?", r"smart contracts?",
+    r"proof of stake", r"proof of work", r"defi", r"decentrali[sz]ed",
+    r"tokenomics", r"roadmap", r"institutional", r"liquidity", r"airdrops?",
+    r"governance", r"gas fees?", r"transaction fees?", r"annual yields?",
+    r"apy", r"tps\b", r"transactions per second", r"burn(?:ing|ed)?",
+    r"deflationary", r"\betf\b", r"mining",
+)
+_HIGHLIGHT_PATTERN = re.compile(
+    "(" + "|".join(_HIGHLIGHT_KEYWORDS) + ")"
+    r"|(\$[\d,]+(?:\.\d+)?\s?(?:billion|million|trillion|B|M|T)?)"
+    r"|(\d[\d,]*(?:\.\d+)?\+?\s?%)"
+    r"|(\d[\d,]*(?:\.\d+)?\+?\s?(?:per second|transactions per second|annually|per year))",
+    re.IGNORECASE,
+)
+
+
+def _highlight_color(keyword: str) -> str:
+    # Deterministic (not Python's salted str hash, which changes every
+    # process restart) so the same term always gets the same color within
+    # a session and across reloads, rather than visibly reshuffling.
+    return _HIGHLIGHT_COLORS[sum(ord(c) for c in keyword.lower()) % len(_HIGHLIGHT_COLORS)]
+
+
+def _tokenize_highlights(text: str) -> list[dict]:
+    """Splits free text into an ordered list of {text, highlight, color}
+    runs — plain runs render as-is, highlighted runs (see _HIGHLIGHT_
+    PATTERN) get a colored underline (see coin_detail.py's _render_
+    highlight_token). Done here in Python rather than as a live Reflex Var
+    transform since this is arbitrary string tokenization, not something
+    Reflex's Var operations express — computed once per row build/refresh
+    instead, same as every other derived field in _build_row.
+    """
+    if not text:
+        return []
+    tokens: list[dict] = []
+    last_end = 0
+    for match in _HIGHLIGHT_PATTERN.finditer(text):
+        start, end = match.span()
+        if start > last_end:
+            tokens.append({"text": text[last_end:start], "highlight": False, "color": ""})
+        matched = match.group(0)
+        tokens.append({"text": matched, "highlight": True, "color": _highlight_color(matched)})
+        last_end = end
+    if last_end < len(text):
+        tokens.append({"text": text[last_end:], "highlight": False, "color": ""})
+    return tokens
+
+
+def _parse_business_summary_sections(raw: str) -> list[dict]:
+    """Splits the AI business summary into {title, tokens} sections when the
+    model followed the "TITLE: <heading>" convention (see business_summary_
+    service.py's system prompt) — falls back to one untitled section for
+    older cached summaries generated before that convention existed, so an
+    already-cached coin doesn't break until its next TTL-driven regeneration.
+    """
+    if not raw:
+        return []
+    parts = re.split(r"(?m)^TITLE:\s*(.+)$", raw.strip())
+    if len(parts) == 1:
+        return [{"title": "", "tokens": _tokenize_highlights(raw.strip())}]
+    sections: list[dict] = []
+    leading = parts[0].strip()
+    if leading:
+        sections.append({"title": "", "tokens": _tokenize_highlights(leading)})
+    for i in range(1, len(parts), 2):
+        title = parts[i].strip()
+        body = parts[i + 1].strip() if i + 1 < len(parts) else ""
+        sections.append({"title": title, "tokens": _tokenize_highlights(body)})
+    return sections
+
 
 # CMC's Basic tier has no historical-price endpoint, and an earlier attempt to
 # source a real 7d line from CoinGecko only matched ~26% of coins (and risked
@@ -274,11 +365,17 @@ def _build_row(coin: Coin) -> dict:
         "has_facebook": bool(coin.facebook_url),
         "description": coin.description or "",
         "has_description": bool(coin.description),
+        # Pre-tokenized for the keyword-underline highlight (see
+        # coin_detail.py's _render_highlight_token) — computed once here
+        # rather than as a live Var transform, since it's arbitrary string
+        # processing.
+        "description_tokens": _tokenize_highlights(coin.description or ""),
         # AI-generated business-model explainer (see
         # app/services/business_summary_service.py), refreshed on-demand via
         # CoinState.refresh_business_summary rather than by this row build.
         "business_summary": coin.business_summary or "",
         "has_business_summary": bool(coin.business_summary),
+        "business_summary_sections": _parse_business_summary_sections(coin.business_summary or ""),
         # Cached X posts (see app/services/social_service.py) — already
         # normalized {text, image_url, has_image, url, time_display, likes,
         # replies, retweets} dicts, refreshed on-demand via
@@ -563,9 +660,20 @@ class CoinState(rx.State):
     # back after 3s below.
     contract_copied: bool = False
 
+    # Drives the About section's fixed-height/expand-to-read-more toggle
+    # (see coin_detail.py's _about_section) — reset in load_coins so
+    # navigating from one coin's page to another's doesn't carry over a
+    # previous coin's expanded state.
+    about_expanded: bool = False
+
+    @rx.event
+    def toggle_about_expanded(self):
+        self.about_expanded = not self.about_expanded
+
     @rx.event
     def load_coins(self):
         self.is_loading = True
+        self.about_expanded = False
         with rx.session() as session:
             coins = session.exec(
                 select(Coin)
@@ -925,7 +1033,12 @@ class CoinState(rx.State):
         cmc_id, description = result
         async with self:
             self.all_coins = [
-                {**row, "description": description, "has_description": True}
+                {
+                    **row,
+                    "description": description,
+                    "has_description": True,
+                    "description_tokens": _tokenize_highlights(description),
+                }
                 if row["cmc_id"] == cmc_id
                 else row
                 for row in self.all_coins
@@ -949,7 +1062,12 @@ class CoinState(rx.State):
         cmc_id, summary = result
         async with self:
             self.all_coins = [
-                {**row, "business_summary": summary, "has_business_summary": True}
+                {
+                    **row,
+                    "business_summary": summary,
+                    "has_business_summary": True,
+                    "business_summary_sections": _parse_business_summary_sections(summary),
+                }
                 if row["cmc_id"] == cmc_id
                 else row
                 for row in self.all_coins

@@ -38,13 +38,21 @@ _RETRY_DELAY_SECONDS = 4
 _SYSTEM_PROMPT = (
     "You explain cryptocurrency projects to complete beginners who have never "
     "used crypto before. Given a coin's name, ticker, category tags, and its "
-    "own project description, write a short, plain-language explainer "
-    "covering: what the project actually does, its business model, and how "
-    "it makes money or captures value (if it's a pure meme/community coin "
-    "with no real business model, say so plainly instead of inventing one). "
-    "Write 2-3 short paragraphs, plain prose only — no headings, no bullet "
-    "points, no markdown formatting. Avoid jargon where possible, and briefly "
-    "explain any technical term you do need to use."
+    "own project description, write a short, plain-language explainer in "
+    "2-3 short paragraphs, each covering one distinct topic — typically "
+    "what the project actually does, then its business model, then how it "
+    "makes money or captures value (if it's a pure meme/community coin with "
+    "no real business model, say so plainly in that last paragraph instead "
+    "of inventing one). Prefix EVERY paragraph, with no exceptions, with a "
+    "line reading exactly `TITLE: <a 2-4 word heading for that paragraph>` "
+    "on its own line, then the paragraph's plain prose on the next line(s) — "
+    "no bullet points, no other markdown formatting anywhere. Avoid jargon "
+    "where possible, and briefly explain any technical term you do need to "
+    "use. Example shape (do not copy the content, only the structure):\n"
+    "TITLE: What It Does\n"
+    "<paragraph>\n"
+    "TITLE: Business Model\n"
+    "<paragraph>"
 )
 
 
@@ -85,6 +93,14 @@ def _fetch_from_openrouter(coin: Coin) -> str | None:
                         {"role": "user", "content": _build_user_prompt(coin)},
                     ],
                     "max_tokens": 500,
+                    # Confirmed live: the default free model is a reasoning-
+                    # capable one, and without this it sometimes spends the
+                    # entire max_tokens budget on its visible chain-of-
+                    # thought scratchpad (returned in `content` itself, cut
+                    # off mid-thought) rather than ever emitting the actual
+                    # TITLE:-formatted answer. Disabling reasoning fixes
+                    # this — confirmed a clean, direct answer afterward.
+                    "reasoning": {"enabled": False},
                 },
                 timeout=30,
             )

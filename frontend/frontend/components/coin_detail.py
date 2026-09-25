@@ -823,14 +823,54 @@ def _x_timeline_section() -> rx.Component:
     )
 
 
+def _render_highlight_token(token: dict) -> rx.Component:
+    # Plain runs render as-is; highlighted runs (see CoinState._tokenize_
+    # highlights — investor-relevant terms/figures like "Layer 2" or a
+    # concrete $/% figure) get a colored underline rather than a background
+    # highlight, matching the reference style (bold text, colored underline
+    # beneath) rather than a highlighter-pen block behind the word.
+    return rx.cond(
+        token["highlight"],
+        rx.el.span(
+            token["text"],
+            style={
+                "text-decoration": "underline",
+                "text-decoration-color": token["color"],
+                "text-decoration-thickness": "2.5px",
+                "text-underline-offset": "3px",
+                "font-weight": "600",
+            },
+        ),
+        rx.el.span(token["text"]),
+    )
+
+
+def _highlighted_paragraph(tokens: rx.Var) -> rx.Component:
+    return rx.text(
+        rx.foreach(tokens.to(list[dict]), _render_highlight_token),
+        size="2",
+        color_scheme="gray",
+        style={"white-space": "pre-wrap"},
+    )
+
+
+# Tall enough to show ~3.5 paragraphs of a typical About description at
+# this box's width/font-size (measured live against Ethereum's real
+# description) before clipping — the same "3.5 visible, rest cut off as a
+# scroll/expand cue" sizing the sentiment/news columns already use, just
+# for prose height instead of a card count.
+_ABOUT_COLLAPSED_HEIGHT = "320px"
+
+
 def _about_section() -> rx.Component:
     # Real, free-text project description straight from CMC's /v2/info
     # payload (see app/services/market_data_service.py::_upsert_contracts —
     # same response website_url/whitepaper_url/etc. already come from, so
     # this is free: no new API call, just one more field persisted from a
-    # response already fetched). No collapse/expand toggle per explicit
-    # request — always shown in full, unlike the reference design's
-    # dropdown-style card.
+    # response already fetched). Fixed collapsed height + a centered expand
+    # arrow per explicit request (superseding this section's earlier
+    # "always shown in full" design) — CoinState.about_expanded/
+    # toggle_about_expanded drive it.
     coin = CoinState.selected_coin
     return rx.cond(
         coin["has_description"],
@@ -842,7 +882,36 @@ def _about_section() -> rx.Component:
                 align="center",
             ),
             rx.box(
-                rx.text(coin["description"], size="2", color_scheme="gray", style={"white-space": "pre-wrap"}),
+                rx.box(
+                    _highlighted_paragraph(coin["description_tokens"]),
+                    height=rx.cond(CoinState.about_expanded, "auto", _ABOUT_COLLAPSED_HEIGHT),
+                    overflow="hidden",
+                ),
+                # Centered expand/collapse arrow, half-overlapping the
+                # clipped box's bottom edge — kept as a sibling of (not
+                # inside) that overflow:hidden box so it's never itself
+                # clipped away while collapsed.
+                rx.box(
+                    rx.cond(
+                        CoinState.about_expanded,
+                        rx.icon("chevron-up", size=16),
+                        rx.icon("chevron-down", size=16),
+                    ),
+                    on_click=CoinState.toggle_about_expanded,
+                    position="absolute",
+                    bottom="-14px",
+                    left="50%",
+                    transform="translateX(-50%)",
+                    width="28px",
+                    height="28px",
+                    border_radius="9999px",
+                    background="var(--gray-5)",
+                    display="flex",
+                    align_items="center",
+                    justify_content="center",
+                    cursor="pointer",
+                ),
+                position="relative",
                 padding="1.25em",
                 border_radius="10px",
                 background="var(--gray-a2)",
@@ -855,18 +924,53 @@ def _about_section() -> rx.Component:
     )
 
 
+def _business_summary_section_block(section: dict) -> rx.Component:
+    # A heading only shows when the model actually gave this paragraph one
+    # (see CoinState._parse_business_summary_sections — older cached
+    # summaries generated before the "TITLE:" prompt convention existed
+    # fall back to a single untitled section).
+    return rx.vstack(
+        rx.cond(
+            section["title"] != "",
+            rx.text(section["title"], size="2", weight="bold"),
+        ),
+        _highlighted_paragraph(section["tokens"]),
+        spacing="1",
+        width="100%",
+        align="start",
+    )
+
+
 def _business_summary_section() -> rx.Component:
     # Same styled text box as _about_section's inner container, but no
     # heading/icon row per explicit request — just the text container,
     # filled with an AI-generated (not CMC/CoinGecko-sourced) plain-language
     # explainer of what the coin does, its business model, and how it makes
     # money, aimed at someone new to crypto (see
-    # app/services/business_summary_service.py).
+    # app/services/business_summary_service.py). Each paragraph gets its own
+    # short title above it (when the model provided one) since each covers a
+    # distinct topic, and a small "Generated by AI" credit sits inside the
+    # same card below the text — sparkles is the icon most readers already
+    # associate with AI-generated content, and it keeps this visually
+    # distinct from _about_section's real CMC/CoinGecko-sourced text right
+    # above it.
     coin = CoinState.selected_coin
     return rx.cond(
         coin["has_business_summary"],
         rx.box(
-            rx.text(coin["business_summary"], size="2", color_scheme="gray", style={"white-space": "pre-wrap"}),
+            rx.vstack(
+                rx.foreach(coin["business_summary_sections"].to(list[dict]), _business_summary_section_block),
+                spacing="3",
+                width="100%",
+                align="start",
+            ),
+            rx.divider(margin_y="0.75em"),
+            rx.hstack(
+                rx.icon("sparkles", size=13, color="var(--gray-9)"),
+                rx.text("Generated by AI", size="1", color_scheme="gray", style={"font-style": "italic"}),
+                spacing="1",
+                align="center",
+            ),
             padding="1.25em",
             border_radius="10px",
             background="var(--gray-a2)",
