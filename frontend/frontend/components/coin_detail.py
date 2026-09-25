@@ -1300,9 +1300,8 @@ def _chart_column() -> rx.Component:
             # business_summary_service.py's CATEGORY: line) — more specific
             # than the broad CMC narrative tags shown elsewhere on this page
             # (e.g. "Real World Assets (RWA)" vs. this badge's "Tokenized
-            # Public Funds / Treasuries"). Pulsing glow (see styles.css's
-            # .category-badge-glow) marks it worth noticing; only renders
-            # once the AI summary has actually generated one.
+            # Public Funds / Treasuries"). Only renders once the AI summary
+            # has actually generated one.
             rx.cond(
                 coin["has_business_model_category"],
                 rx.badge(
@@ -1311,7 +1310,7 @@ def _chart_column() -> rx.Component:
                     variant="surface",
                     radius="full",
                     size="2",
-                    class_name="category-badge-glow",
+                    style={"border": "1px solid royalblue", "color": "white"},
                 ),
             ),
             justify="between",
