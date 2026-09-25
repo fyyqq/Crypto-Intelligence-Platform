@@ -65,3 +65,8 @@ An automated crypto intelligence platform that tracks market data dynamically fr
 - **Backend Service:** Implement an algorithm to structure large-cap market leaders (Main Native Coins) vs. small-cap alternatives inside the same dynamic CMC narrative category.
 - **Frontend (Reflex UI):** Integrate real-time toast notification banners and a visual correlation matrix pointing out laggard assets in surging narratives.
 - STATUS: 🔒 LOCKED
+
+7. AI Memory & Handoff Automation (Mandatory Save States):
+- Every time you finish a sub-task, feature change, or critical debugging operation, you MUST immediately use your file-writing tools to rewrite and update the "### 🔧 Current State" and "### ➡️ Next Steps" sections inside `CLAUDE.md`.
+- Never end a response or ask for human feedback without ensuring the physical `CLAUDE.md` file matches the true state of the project.
+- If the user informs you that you are running out of tokens or session limits, output a comprehensive Markdown breakdown of the state summary directly into the lower half of `CLAUDE.md` so that the alternative LLM (GitHub Copilot) can smoothly ingest the workspace parameters.

@@ -938,7 +938,7 @@ def _x_timeline_section() -> rx.Component:
                     href=coin["twitter_url"],
                     is_external=True,
                     underline="none",
-                    # Same color_scheme="indigo" pattern as the "View More"/
+                    # Same color_scheme="indigo" pattern as the "More News"/
                     # "See More" links elsewhere on this page.
                     color_scheme="indigo",
                 ),
