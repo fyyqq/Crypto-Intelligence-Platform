@@ -165,15 +165,27 @@ def _link_pill(
     *children: rx.Component,
     href: rx.Var[str] | str | None = None,
     on_click: rx.EventHandler | list[rx.EventHandler] | None = None,
+    stacked: bool = False,
 ) -> rx.Component:
-    pill = rx.hstack(
+    # stacked=True lays the pill's content out as two lines (e.g. chain name,
+    # then address+copy icon) instead of one long horizontal row — used for
+    # the Contract pill, whose single-line "<chain name> <address> <copy
+    # icon>" content overflowed its narrow 300px column for long chain names
+    # (e.g. "BNB Smart Chain (BEP20)"). Since flex's own overflow anchors to
+    # whichever edge justify-content points at, that overflow rendered as the
+    # pill's left edge sliding underneath the row's own "Contract" label
+    # instead of a clean wrap. Stacking keeps the pill's width bounded by
+    # its widest single line (the chain name), which fits comfortably.
+    pill = rx.flex(
         *children,
+        direction="column" if stacked else "row",
         spacing="1",
-        align="center",
+        align="start" if stacked else "center",
         padding="0.3em 0.6em",
-        border_radius="9999px",
+        border_radius="10px" if stacked else "9999px",
         background="var(--gray-a3)",
-        flex_shrink="0",
+        flex_shrink="1" if stacked else "0",
+        max_width="100%",
         # White text/icon (lucide icons stroke="currentColor", so this
         # cascades to them too) on every pill that's actually clickable
         # (a real link, or the copy-to-clipboard Contract pill below) —
@@ -359,8 +371,13 @@ def _links_section(coin: dict) -> rx.Component:
                 "Contract",
                 _link_pill(
                     rx.text(coin["main_chain"], size="1", color_scheme="gray"),
-                    rx.text(coin["contract_address_display"], size="1", weight="medium"),
-                    rx.icon("copy", size=10),
+                    rx.hstack(
+                        rx.text(coin["contract_address_display"], size="1", weight="medium"),
+                        rx.icon("copy", size=10),
+                        spacing="1",
+                        align="center",
+                    ),
+                    stacked=True,
                     # Copies the full address, not the truncated display
                     # text — rx.set_clipboard is a browser-side special
                     # event, no backend round-trip needed for it — chained
@@ -381,8 +398,13 @@ def _links_section(coin: dict) -> rx.Component:
                                     coin["other_chain_contracts"].to(list[dict]),
                                     lambda c: _link_pill(
                                         rx.text(c["platform_name"], size="1", color_scheme="gray"),
-                                        rx.text(c["contract_address_display"], size="1", weight="medium"),
-                                        rx.icon("copy", size=10),
+                                        rx.hstack(
+                                            rx.text(c["contract_address_display"], size="1", weight="medium"),
+                                            rx.icon("copy", size=10),
+                                            spacing="1",
+                                            align="center",
+                                        ),
+                                        stacked=True,
                                         on_click=[
                                             rx.set_clipboard(c["contract_address"]),
                                             CoinState.show_copied_toast,
