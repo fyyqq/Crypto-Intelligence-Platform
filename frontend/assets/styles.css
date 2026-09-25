@@ -1,0 +1,740 @@
+/* 24h/7d Price columns: pulsing "shine" for extreme moves.
+   Gold when up more than +100%; red when down more than -50%. */
+@keyframes gold-shine {
+  0%, 100% {
+    filter: drop-shadow(0 0 1px gold) drop-shadow(0 0 2px gold);
+    opacity: 1;
+  }
+  50% {
+    filter: drop-shadow(0 0 6px gold) drop-shadow(0 0 10px gold);
+    opacity: 0.75;
+  }
+}
+
+@keyframes red-shine {
+  0%, 100% {
+    filter: drop-shadow(0 0 1px red) drop-shadow(0 0 2px red);
+    opacity: 1;
+  }
+  50% {
+    filter: drop-shadow(0 0 6px red) drop-shadow(0 0 10px red);
+    opacity: 0.75;
+  }
+}
+
+.trend-gold-shine {
+  animation: gold-shine 1.6s ease-in-out infinite;
+}
+
+.trend-red-shine {
+  animation: red-shine 1.6s ease-in-out infinite;
+}
+
+/* Coin detail page's sentiment post cards (coin_detail.py::_post_card): a
+   trending-up/trending-down icon pulses green/red per post's dummy
+   sentiment, same shine technique as the price-move glows above. */
+@keyframes sentiment-green-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 1px #22c55e) drop-shadow(0 0 2px #22c55e);
+    opacity: 1;
+  }
+  50% {
+    filter: drop-shadow(0 0 5px #22c55e) drop-shadow(0 0 8px #22c55e);
+    opacity: 0.75;
+  }
+}
+
+@keyframes sentiment-red-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 1px #ef4444) drop-shadow(0 0 2px #ef4444);
+    opacity: 1;
+  }
+  50% {
+    filter: drop-shadow(0 0 5px #ef4444) drop-shadow(0 0 8px #ef4444);
+    opacity: 0.75;
+  }
+}
+
+.sentiment-positive-pulse {
+  animation: sentiment-green-pulse 1.6s ease-in-out infinite;
+}
+
+.sentiment-negative-pulse {
+  animation: sentiment-red-pulse 1.6s ease-in-out infinite;
+}
+
+/* Coin detail page's AI-generated business-model category badge
+   (coin_detail.py::_chart_column, next to the "<Coin> Live Chart" heading)
+   — a pulsing indigo box-shadow (not a filter/drop-shadow like the pulses
+   above, since this is a solid badge, not an icon glyph) marking it as
+   worth noticing. */
+@keyframes category-badge-pulse {
+  0%, 100% {
+    box-shadow: 0 0 4px 0 var(--indigo-a6), 0 0 0 0 var(--indigo-a4);
+  }
+  50% {
+    box-shadow: 0 0 12px 3px var(--indigo-a8), 0 0 4px 2px var(--indigo-a6);
+  }
+}
+
+.category-badge-glow {
+  animation: category-badge-pulse 2.2s ease-in-out infinite;
+}
+
+/* The 24h/7d Price trend-line charts are focusable (recharts sets
+   tabindex="0" for keyboard a11y), so clicking one shows the browser's
+   default focus outline around the whole chart. Keep the line itself,
+   just drop that outline. */
+.recharts-surface:focus,
+.recharts-surface:focus-visible {
+  outline: none;
+}
+
+/* Pagination: numbered pages with a circular active indicator, plus a
+   rounded-pill container variant used above the table
+   (coin_table.py::_pagination_bar). */
+.page-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.page-number:hover {
+  background: var(--gray-4);
+}
+
+.page-number-active {
+  background: var(--accent-9);
+  color: white;
+}
+
+.page-number-active:hover {
+  background: var(--accent-9);
+}
+
+.page-arrow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: var(--gray-11);
+}
+
+.page-arrow-btn:hover {
+  background: var(--gray-4);
+}
+
+/* Below 768px (mobile), the top pagination bar drops the pill/bordered look
+   and renders plain — same as the bottom pagination bar's own design
+   (coin_table.py::_pagination_bar, pill=False) — rather than keeping the
+   rounded-pill container on a screen too narrow for it to look right. */
+@media (min-width: 768px) {
+  .pagination-pill {
+    border-radius: 999px;
+    border: 1px solid var(--gray-a5);
+    background: var(--gray-2);
+  }
+}
+
+/* Narrative filter: a draggable, arrow-scrollable pill slider for "Group by
+   CMC narrative" (see assets/chain_pills.js for the scroll/drag behavior).
+   The arrow buttons are absolutely positioned overlays rather than normal
+   flex siblings of the track — otherwise hiding/showing one at a scroll end
+   changes the track's own clientWidth, which shifts what "reached the end"
+   means right as it's being computed, and an arrow can get stuck never
+   fully hiding. */
+.narrative-pills-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+}
+
+.narrative-pills-track {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: none;
+  /* No left padding — the first pill sits flush against the wrap's left
+     edge, and the left arrow floats over it instead of reserving space. */
+  padding: 2px 24px 2px 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.narrative-pills-track::-webkit-scrollbar {
+  display: none;
+}
+
+.narrative-pills-track.grabbing {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+
+.narrative-pill {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--gray-4);
+  border: 1px solid var(--gray-6);
+  cursor: pointer;
+  font-size: 0.8em;
+}
+
+.narrative-pill:hover {
+  background: var(--gray-6);
+}
+
+.narrative-pill-active {
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+  color: white;
+}
+
+.narrative-pill-active:hover {
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+  color: white;
+}
+
+.narrative-pill-more {
+  background: var(--accent-4);
+  border: 1px solid var(--accent-7);
+  color: var(--accent-11);
+}
+
+.narrative-scroll-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--gray-4);
+  cursor: pointer;
+}
+
+.narrative-scroll-btn:hover {
+  background: var(--gray-6);
+}
+
+.narrative-scroll-left,
+.narrative-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.narrative-scroll-left {
+  left: 0;
+}
+
+.narrative-scroll-right {
+  right: 0;
+}
+
+/* Filter sidebar (filters.py::_narrative_pills / _chain_filter_pills) —
+   pills wrap onto multiple lines instead of the horizontal drag/arrow
+   slider used elsewhere, since this filter now lives in the narrower
+   1st-column sidebar next to the coin table, not a full-width top bar. */
+.filter-pills-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Chain filter (filters.py::_chain_filter_slider) — same draggable/
+   arrow-scrollable pill-slider mechanics and look as the narrative filter
+   above, just its own class names so the two combine independently instead
+   of sharing state through shared selectors. */
+.chain-filter-pills-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+}
+
+.chain-filter-pills-track {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: none;
+  /* No left padding — the first pill sits flush against the wrap's left
+     edge, and the left arrow floats over it instead of reserving space. */
+  padding: 2px 24px 2px 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.chain-filter-pills-track::-webkit-scrollbar {
+  display: none;
+}
+
+.chain-filter-pills-track.grabbing {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+
+.chain-filter-pill {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--gray-4);
+  border: 1px solid var(--gray-6);
+  cursor: pointer;
+  font-size: 0.8em;
+}
+
+.chain-filter-pill:hover {
+  background: var(--gray-6);
+}
+
+.chain-filter-pill-more {
+  background: var(--accent-4);
+  border: 1px solid var(--accent-7);
+  color: var(--accent-11);
+}
+
+.chain-filter-pill-active {
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+  color: white;
+}
+
+.chain-filter-pill-active:hover {
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+  color: white;
+}
+
+.chain-filter-scroll-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--gray-4);
+  cursor: pointer;
+}
+
+.chain-filter-scroll-btn:hover {
+  background: var(--gray-6);
+}
+
+.chain-filter-scroll-left,
+.chain-filter-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.chain-filter-scroll-left {
+  left: 0;
+}
+
+.chain-filter-scroll-right {
+  right: 0;
+}
+
+/* Targeted narrative alerts: same draggable/arrow-scrollable slider
+   mechanics as the narrative + chain filter pills above
+   (assets/chain_pills.js), just horizontal alert cards instead of pills. */
+.alerts-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  position: relative;
+}
+
+.alerts-slider-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: none;
+  /* No left padding — the first card sits flush against the wrap's left
+     edge, and the left arrow floats over it instead of reserving space. */
+  padding: 2px 32px 2px 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.alerts-slider-track::-webkit-scrollbar {
+  display: none;
+}
+
+.alerts-slider-track.grabbing {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+
+.alerts-scroll-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--gray-4);
+  cursor: pointer;
+}
+
+.alerts-scroll-btn:hover {
+  background: var(--gray-6);
+}
+
+.alerts-scroll-left,
+.alerts-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.alerts-scroll-left {
+  left: 0;
+}
+
+.alerts-scroll-right {
+  right: 0;
+}
+
+/* News feed: same draggable/arrow-scrollable slider mechanics as the
+   narrative + chain filter pills and the targeted narrative alerts above
+   (assets/chain_pills.js), just news cards instead of pills/alert cards. */
+.news-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  position: relative;
+}
+
+.news-slider-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: none;
+  /* No left padding — the first card sits flush against the wrap's left
+     edge, and the left arrow floats over it instead of reserving space. */
+  padding: 2px 32px 2px 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.news-slider-track::-webkit-scrollbar {
+  display: none;
+}
+
+.news-slider-track.grabbing {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+
+.news-scroll-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--gray-4);
+  cursor: pointer;
+}
+
+.news-scroll-btn:hover {
+  background: var(--gray-6);
+}
+
+.news-scroll-left,
+.news-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.news-scroll-left {
+  left: 0;
+}
+
+.news-scroll-right {
+  right: 0;
+}
+
+/* Coin detail's X posts slider: same draggable/arrow-scrollable slider
+   mechanics as the news feed above (assets/chain_pills.js), just real
+   scraped X-post cards (see coin_detail.py::_x_post_card) instead of news
+   cards — replaces the old sealed embed-widget iframe, whose data backend
+   rate-limited unpredictably. */
+.x-posts-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  position: relative;
+}
+
+.x-posts-slider-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  cursor: grab;
+  scrollbar-width: none;
+  padding: 2px 32px 2px 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.x-posts-slider-track::-webkit-scrollbar {
+  display: none;
+}
+
+.x-posts-slider-track.grabbing {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+
+.x-posts-scroll-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--gray-4);
+  cursor: pointer;
+}
+
+.x-posts-scroll-btn:hover {
+  background: var(--gray-6);
+}
+
+.x-posts-scroll-left,
+.x-posts-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.x-posts-scroll-left {
+  left: 0;
+}
+
+.x-posts-scroll-right {
+  right: 0;
+}
+
+/* Radix's Table always wraps its rows in an internal ScrollArea (for its
+   own horizontal-scroll support), which — being a scroll container itself
+   — becomes the reference frame for any position:sticky descendant instead
+   of the page/viewport, breaking the sticky header (see
+   coin_table.py::_STICKY_HEADER_STYLE). Scoped to this table specifically
+   (not `.rt-ScrollAreaRoot` globally) since Select dropdowns elsewhere
+   use the same Radix component and still need real scrolling. */
+.coin-table-scroll-fix .rt-ScrollAreaRoot,
+.coin-table-scroll-fix .rt-ScrollAreaViewport,
+.coin-table-scroll-fix .rt-TableRootTable {
+  overflow: visible !important;
+}
+
+/* All 10 columns now show from 992px up (coin_table.py's _COL_FROM_LG) — the
+   table is real data, not decoration, so it shouldn't hide any of it once
+   there's a side-by-side sidebar+table layout at all. But the full table's
+   natural width (badges, chart columns, etc. all need real space) can still
+   slightly exceed what's left next to the 300px filter sidebar in the
+   992-1440px range — measured ~35px over budget at 1024px (iPad landscape)
+   and ~61px at 1366px (a very common laptop width). Rather than let that push
+   the whole PAGE into horizontal scroll (dragging the fixed header/footer
+   sideways with it), scope local horizontal scrolling to just this table.
+   Trade-off: the sticky column header (coin_table.py::_STICKY_HEADER_STYLE)
+   now sticks relative to this box instead of the page in that range, so it
+   stops "following" while vertically scrolling a long list — acceptable
+   since swipe-to-scroll a data table horizontally is a familiar pattern, and
+   the alternative (page-level overflow) is worse. */
+@media (max-width: 1440px) {
+  .coin-table-scroll-fix {
+    /* overflow-x:auto alone hit the CSS Overflow spec's quirk where a
+       "visible" cross-axis value gets forced to "auto" too when the other
+       axis isn't visible — that silently turned this box into a vertical
+       scroll container as well (0 extra scrollHeight, so invisible in a
+       desktop check), which on a real touchscreen can capture/trap the
+       vertical scroll gesture instead of letting it chain through to the
+       page, making the footer feel unreachable. overflow-y: hidden below
+       rules that out explicitly — this box only ever scrolls horizontally. */
+    overflow-x: scroll;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    /* Pairs with coin_table.py's _STICKY_HEADER_STYLE transform — forcing
+       this scroll container onto its own compositing layer too helps Safari
+       repaint the sticky header cleanly during horizontal scroll instead of
+       leaving a stale ghosted patch behind. */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+}
+
+/* Below 1280px (tablet down to iPhone-4-width phones): strip the Radix
+   "surface" variant's border/background/backdrop-blur off the table root
+   (coin_table.py's rx.table.root(variant="surface")) — that bordered-card
+   look is meant for a table sized to its container, and looks wrong wrapped
+   around a table that's now locally horizontal-scrollable at these widths
+   (.coin-table-scroll-fix above). Scoped to .coin-table-scroll-fix specifically
+   rather than .rt-TableRoot globally, since other rt-TableRoot instances
+   elsewhere in the app should keep their normal surface styling. */
+@media (max-width: 1279px) {
+  .coin-table-scroll-fix .rt-TableRoot {
+    border: 0px;
+    backdrop-filter: none;
+    background: transparent;
+  }
+}
+
+/* Coin search: the icon button and the input+clear-icon wrapper both stay
+   mounted permanently (see coin_table.py::_coin_search) — only the
+   .coin-search-open class toggles, so the width/opacity transition below
+   animates smoothly instead of the two states just swapping instantly. */
+.coin-search-container {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.coin-search-toggle-icon {
+  cursor: pointer;
+  color: var(--gray-10);
+  flex-shrink: 0;
+  opacity: 1;
+  max-width: 24px;
+  transition: opacity 0.2s ease, max-width 0.25s ease, margin 0.25s ease;
+}
+
+.coin-search-toggle-icon:hover {
+  color: var(--accent-9);
+}
+
+.coin-search-container.coin-search-open .coin-search-toggle-icon {
+  opacity: 0;
+  max-width: 0;
+  pointer-events: none;
+}
+
+.coin-search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 0.3s ease, opacity 0.2s ease;
+}
+
+.coin-search-container.coin-search-open .coin-search-input-wrap {
+  max-width: 260px;
+  opacity: 1;
+  margin-left: 0.5em;
+}
+
+/* Matches the input's own responsive width (coin_table.py::_coin_search)
+   at the same breakpoints, so the wrap's max-width never clips it. */
+@media (max-width: 767px) {
+  .coin-search-container.coin-search-open .coin-search-input-wrap {
+    max-width: 190px;
+  }
+}
+
+/* Radix's own rt-TextFieldRoot background/border/focus-ring rules live
+   inside a CSS @layer in Reflex's compiled global stylesheet, which
+   outranks any override attempted from a plain stylesheet class or even
+   an inline style — so this search input intentionally just uses Radix's
+   own variant="surface" look (including its default focus ring) rather
+   than fighting that cascade. Only sizing (width) is customized. */
+
+.coin-search-clear-icon {
+  cursor: pointer;
+  color: var(--gray-9);
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.coin-search-clear-icon:hover {
+  color: var(--accent-9);
+}
+
+/* Coin detail page's info/sentiment side columns: still scrollable
+   (overflow-y stays auto/scroll on the element), just without the visible
+   scrollbar chrome — same technique as the narrative/chain/alerts/news
+   scroll tracks above. */
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Opposite of .hide-scrollbar above — the Contract/Socials "+N more"
+   dropdown popovers want their scrollability to be obvious at a glance
+   (explicit request: a coin bridged across many chains should visibly show
+   there's a scrollable list, not rely on the OS's auto-hiding overlay
+   scrollbar), so this gives them a thin, always-visible, styled one
+   instead of the platform default. */
+.visible-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-a8) transparent;
+}
+
+.visible-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.visible-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.visible-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--gray-a8);
+  border-radius: 9999px;
+}
+

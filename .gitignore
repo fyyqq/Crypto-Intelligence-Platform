@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+*.db
+.DS_Store
+.pytest_cache/
+reflex.log
+.claude/
+.claude-ctx/
+.playwright-mcp/

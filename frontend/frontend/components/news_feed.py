@@ -1,0 +1,695 @@
+"""Left column: dummy global news feed (static placeholder content, no backend)."""
+
+import reflex as rx
+
+_SOURCE_COLORS = {
+    "Bloomberg": "blue",
+    "Cointelegraph": "green",
+    "Reuters": "orange",
+    "CoinDesk": "purple",
+}
+
+NEWS_ITEMS = [
+    {
+        "source": "Bloomberg",
+        "time": "10m ago",
+        "headline": "BlackRock consolidates aggregate headlines in Tier-1 Fed coverage",
+        "tags": ["Fed", "Regulation"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "1h ago",
+        "headline": "BlackRock adds RWA tokenization support to broader ecosystem coverage",
+        "tags": ["RWA", "BlackRock"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "1h ago",
+        "headline": "BlackRock adds RWA narrative to institutional treasury reporting",
+        "tags": ["Fed", "Regulation"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "2h ago",
+        "headline": "BlackRock adds target perimeter to counter route liquidity risk",
+        "tags": ["Risk", "Liquidity"],
+    },
+    {
+        "source": "Reuters",
+        "time": "3h ago",
+        "headline": "Solana ecosystem TVL climbs as Layer 1 narrative gains momentum",
+        "tags": ["Layer 1", "Solana"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "4h ago",
+        "headline": "Ondo Finance expands tokenized treasury products across chains",
+        "tags": ["RWA", "Ondo"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "5h ago",
+        "headline": "Coinbase deepens institutional custody partnerships amid ETF inflows",
+        "tags": ["Institutional", "ETF"],
+    },
+    {
+        "source": "Reuters",
+        "time": "6h ago",
+        "headline": "EU regulators finalize MiCA guidance for stablecoin issuers",
+        "tags": ["Regulation", "Stablecoin"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "7h ago",
+        "headline": "Restaking protocols surpass $15B in total value locked",
+        "tags": ["Restaking", "DeFi"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "8h ago",
+        "headline": "Base network activity surges on new memecoin launches",
+        "tags": ["Base", "Memes"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "9h ago",
+        "headline": "Grayscale files for spot Solana ETF alongside rivals",
+        "tags": ["ETF", "Solana"],
+    },
+    {
+        "source": "Reuters",
+        "time": "10h ago",
+        "headline": "Hong Kong expands licensed exchange framework for retail investors",
+        "tags": ["Regulation", "Asia"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "11h ago",
+        "headline": "Arbitrum DAO approves treasury diversification proposal",
+        "tags": ["Arbitrum", "DAO"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "12h ago",
+        "headline": "Bitcoin miners accelerate hashrate expansion ahead of halving cycle",
+        "tags": ["Mining", "Bitcoin"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "13h ago",
+        "headline": "Tether reports record quarterly profit on reserve yield",
+        "tags": ["Stablecoin", "Earnings"],
+    },
+    {
+        "source": "Reuters",
+        "time": "14h ago",
+        "headline": "Singapore central bank pilots wholesale CBDC settlement",
+        "tags": ["CBDC", "Regulation"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "15h ago",
+        "headline": "Uniswap Labs unveils cross-chain swap aggregation update",
+        "tags": ["DeFi", "Uniswap"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "16h ago",
+        "headline": "NFT marketplace volume rebounds on gaming asset demand",
+        "tags": ["NFT", "Gaming"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "18h ago",
+        "headline": "Fidelity expands crypto custody services for pension clients",
+        "tags": ["Institutional", "Custody"],
+    },
+    {
+        "source": "Reuters",
+        "time": "20h ago",
+        "headline": "South Korea proposes revised digital asset taxation timeline",
+        "tags": ["Regulation", "Tax"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "22h ago",
+        "headline": "Polygon rolls out zk-rollup upgrade to cut settlement costs",
+        "tags": ["Polygon", "Layer 2"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "1d ago",
+        "headline": "Liquid staking derivatives near all-time high market share",
+        "tags": ["Staking", "DeFi"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "1d 2h ago",
+        "headline": "Ethereum Foundation earmarks new grants for zero-knowledge tooling",
+        "tags": ["Ethereum", "Grants"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "1d 4h ago",
+        "headline": "Cardano governance vote approves updated treasury withdrawal rules",
+        "tags": ["Cardano", "Governance"],
+    },
+    {
+        "source": "Reuters",
+        "time": "1d 6h ago",
+        "headline": "Polkadot parachain auctions resume with fresh liquidity incentives",
+        "tags": ["Polkadot", "Parachain"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "1d 8h ago",
+        "headline": "Avalanche subnet count crosses new milestone on enterprise demand",
+        "tags": ["Avalanche", "Subnet"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "1d 10h ago",
+        "headline": "Chainlink CCIP integration expands to additional Layer 2 networks",
+        "tags": ["Chainlink", "Interoperability"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "1d 12h ago",
+        "headline": "Litecoin network activity ticks up ahead of halving anniversary",
+        "tags": ["Litecoin", "Mining"],
+    },
+    {
+        "source": "Reuters",
+        "time": "1d 14h ago",
+        "headline": "Stellar network partners with payment processor for remittance rails",
+        "tags": ["Stellar", "Payments"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "1d 16h ago",
+        "headline": "Cosmos IBC volume hits fresh high as app-chain count grows",
+        "tags": ["Cosmos", "IBC"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "1d 18h ago",
+        "headline": "NEAR Protocol unveils updated roadmap for chain abstraction",
+        "tags": ["NEAR", "Roadmap"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "1d 20h ago",
+        "headline": "Optimism Superchain adds new rollup partner to shared sequencer set",
+        "tags": ["Optimism", "Layer 2"],
+    },
+    {
+        "source": "Reuters",
+        "time": "1d 22h ago",
+        "headline": "zkSync ecosystem fund allocates fresh grants to builder teams",
+        "tags": ["zkSync", "Grants"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "2d ago",
+        "headline": "Starknet throughput upgrade targets lower fees for active traders",
+        "tags": ["Starknet", "Layer 2"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "2d 2h ago",
+        "headline": "Celestia modular data availability layer sees rising blob usage",
+        "tags": ["Celestia", "Modular"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "2d 4h ago",
+        "headline": "Sui network daily active addresses climb on new dApp launches",
+        "tags": ["Sui", "Layer 1"],
+    },
+    {
+        "source": "Reuters",
+        "time": "2d 6h ago",
+        "headline": "Aptos ecosystem grant program expands into gaming vertical",
+        "tags": ["Aptos", "Gaming"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "2d 8h ago",
+        "headline": "Injective narrative strengthens as on-chain derivatives volume rises",
+        "tags": ["Injective", "Derivatives"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "2d 10h ago",
+        "headline": "Sei network onboards additional market makers for spot trading",
+        "tags": ["Sei", "Trading"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "2d 12h ago",
+        "headline": "TON ecosystem growth accelerates on messaging-app wallet integration",
+        "tags": ["TON", "Wallets"],
+    },
+    {
+        "source": "Reuters",
+        "time": "2d 14h ago",
+        "headline": "Kaspa hashrate reaches new record as GPU miners migrate over",
+        "tags": ["Kaspa", "Mining"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "2d 16h ago",
+        "headline": "Monero community debates proposal for updated privacy parameters",
+        "tags": ["Monero", "Privacy"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "2d 18h ago",
+        "headline": "Filecoin storage deals climb as enterprise pilots go live",
+        "tags": ["Filecoin", "Storage"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "2d 20h ago",
+        "headline": "Akash Network compute marketplace sees demand spike from AI workloads",
+        "tags": ["Akash", "AI"],
+    },
+    {
+        "source": "Reuters",
+        "time": "2d 22h ago",
+        "headline": "Compound governance forum debates new risk parameter framework",
+        "tags": ["Compound", "Governance"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "3d ago",
+        "headline": "Curve Finance stableswap pools see renewed liquidity inflows",
+        "tags": ["Curve", "DeFi"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "3d 2h ago",
+        "headline": "EigenLayer restaking narrative broadens as new operators onboard",
+        "tags": ["EigenLayer", "Restaking"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "3d 4h ago",
+        "headline": "GMX perpetuals volume rebounds on renewed leverage trading demand",
+        "tags": ["GMX", "Perpetuals"],
+    },
+    {
+        "source": "Reuters",
+        "time": "3d 6h ago",
+        "headline": "dYdX v4 chain reports record weekly trading volume",
+        "tags": ["dYdX", "Derivatives"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "3d 8h ago",
+        "headline": "Synthetix narrative gains as synthetic asset supply expands",
+        "tags": ["Synthetix", "DeFi"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "3d 10h ago",
+        "headline": "Frax Finance narrative widens on new stablecoin collateral design",
+        "tags": ["Frax", "Stablecoin"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "3d 12h ago",
+        "headline": "Maple Finance institutional lending pool crosses new TVL milestone",
+        "tags": ["Maple", "Lending"],
+    },
+    {
+        "source": "Reuters",
+        "time": "3d 14h ago",
+        "headline": "Centrifuge narrative broadens on new real-world credit pool launch",
+        "tags": ["Centrifuge", "RWA"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "3d 16h ago",
+        "headline": "Securitize expands tokenized fund partnerships with asset managers",
+        "tags": ["Securitize", "RWA"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "3d 18h ago",
+        "headline": "Ripple narrative gains as cross-border settlement volume climbs",
+        "tags": ["Ripple", "Payments"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "3d 20h ago",
+        "headline": "Kraken reports rising institutional order flow on derivatives desk",
+        "tags": ["Kraken", "Institutional"],
+    },
+    {
+        "source": "Reuters",
+        "time": "3d 22h ago",
+        "headline": "OKX expands proof-of-reserves disclosure across additional assets",
+        "tags": ["OKX", "Transparency"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "4d ago",
+        "headline": "Circle narrative strengthens as USDC reserve reporting cadence tightens",
+        "tags": ["Circle", "Stablecoin"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "4d 2h ago",
+        "headline": "PayPal PYUSD supply grows as merchant acceptance list widens",
+        "tags": ["PayPal", "Stablecoin"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "4d 4h ago",
+        "headline": "Visa expands stablecoin settlement pilot to additional card networks",
+        "tags": ["Visa", "Stablecoin"],
+    },
+    {
+        "source": "Reuters",
+        "time": "4d 6h ago",
+        "headline": "Mastercard narrative gains on new crypto-linked card program",
+        "tags": ["Mastercard", "Payments"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "4d 8h ago",
+        "headline": "JPMorgan blockchain unit expands tokenized collateral settlement pilot",
+        "tags": ["JPMorgan", "Institutional"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "4d 10h ago",
+        "headline": "VanEck files updated prospectus for diversified crypto index fund",
+        "tags": ["VanEck", "ETF"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "4d 12h ago",
+        "headline": "Franklin Templeton tokenized money market fund adds new chain support",
+        "tags": ["Franklin Templeton", "RWA"],
+    },
+    {
+        "source": "Reuters",
+        "time": "4d 14h ago",
+        "headline": "CFTC signals updated guidance on digital commodity oversight",
+        "tags": ["CFTC", "Regulation"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "4d 16h ago",
+        "headline": "UAE VARA issues updated licensing framework for exchanges",
+        "tags": ["VARA", "Regulation"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "4d 18h ago",
+        "headline": "Japan FSA reviews revised token listing screening standards",
+        "tags": ["Japan", "Regulation"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "4d 20h ago",
+        "headline": "India proposes updated crypto tax reporting thresholds",
+        "tags": ["India", "Tax"],
+    },
+    {
+        "source": "Reuters",
+        "time": "4d 22h ago",
+        "headline": "Brazil central bank advances digital real pilot to new phase",
+        "tags": ["Brazil", "CBDC"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "5d ago",
+        "headline": "Nigeria narrative gains as stablecoin remittance volume climbs",
+        "tags": ["Nigeria", "Stablecoin"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "5d 2h ago",
+        "headline": "Turkey crypto adoption narrative strengthens amid currency volatility",
+        "tags": ["Turkey", "Adoption"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "5d 4h ago",
+        "headline": "El Salvador narrative resurfaces on updated Bitcoin treasury disclosure",
+        "tags": ["El Salvador", "Bitcoin"],
+    },
+    {
+        "source": "Reuters",
+        "time": "5d 6h ago",
+        "headline": "Texas mining narrative gains on new grid demand-response program",
+        "tags": ["Mining", "Texas"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "5d 8h ago",
+        "headline": "Bitcoin miner hashprice ticks higher on fee market activity",
+        "tags": ["Bitcoin", "Mining"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "5d 10h ago",
+        "headline": "Spot Bitcoin ETF inflows extend weekly streak on institutional demand",
+        "tags": ["ETF", "Bitcoin"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "5d 12h ago",
+        "headline": "Spot Ethereum ETF options narrative gains as listings approach",
+        "tags": ["ETF", "Ethereum"],
+    },
+    {
+        "source": "Reuters",
+        "time": "5d 14h ago",
+        "headline": "Altcoin season index ticks higher as capital rotates from majors",
+        "tags": ["Altcoins", "Market"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "5d 16h ago",
+        "headline": "Stablecoin aggregate market cap crosses fresh all-time high",
+        "tags": ["Stablecoin", "Market"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "5d 18h ago",
+        "headline": "DeFi aggregate TVL narrative strengthens on renewed yield demand",
+        "tags": ["DeFi", "TVL"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "5d 20h ago",
+        "headline": "Perpetuals exchange narrative gains as monthly volume sets record",
+        "tags": ["Perpetuals", "Derivatives"],
+    },
+    {
+        "source": "Reuters",
+        "time": "5d 22h ago",
+        "headline": "Polymarket prediction market volume climbs ahead of major event",
+        "tags": ["Prediction Markets", "Volume"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "6d ago",
+        "headline": "Tokenized equities pilot expands to additional brokerage partners",
+        "tags": ["Tokenization", "Equities"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "6d 2h ago",
+        "headline": "LayerZero cross-chain messaging volume climbs on new integrations",
+        "tags": ["LayerZero", "Interoperability"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "6d 4h ago",
+        "headline": "Wormhole bridge narrative strengthens after security audit renewal",
+        "tags": ["Wormhole", "Security"],
+    },
+    {
+        "source": "Reuters",
+        "time": "6d 6h ago",
+        "headline": "Pyth Network oracle narrative broadens on new price feed coverage",
+        "tags": ["Pyth", "Oracle"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "6d 8h ago",
+        "headline": "Account abstraction adoption climbs as wallet providers ship ERC-4337",
+        "tags": ["Account Abstraction", "Wallets"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "6d 10h ago",
+        "headline": "DePIN narrative strengthens as decentralized compute demand rises",
+        "tags": ["DePIN", "Compute"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "6d 12h ago",
+        "headline": "Tokenized bond narrative widens on new institutional issuance",
+        "tags": ["RWA", "Bonds"],
+    },
+    {
+        "source": "Reuters",
+        "time": "6d 14h ago",
+        "headline": "Gaming studio partnership narrative gains on new on-chain title launch",
+        "tags": ["Gaming", "Partnership"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "6d 16h ago",
+        "headline": "NFT royalty enforcement narrative resurfaces on marketplace policy update",
+        "tags": ["NFT", "Royalties"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "6d 18h ago",
+        "headline": "DAO governance participation climbs ahead of key treasury vote",
+        "tags": ["DAO", "Governance"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "6d 20h ago",
+        "headline": "Token unlock schedule narrative weighs on near-term supply outlook",
+        "tags": ["Tokenomics", "Unlock"],
+    },
+    {
+        "source": "Reuters",
+        "time": "6d 22h ago",
+        "headline": "Layer 2 aggregate TVL narrative strengthens on renewed rollup activity",
+        "tags": ["Layer 2", "TVL"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "7d ago",
+        "headline": "Zero-knowledge proof narrative advances on new proving system benchmark",
+        "tags": ["Zero-Knowledge", "Infrastructure"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "7d 2h ago",
+        "headline": "CBDC pilot narrative expands as additional central banks join trial",
+        "tags": ["CBDC", "Pilot"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "7d 4h ago",
+        "headline": "Corporate treasury Bitcoin allocation narrative gains new adopter",
+        "tags": ["Bitcoin", "Treasury"],
+    },
+    {
+        "source": "Reuters",
+        "time": "7d 6h ago",
+        "headline": "Solana spot ETF filing narrative advances through regulatory review",
+        "tags": ["ETF", "Solana"],
+    },
+    {
+        "source": "CoinDesk",
+        "time": "7d 8h ago",
+        "headline": "Bitcoin Ordinals and BRC-20 narrative sees renewed inscription volume",
+        "tags": ["Ordinals", "Bitcoin"],
+    },
+    {
+        "source": "Bloomberg",
+        "time": "7d 10h ago",
+        "headline": "Runes protocol narrative gains traction on Bitcoin-native token activity",
+        "tags": ["Runes", "Bitcoin"],
+    },
+    {
+        "source": "Cointelegraph",
+        "time": "7d 12h ago",
+        "headline": "Lightning Network capacity narrative grows on renewed channel activity",
+        "tags": ["Lightning", "Bitcoin"],
+    },
+]
+
+
+def _news_card(item: dict) -> rx.Component:
+    return rx.box(
+        rx.hstack(
+            rx.badge(item["source"], color_scheme=_SOURCE_COLORS.get(item["source"], "gray")),
+            rx.spacer(),
+            rx.text(item["time"], size="1", color_scheme="gray"),
+            width="100%",
+            align="center",
+        ),
+        rx.text(item["headline"], weight="medium", size="2", margin_top="0.5em"),
+        rx.hstack(
+            *[rx.badge(tag, variant="outline", size="1", color_scheme="gray") for tag in item["tags"]],
+            spacing="1",
+            margin_top="0.5em",
+            wrap="wrap",
+        ),
+        padding="0.85em",
+        border_radius="8px",
+        background="var(--gray-a2)",
+        # Narrower on phone widths — a 320px card on a 320px-wide iPhone 4
+        # viewport would leave no room to see the slider is scrollable.
+        width=["240px", "260px", "300px", "320px", "320px"],
+        flex_shrink="0",
+        height="100%",
+    )
+
+
+def _news_slider() -> rx.Component:
+    # Same draggable/arrow-scrollable slider mechanics as the narrative
+    # alerts (assets/chain_pills.js — its selectors include these
+    # news-slider class names too), just news cards instead of alert cards.
+    return rx.box(
+        rx.box(
+            rx.icon("chevron-left", size=14),
+            class_name="news-scroll-btn news-scroll-left",
+        ),
+        rx.box(
+            *[_news_card(item) for item in NEWS_ITEMS],
+            class_name="news-slider-track",
+        ),
+        rx.box(
+            rx.icon("chevron-right", size=14),
+            class_name="news-scroll-btn news-scroll-right",
+        ),
+        class_name="news-slider-wrap",
+    )
+
+
+def _more_news_link() -> rx.Component:
+    # No feature wired up yet — same placeholder-link pattern as
+    # narrative_alerts.py's _more_impact_link(), matching design.
+    return rx.link(
+        rx.hstack(
+            rx.text("More News", size="2", weight="bold"),
+            rx.icon("arrow-right", size=14),
+            spacing="1",
+            align="center",
+        ),
+        href="#view-all-news",
+        underline="none",
+        color_scheme="indigo",
+    )
+
+
+def news_feed() -> rx.Component:
+    return rx.vstack(
+        rx.text("GLOBAL INTELLIGENCE FEED", size="1", color_scheme="gray", weight="bold"),
+        rx.box(
+            rx.heading("All News", size="5"),
+            _more_news_link(),
+            display="flex",
+            justify_content="space-between",
+            align_items="center",
+            width="100%",
+        ),
+        _news_slider(),
+        spacing="3",
+        width="100%",
+        align_items="stretch",
+    )
