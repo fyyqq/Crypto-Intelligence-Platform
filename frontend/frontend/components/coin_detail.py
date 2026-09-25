@@ -1330,17 +1330,45 @@ def _chart_column() -> rx.Component:
         ),
         rx.box(
             # This box has a genuinely definite height at every breakpoint
-            # (a plain fixed value, not flex-derived), so rx.html's wrapping
-            # div can safely take height="100%" against it and the iframe's
-            # own inline height:100% then resolves correctly in turn.
+            # (a plain fixed value, not flex-derived), so the iframe's own
+            # height="100%" below resolves correctly against it.
+            #
+            # A real rx.el.iframe with src= as a typed prop — NOT rx.html's
+            # raw "<iframe>...</iframe>" string (dangerouslySetInnerHTML)
+            # this used to be. That raw-string version was the actual cause
+            # of the "chart keeps reloading / timeframe won't stick" bug:
+            # the surrounding CoinState context object changes reference on
+            # every background var update (detail_sync_loop's 60s tick,
+            # refresh_social_posts, refresh_business_summary, ...), which
+            # re-renders every component consuming that context — including
+            # this one — and confirmed live (MutationObserver on the
+            # wrapping node) that re-rendering a dangerouslySetInnerHTML
+            # blob tears down and rebuilds its child nodes even when the
+            # resulting HTML string is byte-for-byte identical, so the
+            # iframe was being destroyed and recreated roughly once a
+            # minute regardless of whether the src actually changed —
+            # discarding TradingView's own in-widget state (whatever
+            # interval the viewer had manually switched to) each time. A
+            # genuine rx.el.iframe(src=...) is a normal typed React prop:
+            # the surrounding component can still re-render on every state
+            # update, but React's own DOM reconciliation only touches the
+            # `src` attribute when its *value* actually changes, so the
+            # iframe (and whatever timeframe the viewer picked) now survives
+            # background syncs. Confirmed live: no further DOM
+            # remove/re-add on this node across multiple 60s ticks.
             #
             # CoinState.tradingview_iframe_src_light/_dark are plain server-
             # cached vars, unaware of the client's (next-themes) color-mode
             # preference — rx.color_mode_cond is what's actually reactive to
             # that on the frontend, so it picks between the two here rather
             # than the state var trying to know the theme itself.
-            rx.html(
-                f'<iframe src="{rx.color_mode_cond(light=CoinState.tradingview_iframe_src_light, dark=CoinState.tradingview_iframe_src_dark)}" style="width:100%;height:100%;border:none;" allowtransparency="true" frameborder="0"></iframe>',
+            rx.el.iframe(
+                src=rx.color_mode_cond(
+                    light=CoinState.tradingview_iframe_src_light,
+                    dark=CoinState.tradingview_iframe_src_dark,
+                ),
+                custom_attrs={"allowtransparency": "true", "frameborder": "0"},
+                style={"width": "100%", "height": "100%", "border": "none"},
                 width="100%",
                 height="100%",
             ),

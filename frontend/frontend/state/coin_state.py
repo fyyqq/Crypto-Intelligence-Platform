@@ -1321,13 +1321,30 @@ class CoinState(rx.State):
         see — the component picks between the two via rx.color_mode_cond,
         which is a real frontend-reactive Var, not a server computation.
 
-        interval="W" + range="ALL" (rather than the previous interval="60",
-        no range) so the chart opens already zoomed out to a coin's entire
-        listing history by default — matching CMC's own coin page, which
-        opens on a weekly-candle view spanning listing low to prior ATH.
-        withdateranges=1 still shows the 1h/4h/24h/1W/1M row so a viewer can
-        zoom into a shorter window afterward; this only changes what loads
-        first.
+        Symbol is read from `self.symbol` (the raw /coin/[symbol] route
+        param), NOT `self.selected_coin.get("symbol")` — this used to read
+        off selected_coin, a cache=True var that depends on self.all_coins.
+        detail_sync_loop below reassigns self.all_coins every 60s (a fresh
+        list of dicts, even when the price barely moved), which invalidated
+        selected_coin's cache, which in turn invalidated this var, which
+        re-sent the (identical-content) iframe src to the frontend — and
+        because this whole thing is rendered via rx.html's raw HTML string
+        (not a proper rx.el.iframe(src=...) element), the browser re-parsed
+        the whole <iframe> tag and actually reloaded it, discarding
+        TradingView's own in-widget state (whatever interval the viewer had
+        manually switched to) back to the hardcoded default below. Confirmed
+        this was the "chart keeps reloading / timeframe snaps back to
+        whatever's hardcoded" bug. self.symbol only changes when actually
+        navigating to a different coin's page, so keying off it instead
+        stops the iframe from re-rendering on every background price sync.
+
+        interval="60" (1 hour) + range="ALL" so the chart opens already
+        zoomed out to a coin's entire listing history (range="ALL") but at
+        1-hour candle granularity (interval="60") rather than weekly candles
+        — per explicit request. withdateranges=1 still shows the 1h/4h/24h/
+        1W/1M row so a viewer can pick a different interval afterward, and
+        since the src no longer regenerates on its own, that manual pick now
+        actually sticks instead of being reset on the next background sync.
 
         backgroundColor/gridColor force a solid plot pane with no visible
         grid lines (grid color matches the background exactly, so lines
@@ -1341,11 +1358,11 @@ class CoinState(rx.State):
         mode, white in light mode) rather than a fixed black regardless of
         theme — matches the rest of the page's own light/dark switching.
         """
-        symbol = (self.selected_coin.get("symbol") or "BTC").upper()
+        symbol = (self.symbol or "BTC").strip().upper()
         pane_color = "#000000" if theme == "dark" else "#ffffff"
         params = {
             "symbol": f"{symbol}USDT",
-            "interval": "W",
+            "interval": "60",
             "range": "ALL",
             "theme": theme,
             "style": "1",
