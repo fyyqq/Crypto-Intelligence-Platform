@@ -59,6 +59,85 @@ _DEX_KEYWORDS = (
     "pumpswap", "pump_fun", "fluid_dex", "aave",
 )
 
+# Real top-10 spot exchanges per coinmarketcap.com/rankings/exchanges/
+# (snapshot; that page's own ranking already accounts for traffic/liquidity/
+# reported-volume confidence — CMC-listed but lower-trust exchanges like
+# BTCC or CoinUp, which routinely rank high on a single coin's *own*
+# CoinGecko ticker volume, are deliberately excluded here even though
+# they'd otherwise pass the top-10-by-volume cut below). Matched
+# case-insensitively against each ticker's own exchange_name (see
+# _normalize) — CoinGecko's market.name values line up with these almost
+# verbatim (confirmed live: "OKX", "MEXC", "HTX", "Coinbase Exchange" all
+# appear exactly as CoinGecko ticker names despite differing from those
+# exchanges' own CoinGecko *identifiers*, e.g. "okex"/"mxc"/"huobi"/"gdax").
+_CEX_TOP10_NAMES = {
+    "binance", "coinbase exchange", "upbit", "okx", "bybit",
+    "bitget", "gate", "gate.io", "kucoin", "mexc", "htx",
+}
+
+# Real top-10 DEXs per coingecko.com/en/exchanges/decentralized/<chain>,
+# keyed by this app's own CoinContract.platform_name spelling (same keys as
+# coingecko_service._CHAIN_TO_COINGECKO_PLATFORM) so a coin's actual chain
+# picks the right ranking rather than one global "top DEX" list dominated by
+# whichever chain happens to have the highest wash-trading-prone volume that
+# day. Snapshot data — DEX volume rankings shift often, but re-scraping
+# coingecko.com per request isn't viable (that page is client-rendered, so a
+# plain HTTP GET returns an empty shell, not the ranked table).
+_DEX_TOP10_BY_CHAIN = {
+    "Solana": {
+        "orca", "meteora", "raydium (clmm)", "manifest", "humidifi",
+        "pumpswap", "raydium", "alphaq", "zerofi", "pancakeswap v3 (solana)",
+    },
+    "Ethereum": {
+        "uniswap v3 (ethereum)", "uniswap v4 (ethereum)", "fluid (ethereum)",
+        "alphax", "curve (ethereum)", "native core", "origin arm",
+        "uniswap v2 (ethereum)", "tokenlon", "lighter (spot)",
+    },
+    "BNB Smart Chain (BEP20)": {
+        "pancakeswap v3 (bsc)", "pancakeswap infinity clmm (bsc)",
+        "uniswap v3 (bsc)", "uniswap v4 (bsc)", "pancakeswap (v2)",
+        "topaz", "de¹", "aster", "thena v3", "nomiswap (stable)",
+    },
+    "Base": {
+        "hydrex integral", "aerodrome slipstream 3", "aerodrome slipstream",
+        "uniswap v3 (base)", "pancakeswap v3 (base)", "uniswap v4 (base)",
+        "aerodrome (base)", "aerodrome slipstream 2", "uniswap v2 (base)",
+        "quickswap v4 (base)",
+    },
+    "Arbitrum": {
+        "uniswap v3 (arbitrum one)", "uniswap v4 (arbitrum)",
+        "fluid (arbitrum)", "pancakeswap v3 (arbitrum)", "camelot v3",
+        "curve (arbitrum)", "sushiswap v3 (arbitrum)", "camelot",
+        "maverick protocol v2 (arbitrum)", "balancer v3 (arbitrum)",
+    },
+    "Polygon": {
+        "uniswap v4 (polygon)", "uniswap v3 (polygon)", "ramses v3 (polygon)",
+        "quickswap", "quickswap (v3)", "balancer v2 (polygon)",
+        "uniswap v2 (polygon)", "w-dex (polygon)", "sushiswap v3 (polygon)",
+        "curve (polygon)",
+    },
+}
+
+# Any chain not curated above (long tail — this app tracks 30 CMC chain
+# mappings, only the highest-volume handful have their own list) falls back
+# to CoinGecko's own cross-chain top 10, rather than showing an unfiltered
+# DEX list for those coins.
+_DEX_TOP10_FALLBACK = {
+    "voltswap (meter)", "hydrex integral", "pancakeswap v3 (bsc)",
+    "uniswap v3 (robinhood)", "uniswap v3 (ethereum)", "uniswap v4 (ethereum)",
+    "orca", "aerodrome slipstream 3", "kuru", "meteora",
+}
+
+# A native/root asset (ETH, SOL, BNB...) has no CoinContract row of its own
+# (see _fetch_raw_tickers' fallback path below) — this maps its ticker
+# straight to the chain whose gas token it is, so e.g. ETH's own Markets
+# section still uses Ethereum's DEX ranking instead of falling back to the
+# generic cross-chain list.
+_NATIVE_ASSET_CHAINS = {
+    "ETH": "Ethereum", "BNB": "BNB Smart Chain (BEP20)", "SOL": "Solana",
+    "MATIC": "Polygon", "POL": "Polygon", "AVAX": "Avalanche C-Chain",
+}
+
 # Bulk-fetched once per process (same lazy-module-global caching pattern as
 # coingecko_service._get_top_coin_symbol_map) — CoinGecko's per-ticker
 # `market` object carries a name/identifier but no logo, so exchange icons
@@ -209,8 +288,22 @@ def _fetch_from_coingecko(coin: Coin) -> list[dict] | None:
 
     logo_map = _get_exchange_logo_map()
     normalized = [_normalize(t, logo_map) for t in raw_tickers]
-    cex_top10 = sorted((p for p in normalized if not p["is_dex"]), key=lambda p: p["volume_24h"], reverse=True)[:10]
-    dex_top10 = sorted((p for p in normalized if p["is_dex"]), key=lambda p: p["volume_24h"], reverse=True)[:10]
+
+    # CEX side: only exchanges CMC itself ranks top-10 (see _CEX_TOP10_NAMES)
+    # — a coin whose only listings are on lower-trust venues (e.g. BTCC,
+    # CoinUp) simply shows fewer than 10 CEX rows rather than padding the
+    # list with them.
+    cex_candidates = [p for p in normalized if not p["is_dex"] and p["exchange_name"].lower() in _CEX_TOP10_NAMES]
+    cex_top10 = sorted(cex_candidates, key=lambda p: p["volume_24h"], reverse=True)[:10]
+
+    # DEX side: only the top 10 for the chain this coin is actually deployed
+    # on (see _DEX_TOP10_BY_CHAIN) — same "show fewer, never pad" rule.
+    primary = next((c for c in coin.contracts if c.is_primary), None)
+    chain_name = primary.platform_name if primary else _NATIVE_ASSET_CHAINS.get(coin.symbol.upper())
+    dex_allowlist = _DEX_TOP10_BY_CHAIN.get(chain_name, _DEX_TOP10_FALLBACK)
+    dex_candidates = [p for p in normalized if p["is_dex"] and p["exchange_name"].lower() in dex_allowlist]
+    dex_top10 = sorted(dex_candidates, key=lambda p: p["volume_24h"], reverse=True)[:10]
+
     combined = cex_top10 + dex_top10
 
     # Volume % is this exchange's share of the coin's real, already-known
@@ -224,7 +317,9 @@ def _fetch_from_coingecko(coin: Coin) -> list[dict] | None:
 
 
 def get_market_pairs(db: Session, coin: Coin) -> list[dict]:
-    """Returns this coin's cached top-10-CEX + top-10-DEX market pairs,
+    """Returns this coin's cached market pairs — up to 10 CEX rows (only
+    exchanges CMC itself ranks top-10, see _CEX_TOP10_NAMES) and up to 10 DEX
+    rows (only that coin's chain's top-10 DEX, see _DEX_TOP10_BY_CHAIN) —
     refreshing from CoinGecko first if the cache is empty or older than
     settings.market_pairs_cache_ttl_hours. Never raises — a fetch failure
     just falls back to whatever's already cached (or an empty list if this
