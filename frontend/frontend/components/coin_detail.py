@@ -781,7 +781,26 @@ def _x_timeline_section() -> rx.Component:
     return rx.cond(
         coin["has_twitter"],
         rx.vstack(
-            rx.heading(coin["name"], " on X", size="4", width="100%"),
+            rx.hstack(
+                rx.heading(coin["name"], " on X", size="4"),
+                rx.link(
+                    rx.hstack(
+                        rx.text("View More", size="2", weight="bold"),
+                        rx.icon("arrow-right", size=14),
+                        spacing="1",
+                        align="center",
+                    ),
+                    href=coin["twitter_url"],
+                    is_external=True,
+                    underline="none",
+                    # Same color_scheme="indigo" pattern as the "More News"/
+                    # "See More" links elsewhere on this page.
+                    color_scheme="indigo",
+                ),
+                width="100%",
+                justify="between",
+                align="center",
+            ),
             rx.cond(coin["has_cached_tweets"], _x_posts_slider(coin), _x_fallback_slider(coin)),
             spacing="3",
             width="100%",
