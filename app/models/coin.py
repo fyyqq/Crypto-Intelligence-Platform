@@ -59,6 +59,18 @@ class Coin(Base):
     # wildly in length with no documented cap.
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Set once (see app/services/coingecko_service.py::upgrade_description)
+    # after the first on-demand attempt to replace CMC's own auto-generated
+    # "<name> is a cryptocurrency and operates on..." boilerplate (CMC's
+    # public API has no real curated description for most non-major coins —
+    # confirmed live for several, e.g. Pythia — only their website does) with
+    # CoinGecko's free public API, which does carry real project write-ups
+    # for the same coins via a contract-address lookup. Once set, the nightly
+    # _upsert_contracts sync stops overwriting `description` from CMC, so a
+    # successfully-upgraded real description survives future syncs instead
+    # of being clobbered back to boilerplate.
+    description_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     # On-demand X (Twitter) post cache (see app/services/social_service.py)
     # — x_username is parsed from twitter_url above the first time a coin's
     # detail page is viewed; cached_tweets holds up to 10 already-normalized

@@ -175,7 +175,12 @@ app.add_page(
     coin_detail,
     route="/coin/[symbol]",
     title="Repace — Coin Detail",
-    on_load=[CoinState.load_coins, CoinState.detail_sync_loop, CoinState.refresh_social_posts],
+    on_load=[
+        CoinState.load_coins,
+        CoinState.detail_sync_loop,
+        CoinState.refresh_social_posts,
+        CoinState.refresh_coin_description,
+    ],
 )
 app.add_page(
     index,

@@ -235,7 +235,13 @@ class MarketDataService:
 
             for field, value in self._extract_urls(info).items():
                 setattr(coin, field, value)
-            coin.description = info.get("description")
+            # Only ever set from CMC before the one-time CoinGecko upgrade
+            # attempt (see app/services/coingecko_service.py) has run — once
+            # that's happened, description_synced_at is set and this nightly
+            # sync must stop clobbering a real description (or a confirmed
+            # "CoinGecko doesn't have one either") back to CMC's boilerplate.
+            if coin.description_synced_at is None:
+                coin.description = info.get("description")
 
             declared_platform = info.get("platform")
             entries = info.get("contract_address") or []

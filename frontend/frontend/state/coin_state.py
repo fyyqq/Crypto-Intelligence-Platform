@@ -413,6 +413,54 @@ def _fetch_social_posts(symbol: str) -> tuple[int, list[dict]] | None:
     return cmc_id, tweets
 
 
+def _fetch_better_description(symbol: str) -> tuple[int, str] | None:
+    """Blocking work for the on-demand description upgrade (see CoinState.
+    refresh_coin_description) — same lookup-by-ticker-in-Postgres pattern as
+    _fetch_social_posts above, delegating to coingecko_service's own
+    one-time-per-coin gate (app/services/coingecko_service.py::upgrade_description),
+    so most calls here are a no-op (already attempted, or was never
+    boilerplate to begin with). Returns None if no coin matches this ticker
+    or nothing changed.
+    """
+    import sys
+    from pathlib import Path
+
+    from sqlalchemy import select as sa_select
+    from sqlalchemy.orm import selectinload
+
+    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+    from app.models.coin import Coin as OldCoin
+    from app.services.coingecko_service import upgrade_description
+
+    old_db = OldSessionLocal()
+    try:
+        matches = old_db.scalars(
+            sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol)).options(selectinload(OldCoin.contracts))
+        ).all()
+        if not matches:
+            return None
+        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
+        fresh = upgrade_description(old_db, coin)
+        if fresh is None:
+            return None
+        cmc_id = coin.cmc_id
+    finally:
+        old_db.close()
+
+    with rx.session() as session:
+        row = session.exec(select(Coin).where(Coin.cmc_id == cmc_id)).first()
+        if row is not None:
+            row.description = fresh
+            session.add(row)
+            session.commit()
+
+    return cmc_id, fresh
+
+
 class CoinState(rx.State):
     all_coins: list[dict] = []
     categories: list[str] = []
@@ -802,6 +850,29 @@ class CoinState(rx.State):
         async with self:
             self.all_coins = [
                 {**row, "cached_tweets": tweets, "has_cached_tweets": bool(tweets)}
+                if row["cmc_id"] == cmc_id
+                else row
+                for row in self.all_coins
+            ]
+
+    @rx.event(background=True)
+    async def refresh_coin_description(self):
+        """One-shot, on-demand upgrade of this coin's About-section text —
+        fired once per page view (see frontend.py's /coin/[symbol] on_load),
+        same pattern as refresh_social_posts above. Almost always a fast
+        no-op: coingecko_service.upgrade_description only ever does real
+        work once per coin, ever (see Coin.description_synced_at).
+        """
+        symbol = self.symbol.strip()
+        if not symbol:
+            return
+        result = await asyncio.to_thread(_fetch_better_description, symbol)
+        if result is None:
+            return
+        cmc_id, description = result
+        async with self:
+            self.all_coins = [
+                {**row, "description": description, "has_description": True}
                 if row["cmc_id"] == cmc_id
                 else row
                 for row in self.all_coins
