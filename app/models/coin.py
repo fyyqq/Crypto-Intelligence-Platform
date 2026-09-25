@@ -71,6 +71,17 @@ class Coin(Base):
     # of being clobbered back to boilerplate.
     description_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Set once (see app/services/description_ai_service.py) after the
+    # one-time attempt to replace a description that's STILL boilerplate
+    # after the CoinGecko upgrade above (common for memecoins/newly-listed
+    # tokens with no real whitepaper or curated write-up anywhere) with an
+    # AI-generated summary grounded in that project's own website text and/or
+    # cached X posts — the only two public sources available for a coin with
+    # no formal documentation. Independent of description_synced_at (which
+    # gates the CoinGecko step only) since the two steps can each succeed or
+    # fail on their own.
+    description_ai_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     # AI-generated "what does this coin do / how does it make money" plain-
     # language explainer (see app/services/business_summary_service.py —
     # Feature 2's AI Business Model Agent per ai-instructions.md), built from
