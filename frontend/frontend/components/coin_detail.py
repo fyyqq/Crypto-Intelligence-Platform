@@ -938,7 +938,7 @@ def _x_timeline_section() -> rx.Component:
                     href=coin["twitter_url"],
                     is_external=True,
                     underline="none",
-                    # Same color_scheme="indigo" pattern as the "More News"/
+                    # Same color_scheme="indigo" pattern as the "View More"/
                     # "See More" links elsewhere on this page.
                     color_scheme="indigo",
                 ),
@@ -1230,11 +1230,16 @@ def _market_pair_row(pair: dict, index: int) -> rx.Component:
 def _market_pairs_section() -> rx.Component:
     # Real per-exchange price/volume from CoinGecko's free API (see
     # app/services/market_pairs_service.py's module docstring — CMC's own
-    # equivalent endpoint 403s on this project's Basic/free CMC plan),
-    # capped to the top 10 CEX + top 10 DEX by 24h volume per explicit
-    # request. Open Interest/Funding Rate/Spread (derivatives-specific)
-    # aren't shown — this data is spot-markets only on any free-tier
-    # provider we use.
+    # equivalent endpoint 403s on this project's Basic/free CMC plan), each
+    # side capped to that exchange type's real top 10 (CMC's own exchange
+    # ranking for CEX, CoinGecko's per-chain DEX ranking for DEX — see that
+    # service's _CEX_TOP10_NAMES/_DEX_TOP10_BY_CHAIN) rather than just the
+    # top 10 by this one coin's own ticker volume, so a lower-trust exchange
+    # never crowds out a real top-10 venue. No "All" tab per explicit
+    # request — CEX and DEX are two separate lists, never combined; CEX is
+    # the default tab. Open Interest/Funding Rate/Spread (derivatives-
+    # specific) aren't shown — this data is spot-markets only on any
+    # free-tier provider we use.
     coin = CoinState.selected_coin
     return rx.cond(
         coin["has_market_pairs"],
@@ -1247,7 +1252,6 @@ def _market_pairs_section() -> rx.Component:
                 ),
                 rx.spacer(),
                 rx.hstack(
-                    _market_pairs_filter_button("All", "all"),
                     _market_pairs_filter_button("CEX", "cex"),
                     _market_pairs_filter_button("DEX", "dex"),
                     spacing="1",
@@ -1294,16 +1298,20 @@ def _chart_column() -> rx.Component:
     return rx.vstack(
         rx.hstack(
             rx.heading(coin["name"], " Live Chart", size="4"),
-            # AI-generated business-model classification (see
-            # business_summary_service.py's CATEGORY: line) — more specific
-            # than the broad CMC narrative tags shown elsewhere on this page
-            # (e.g. "Real World Assets (RWA)" vs. this badge's "Tokenized
-            # Public Funds / Treasuries"). Only renders once the AI summary
-            # has actually generated one.
+            # Category badge: the AI-generated business-model classification
+            # (see business_summary_service.py's CATEGORY: line) when this
+            # coin has one — more specific than the broad CMC narrative tags
+            # shown elsewhere on this page (e.g. "Real World Assets (RWA)"
+            # vs. "Tokenized Public Funds / Treasuries"). That generation is
+            # on-demand and rate-limited (OpenRouter's free tier), so most
+            # coins never get one within a session — category_badge_display
+            # (see CoinState._build_row) falls back to this coin's real CMC
+            # narrative tag instead, so every coin's page shows a badge here,
+            # not just the handful an AI summary has already run for.
             rx.cond(
-                coin["has_business_model_category"],
+                coin["has_category_badge_display"],
                 rx.badge(
-                    coin["business_model_category"],
+                    coin["category_badge_display"],
                     color_scheme="indigo",
                     variant="surface",
                     radius="full",
