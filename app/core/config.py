@@ -70,5 +70,12 @@ class Settings(BaseSettings):
     openrouter_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     business_summary_ttl_days: int = 60
 
+    # On-demand CEX/DEX market-pair listing (see
+    # app/services/market_pairs_service.py) — refreshed far more often than
+    # description/business_summary since real exchange price/volume data
+    # goes stale within the hour, unlike a project's write-up or business
+    # model, which barely change week to week.
+    market_pairs_cache_ttl_hours: int = 1
+
 
 settings = Settings()

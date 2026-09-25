@@ -14,6 +14,7 @@ model can change in ways its CMC/CoinGecko description won't reflect.
 """
 
 import logging
+import re
 import time
 from datetime import datetime, timedelta
 
@@ -24,6 +25,8 @@ from app.core.config import settings
 from app.models.coin import Coin
 
 logger = logging.getLogger(__name__)
+
+_CATEGORY_LINE = re.compile(r"(?m)^CATEGORY:\s*(.+)$")
 
 # :free-suffixed OpenRouter models draw from a shared provider pool that
 # returns 429 "temporarily rate-limited upstream" fairly often — confirmed
@@ -38,17 +41,25 @@ _RETRY_DELAY_SECONDS = 4
 _SYSTEM_PROMPT = (
     "You explain cryptocurrency projects to complete beginners who have never "
     "used crypto before. Given a coin's name, ticker, category tags, and its "
-    "own project description, write a short, plain-language explainer in "
-    "2-3 short paragraphs, each covering one distinct topic — typically "
-    "what the project actually does, then its business model, then how it "
-    "makes money or captures value (if it's a pure meme/community coin with "
-    "no real business model, say so plainly in that last paragraph instead "
-    "of inventing one). Prefix EVERY paragraph, with no exceptions, with a "
-    "line reading exactly `TITLE: <a 2-4 word heading for that paragraph>` "
-    "on its own line, then the paragraph's plain prose on the next line(s) — "
-    "no bullet points, no other markdown formatting anywhere. Avoid jargon "
-    "where possible, and briefly explain any technical term you do need to "
-    "use. Example shape (do not copy the content, only the structure):\n"
+    "own project description, first classify its specific business model in "
+    "a short label of 2-6 words — more specific than a generic sector tag "
+    "(e.g. not just \"DeFi\" or \"RWA\" alone, but what kind of DeFi/RWA "
+    "project this specifically is, such as \"Tokenized Treasury Issuer\" or "
+    "\"Perpetuals DEX Aggregator\"). Prefix that label, with no exceptions, "
+    "with a line reading exactly `CATEGORY: <label>` as the very first line "
+    "of your entire response, before anything else.\n\n"
+    "Then write a short, plain-language explainer in 2-3 short paragraphs, "
+    "each covering one distinct topic — typically what the project actually "
+    "does, then its business model, then how it makes money or captures "
+    "value (if it's a pure meme/community coin with no real business model, "
+    "say so plainly in that last paragraph instead of inventing one). "
+    "Prefix EVERY paragraph, with no exceptions, with a line reading exactly "
+    "`TITLE: <a 2-4 word heading for that paragraph>` on its own line, then "
+    "the paragraph's plain prose on the next line(s) — no bullet points, no "
+    "other markdown formatting anywhere. Avoid jargon where possible, and "
+    "briefly explain any technical term you do need to use. Example shape "
+    "(do not copy the content, only the structure):\n"
+    "CATEGORY: Tokenized Treasury Issuer\n"
     "TITLE: What It Does\n"
     "<paragraph>\n"
     "TITLE: Business Model\n"
@@ -133,6 +144,19 @@ def _fetch_from_openrouter(coin: Coin) -> tuple[str, str] | None:
     return None
 
 
+def _split_category(raw: str) -> tuple[str, str]:
+    """Pulls the leading `CATEGORY: <label>` line (see _SYSTEM_PROMPT) off
+    the model's response, returning (category, remaining_text) — the
+    remaining text still parses with coin_state.py's _parse_business_
+    summary_sections TITLE: convention unchanged. Falls back to ("", raw)
+    for older cached responses generated before this convention existed.
+    """
+    match = _CATEGORY_LINE.match(raw.strip())
+    if not match:
+        return "", raw
+    return match.group(1).strip(), raw.strip()[match.end():].strip()
+
+
 def get_business_summary(db: Session, coin: Coin) -> str | None:
     """Returns this coin's cached AI business summary, regenerating first if
     it's missing or older than settings.business_summary_ttl_days. Never
@@ -147,10 +171,13 @@ def get_business_summary(db: Session, coin: Coin) -> str | None:
     if result is None:
         return coin.business_summary
 
-    fresh, model = result
+    raw, model = result
+    category, fresh = _split_category(raw)
     coin.business_summary = fresh
     coin.business_summary_model = model
     coin.business_summary_updated_at = datetime.utcnow()
+    if category:
+        coin.business_model_category = category
     db.add(coin)
     db.commit()
     return fresh

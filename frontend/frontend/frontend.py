@@ -181,6 +181,7 @@ app.add_page(
         CoinState.refresh_social_posts,
         CoinState.refresh_coin_description,
         CoinState.refresh_business_summary,
+        CoinState.refresh_market_pairs,
     ],
 )
 app.add_page(
