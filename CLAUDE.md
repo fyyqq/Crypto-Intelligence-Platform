@@ -1,3 +1,13 @@
+# Claude Code Project Rules
+
+## 🤖 Handoff & Session Limit Rule
+* **Mandatory Action:** AFTER completing any significant change, sub-task, or bug fix, you MUST immediately rewrite and update the sections below (`### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
+* **Why:** This ensures that if the terminal session suddenly runs out of API limits, the current progress state is perfectly preserved right here, allowing a seamless handoff to GitHub Copilot inside VS Code without losing data.
+
+
+---
+
+
 ## Crypto Intelligence Platform — Session State Summary
 
 ### ✅ Feature 1: Dynamic Market Data Sync & Dashboard — COMPLETE
