@@ -7,6 +7,25 @@
 
 ---
 
+## Playwright Testing Rules
+
+When asked to run, write, or execute Playwright tests against web pages loaded in the VS Code context:
+- **Never open external Chrome windows or tabs.** All browser actions must be completely hidden.
+- **Utilize the Context Picker Panel:** Use the DOM structure, selectors, and context provided by the active VS Code Context Picker panel for selecting elements.
+- **Headless Execution Only:** Execute all test runs or interactions headlessly in the background. Use either:
+  1. The installed Playwright MCP server tools (`playwright_navigate`, `playwright_click`, etc.) which run entirely in the background.
+  2. The integrated terminal via `npx playwright test --headless`.
+- **Provide Results in Chat:** Print the execution outcome, assertion results, or console errors directly back into the chat interface without creating visual browser popups.
+
+---
+
+## Commit & Push Rule
+* **Mandatory Action:** After completing and verifying any change, sub-task, bug fix, or feature — not batched until end of session — immediately `git add`/`git commit`/`git push` to `origin/main` (a normal local commit + push, not the GitHub MCP `push_files` workaround, unless local git is unavailable).
+* **Why:** Keeps `origin/main` current for handoff to GitHub Copilot or another session at any moment, and avoids losing verified work if the session ends unexpectedly.
+* **How to apply:** Commit message should summarize the "why" of the change in 1-2 sentences. Update the `### 🔧 Current State` / `### ➡️ Next Steps` sections (per the Handoff rule above) in the same commit when relevant.
+
+---
+
 
 ## Crypto Intelligence Platform — Session State Summary
 
