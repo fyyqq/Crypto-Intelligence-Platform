@@ -151,6 +151,14 @@ def coin_detail() -> rx.Component:
         _header_bar(),
         coin_detail_page(),
         footer(),
+        # Needed for the X-posts slider's arrow/drag mechanics
+        # (coin_detail.py::_x_posts_slider, assets/chain_pills.js) — was
+        # previously only loaded on index()'s page, which happened not to
+        # matter before since this page's other scroll boxes (sentiment/
+        # news) don't use the arrow-slider pattern. A direct/fresh visit to
+        # /coin/[symbol] (not navigated to from "/") would otherwise never
+        # load this script at all.
+        rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
         display="flex",
@@ -167,7 +175,7 @@ app.add_page(
     coin_detail,
     route="/coin/[symbol]",
     title="Repace — Coin Detail",
-    on_load=[CoinState.load_coins, CoinState.detail_sync_loop],
+    on_load=[CoinState.load_coins, CoinState.detail_sync_loop, CoinState.refresh_social_posts],
 )
 app.add_page(
     index,

@@ -590,110 +590,153 @@ def _info_column() -> rx.Component:
 _CHART_HEIGHTS = ["420px", "480px", "520px", "560px", "600px"]
 
 
+def _x_post_card(post: dict) -> rx.Component:
+    # Real post text + (when the scraper found one) an image, straight from
+    # SocialService's cached_tweets — replaces the old X "Embedded Timeline"
+    # widget, whose data backend (syndication.twitter.com) turned out to
+    # rate-limit unpredictably regardless of traffic, silently collapsing to
+    # an empty box with no error. These are plain data (already normalized
+    # server-side, see app/services/social_service.py's _normalize), so
+    # unlike that sealed widget iframe, they render as ordinary cards that
+    # can use the same horizontal-scroll-with-arrows mechanics as the
+    # alerts/news sliders elsewhere on this page (assets/chain_pills.js).
+    return rx.link(
+        rx.vstack(
+            rx.text(post["text"], size="2", style={"white-space": "pre-wrap"}),
+            rx.cond(
+                post["has_image"],
+                rx.image(
+                    src=post["image_url"],
+                    width="100%",
+                    height="140px",
+                    object_fit="cover",
+                    border_radius="8px",
+                    margin_top="0.5em",
+                ),
+            ),
+            rx.spacer(),
+            rx.hstack(
+                rx.hstack(rx.icon("heart", size=13), rx.text(post["likes"], size="1"), spacing="1", align="center"),
+                rx.hstack(
+                    rx.icon("message-circle", size=13), rx.text(post["replies"], size="1"), spacing="1", align="center"
+                ),
+                rx.hstack(
+                    rx.icon("repeat-2", size=13), rx.text(post["retweets"], size="1"), spacing="1", align="center"
+                ),
+                spacing="4",
+                margin_top="0.6em",
+                color_scheme="gray",
+            ),
+            align_items="stretch",
+            spacing="2",
+            height="100%",
+        ),
+        href=post["url"],
+        is_external=True,
+        underline="none",
+        color="inherit",
+        padding="0.85em",
+        border_radius="10px",
+        background="var(--gray-a2)",
+        width=["240px", "260px", "300px", "320px", "320px"],
+        flex_shrink="0",
+        height="220px",
+    )
+
+
+def _x_posts_slider(coin: dict) -> rx.Component:
+    # Same draggable/arrow-scrollable slider mechanics as the news/alerts
+    # sliders (assets/chain_pills.js — its selectors include these
+    # x-posts-* class names too), just real X-post cards instead.
+    return rx.box(
+        rx.box(rx.icon("chevron-left", size=14), class_name="x-posts-scroll-btn x-posts-scroll-left"),
+        rx.box(
+            rx.foreach(coin["cached_tweets"].to(list[dict]), _x_post_card),
+            class_name="x-posts-slider-track",
+        ),
+        rx.box(rx.icon("chevron-right", size=14), class_name="x-posts-scroll-btn x-posts-scroll-right"),
+        rx.script(
+            # This slider mounts asynchronously (swapped in once
+            # CoinState.refresh_social_posts's background fetch completes,
+            # replacing _x_fallback_link), unlike the news/alerts sliders'
+            # static dummy data, which is already present in the DOM by the
+            # time chain_pills.js's MutationObserver runs its first scan.
+            # Confirmed live that other mutations elsewhere on the page keep
+            # firing around this same moment (the chart iframe loading, the
+            # targeted-news list rendering, ...), and whichever one happens
+            # to land last decides the arrows' final visibility based on
+            # chain_pills.js's shared, delegated listener — sometimes with
+            # stale (mid-reconciliation, near-zero) measurements. Rather
+            # than race that shared listener's timing, this computes and
+            # sets the correct visibility directly against this specific
+            # track, polling briefly until the numbers stop changing across
+            # two consecutive checks (i.e. layout has genuinely settled),
+            # so it's correct regardless of what else the page is doing.
+            "(function(){"
+            "var lastKey=null, stableCount=0;"
+            "var iv=setInterval(function(){"
+            "var t=document.querySelector('.x-posts-slider-track');"
+            "if(!t){return;}"
+            "var wrap=t.closest('.x-posts-slider-wrap');"
+            "var leftBtn=wrap && wrap.querySelector('.x-posts-scroll-left');"
+            "var rightBtn=wrap && wrap.querySelector('.x-posts-scroll-right');"
+            "if(!leftBtn||!rightBtn){return;}"
+            "var key=t.scrollLeft+':'+t.clientWidth+':'+t.scrollWidth;"
+            "if(key===lastKey){"
+            "stableCount++;"
+            "}else{"
+            "stableCount=0; lastKey=key;"
+            "}"
+            "var atStart=t.scrollLeft<=1;"
+            "var atEnd=t.scrollLeft+t.clientWidth>=t.scrollWidth-1;"
+            "leftBtn.style.display=atStart?'none':'flex';"
+            "rightBtn.style.display=atEnd?'none':'flex';"
+            "if(stableCount>=2){clearInterval(iv);}"
+            "}, 200);"
+            "setTimeout(function(){clearInterval(iv);}, 3000);"
+            "})();"
+        ),
+        class_name="x-posts-slider-wrap",
+    )
+
+
+def _x_fallback_link(coin: dict) -> rx.Component:
+    # Shown while no cached tweets are available yet — either the on-demand
+    # scraper fetch (CoinState.refresh_social_posts) hasn't completed for
+    # this coin's first-ever view, the scraper API isn't configured
+    # (settings.apify_api_token empty), or a real fetch attempt failed with
+    # nothing already cached to fall back to. A plain link out is always
+    # better than an empty section either way.
+    return rx.link(
+        rx.hstack(
+            _brand_svg_icon(_X_PATH, 18),
+            rx.text("View live posts on X", size="3", weight="medium"),
+            rx.icon("external-link", size=14),
+            spacing="2",
+            align="center",
+        ),
+        href=coin["twitter_url"],
+        is_external=True,
+        underline="none",
+        color="white",
+        padding="2em",
+        border_radius="10px",
+        background="var(--gray-a2)",
+        width="100%",
+        max_width="760px",
+        justify="center",
+    )
+
+
 def _x_timeline_section() -> rx.Component:
-    # Real, live posts (including their images) straight from the coin's
-    # actual X account — X's official free "Embedded Timeline" widget
-    # (publish.twitter.com), not a paid API call or a scraper. It renders
-    # as one sealed, cross-origin iframe that X's own widgets.js builds and
-    # owns, so unlike the narrative-news/sentiment sliders elsewhere on this
-    # page, individual posts can't be pulled out and restyled into custom
-    # horizontal-scroll cards — this is X's own default vertical timeline
-    # chrome, just boxed to match the chart's width/rounding above it.
     # Only rendered when this coin actually declared an X account (same
     # has_twitter flag _links_section uses).
-    #
-    # widgets.js scans the DOM for `.twitter-timeline` anchors once, on its
-    # own load — since this anchor is added by React after that could have
-    # already fired (or not yet loaded at all), the script below explicitly
-    # loads it if missing and calls twttr.widgets.load() either way, rather
-    # than relying on script-tag execution order.
-    #
-    # Confirmed live that widgets.js correctly resolves each coin's real
-    # handle (dfinity, eth_classic, opentensor, altszn, dogecoin...) and
-    # requests the right params (theme/limit/height) every time — the wiring
-    # itself is right. What's NOT reliable is X's own syndication.twitter.com
-    # backend (the widget's actual tweet-data source): a fresh 429 from it,
-    # reproduced live on two unrelated coins outside any rapid-testing loop,
-    # is a genuine, currently-reproducible failure mode of this free tier —
-    # and when it 429s, X's own widget JS silently sets its iframe to
-    # display:none, so the whole section otherwise just collapses to an
-    # empty box with no error shown. Since this runs client-side in each
-    # visitor's own browser (not proxied through our server), a real
-    # visitor hits it whenever X's backend rate-limits *their* IP, not just
-    # during our testing — a silent blank box was never an acceptable
-    # steady-state, so the poll below detects that collapse and swaps in a
-    # plain link to the coin's real X profile instead.
     coin = CoinState.selected_coin
     return rx.cond(
         coin["has_twitter"],
         rx.vstack(
             rx.heading(coin["name"], " on X", size="4", width="100%"),
-            rx.box(
-                rx.box(
-                    rx.html(
-                        f'<a class="twitter-timeline" data-theme="dark" data-tweet-limit="10" data-height="600" href="{coin["twitter_url"]}">Posts</a>'
-                    ),
-                    id="x-timeline-embed",
-                ),
-                rx.link(
-                    rx.hstack(
-                        _brand_svg_icon(_X_PATH, 18),
-                        rx.text("View live posts on X", size="3", weight="medium"),
-                        rx.icon("external-link", size=14),
-                        spacing="2",
-                        align="center",
-                    ),
-                    id="x-timeline-fallback",
-                    href=coin["twitter_url"],
-                    is_external=True,
-                    underline="none",
-                    color="white",
-                    display="none",
-                    padding="2em",
-                    border_radius="10px",
-                    background="var(--gray-a2)",
-                    width="100%",
-                    justify="center",
-                ),
-                rx.script(
-                    """
-                    (function(){
-                      function loadWidget(){
-                        if(window.twttr && window.twttr.widgets){
-                          window.twttr.widgets.load(document.getElementById('x-timeline-embed'));
-                        }
-                      }
-                      if(window.twttr){
-                        loadWidget();
-                      } else {
-                        var s=document.createElement('script');
-                        s.src='https://platform.twitter.com/widgets.js';
-                        s.charset='utf-8';
-                        s.onload=loadWidget;
-                        document.head.appendChild(s);
-                      }
-                      var attempts=0;
-                      var checker=setInterval(function(){
-                        attempts++;
-                        var embed=document.getElementById('x-timeline-embed');
-                        var fallback=document.getElementById('x-timeline-fallback');
-                        if(!embed || !fallback){ clearInterval(checker); return; }
-                        var frame=embed.querySelector('iframe');
-                        if(frame && frame.offsetHeight > 0){ clearInterval(checker); return; }
-                        if(attempts >= 6){
-                          clearInterval(checker);
-                          embed.style.display='none';
-                          fallback.style.display='flex';
-                        }
-                      }, 1000);
-                    })();
-                    """
-                ),
-                width="100%",
-                max_width="760px",
-                border_radius="10px",
-                overflow="hidden",
-            ),
+            rx.cond(coin["has_cached_tweets"], _x_posts_slider(coin), _x_fallback_link(coin)),
             spacing="3",
             width="100%",
             align="center",
