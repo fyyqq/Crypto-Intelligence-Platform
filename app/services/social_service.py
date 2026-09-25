@@ -109,7 +109,19 @@ class SocialService:
         if not items:
             logger.warning("X scrape for @%s returned no usable results (noResults)", username)
             return None
-        return [self._normalize(item) for item in items[:10]]
+
+        normalized = [self._normalize(item) for item in items[:10]]
+        # Second, content-based line of defense: also confirmed live that
+        # this actor can return items with no "noResults" flag at all but
+        # every real field (text, url, ...) as None/missing anyway — the
+        # explicit-flag check above doesn't catch that shape. Anything that
+        # normalizes to no text AND no url is unusable regardless of why,
+        # so it's dropped here rather than caching a blank card for it.
+        normalized = [n for n in normalized if n["text"] or n["url"]]
+        if not normalized:
+            logger.warning("X scrape for @%s returned no usable content after normalization", username)
+            return None
+        return normalized
 
     @staticmethod
     def _normalize(item: dict) -> dict:
