@@ -157,6 +157,36 @@ def _build_row(coin: Coin) -> dict:
         f"{contract_address[:6]}...{contract_address[-4:]}" if len(contract_address) > 14 else contract_address
     )
 
+    # Every OTHER chain this coin is genuinely deployed on with a real
+    # contract address (same >=20-char validity filter as the primary one
+    # above) — feeds the Contract row's "+N chains" dropdown so a coin
+    # bridged/wrapped across several chains can show all of them, not just
+    # whichever one happened to be flagged primary.
+    other_chain_contracts = []
+    for c in chains:
+        if c is primary_chain or not c.contract_address or len(c.contract_address) < 20:
+            continue
+        addr = c.contract_address
+        other_chain_contracts.append(
+            {
+                "platform_name": c.platform_name,
+                "contract_address": addr,
+                "contract_address_display": f"{addr[:6]}...{addr[-4:]}" if len(addr) > 14 else addr,
+            }
+        )
+
+    # Ordered by the same priority _links_section always rendered them in —
+    # only the platforms this coin actually declared. First 3 show inline,
+    # the rest (if any) collapse into a dropdown, same pattern as chains.
+    social_candidates = [
+        ("twitter", coin.twitter_url),
+        ("github", coin.source_code_url),
+        ("telegram", coin.telegram_url),
+        ("reddit", coin.reddit_url),
+        ("facebook", coin.facebook_url),
+    ]
+    social_links = [{"platform": p, "url": u} for p, u in social_candidates if u]
+
     vol_mkt_cap_pct = (
         coin.volume_24h_usd / coin.market_cap_usd * 100
         if coin.volume_24h_usd and coin.market_cap_usd
@@ -199,6 +229,11 @@ def _build_row(coin: Coin) -> dict:
         "contract_address": contract_address,
         "contract_address_display": contract_address_display,
         "has_contract": bool(contract_address),
+        "other_chain_contracts": other_chain_contracts,
+        "has_other_chain_contracts": bool(other_chain_contracts),
+        "social_links_primary": social_links[:3],
+        "social_links_extra": social_links[3:],
+        "has_extra_socials": len(social_links) > 3,
         # Real, already-fetched data (see MarketDataService._upsert_coins/
         # _upsert_quotes) that just wasn't persisted before now. Liq/Mkt Cap
         # and Holders still have no equivalent field on CMC's Basic tier

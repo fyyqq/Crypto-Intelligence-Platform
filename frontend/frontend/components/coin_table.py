@@ -393,6 +393,18 @@ def _coin_search() -> rx.Component:
             rx.debounce_input(
                 rx.input(
                     rx.input.slot(rx.icon("search", size=14)),
+                    # Right-side slot puts the clear "x" inside the input's
+                    # own bordered box (a real clearable-input affordance)
+                    # instead of floating as a separate icon after it.
+                    rx.input.slot(
+                        rx.icon(
+                            "x",
+                            size=14,
+                            class_name="coin-search-clear-icon",
+                            on_click=CoinState.toggle_search,
+                        ),
+                        side="right",
+                    ),
                     placeholder="Search coin name or ticker...",
                     value=CoinState.search_query,
                     on_change=CoinState.set_search_query,
@@ -404,12 +416,6 @@ def _coin_search() -> rx.Component:
                     width=["150px", "180px", "220px", "220px", "220px"],
                 ),
                 debounce_timeout=300,
-            ),
-            rx.icon(
-                "x",
-                size=14,
-                class_name="coin-search-clear-icon",
-                on_click=CoinState.toggle_search,
             ),
             class_name="coin-search-input-wrap",
         ),

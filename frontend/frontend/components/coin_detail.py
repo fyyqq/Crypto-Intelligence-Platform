@@ -168,9 +168,9 @@ def _link_pill(
 ) -> rx.Component:
     pill = rx.hstack(
         *children,
-        spacing="2",
+        spacing="1",
         align="center",
-        padding="0.5em 0.9em",
+        padding="0.3em 0.6em",
         border_radius="9999px",
         background="var(--gray-a3)",
         flex_shrink="0",
@@ -186,7 +186,7 @@ def _link_pill(
     return rx.link(pill, href=href, is_external=True, underline="none")
 
 
-def _icon_circle(icon: rx.Component, size_px: str = "32px", href: rx.Var[str] | str | None = None) -> rx.Component:
+def _icon_circle(icon: rx.Component, size_px: str = "24px", href: rx.Var[str] | str | None = None) -> rx.Component:
     circle = rx.box(
         icon,
         width=size_px,
@@ -266,6 +266,29 @@ def _github_icon(size: int) -> rx.Component:
     return _brand_svg_icon(_BRAND_ICON_PATHS["github"], size)
 
 
+def _social_icon(platform: rx.Var[str]) -> rx.Component:
+    # coin["social_links_primary"/"_extra"] (see CoinState._build_row) carry
+    # a plain "platform" string per entry rather than a pre-built icon
+    # component (Vars can't hold components) — rx.match picks the right
+    # brand mark/lucide icon for whichever platform string a given entry is.
+    return rx.match(
+        platform,
+        ("twitter", _brand_svg_icon(_X_PATH, 12)),
+        ("github", _github_icon(12)),
+        ("telegram", rx.icon("send", size=12)),
+        ("reddit", _brand_svg_icon(_REDDIT_PATH, 12)),
+        ("facebook", _brand_svg_icon(_FACEBOOK_PATH, 12)),
+        rx.icon("link", size=12),
+    )
+
+
+def _dropdown_trigger() -> rx.Component:
+    # Small chevron-down circle opening a popover — shared trigger look for
+    # both the Contract row's "+N other chains" and the Socials row's
+    # "+N more" overflow, so they read as the same interaction pattern.
+    return _icon_circle(rx.icon("chevron-down", size=12))
+
+
 def _links_section(coin: dict) -> rx.Component:
     # Website/Whitepaper/Socials/Contract/Explorers are all real links now,
     # sourced from CMC's /v2/info `urls` object (see MarketDataService.
@@ -275,25 +298,25 @@ def _links_section(coin: dict) -> rx.Component:
     # showing a dead placeholder link.
     return rx.vstack(
         rx.cond(
-            coin["has_website"] | coin["has_whitepaper"],
+            coin["has_website"],
             _link_row(
                 "Website",
-                rx.cond(
-                    coin["has_website"],
-                    _link_pill(
-                        rx.icon("globe", size=13),
-                        rx.text("Website", size="2", weight="medium"),
-                        href=coin["website_url"],
-                    ),
+                _link_pill(
+                    rx.icon("globe", size=11),
+                    rx.text("Website", size="1", weight="medium"),
+                    href=coin["website_url"],
                 ),
-                rx.cond(
-                    coin["has_whitepaper"],
-                    _link_pill(
-                        rx.icon("file-text", size=13),
-                        rx.text("Whitepaper", size="2", weight="medium"),
-                        rx.icon("external-link", size=11),
-                        href=coin["whitepaper_url"],
-                    ),
+            ),
+        ),
+        rx.cond(
+            coin["has_whitepaper"],
+            _link_row(
+                "Whitepaper",
+                _link_pill(
+                    rx.icon("file-text", size=11),
+                    rx.text("Whitepaper", size="1", weight="medium"),
+                    rx.icon("external-link", size=9),
+                    href=coin["whitepaper_url"],
                 ),
             ),
         ),
@@ -305,16 +328,28 @@ def _links_section(coin: dict) -> rx.Component:
             | coin["has_facebook"],
             _link_row(
                 "Socials",
-                rx.cond(coin["has_twitter"], _icon_circle(_brand_svg_icon(_X_PATH, 15), href=coin["twitter_url"])),
-                rx.cond(coin["has_source_code"], _icon_circle(_github_icon(15), href=coin["source_code_url"])),
-                rx.cond(coin["has_telegram"], _icon_circle(rx.icon("send", size=15), href=coin["telegram_url"])),
-                rx.cond(
-                    coin["has_reddit"],
-                    _icon_circle(_brand_svg_icon(_REDDIT_PATH, 15), href=coin["reddit_url"]),
+                rx.foreach(
+                    coin["social_links_primary"].to(list[dict]),
+                    lambda item: _icon_circle(_social_icon(item["platform"]), href=item["url"]),
                 ),
+                # Only the coins with more than 3 declared socials ever get
+                # a dropdown — same "main ones inline, rest tucked away"
+                # pattern as the Contract row's other-chains popover below.
                 rx.cond(
-                    coin["has_facebook"],
-                    _icon_circle(_brand_svg_icon(_FACEBOOK_PATH, 15), href=coin["facebook_url"]),
+                    coin["has_extra_socials"],
+                    rx.popover.root(
+                        rx.popover.trigger(_dropdown_trigger()),
+                        rx.popover.content(
+                            rx.vstack(
+                                rx.foreach(
+                                    coin["social_links_extra"].to(list[dict]),
+                                    lambda item: _icon_circle(_social_icon(item["platform"]), href=item["url"]),
+                                ),
+                                spacing="2",
+                            ),
+                            size="1",
+                        ),
+                    ),
                 ),
             ),
         ),
@@ -324,14 +359,42 @@ def _links_section(coin: dict) -> rx.Component:
                 "Contract",
                 _link_pill(
                     rx.text(coin["main_chain"], size="1", color_scheme="gray"),
-                    rx.text(coin["contract_address_display"], size="2", weight="medium"),
-                    rx.icon("copy", size=12),
+                    rx.text(coin["contract_address_display"], size="1", weight="medium"),
+                    rx.icon("copy", size=10),
                     # Copies the full address, not the truncated display
                     # text — rx.set_clipboard is a browser-side special
                     # event, no backend round-trip needed for it — chained
                     # with show_copied_toast, which drives the centered
                     # "Copied" popup (see coin_detail_page()).
                     on_click=[rx.set_clipboard(coin["contract_address"]), CoinState.show_copied_toast],
+                ),
+                # A coin bridged/wrapped onto other chains besides its main
+                # one shows those in a dropdown instead of a wall of pills —
+                # each one copyable the same way as the main contract above.
+                rx.cond(
+                    coin["has_other_chain_contracts"],
+                    rx.popover.root(
+                        rx.popover.trigger(_dropdown_trigger()),
+                        rx.popover.content(
+                            rx.vstack(
+                                rx.foreach(
+                                    coin["other_chain_contracts"].to(list[dict]),
+                                    lambda c: _link_pill(
+                                        rx.text(c["platform_name"], size="1", color_scheme="gray"),
+                                        rx.text(c["contract_address_display"], size="1", weight="medium"),
+                                        rx.icon("copy", size=10),
+                                        on_click=[
+                                            rx.set_clipboard(c["contract_address"]),
+                                            CoinState.show_copied_toast,
+                                        ],
+                                    ),
+                                ),
+                                spacing="2",
+                                align="start",
+                            ),
+                            size="1",
+                        ),
+                    ),
                 ),
             ),
         ),
@@ -340,9 +403,9 @@ def _links_section(coin: dict) -> rx.Component:
             _link_row(
                 "Explorers",
                 _link_pill(
-                    rx.icon("compass", size=13),
-                    rx.text("Explorer", size="2", weight="medium"),
-                    rx.icon("external-link", size=11),
+                    rx.icon("compass", size=11),
+                    rx.text("Explorer", size="1", weight="medium"),
+                    rx.icon("external-link", size=9),
                     href=coin["explorer_url"],
                 ),
             ),
@@ -980,7 +1043,7 @@ def coin_detail_page() -> rx.Component:
                         rx.hstack(
                             rx.box(
                                 _info_column(),
-                                width=["100%", "100%", "100%", "300px", "320px"],
+                                width=["100%", "100%", "100%", "300px", "300px"],
                                 flex_shrink="0",
                                 height="max-content",
                             ),
@@ -996,7 +1059,7 @@ def coin_detail_page() -> rx.Component:
                                     spacing="6",
                                     width="100%",
                                 ),
-                                width=["100%", "100%", "100%", "320px", "360px"],
+                                width=["100%", "100%", "100%", "300px", "300px"],
                                 flex_shrink="0",
                                 height="max-content",
                                 # Both children above are fixed-width to
