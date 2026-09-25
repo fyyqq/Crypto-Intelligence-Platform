@@ -235,6 +235,16 @@ def _relative_time(iso_str: str | None) -> str:
 # a correction here (a CoinGecko id like "usd-coin" or "wrapped-bitcoin"
 # doesn't read as its own ticker); anything else just gets its id
 # uppercased, which is still far more readable than a raw hex address.
+#
+# CEX tickers' base/target ARE already the exchange's own real ticker
+# symbol (e.g. "BTW") — this coin_id-derived override must NOT apply to
+# them. Confirmed live: Bitway's CoinGecko coin_id is "bitway", which this
+# used to substitute in as "BITWAY" even for its real CEX listings (MEXC/
+# Bitget/... all actually list it as "BTWUSDT", not "BITWAYUSDT" — verified
+# against TradingView's own symbol search), silently showing the wrong
+# ticker in the Markets table and breaking the TradingView chart-symbol
+# lookup that reuses this same market_pair field. is_dex (see _normalize)
+# now gates whether the coin_id substitution applies at all.
 _COMMON_ID_SYMBOLS = {
     "ethereum": "ETH", "weth": "WETH", "wrapped-ether": "WETH",
     "tether": "USDT", "usd-coin": "USDC", "dai": "DAI",
@@ -244,10 +254,14 @@ _COMMON_ID_SYMBOLS = {
 }
 
 
-def _display_symbol(raw: str | None, coin_id: str | None) -> str:
+def _display_symbol(raw: str | None, coin_id: str | None, is_dex: bool) -> str:
+    if is_dex and coin_id:
+        return _COMMON_ID_SYMBOLS.get(coin_id, coin_id.replace("-", " ").upper())
+    if raw:
+        return raw.upper()
     if coin_id:
         return _COMMON_ID_SYMBOLS.get(coin_id, coin_id.replace("-", " ").upper())
-    return (raw or "?").upper()
+    return "?"
 
 
 def _normalize(ticker: dict, logo_map: dict[str, str]) -> dict:
@@ -255,13 +269,14 @@ def _normalize(ticker: dict, logo_map: dict[str, str]) -> dict:
     identifier = market.get("identifier") or ""
     converted_last = ticker.get("converted_last") or {}
     converted_volume = ticker.get("converted_volume") or {}
-    base = _display_symbol(ticker.get("base"), ticker.get("coin_id"))
-    target = _display_symbol(ticker.get("target"), ticker.get("target_coin_id"))
+    is_dex = any(keyword in identifier for keyword in _DEX_KEYWORDS)
+    base = _display_symbol(ticker.get("base"), ticker.get("coin_id"), is_dex)
+    target = _display_symbol(ticker.get("target"), ticker.get("target_coin_id"), is_dex)
     return {
         "exchange_name": market.get("name") or "Unknown",
         "exchange_icon_url": logo_map.get(identifier, ""),
         "market_pair": f"{base}/{target}",
-        "is_dex": any(keyword in identifier for keyword in _DEX_KEYWORDS),
+        "is_dex": is_dex,
         "price": converted_last.get("usd") or 0.0,
         "volume_24h": converted_volume.get("usd") or 0.0,
         "last_updated_display": _relative_time(ticker.get("last_traded_at") or ticker.get("timestamp")),

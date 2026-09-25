@@ -1175,7 +1175,10 @@ def _business_summary_section() -> rx.Component:
 
 
 def _market_pairs_filter_button(label: str, value: str) -> rx.Component:
-    is_active = CoinState.market_pairs_filter == value
+    # effective_market_pairs_filter (not the raw market_pairs_filter) so the
+    # highlighted tab matches whichever side actually auto-switched to real
+    # data — see CoinState.effective_market_pairs_filter.
+    is_active = CoinState.effective_market_pairs_filter == value
     return rx.box(
         rx.text(label, size="2", weight="medium"),
         on_click=CoinState.set_market_pairs_filter(value),
@@ -1293,6 +1296,23 @@ def _market_pairs_section() -> rx.Component:
     )
 
 
+def _chart_placeholder(icon: rx.Component, title: str, subtitle: str = "") -> rx.Component:
+    # Fills the same chart box the real iframe would (see _chart_column) —
+    # used both for the brief pre-fetch loading state and the permanent
+    # "no real exchange listing" state, so neither one ever shows an empty
+    # black rectangle or TradingView's own broken-looking error card.
+    return rx.vstack(
+        icon,
+        rx.text(title, size="3", weight="medium", color="var(--gray-a11)"),
+        rx.cond(subtitle != "", rx.text(subtitle, size="2", color="var(--gray-a9)")),
+        spacing="2",
+        align="center",
+        justify="center",
+        width="100%",
+        height="100%",
+    )
+
+
 def _chart_column() -> rx.Component:
     coin = CoinState.selected_coin
     return rx.vstack(
@@ -1362,15 +1382,38 @@ def _chart_column() -> rx.Component:
             # preference — rx.color_mode_cond is what's actually reactive to
             # that on the frontend, so it picks between the two here rather
             # than the state var trying to know the theme itself.
-            rx.el.iframe(
-                src=rx.color_mode_cond(
-                    light=CoinState.tradingview_iframe_src_light,
-                    dark=CoinState.tradingview_iframe_src_dark,
+            #
+            # Only actually mounted once CoinState.has_tradingview_chart is
+            # true (a real, exchange-prefixed symbol resolved from this
+            # coin's own market pairs) — never an unprefixed "{SYMBOL}USDT"
+            # guess, which was confirmed live to sometimes resolve to a
+            # completely unrelated coin's listing (see
+            # CoinState._resolve_tradingview_symbol's docstring). Shows a
+            # loading placeholder while that resolution is still pending
+            # (before refresh_market_pairs' one-shot fetch completes) and a
+            # plain "no chart" message once it's confirmed this coin has no
+            # real exchange listing at all (e.g. DEX-only microcaps).
+            rx.cond(
+                CoinState.has_tradingview_chart,
+                rx.el.iframe(
+                    src=rx.color_mode_cond(
+                        light=CoinState.tradingview_iframe_src_light,
+                        dark=CoinState.tradingview_iframe_src_dark,
+                    ),
+                    custom_attrs={"allowtransparency": "true", "frameborder": "0"},
+                    style={"width": "100%", "height": "100%", "border": "none"},
+                    width="100%",
+                    height="100%",
                 ),
-                custom_attrs={"allowtransparency": "true", "frameborder": "0"},
-                style={"width": "100%", "height": "100%", "border": "none"},
-                width="100%",
-                height="100%",
+                rx.cond(
+                    CoinState.tradingview_chart_pending,
+                    _chart_placeholder(rx.spinner(size="3"), "Loading chart…"),
+                    _chart_placeholder(
+                        rx.icon("chart-candlestick", size=28, color="var(--gray-a9)"),
+                        "No live chart available for this coin",
+                        "It has no real listing on a supported exchange yet.",
+                    ),
+                ),
             ),
             width="100%",
             # Constrained instead of letting it stretch edge-to-edge of the

@@ -158,11 +158,25 @@ _TREND_DOWN = [{"v": 1}, {"v": 0}]
 
 
 def _fmt_usd(value: float) -> str:
-    # Always 2 decimals (e.g. $3.11), even above $1 — was rounding to a
+    # Always 2 decimals (e.g. $3.11) for $1+ prices — was rounding to a
     # whole dollar there ("$3"), which lost precision on both the homepage
     # table's Price column and the coin detail page's big price display
     # (both read this same price_display field).
-    return f"${value:,.2f}"
+    #
+    # Sub-$1 prices get up to 8 decimals instead of this same fixed 2 —
+    # confirmed live that a fixed ".2f" was showing "$0.00" for any coin
+    # priced under a cent (e.g. SHIB's real $0.000005887 rounded straight
+    # to zero), which is a real, non-negligible chunk of the coin universe
+    # (most memecoins). Trailing zeros are stripped (but not below 2
+    # decimals) so e.g. $0.05 still shows as "$0.05", not "$0.05000000".
+    sign = "-" if value < 0 else ""
+    value = abs(value)
+    if value == 0 or value >= 1:
+        return f"{sign}${value:,.2f}"
+    formatted = f"{value:.8f}".rstrip("0")
+    if formatted.endswith("."):
+        formatted += "00"
+    return f"{sign}${formatted}"
 
 
 def _fmt_compact_usd(value: float) -> str:
@@ -173,6 +187,37 @@ def _fmt_compact_usd(value: float) -> str:
         if value >= threshold:
             return f"{sign}${value / threshold:,.2f}{suffix}"
     return f"{sign}${value:,.2f}"
+
+
+# Maps market_pairs_service.py's real CEX exchange_name values (see that
+# module's _CEX_ALLOWED_NAMES) to the exchange prefix TradingView's own
+# widgetembed actually recognizes for that venue's crypto symbols (e.g.
+# "MEXC:ZKMLUSDT") — confirmed live that a bare, unprefixed "{SYMBOL}USDT"
+# (TradingView resolving the venue itself) shows "This symbol doesn't
+# exist" for coins whose only real USDT listing is on a smaller-but-still-
+# top-15 exchange (e.g. MEXC/Gate/HTX) rather than Binance, since TradingView
+# doesn't reliably fall back to another venue on its own for a low-cap
+# ticker. Picking the coin's own highest-volume real CEX pair and
+# exchange-prefixing it fixes that instead of guessing.
+_TRADINGVIEW_EXCHANGE_PREFIXES = {
+    "binance": "BINANCE",
+    "binance tr": "BINANCE",
+    "binance alpha": "BINANCE",
+    "coinbase exchange": "COINBASE",
+    "upbit": "UPBIT",
+    "okx": "OKX",
+    "bybit": "BYBIT",
+    "bitget": "BITGET",
+    "gate": "GATEIO",
+    "gate.io": "GATEIO",
+    "kucoin": "KUCOIN",
+    "mexc": "MEXC",
+    "htx": "HTX",
+    "crypto.com exchange": "CRYPTOCOM",
+    "bitfinex": "BITFINEX",
+    "bingx": "BINGX",
+    "kraken": "KRAKEN",
+}
 
 
 def _fmt_pct(value: float) -> str:
@@ -441,6 +486,12 @@ def _build_row(coin: Coin) -> dict:
         # CoinState.refresh_market_pairs rather than by this row build.
         "market_pairs": _format_market_pairs(coin.cached_market_pairs or []),
         "has_market_pairs": bool(coin.cached_market_pairs),
+        # Distinguishes "never fetched yet" (None) from "fetched and this
+        # coin genuinely has zero real listings" — see
+        # CoinState.has_tradingview_chart/tradingview_chart_pending, which
+        # need this to avoid ever guessing an unreliable bare chart symbol
+        # while the real one is still loading.
+        "market_pairs_fetched": coin.market_pairs_updated_at is not None,
         # Cached X posts (see app/services/social_service.py) — already
         # normalized {text, image_url, has_image, url, time_display, likes,
         # replies, retweets} dicts, refreshed on-demand via
@@ -689,6 +740,7 @@ def _fetch_market_pairs(symbol: str) -> tuple[int, list[dict]] | None:
         coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
         pairs = get_market_pairs(old_db, coin)
         cmc_id = coin.cmc_id
+        market_pairs_updated_at = coin.market_pairs_updated_at
     finally:
         old_db.close()
 
@@ -696,6 +748,12 @@ def _fetch_market_pairs(symbol: str) -> tuple[int, list[dict]] | None:
         row = session.exec(select(Coin).where(Coin.cmc_id == cmc_id)).first()
         if row is not None:
             row.cached_market_pairs = pairs
+            # Mirrors Postgres's own market_pairs_updated_at onto this
+            # reflex-sqlite row too — this used to be left unset here,
+            # which permanently stuck CoinState.tradingview_chart_pending
+            # (see "market_pairs_fetched" in _build_row) at True even long
+            # after a real fetch had already completed and been cached.
+            row.market_pairs_updated_at = market_pairs_updated_at
             session.add(row)
             session.commit()
 
@@ -1119,15 +1177,36 @@ class CoinState(rx.State):
         return f"Repace — {name}" if name else "Repace — Coin Detail"
 
     @rx.var(cache=True)
-    def filtered_market_pairs(self) -> list[dict]:
-        """selected_coin's market_pairs, narrowed by market_pairs_filter —
-        purely in-memory (the full top-10-CEX + top-10-DEX list is already
-        fetched), same instant-filter spirit as filtered_coins. Only "cex"/
-        "dex" are valid values (no "all" — see market_pairs_filter), so
-        anything else falls back to the CEX list.
+    def effective_market_pairs_filter(self) -> str:
+        """market_pairs_filter, auto-corrected when the selected tab's side
+        has no real listings but the other side does — e.g. a coin with
+        zero real top-15 CEX listings but real DEX pairs (or vice versa)
+        now auto-shows whichever side actually has data instead of
+        defaulting to an empty CEX table (market_pairs_filter's own
+        hardcoded "cex" default, reset on every load_coins). Falls back to
+        the raw filter once the viewer has explicitly picked a tab that
+        does have rows, or when both/neither side has data.
         """
         pairs = self.selected_coin.get("market_pairs", [])
-        if self.market_pairs_filter == "dex":
+        has_cex = any(not p["is_dex"] for p in pairs)
+        has_dex = any(p["is_dex"] for p in pairs)
+        if self.market_pairs_filter == "cex" and not has_cex and has_dex:
+            return "dex"
+        if self.market_pairs_filter == "dex" and not has_dex and has_cex:
+            return "cex"
+        return self.market_pairs_filter
+
+    @rx.var(cache=True)
+    def filtered_market_pairs(self) -> list[dict]:
+        """selected_coin's market_pairs, narrowed by
+        effective_market_pairs_filter — purely in-memory (the full
+        top-10-CEX + top-10-DEX list is already fetched), same instant-
+        filter spirit as filtered_coins. Only "cex"/"dex" are valid values
+        (no "all" — see market_pairs_filter), so anything else falls back
+        to the CEX list.
+        """
+        pairs = self.selected_coin.get("market_pairs", [])
+        if self.effective_market_pairs_filter == "dex":
             return [p for p in pairs if p["is_dex"]]
         return [p for p in pairs if not p["is_dex"]]
 
@@ -1289,11 +1368,91 @@ class CoinState(rx.State):
         formatted = _format_market_pairs(pairs)
         async with self:
             self.all_coins = [
-                {**row, "market_pairs": formatted, "has_market_pairs": bool(formatted)}
+                {
+                    **row,
+                    "market_pairs": formatted,
+                    "has_market_pairs": bool(formatted),
+                    "market_pairs_fetched": True,
+                }
                 if row["cmc_id"] == cmc_id
                 else row
                 for row in self.all_coins
             ]
+
+    def _resolve_tradingview_symbol(self) -> str | None:
+        """Picks the real, exchange-prefixed TradingView symbol for this
+        coin (e.g. "MEXC:ZKMLUSDT") — never a bare, unprefixed
+        "{SYMBOL}USDT" guess. Confirmed live that a bare guess is
+        unreliable in two different ways: it shows "This symbol doesn't
+        exist" for coins whose only real USDT listing is on a smaller-but-
+        still-top-15 exchange (MEXC, Gate, HTX, ...) rather than Binance/
+        Coinbase, AND — worse — TradingView's own fuzzy auto-resolution for
+        an unprefixed symbol can silently latch onto a completely unrelated
+        coin's listing (confirmed live: a bare "SHIBUSDT" query, requested
+        before this coin's own market pairs had finished their first fetch,
+        resolved to "KUCOIN:SHIBA INUUSDT" — a malformed, nonexistent
+        symbol). Returning None here (see has_tradingview_chart/
+        tradingview_chart_pending below) instead of guessing keeps the
+        chart from ever advertising a symbol that isn't actually real.
+
+        Sources from the coin's own already-fetched real CEX market pairs
+        (see market_pairs_service.py / CoinState.refresh_market_pairs),
+        filtered to exchanges TradingView actually recognizes a prefix for
+        (_TRADINGVIEW_EXCHANGE_PREFIXES) and ranked by that pair's own real
+        24h volume — the same highest-confidence real listing already shown
+        in this page's own Markets section.
+
+        The base ticker always comes from `self.symbol` (this coin's own
+        real ticker), NOT the pair's own "market_pair" base — confirmed
+        live that CoinGecko's raw per-ticker base field is sometimes the
+        coin's full display name instead of its ticker (Shiba Inu's own
+        KuCoin listing reported base "SHIBA INU", not "SHIB"), which built
+        a symbol ("KUCOIN:SHIBA INUUSDT") that isn't real. Every pair here
+        is already known to be this same coin's own listing (that's what
+        "this coin's market pairs" means), so the base is never actually in
+        question — only the quote side varies, and that's still validated
+        against a plain ticker pattern (letters/digits only) before use.
+
+        This reads `self.selected_coin` (and therefore `self.all_coins`)
+        rather than only `self.symbol` — safe now that the iframe itself is
+        a real typed rx.el.iframe(src=...) (see _chart_column), not the
+        dangerouslySetInnerHTML string that used to force a full reload on
+        every recompute. Market pairs only change on their own hourly TTL
+        (not on detail_sync_loop's 60s price-only resync), so this resolves
+        to the same string between syncs and the iframe still won't reload.
+        """
+        base = re.sub(r"[^A-Z0-9]", "", (self.symbol or "").strip().upper())
+        if not base:
+            return None
+        pairs = self.selected_coin.get("market_pairs", []) if self.selected_coin else []
+        candidates = [
+            p for p in pairs
+            if not p.get("is_dex") and _TRADINGVIEW_EXCHANGE_PREFIXES.get(p.get("exchange_name", "").strip().lower())
+        ]
+        candidates.sort(key=lambda p: p.get("volume_24h", 0), reverse=True)
+        for pair in candidates:
+            prefix = _TRADINGVIEW_EXCHANGE_PREFIXES[pair["exchange_name"].strip().lower()]
+            _, _, quote = pair.get("market_pair", "").partition("/")
+            quote = quote.strip().upper()
+            if re.fullmatch(r"[A-Z0-9]{2,10}", quote):
+                return f"{prefix}:{base}{quote}"
+        return None
+
+    @rx.var(cache=True)
+    def has_tradingview_chart(self) -> bool:
+        return self._resolve_tradingview_symbol() is not None
+
+    @rx.var(cache=True)
+    def tradingview_chart_pending(self) -> bool:
+        """True while this coin's real chart symbol isn't resolved yet AND
+        we haven't confirmed (via a completed market-pairs fetch — see
+        "market_pairs_fetched" in _build_row/refresh_market_pairs) that it
+        genuinely has none. Drives _chart_column's loading state instead of
+        either an unreliable bare-symbol guess or a premature "no chart"
+        message on the very first render, before refresh_market_pairs'
+        one-shot background fetch (see frontend.py's on_load) completes.
+        """
+        return not self.has_tradingview_chart and not self.selected_coin.get("market_pairs_fetched", False)
 
     def _tradingview_iframe_src(self, theme: str) -> str:
         """Public, no-API-key TradingView "widgetembed" iframe URL. CMC's
@@ -1302,18 +1461,14 @@ class CoinState(rx.State):
         real, live-updating candlestick chart without a paid CMC plan or a
         custom price-history pipeline.
 
-        No hardcoded exchange prefix (previously "BINANCE:{symbol}USDT") —
-        confirmed live that this was cutting price history short for coins
-        Binance listed later than other venues (e.g. /coin/tao only showed
-        roughly half its real listing history on BINANCE:TAOUSDT). A bare
-        "{symbol}USDT" lets TradingView's own symbol search resolve to
-        whichever venue it considers primary, which is often — but not
-        guaranteed to be — the one with the longest history; there's no
-        free API that exposes "earliest listing across every CEX/DEX" to
-        pick deterministically. allow_symbol_change=1 is the honest
-        fallback: it keeps TradingView's own exchange switcher available
-        so a viewer can manually pick a different venue if this default
-        still doesn't have full history.
+        Symbol comes from _resolve_tradingview_symbol (see its own
+        docstring) — a real exchange-prefixed pair, or None. Returns ""
+        (empty src) when None — _chart_column only mounts this iframe when
+        CoinState.has_tradingview_chart is true, so an empty src here is
+        just a defensive no-op, never actually rendered.
+        allow_symbol_change=1 keeps TradingView's own exchange switcher
+        available so a viewer can manually pick a different venue if this
+        default still doesn't have full history.
 
         Split into light/dark variants (see tradingview_iframe_src_light/
         _dark below) rather than one var, since the app's color mode is a
@@ -1321,30 +1476,17 @@ class CoinState(rx.State):
         see — the component picks between the two via rx.color_mode_cond,
         which is a real frontend-reactive Var, not a server computation.
 
-        Symbol is read from `self.symbol` (the raw /coin/[symbol] route
-        param), NOT `self.selected_coin.get("symbol")` — this used to read
-        off selected_coin, a cache=True var that depends on self.all_coins.
-        detail_sync_loop below reassigns self.all_coins every 60s (a fresh
-        list of dicts, even when the price barely moved), which invalidated
-        selected_coin's cache, which in turn invalidated this var, which
-        re-sent the (identical-content) iframe src to the frontend — and
-        because this whole thing is rendered via rx.html's raw HTML string
-        (not a proper rx.el.iframe(src=...) element), the browser re-parsed
-        the whole <iframe> tag and actually reloaded it, discarding
-        TradingView's own in-widget state (whatever interval the viewer had
-        manually switched to) back to the hardcoded default below. Confirmed
-        this was the "chart keeps reloading / timeframe snaps back to
-        whatever's hardcoded" bug. self.symbol only changes when actually
-        navigating to a different coin's page, so keying off it instead
-        stops the iframe from re-rendering on every background price sync.
-
-        interval="60" (1 hour) + range="ALL" so the chart opens already
-        zoomed out to a coin's entire listing history (range="ALL") but at
-        1-hour candle granularity (interval="60") rather than weekly candles
-        — per explicit request. withdateranges=1 still shows the 1h/4h/24h/
-        1W/1M row so a viewer can pick a different interval afterward, and
-        since the src no longer regenerates on its own, that manual pick now
-        actually sticks instead of being reset on the next background sync.
+        interval="60" (1 hour) is the default candle granularity, per
+        explicit request. No "range" param — confirmed live that TradingView
+        silently overrides an explicit interval to a much coarser one ("M")
+        whenever range="ALL" is also set, which was the real cause of the
+        chart looking "locked" to a weekly/monthly view regardless of this
+        interval value. Without it, the widget honors interval="60" and
+        opens on real 1h candles. withdateranges=1 still shows the 1h/4h/
+        24h/1W/1M row so a viewer can pick a different interval afterward,
+        and since the src no longer regenerates on its own, that manual pick
+        now actually sticks instead of being reset on the next background
+        sync.
 
         backgroundColor/gridColor force a solid plot pane with no visible
         grid lines (grid color matches the background exactly, so lines
@@ -1358,12 +1500,13 @@ class CoinState(rx.State):
         mode, white in light mode) rather than a fixed black regardless of
         theme — matches the rest of the page's own light/dark switching.
         """
-        symbol = (self.symbol or "BTC").strip().upper()
+        symbol = self._resolve_tradingview_symbol()
+        if symbol is None:
+            return ""
         pane_color = "#000000" if theme == "dark" else "#ffffff"
         params = {
-            "symbol": f"{symbol}USDT",
+            "symbol": symbol,
             "interval": "60",
-            "range": "ALL",
             "theme": theme,
             "style": "1",
             "locale": "en",
