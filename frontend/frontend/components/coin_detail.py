@@ -1310,7 +1310,7 @@ def _chart_column() -> rx.Component:
                     variant="surface",
                     radius="full",
                     size="2",
-                    style={"border": "1px solid royalblue", "color": "white"},
+                    style={"border": "1px solid royalblue", "color": "white", "background": "royalblue"},
                 ),
             ),
             justify="between",
