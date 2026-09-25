@@ -423,6 +423,16 @@ def _build_row(coin: Coin) -> dict:
         # {provider, provider_display, model_display} for the attribution
         # badge (see coin_detail.py's _business_summary_section).
         "business_summary_model_badge": _format_model_badge(coin.business_summary_model or ""),
+        # Short AI-generated business-model classification (see
+        # business_summary_service.py's CATEGORY: line) shown as a glowing
+        # badge next to the live-chart heading (see coin_detail.py).
+        "business_model_category": coin.business_model_category or "",
+        "has_business_model_category": bool(coin.business_model_category),
+        # Cached CEX/DEX market pairs (see
+        # app/services/market_pairs_service.py), refreshed on-demand via
+        # CoinState.refresh_market_pairs rather than by this row build.
+        "market_pairs": _format_market_pairs(coin.cached_market_pairs or []),
+        "has_market_pairs": bool(coin.cached_market_pairs),
         # Cached X posts (see app/services/social_service.py) — already
         # normalized {text, image_url, has_image, url, time_display, likes,
         # replies, retweets} dicts, refreshed on-demand via
@@ -610,7 +620,70 @@ def _fetch_better_description(symbol: str) -> tuple[int, str] | None:
     return cmc_id, fresh
 
 
-def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None] | None:
+def _format_market_pairs(pairs: list[dict]) -> list[dict]:
+    """Adds display-formatted fields to market_pairs_service.py's raw
+    {exchange_name, exchange_icon_url, market_pair, is_dex, price,
+    volume_24h, volume_pct, last_updated_display} dicts — same division of
+    labor as everywhere else in this file: Postgres/the service layer keeps
+    raw numbers, formatting for display happens here.
+    """
+    return [
+        {
+            **p,
+            "price_display": _fmt_usd(p["price"]),
+            "volume_display": _fmt_compact_usd(p["volume_24h"]),
+            "volume_pct_display": f"{p['volume_pct']:.2f}%",
+            "market_type_label": "DEX" if p["is_dex"] else "CEX",
+            "market_type_color": "purple" if p["is_dex"] else "blue",
+        }
+        for p in pairs
+    ]
+
+
+def _fetch_market_pairs(symbol: str) -> tuple[int, list[dict]] | None:
+    """Blocking work for the on-demand Markets-section refresh (see
+    CoinState.refresh_market_pairs) — same lookup-by-ticker-in-Postgres
+    pattern as _fetch_social_posts/_fetch_business_summary above, delegating
+    to market_pairs_service's own TTL gate (settings.
+    market_pairs_cache_ttl_hours), so most calls here just replay the
+    already-cached pairs rather than re-hitting CoinGecko. Returns None if no
+    coin matches this ticker.
+    """
+    import sys
+    from pathlib import Path
+
+    from sqlalchemy import select as sa_select
+
+    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+    from app.models.coin import Coin as OldCoin
+    from app.services.market_pairs_service import get_market_pairs
+
+    old_db = OldSessionLocal()
+    try:
+        matches = old_db.scalars(sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol))).all()
+        if not matches:
+            return None
+        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
+        pairs = get_market_pairs(old_db, coin)
+        cmc_id = coin.cmc_id
+    finally:
+        old_db.close()
+
+    with rx.session() as session:
+        row = session.exec(select(Coin).where(Coin.cmc_id == cmc_id)).first()
+        if row is not None:
+            row.cached_market_pairs = pairs
+            session.add(row)
+            session.commit()
+
+    return cmc_id, pairs
+
+
+def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None, str] | None:
     """Blocking work for the on-demand business-summary refresh (see
     CoinState.refresh_business_summary) — same lookup-by-ticker-in-Postgres
     pattern as _fetch_social_posts/_fetch_better_description above,
@@ -646,6 +719,7 @@ def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None] | None:
             return None
         cmc_id = coin.cmc_id
         model = coin.business_summary_model
+        category = coin.business_model_category or ""
     finally:
         old_db.close()
 
@@ -654,10 +728,11 @@ def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None] | None:
         if row is not None:
             row.business_summary = summary
             row.business_summary_model = model
+            row.business_model_category = category
             session.add(row)
             session.commit()
 
-    return cmc_id, summary, model
+    return cmc_id, summary, model, category
 
 
 class CoinState(rx.State):
@@ -715,14 +790,25 @@ class CoinState(rx.State):
     # previous coin's expanded state.
     about_expanded: bool = False
 
+    # Drives the Markets section's All/CEX/DEX filter tabs (see
+    # coin_detail.py's _market_pairs_section) — purely a client-side filter
+    # over the already-fetched top-10-CEX + top-10-DEX list, no new fetch.
+    # Reset in load_coins for the same reason about_expanded is.
+    market_pairs_filter: str = "all"
+
     @rx.event
     def toggle_about_expanded(self):
         self.about_expanded = not self.about_expanded
 
     @rx.event
+    def set_market_pairs_filter(self, value: str):
+        self.market_pairs_filter = value
+
+    @rx.event
     def load_coins(self):
         self.is_loading = True
         self.about_expanded = False
+        self.market_pairs_filter = "all"
         with rx.session() as session:
             coins = session.exec(
                 select(Coin)
@@ -1000,6 +1086,19 @@ class CoinState(rx.State):
     def selected_coin_found(self) -> bool:
         return bool(self.selected_coin)
 
+    @rx.var(cache=True)
+    def filtered_market_pairs(self) -> list[dict]:
+        """selected_coin's market_pairs, narrowed by market_pairs_filter —
+        purely in-memory (the full top-10-CEX + top-10-DEX list is already
+        fetched), same instant-filter spirit as filtered_coins.
+        """
+        pairs = self.selected_coin.get("market_pairs", [])
+        if self.market_pairs_filter == "cex":
+            return [p for p in pairs if not p["is_dex"]]
+        if self.market_pairs_filter == "dex":
+            return [p for p in pairs if p["is_dex"]]
+        return pairs
+
     @rx.event(background=True)
     async def detail_sync_loop(self):
         """Keeps just the single coin shown on this /coin/[symbol] page
@@ -1108,7 +1207,7 @@ class CoinState(rx.State):
         result = await asyncio.to_thread(_fetch_business_summary, symbol)
         if result is None:
             return
-        cmc_id, summary, model = result
+        cmc_id, summary, model, category = result
         async with self:
             self.all_coins = [
                 {
@@ -1117,7 +1216,33 @@ class CoinState(rx.State):
                     "has_business_summary": True,
                     "business_summary_sections": _parse_business_summary_sections(summary),
                     "business_summary_model_badge": _format_model_badge(model or ""),
+                    "business_model_category": category,
+                    "has_business_model_category": bool(category),
                 }
+                if row["cmc_id"] == cmc_id
+                else row
+                for row in self.all_coins
+            ]
+
+    @rx.event(background=True)
+    async def refresh_market_pairs(self):
+        """One-shot, on-demand refresh of this coin's Markets section — fired
+        once per page view (see frontend.py's /coin/[symbol] on_load), same
+        pattern as refresh_business_summary above. Usually a fast no-op:
+        market_pairs_service only re-hits CoinGecko once per settings.
+        market_pairs_cache_ttl_hours (1h default).
+        """
+        symbol = self.symbol.strip()
+        if not symbol:
+            return
+        result = await asyncio.to_thread(_fetch_market_pairs, symbol)
+        if result is None:
+            return
+        cmc_id, pairs = result
+        formatted = _format_market_pairs(pairs)
+        async with self:
+            self.all_coins = [
+                {**row, "market_pairs": formatted, "has_market_pairs": bool(formatted)}
                 if row["cmc_id"] == cmc_id
                 else row
                 for row in self.all_coins
