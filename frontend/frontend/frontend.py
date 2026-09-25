@@ -174,7 +174,10 @@ app = rx.App(stylesheets=["/styles.css"])
 app.add_page(
     coin_detail,
     route="/coin/[symbol]",
-    title="Repace — Coin Detail",
+    # Dynamic — the coin's real name, not its ticker (e.g. "Repace —
+    # Fartcoin"), per explicit request. See CoinState.page_title; falls back
+    # to a generic title before all_coins has loaded.
+    title=CoinState.page_title,
     on_load=[
         CoinState.load_coins,
         CoinState.detail_sync_loop,

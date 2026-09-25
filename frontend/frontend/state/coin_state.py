@@ -583,11 +583,18 @@ def _fetch_social_posts(symbol: str) -> tuple[int, list[dict]] | None:
 def _fetch_better_description(symbol: str) -> tuple[int, str] | None:
     """Blocking work for the on-demand description upgrade (see CoinState.
     refresh_coin_description) — same lookup-by-ticker-in-Postgres pattern as
-    _fetch_social_posts above, delegating to coingecko_service's own
-    one-time-per-coin gate (app/services/coingecko_service.py::upgrade_description),
-    so most calls here are a no-op (already attempted, or was never
-    boilerplate to begin with). Returns None if no coin matches this ticker
-    or nothing changed.
+    _fetch_social_posts above. Two independent, one-time-per-coin steps, each
+    gated by its own service (so most calls here are a no-op — already
+    attempted, or was never boilerplate to begin with):
+    1. coingecko_service.upgrade_description — CoinGecko's own real project
+       write-up, resolved via contract address.
+    2. If STILL boilerplate after that (typical for memecoins/newly-listed
+       tokens with no whitepaper or curated listing anywhere),
+       description_ai_service.generate_description_from_sources — an
+       AI-generated summary grounded in the coin's own website text and/or
+       cached X posts, the only two public sources such a coin actually has.
+    Returns None if no coin matches this ticker or neither step changed
+    anything.
     """
     import sys
     from pathlib import Path
@@ -602,6 +609,7 @@ def _fetch_better_description(symbol: str) -> tuple[int, str] | None:
     from app.core.database import SessionLocal as OldSessionLocal
     from app.models.coin import Coin as OldCoin
     from app.services.coingecko_service import upgrade_description
+    from app.services.description_ai_service import generate_description_from_sources
 
     old_db = OldSessionLocal()
     try:
@@ -611,9 +619,12 @@ def _fetch_better_description(symbol: str) -> tuple[int, str] | None:
         if not matches:
             return None
         coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
-        fresh = upgrade_description(old_db, coin)
-        if fresh is None:
+        original = coin.description
+        upgrade_description(old_db, coin)
+        generate_description_from_sources(old_db, coin)
+        if coin.description == original:
             return None
+        fresh = coin.description
         cmc_id = coin.cmc_id
     finally:
         old_db.close()
@@ -1097,6 +1108,17 @@ class CoinState(rx.State):
         return bool(self.selected_coin)
 
     @rx.var(cache=True)
+    def page_title(self) -> str:
+        """Drives the browser tab / meta title for /coin/[symbol] (see
+        frontend.py's app.add_page) — the coin's real name (e.g. "Repace —
+        Fartcoin"), not its ticker, per explicit request. Falls back to the
+        old static title before all_coins has loaded (selected_coin is {}
+        for the first render, since load_coins hasn't populated it yet).
+        """
+        name = self.selected_coin.get("name")
+        return f"Repace — {name}" if name else "Repace — Coin Detail"
+
+    @rx.var(cache=True)
     def filtered_market_pairs(self) -> list[dict]:
         """selected_coin's market_pairs, narrowed by market_pairs_filter —
         purely in-memory (the full top-10-CEX + top-10-DEX list is already
@@ -1179,8 +1201,16 @@ class CoinState(rx.State):
         """One-shot, on-demand upgrade of this coin's About-section text —
         fired once per page view (see frontend.py's /coin/[symbol] on_load),
         same pattern as refresh_social_posts above. Almost always a fast
-        no-op: coingecko_service.upgrade_description only ever does real
-        work once per coin, ever (see Coin.description_synced_at).
+        no-op: both of _fetch_better_description's steps
+        (coingecko_service.upgrade_description, description_ai_service.
+        generate_description_from_sources) only ever do real work once per
+        coin, ever. Runs concurrently with refresh_social_posts (both are
+        separate background on_load events), so on a coin's very first-ever
+        view the AI-inference step may run before that coin's X posts have
+        finished scraping and fall back to website text alone — acceptable
+        since it's still a real improvement over boilerplate, and every
+        later visitor benefits from whichever description that attempt
+        produced.
         """
         symbol = self.symbol.strip()
         if not symbol:
