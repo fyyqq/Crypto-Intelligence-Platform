@@ -1510,6 +1510,12 @@ class CoinState(rx.State):
             "theme": theme,
             "style": "1",
             "locale": "en",
+            # Kuala Lumpur time (UTC+8) instead of the widget's own UTC
+            # default, per explicit request — Singapore ("Asia/Singapore")
+            # is the same UTC+8 offset and would be an equally valid
+            # fallback if TradingView ever drops "Asia/Kuala_Lumpur" from
+            # its supported IANA timezone list.
+            "timezone": "Asia/Kuala_Lumpur",
             "toolbarbg": "131722" if theme == "dark" else "f1f3f6",
             "backgroundColor": pane_color,
             "gridColor": pane_color,
