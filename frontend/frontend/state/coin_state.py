@@ -982,10 +982,37 @@ class CoinState(rx.State):
 
     @rx.event
     def load_coins(self):
-        self.is_loading = True
+        # Per-page-visit resets always run, regardless of the guard below —
+        # these are cheap and must never carry over between two different
+        # coins' pages (e.g. an expanded About section, or a DEX tab
+        # selection) regardless of whether the full universe gets re-fetched
+        # this time.
         self.about_expanded = False
         self.market_pairs_filter = "cex"
         self.market_pairs_page = 1
+
+        if self.all_coins:
+            # Confirmed live this was the main cause of "every click/page-
+            # switch feels slow": this on_load fires on EVERY single
+            # navigation (homepage <-> any /coin/[symbol] page, and between
+            # different coins), and re-querying + rebuilding all ~8,000
+            # coins from scratch (eager-loading categories AND contracts for
+            # every one) took ~2 full seconds of *blocking* server time on
+            # its own, every single time — before the page could even start
+            # rendering. The full universe barely changes within one
+            # session (new listings are caught by the next full page
+            # visit's on_load anyway, once all_coins has been cleared by a
+            # fresh browser session), and individual coins' prices already
+            # stay fresh via live_sync_loop/detail_sync_loop — so once
+            # loaded, there's nothing this full rebuild would catch that
+            # those don't already handle. Skipping the redundant work here
+            # is the actual fix; switching from client-side routing to full
+            # browser reloads would NOT have helped, since the exact same
+            # expensive on_load would still re-run on every fresh page load
+            # either way — confirmed by timing the query+build directly.
+            return
+
+        self.is_loading = True
         with rx.session() as session:
             coins = session.exec(
                 select(Coin)
