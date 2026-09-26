@@ -85,6 +85,7 @@ def filter_bar() -> rx.Component:
             spacing="2",
             width="100%",
             align_items="start",
+            id="narrative-filters",
         ),
         rx.vstack(
             rx.text("Filter by chain", size="2", color_scheme="gray"),
@@ -92,6 +93,7 @@ def filter_bar() -> rx.Component:
             spacing="2",
             width="100%",
             align_items="start",
+            id="chain-filters",
         ),
         spacing="4",
         width="100%",

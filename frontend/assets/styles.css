@@ -684,6 +684,119 @@
   color: var(--accent-9);
 }
 
+/* Header-level global search (frontend.py::_header_bar,
+   components/global_search.py) — a compact always-visible bar left of the
+   dark-mode toggle, transparent background per explicit design request
+   (unlike .coin-search-input's Radix "surface" fill), with a CMC-style
+   autocomplete dropdown anchored under it. */
+.global-search-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.4em 0.7em;
+  border: 1px solid var(--gray-a6);
+  border-radius: 9999px;
+  background: transparent;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.global-search-container:focus-within {
+  border-color: var(--accent-8);
+  background: var(--gray-a2);
+}
+
+.global-search-icon {
+  color: var(--gray-9);
+  flex-shrink: 0;
+}
+
+.global-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--gray-12);
+  font-size: 0.85em;
+  font-family: inherit;
+}
+
+.global-search-input::placeholder {
+  color: var(--gray-9);
+}
+
+.global-search-kbd {
+  flex-shrink: 0;
+  padding: 0.1em 0.5em;
+  border: 1px solid var(--gray-a6);
+  border-radius: 4px;
+  color: var(--gray-9);
+  font-family: monospace;
+  line-height: 1.5;
+}
+
+.global-search-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  max-height: 420px;
+  overflow-y: auto;
+  background: var(--gray-2);
+  border: 1px solid var(--gray-a5);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  padding: 0.4em 0;
+  z-index: 20;
+}
+
+.global-search-result-row {
+  padding: 0.5em 0.9em;
+  cursor: pointer;
+}
+
+.global-search-result-row:hover {
+  background: var(--gray-a3);
+}
+
+.global-search-show-more {
+  padding: 0.5em 0.9em;
+  color: var(--accent-9);
+  cursor: pointer;
+  text-align: center;
+}
+
+.global-search-show-more:hover {
+  text-decoration: underline;
+}
+
+.global-search-empty {
+  padding: 0.6em 0.9em;
+}
+
+.global-search-articles-section {
+  margin-top: 0.3em;
+  padding-top: 0.4em;
+  border-top: 1px solid var(--gray-a5);
+}
+
+.global-search-section-label {
+  padding: 0.2em 0.9em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Header center nav links (frontend.py::_nav_links) */
+.header-nav-link {
+  opacity: 0.85;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.header-nav-link:hover {
+  opacity: 1;
+  color: var(--accent-9) !important;
+}
+
 /* Coin detail page's info/sentiment side columns: still scrollable
    (overflow-y stays auto/scroll on the element), just without the visible
    scrollbar chrome — same technique as the narrative/chain/alerts/news

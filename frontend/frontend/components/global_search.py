@@ -1,0 +1,123 @@
+"""Header-level global search — sits left of the dark-mode toggle in
+_header_bar (see frontend.py). Separate from coin_table.py's own
+_coin_search (which re-filters the homepage table in place): this one is a
+CMC-style autocomplete popover, works from any page, and searches coins by
+name/ticker today with an "Articles" (news) section reserved for once that
+feature exists.
+"""
+
+import reflex as rx
+
+from frontend.state import CoinState
+
+
+def _global_search_result_row(row: rx.Var[dict]) -> rx.Component:
+    return rx.hstack(
+        rx.image(src=row["icon_url"], width="22px", height="22px", border_radius="50%"),
+        rx.text(row["name"], size="2", weight="bold"),
+        rx.text(row["symbol"], size="2", color_scheme="gray"),
+        rx.spacer(),
+        rx.text(row["change_24h_display"], size="2", color=row["change_24h_color"]),
+        spacing="2",
+        align="center",
+        width="100%",
+        on_click=CoinState.go_to_coin_from_search(row["symbol"]),
+        class_name="global-search-result-row",
+    )
+
+
+def _global_search_empty_state() -> rx.Component:
+    return rx.text(
+        "No coins found for \"", CoinState.global_search_query, "\"",
+        size="2",
+        color_scheme="gray",
+        class_name="global-search-empty",
+    )
+
+
+def _global_search_show_more() -> rx.Component:
+    return rx.cond(
+        CoinState.global_search_has_more,
+        rx.text(
+            "Show more",
+            size="2",
+            weight="medium",
+            on_click=CoinState.expand_global_search_results,
+            class_name="global-search-show-more",
+        ),
+        rx.fragment(),
+    )
+
+
+def _global_search_coin_section() -> rx.Component:
+    return rx.cond(
+        CoinState.global_search_has_matches,
+        rx.fragment(
+            rx.foreach(CoinState.global_search_results, _global_search_result_row),
+            _global_search_show_more(),
+        ),
+        _global_search_empty_state(),
+    )
+
+
+def _global_search_articles_section() -> rx.Component:
+    # No news backend exists yet (see CLAUDE.md's Feature 2 notes) — this
+    # section renders the real "Articles" heading now so the dropdown's
+    # structure is already in place, with an honest empty state instead of
+    # fabricated results, matching this codebase's placeholder-link
+    # convention in filters.py's "More Narrative"/"More Chain" pills.
+    return rx.box(
+        rx.text("Articles", size="1", weight="bold", color_scheme="gray", class_name="global-search-section-label"),
+        rx.text("News search isn't available yet", size="1", color_scheme="gray", class_name="global-search-empty"),
+        class_name="global-search-articles-section",
+    )
+
+
+def _global_search_dropdown() -> rx.Component:
+    return rx.box(
+        _global_search_coin_section(),
+        _global_search_articles_section(),
+        class_name="global-search-dropdown",
+    )
+
+
+def global_search() -> rx.Component:
+    return rx.box(
+        rx.icon("search", size=14, class_name="global-search-icon"),
+        rx.debounce_input(
+            # A raw rx.el.input, not the Radix-themed rx.input — Radix's own
+            # rt-TextFieldRoot background/border rules live inside a CSS
+            # @layer that outranks a plain class override (see
+            # coin_table.py::_coin_search's own note on this), which would
+            # fight the transparent background this search bar needs. A raw
+            # element has no such layer to fight.
+            rx.el.input(
+                value=CoinState.global_search_query,
+                on_change=CoinState.set_global_search_query,
+                placeholder="Search",
+                id="global-search-input-field",
+                class_name="global-search-input",
+                auto_complete="off",
+                spell_check=False,
+            ),
+            debounce_timeout=250,
+        ),
+        rx.cond(
+            CoinState.global_search_query == "",
+            rx.text("/", size="1", class_name="global-search-kbd"),
+            rx.fragment(),
+        ),
+        rx.cond(
+            CoinState.global_search_query != "",
+            _global_search_dropdown(),
+            rx.fragment(),
+        ),
+        # Hidden — clicked from JS (assets/chain_pills.js) on a real click
+        # outside .global-search-container, closing the dropdown without
+        # the on_blur race described on CoinState.reset_global_search.
+        rx.box(id="global-search-close-trigger", on_click=CoinState.reset_global_search, display="none"),
+        class_name="global-search-container",
+        display=["none", "none", "flex", "flex", "flex"],
+        width=["0", "0", "170px", "210px", "240px"],
+        position="relative",
+    )

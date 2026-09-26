@@ -2,7 +2,15 @@
 
 import reflex as rx
 
-from frontend.components import coin_detail_page, coin_table, filter_bar, footer, narrative_alerts, news_feed
+from frontend.components import (
+    coin_detail_page,
+    coin_table,
+    filter_bar,
+    footer,
+    global_search,
+    narrative_alerts,
+    news_feed,
+)
 from frontend.state import CoinState
 
 
@@ -50,6 +58,43 @@ def _profile_pill() -> rx.Component:
     )
 
 
+# (label, href) — News/Narrative/Chains jump to the real section that
+# already exists on the homepage (see the matching `id=` on news_feed()'s
+# wrapper in index() and on filter_bar()'s two vstacks in filters.py); a
+# plain "/#id" href works as native browser anchor navigation from any
+# page, no JS required. Tools has no destination yet, so it's an inert
+# placeholder — same convention filters.py already uses for its own
+# "More Narrative"/"More Chain" pills ("No feature wired up yet").
+_NAV_LINKS = [
+    ("News", "/#news-feed-section"),
+    ("Narrative", "/#narrative-filters"),
+    ("Chains", "/#chain-filters"),
+    ("Tools", "#tools"),
+]
+
+
+def _nav_links() -> rx.Component:
+    return rx.hstack(
+        *[
+            rx.link(
+                rx.text(label, size="2", weight="medium"),
+                href=href,
+                underline="none",
+                color=rx.color_mode_cond(light="black", dark="white"),
+                class_name="header-nav-link",
+            )
+            for label, href in _NAV_LINKS
+        ],
+        spacing="5",
+        align="center",
+        justify="center",
+        # Hidden below the "lg" breakpoint (992px) — no room for a centered
+        # nav section next to the logo and the header's own search/toggle/
+        # profile controls at tablet/phone widths.
+        display=["none", "none", "none", "flex", "flex"],
+    )
+
+
 def _header_bar() -> rx.Component:
     # A proper full-bleed nav bar (bottom border + shadow separating it from
     # the scrollable content below) instead of the header just being the
@@ -57,7 +102,7 @@ def _header_bar() -> rx.Component:
     # icon/profile pill are all sized down to fit a nav bar's compact scale
     # rather than the oversized hero-like proportions this had before.
     return rx.box(
-        rx.hstack(
+        rx.box(
             rx.link(
                 rx.hstack(
                     rx.color_mode_cond(
@@ -76,15 +121,25 @@ def _header_bar() -> rx.Component:
                 href="/",
                 underline="none",
             ),
+            _nav_links(),
             rx.hstack(
+                global_search(),
                 rx.color_mode.button(size="2"),
                 _profile_pill(),
                 spacing="3",
                 align="center",
+                justify="end",
             ),
-            justify="between",
-            align="center",
+            # A 3-column grid (not hstack + justify="between") so the nav
+            # links land at the header's true horizontal center regardless
+            # of how wide the logo or the right-side controls are — the two
+            # outer 1fr columns stay equal width, and the center column
+            # (auto) hugs its own content.
+            display="grid",
+            grid_template_columns="1fr auto 1fr",
+            align_items="center",
             width="100%",
+            style={"column-gap": "1em"},
         ),
         width="100%",
         padding=["0.6em 1em", "0.6em 1em", "0.75em 1.5em", "0.85em 2em", "0.85em 2em"],
@@ -98,7 +153,7 @@ def index() -> rx.Component:
     return rx.box(
         _header_bar(),
         rx.vstack(
-            news_feed(),
+            rx.box(news_feed(), id="news-feed-section", width="100%"),
             narrative_alerts(),
             rx.hstack(
                 rx.box(

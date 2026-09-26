@@ -886,6 +886,15 @@ class CoinState(rx.State):
     search_open: bool = False
     search_query: str = ""
 
+    # Header-level global search (separate from the homepage table's own
+    # search_query above — this one lives in _header_bar, works from every
+    # page, and drives a CMC-style autocomplete dropdown instead of
+    # re-filtering a table). global_search_limit caps how many coin matches
+    # render before "Show more" is clicked; reset to the default every time
+    # the query changes so a new search always starts collapsed.
+    global_search_query: str = ""
+    global_search_limit: int = 5
+
     # In-page sort only: reorders the current page's rows, never re-ranks
     # across the full coin list. sort_key is one of the raw numeric fields
     # in each row dict (e.g. "pct_1h_raw"), or "" for the default (market-cap)
@@ -1250,6 +1259,35 @@ class CoinState(rx.State):
     @rx.event
     def go_to_coin(self, symbol: str):
         return rx.redirect(f"/coin/{symbol.lower()}")
+
+    @rx.event
+    def set_global_search_query(self, value: str):
+        self.global_search_query = value
+        self.global_search_limit = 5
+
+    @rx.event
+    def expand_global_search_results(self):
+        self.global_search_limit += 10
+
+    @rx.event
+    def go_to_coin_from_search(self, symbol: str):
+        self.global_search_query = ""
+        self.global_search_limit = 5
+        return rx.redirect(f"/coin/{symbol.lower()}")
+
+    @rx.event
+    def reset_global_search(self):
+        """Fired by a real click outside the header search's own container
+        (see assets/chain_pills.js's global-search-container click-outside
+        listener, which clicks a hidden trigger element bound to this
+        handler). An on_blur-based close was tried first but raced "Show
+        more"/a result click: blur fires before the click's own event
+        finishes dispatching, so a delayed clear on blur alone would wipe
+        the query — and close the dropdown — out from under a click that
+        was never meant to leave it. A real outside click has no such race.
+        """
+        self.global_search_query = ""
+        self.global_search_limit = 5
 
     @rx.event(background=True)
     async def show_copied_toast(self):
@@ -1791,6 +1829,35 @@ class CoinState(rx.State):
     @rx.var(cache=True)
     def total_shown(self) -> int:
         return len(self.filtered_coins)
+
+    @rx.var(cache=True)
+    def global_search_matches(self) -> list[dict]:
+        """Every coin matching the header search box's query, ranked by
+        market cap — the full match list before global_search_limit trims
+        it for display. Independent of the homepage table's own
+        search_query/filtered_coins (different box, different page-wide
+        use), but the same name-or-ticker substring match.
+        """
+        query = self.global_search_query.strip().lower()
+        if not query:
+            return []
+        full_rows = [self._row_with_overrides(r) for r in self.all_coins]
+        matches = [
+            r for r in full_rows if query in r["name"].lower() or query in r["symbol"].lower()
+        ]
+        return sorted(matches, key=lambda r: r["market_cap_usd"], reverse=True)
+
+    @rx.var(cache=True)
+    def global_search_results(self) -> list[dict]:
+        return self.global_search_matches[: self.global_search_limit]
+
+    @rx.var(cache=True)
+    def global_search_has_more(self) -> bool:
+        return len(self.global_search_matches) > len(self.global_search_results)
+
+    @rx.var(cache=True)
+    def global_search_has_matches(self) -> bool:
+        return len(self.global_search_matches) > 0
 
     @rx.var(cache=True)
     def total_pages(self) -> int:

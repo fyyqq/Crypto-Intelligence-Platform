@@ -198,3 +198,42 @@
   });
 })();
 
+// "/" focuses the header's global search field (components/global_search.py)
+// — the field itself shows a "/" badge advertising this, same shortcut
+// convention as GitHub/Linear/etc. Ignored while already typing in any
+// input/textarea/contenteditable so it doesn't hijack a "/" the user meant
+// to type as a character.
+(function () {
+  if (window.__globalSearchShortcutInit) return;
+  window.__globalSearchShortcutInit = true;
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+    const active = document.activeElement;
+    const isTyping =
+      active &&
+      (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
+    if (isTyping) return;
+    const input = document.getElementById("global-search-input-field");
+    if (!input) return;
+    e.preventDefault();
+    input.focus();
+  });
+})();
+
+// Closes the header search's autocomplete dropdown on a real click outside
+// it. Skips the DOM query on every click when the dropdown isn't even open
+// (the common case) — only reaches for .global-search-close-trigger once a
+// dropdown element is actually present.
+(function () {
+  if (window.__globalSearchOutsideClickInit) return;
+  window.__globalSearchOutsideClickInit = true;
+
+  document.addEventListener("click", function (e) {
+    if (!document.querySelector(".global-search-dropdown")) return;
+    if (e.target.closest(".global-search-container")) return;
+    const trigger = document.getElementById("global-search-close-trigger");
+    if (trigger) trigger.click();
+  });
+})();
+
