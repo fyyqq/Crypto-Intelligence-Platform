@@ -130,17 +130,18 @@ class Coin(Base):
     tradingview_dex_symbol: Mapped[str | None] = mapped_column(String(120), nullable=True)
     tradingview_dex_symbol_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    # On-demand X (Twitter) post cache (see app/services/social_service.py)
-    # — x_username is parsed from twitter_url above the first time a coin's
-    # detail page is viewed; cached_tweets holds up to 10 already-normalized
-    # {text, image_url, has_image, url, time_display, likes, replies,
-    # retweets} dicts from the last successful scraper call.
-    # last_social_update gates re-scraping to once per
-    # settings.social_cache_ttl_hours, protecting scraper API credits the
-    # same way the CMC sync cadences protect CMC's. Plain JSON (not
-    # Postgres's JSONB) since nothing here ever queries *inside* the array —
-    # it's only ever read/written whole — and a plain JSON type mirrors
-    # cleanly to the Reflex SQLite cache, which has no JSONB equivalent.
+    # Dormant X (Twitter) post cache — the on-demand scraping backend that
+    # used to populate these (Apify-based, app/services/social_service.py)
+    # was removed per explicit request (every third-party X-scraping option
+    # tried had real cost/ToS problems: paid per-event pricing with no
+    # $0 option, or requiring a real personal account's login credentials
+    # on the server). Columns kept rather than dropped — no migration risk,
+    # and cheap to repopulate if a scraping backend is added back later.
+    # cached_tweets would hold up to N already-normalized {text, image_url,
+    # has_image, url, time_display, likes, replies, retweets} dicts; plain
+    # JSON (not Postgres's JSONB) since nothing here ever queried *inside*
+    # the array, and a plain JSON type mirrors cleanly to the Reflex SQLite
+    # cache, which has no JSONB equivalent.
     x_username: Mapped[str | None] = mapped_column(String(50), nullable=True)
     cached_tweets: Mapped[list | None] = mapped_column(JSON, nullable=True)
     last_social_update: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

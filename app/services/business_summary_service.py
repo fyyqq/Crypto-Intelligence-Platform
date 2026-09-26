@@ -161,8 +161,8 @@ def get_business_summary(db: Session, coin: Coin) -> str | None:
     """Returns this coin's cached AI business summary, regenerating first if
     it's missing or older than settings.business_summary_ttl_days. Never
     raises — a generation failure just falls back to whatever's already
-    cached (or None if it's never succeeded), same fallback spirit as
-    SocialService.get_tweets.
+    cached (or None if it's never succeeded), same defensive fallback
+    spirit as every other on-demand external-API integration in this app.
     """
     if not needs_refresh(coin):
         return coin.business_summary

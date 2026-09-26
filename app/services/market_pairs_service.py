@@ -19,9 +19,8 @@ Gated behind a Postgres cache per coin (settings.market_pairs_cache_ttl_hours,
 default 1h — much shorter than description/business_summary's TTLs, since
 real exchange price/volume goes stale within the hour) so a burst of coin
 detail page visits never re-fetches more than once per coin per window —
-same cost-control spirit as SocialService/business_summary_service, and
-doubly important here since CoinGecko's free tier is IP-rate-limited
-(no key).
+same cost-control spirit as business_summary_service, and doubly important
+here since CoinGecko's free tier is IP-rate-limited (no key).
 """
 
 import logging
@@ -374,8 +373,7 @@ def get_market_pairs(db: Session, coin: Coin) -> list[dict]:
     refreshing from CoinGecko first if the cache is empty or older than
     settings.market_pairs_cache_ttl_hours. Never raises — a fetch failure
     just falls back to whatever's already cached (or an empty list if this
-    coin has never successfully synced), same fallback spirit as
-    SocialService.get_tweets.
+    coin has never successfully synced).
     """
     if not needs_refresh(coin):
         return coin.cached_market_pairs or []

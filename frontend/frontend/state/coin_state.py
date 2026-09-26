@@ -530,10 +530,12 @@ def _build_row(coin: Coin) -> dict:
         # CEX-pairs path already came up empty.
         "tradingview_dex_symbol": coin.tradingview_dex_symbol or "",
         "tradingview_dex_symbol_fetched": coin.tradingview_dex_symbol_checked_at is not None,
-        # Cached X posts (see app/services/social_service.py) — already
-        # normalized {text, image_url, has_image, url, time_display, likes,
-        # replies, retweets} dicts, refreshed on-demand via
-        # CoinState.refresh_social_posts rather than by this row build.
+        # Cached X posts — the scraping backend that populated this (Apify,
+        # app/services/social_service.py) was removed per explicit request
+        # (cost/ToS concerns with every third-party scraping option tried),
+        # so this is always empty now and _x_posts_section always renders
+        # its "View on X" fallback slider instead of real post cards — that
+        # fallback UI is kept intentionally, not dead code.
         "cached_tweets": coin.cached_tweets or [],
         "has_cached_tweets": bool(coin.cached_tweets),
         "trend_24h_data": trend_24h_data,
@@ -618,61 +620,10 @@ def _sync_and_rebuild_rows(cmc_ids: list[int]) -> dict[int, dict]:
         return {coin.cmc_id: _build_row(coin) for coin in updated_coins}
 
 
-def _fetch_social_posts(symbol: str) -> tuple[int, list[dict]] | None:
-    """Blocking work for the on-demand X-post refresh (see CoinState.
-    refresh_social_posts): finds the coin by ticker directly in Postgres —
-    not via self.selected_coin, so this doesn't race load_coins for the same
-    on_load — using the same highest-market-cap tie-break CoinState.
-    selected_coin uses (tickers aren't unique on CMC), then delegates to
-    SocialService (app/services/social_service.py), which enforces its own
-    4h cache window: most calls here just replay the already-cached tweets
-    rather than re-hitting the scraper API. Mirrors the refreshed fields
-    into the Reflex SQLite cache directly (same cross-package pattern as
-    _sync_and_rebuild_rows above) so they survive independently of the next
-    24h/1h full mirror rebuild. Returns None if no coin matches this ticker.
-    """
-    import sys
-    from pathlib import Path
-
-    from sqlalchemy import select as sa_select
-
-    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
-    if _root not in sys.path:
-        sys.path.insert(0, _root)
-
-    from app.core.database import SessionLocal as OldSessionLocal
-    from app.models.coin import Coin as OldCoin
-    from app.services.social_service import SocialService
-
-    old_db = OldSessionLocal()
-    try:
-        matches = old_db.scalars(sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol))).all()
-        if not matches:
-            return None
-        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
-        tweets = SocialService(old_db).get_tweets(coin)
-        cmc_id = coin.cmc_id
-        x_username = coin.x_username
-        last_social_update = coin.last_social_update
-    finally:
-        old_db.close()
-
-    with rx.session() as session:
-        row = session.exec(select(Coin).where(Coin.cmc_id == cmc_id)).first()
-        if row is not None:
-            row.x_username = x_username
-            row.cached_tweets = tweets
-            row.last_social_update = last_social_update
-            session.add(row)
-            session.commit()
-
-    return cmc_id, tweets
-
-
 def _fetch_better_description(symbol: str) -> tuple[int, str] | None:
     """Blocking work for the on-demand description upgrade (see CoinState.
     refresh_coin_description) — same lookup-by-ticker-in-Postgres pattern as
-    _fetch_social_posts above. Two independent, one-time-per-coin steps, each
+    _fetch_business_summary below. Two independent, one-time-per-coin steps, each
     gated by its own service (so most calls here are a no-op — already
     attempted, or was never boilerplate to begin with):
     1. coingecko_service.upgrade_description — CoinGecko's own real project
@@ -751,7 +702,7 @@ def _format_market_pairs(pairs: list[dict]) -> list[dict]:
 def _fetch_market_pairs(symbol: str) -> tuple[int, list[dict]] | None:
     """Blocking work for the on-demand Markets-section refresh (see
     CoinState.refresh_market_pairs) — same lookup-by-ticker-in-Postgres
-    pattern as _fetch_social_posts/_fetch_business_summary above, delegating
+    pattern as _fetch_business_summary above, delegating
     to market_pairs_service's own TTL gate (settings.
     market_pairs_cache_ttl_hours), so most calls here just replay the
     already-cached pairs rather than re-hitting CoinGecko. Returns None if no
@@ -845,7 +796,7 @@ def _fetch_tradingview_dex_symbol(symbol: str) -> tuple[int, str | None] | None:
 def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None, str] | None:
     """Blocking work for the on-demand business-summary refresh (see
     CoinState.refresh_business_summary) — same lookup-by-ticker-in-Postgres
-    pattern as _fetch_social_posts/_fetch_better_description above,
+    pattern as _fetch_better_description above,
     delegating to business_summary_service's own TTL gate (settings.
     business_summary_ttl_days), so most calls here just replay the already-
     cached summary rather than re-hitting OpenRouter. Returns None if no
@@ -1457,53 +1408,19 @@ class CoinState(rx.State):
                 self._is_detail_syncing = False
 
     @rx.event(background=True)
-    async def refresh_social_posts(self):
-        """One-shot, on-demand refresh of this coin's cached X posts — fired
-        once per page view (see frontend.py's /coin/[symbol] on_load), not on
-        a loop like detail_sync_loop above: SocialService itself enforces a
-        4h cache window (settings.social_cache_ttl_hours), so most page
-        views just replay the already-cached tweets rather than re-hitting
-        the scraper API.
-
-        Looks the coin up by ticker directly in Postgres (see
-        _fetch_social_posts) rather than through self.selected_coin, so it
-        never races load_coins for the same on_load — if this finishes
-        before load_coins populates all_coins, the fresh tweets are still
-        safely on disk in the Reflex SQLite mirror by the time load_coins
-        (and _build_row) actually reads it.
-        """
-        symbol = self.symbol.strip()
-        if not symbol:
-            return
-        result = await asyncio.to_thread(_fetch_social_posts, symbol)
-        if result is None:
-            return
-        cmc_id, tweets = result
-        async with self:
-            self.coin_overrides = {
-                **self.coin_overrides,
-                cmc_id: {
-                    **self.coin_overrides.get(cmc_id, {}),
-                    "cached_tweets": tweets,
-                    "has_cached_tweets": bool(tweets),
-                },
-            }
-
-    @rx.event(background=True)
     async def refresh_coin_description(self):
         """One-shot, on-demand upgrade of this coin's About-section text —
-        fired once per page view (see frontend.py's /coin/[symbol] on_load),
-        same pattern as refresh_social_posts above. Almost always a fast
-        no-op: both of _fetch_better_description's steps
+        fired once per page view (see frontend.py's /coin/[symbol] on_load).
+        Almost always a fast no-op: both of _fetch_better_description's steps
         (coingecko_service.upgrade_description, description_ai_service.
         generate_description_from_sources) only ever do real work once per
-        coin, ever. Runs concurrently with refresh_social_posts (both are
-        separate background on_load events), so on a coin's very first-ever
-        view the AI-inference step may run before that coin's X posts have
-        finished scraping and fall back to website text alone — acceptable
-        since it's still a real improvement over boilerplate, and every
-        later visitor benefits from whichever description that attempt
-        produced.
+        coin, ever. The AI-inference step grounds itself in the coin's own
+        website text — the "and/or already-cached X posts" half of that
+        grounding is permanently unavailable now that the X-scraping backend
+        has been removed (coin.cached_tweets is always empty). Still worth
+        running: website-text-only grounding is a real improvement over
+        boilerplate on its own, and every later visitor benefits from
+        whichever description that attempt produced.
         """
         symbol = self.symbol.strip()
         if not symbol:

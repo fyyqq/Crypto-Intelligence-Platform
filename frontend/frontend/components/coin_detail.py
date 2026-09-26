@@ -746,15 +746,16 @@ _CHART_HEIGHTS = ["420px", "480px", "520px", "560px", "600px"]
 
 
 def _x_post_card(post: dict) -> rx.Component:
-    # Real post text + (when the scraper found one) an image, straight from
-    # SocialService's cached_tweets — replaces the old X "Embedded Timeline"
-    # widget, whose data backend (syndication.twitter.com) turned out to
-    # rate-limit unpredictably regardless of traffic, silently collapsing to
-    # an empty box with no error. These are plain data (already normalized
-    # server-side, see app/services/social_service.py's _normalize), so
-    # unlike that sealed widget iframe, they render as ordinary cards that
-    # can use the same horizontal-scroll-with-arrows mechanics as the
-    # alerts/news sliders elsewhere on this page (assets/chain_pills.js).
+    # Renders one of coin["cached_tweets"]'s already-normalized entries
+    # (text, optional image, likes/replies/retweets) as an ordinary card —
+    # same horizontal-scroll-with-arrows mechanics as the alerts/news
+    # sliders elsewhere on this page (assets/chain_pills.js). The scraping
+    # backend that used to populate cached_tweets was removed per explicit
+    # request (every third-party X-scraping option had real cost/ToS
+    # problems), so this component is currently unreachable — has_cached_
+    # tweets is always False now, and _x_posts_section always renders
+    # _x_fallback_slider instead — but is kept in place rather than
+    # deleted, in case a scraping backend is added back later.
     return rx.link(
         rx.vstack(
             rx.text(post["text"], size="2", style={"white-space": "pre-wrap"}),
@@ -801,10 +802,10 @@ def _x_post_card(post: dict) -> rx.Component:
 
 def _x_slider_arrow_fix_script() -> rx.Component:
     # Shared by both _x_posts_slider and _x_fallback_slider below — both
-    # mount asynchronously (real cards swap in once CoinState.
-    # refresh_social_posts's background fetch completes; the fallback swaps
-    # in immediately but still after the surrounding page's own async
-    # pieces), unlike the news/alerts sliders' static dummy data, which is
+    # mount asynchronously (the fallback swaps in after the surrounding
+    # page's own async pieces settle, and _x_posts_slider would too if its
+    # backend were still wired up — see _x_post_card's docstring), unlike
+    # the news/alerts sliders' static dummy data, which is
     # already present in the DOM by the time chain_pills.js's
     # MutationObserver runs its first scan. Confirmed live that other
     # mutations elsewhere on the page keep firing around this same moment
@@ -862,13 +863,12 @@ def _x_posts_slider(coin: dict) -> rx.Component:
 
 def _x_skeleton_card(url: rx.Var[str]) -> rx.Component:
     # A single skeleton placeholder — same size/shape as a real _x_post_card
-    # so the fallback slider (see _x_fallback_slider) reads as "posts are
-    # coming" rather than fabricating fake tweet text/engagement numbers,
-    # which the rest of this page's actually-dummy sections (_post_card,
-    # _targeted_news_card) are explicit, documented placeholders for but
-    # this section isn't — X posts have a real backend (SocialService),
-    # it's just not always available (see _x_timeline_section). Still
-    # clickable straight through to the coin's real X profile.
+    # (currently unreachable, see that function's docstring) so this reads
+    # as "posts would go here" rather than fabricating fake tweet text/
+    # engagement numbers, unlike the rest of this page's actually-dummy
+    # sections (_post_card, _targeted_news_card), which are explicit,
+    # documented placeholders. Still clickable straight through to the
+    # coin's real X profile.
     return rx.link(
         rx.vstack(
             rx.box(width="90%", height="12px", background="var(--gray-a5)", border_radius="4px"),
@@ -899,13 +899,14 @@ def _x_skeleton_card(url: rx.Var[str]) -> rx.Component:
 
 
 def _x_fallback_slider(coin: dict) -> rx.Component:
-    # Shown while no cached tweets are available yet — either the on-demand
-    # scraper fetch (CoinState.refresh_social_posts) hasn't completed for
-    # this coin's first-ever view, the scraper API isn't configured
-    # (settings.apify_api_token empty), or a real fetch attempt failed with
-    # nothing already cached to fall back to. Same horizontal-scroll-with-
-    # arrows shape as the real _x_posts_slider (10 cards, ~3.5 visible) per
-    # explicit request, rather than a single plain link — each card still
+    # Always shown now — the X-post scraping backend that used to populate
+    # coin["cached_tweets"] was removed per explicit request (every
+    # third-party scraping option had real cost/ToS problems; see
+    # _x_post_card's docstring), so has_cached_tweets is permanently False
+    # and this is the only X-posts UI a coin's page ever actually renders.
+    # Same horizontal-scroll-with-arrows shape as the (currently
+    # unreachable) real _x_posts_slider — 10 cards, ~3.5 visible — per
+    # explicit request, rather than a single plain link; each card still
     # links out to the coin's real X profile.
     return rx.box(
         rx.box(rx.icon("chevron-left", size=14), class_name="x-posts-scroll-btn x-posts-scroll-left"),
@@ -1392,7 +1393,7 @@ def _chart_column() -> rx.Component:
             # of the "chart keeps reloading / timeframe won't stick" bug:
             # the surrounding CoinState context object changes reference on
             # every background var update (detail_sync_loop's 60s tick,
-            # refresh_social_posts, refresh_business_summary, ...), which
+            # refresh_business_summary, refresh_market_pairs, ...), which
             # re-renders every component consuming that context — including
             # this one — and confirmed live (MutationObserver on the
             # wrapping node) that re-rendering a dangerouslySetInnerHTML

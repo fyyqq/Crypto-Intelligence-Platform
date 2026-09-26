@@ -71,11 +71,11 @@ class Coin(SQLModel, table=True):
     tradingview_dex_symbol: str | None = None
     tradingview_dex_symbol_checked_at: datetime | None = None
 
-    # Mirrored from the app/ backend's on-demand X-post cache (see
-    # app/services/social_service.py) — cached_tweets is a plain JSON column
-    # (SQLite has no JSONB) holding up to 10 already-normalized
-    # {text, image_url, has_image, url, time_display, likes, replies,
-    # retweets} dicts.
+    # Mirrors the app/ backend's dormant X-post cache columns (see
+    # app/models/coin.py — the scraping backend that used to populate
+    # these was removed per explicit request). cached_tweets is a plain
+    # JSON column (SQLite has no JSONB); kept, not dropped, in case a
+    # scraping backend is added back later.
     x_username: str | None = None
     cached_tweets: list | None = Field(default=None, sa_column=Column(JSON))
     last_social_update: datetime | None = None

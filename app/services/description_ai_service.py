@@ -4,10 +4,12 @@ cryptocurrency and operates on...") is the default, coingecko_service's
 contract-address lookup upgrades many of them to a real project description,
 but plenty of coins — memecoins especially, and anything newly listed with no
 whitepaper — have no curated description on either provider. For those, this
-generates a short plain-language "what is this" paragraph from the only two
-public sources such a coin actually has: its own website and its cached X
-posts (see social_service.py — already scraped for the X timeline section,
-reused here rather than re-scraping).
+generates a short plain-language "what is this" paragraph, grounded in the
+coin's own website text and (when available) its cached X posts —
+Coin.cached_tweets is always empty now that the X-scraping backend has been
+removed (see coin_state.py's refresh_coin_description docstring), so in
+practice this runs on website text alone, but the "and/or" grounding logic
+is left intact in case a scraping backend is reintroduced later.
 
 Generated via OpenRouter (not a direct per-provider key), same as
 business_summary_service.py, so the model can be swapped via
@@ -161,8 +163,7 @@ def generate_description_from_sources(db: Session, coin: Coin) -> str | None:
     """Runs the one-time AI-inference fallback for `coin.description` when
     it's still boilerplate after coingecko_service.upgrade_description has
     already had its shot. Never raises — a failed attempt (no sources, no
-    API key, OpenRouter error) just leaves the existing description alone,
-    same fallback spirit as SocialService.get_tweets.
+    API key, OpenRouter error) just leaves the existing description alone.
 
     Marks description_ai_generated_at regardless of outcome, so a coin with
     genuinely no website/social presence isn't re-attempted on every future

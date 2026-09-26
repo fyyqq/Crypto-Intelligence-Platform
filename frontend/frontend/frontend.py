@@ -181,7 +181,6 @@ app.add_page(
     on_load=[
         CoinState.load_coins,
         CoinState.detail_sync_loop,
-        CoinState.refresh_social_posts,
         CoinState.refresh_coin_description,
         CoinState.refresh_business_summary,
         CoinState.refresh_market_pairs,
