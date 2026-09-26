@@ -14,47 +14,86 @@ from frontend.components import (
 from frontend.state import CoinState
 
 
+def _profile_menu_item() -> rx.Component:
+    # Dark/light mode now lives here instead of its own always-visible
+    # header button — freeing that width is what let the nav links (below)
+    # stay visible down to phone widths instead of being hidden there.
+    # rx.toggle_color_mode is the same special event rx.color_mode.button
+    # itself dispatches internally; the whole row is the click target, not
+    # just an icon.
+    return rx.hstack(
+        rx.color_mode_cond(
+            light=rx.icon("moon", size=16),
+            dark=rx.icon("sun", size=16),
+        ),
+        rx.text(rx.color_mode_cond(light="Dark Mode", dark="Light Mode"), size="2"),
+        on_click=rx.toggle_color_mode,
+        spacing="2",
+        align="center",
+        class_name="profile-menu-item",
+    )
+
+
+def _profile_dropdown() -> rx.Component:
+    return rx.box(
+        _profile_menu_item(),
+        class_name="profile-dropdown",
+    )
+
+
 def _profile_pill() -> rx.Component:
     # Hardcoded placeholder (name, plan, avatar) — no real image, since this
     # will become a customizable user profile (background image, name, plan
     # tier) once that's wired up. background uses Radix's own alpha-gray
     # tokens so it recolors automatically with the light/dark toggle instead
     # of a fixed hex value.
-    return rx.hstack(
-        rx.vstack(
-            rx.text("Fyqq", size="2", weight="bold"),
-            rx.badge("Standard", color_scheme="gray", size="1"),
-            spacing="1",
-            align="start",
-            # Hidden below the iPad-portrait breakpoint (md, 768px) — on a
-            # phone-width header there isn't room for both this text column
-            # and the color-mode button, so the pill collapses to just the
-            # avatar there.
-            display=["none", "none", "flex", "flex", "flex"],
-        ),
-        rx.box(
-            rx.icon("user", size=22, color="var(--gray-9)"),
-            # Fixed equal width/height (not aspect_ratio + align="stretch")
-            # — that combination rendered as an oval in practice, not a
-            # circle. A fixed size plus the default center alignment below
-            # keeps it a true circle with even spacing on every side.
-            width="44px",
-            height="44px",
+    #
+    # Now also the dropdown trigger for _profile_dropdown above: click
+    # toggles CoinState.profile_menu_open open/closed (a 2nd click closes
+    # it, per explicit request), and a real click anywhere outside this
+    # pill closes it too — assets/chain_pills.js's click-outside listener,
+    # the same pattern the header search dropdown already uses.
+    return rx.box(
+        rx.hstack(
+            rx.vstack(
+                rx.text("Fyqq", size="2", weight="bold"),
+                rx.badge("Standard", color_scheme="gray", size="1"),
+                spacing="1",
+                align="start",
+                # Hidden below the iPad-portrait breakpoint (md, 768px) — on
+                # a phone-width header there isn't room for this text column
+                # too, so the pill collapses to just the avatar there.
+                display=["none", "none", "flex", "flex", "flex"],
+            ),
+            rx.box(
+                rx.icon("user", size=22, color="var(--gray-9)"),
+                # Fixed equal width/height (not aspect_ratio + align="stretch")
+                # — that combination rendered as an oval in practice, not a
+                # circle. A fixed size plus the default center alignment below
+                # keeps it a true circle with even spacing on every side.
+                width="44px",
+                height="44px",
+                border_radius="9999px",
+                background="var(--gray-a5)",
+                display="flex",
+                align_items="center",
+                justify_content="center",
+                flex_shrink="0",
+            ),
+            spacing="3",
+            align="center",
+            # Symmetric padding once the text column above is hidden (avatar
+            # only), back to the wider left padding once it reappears at md+.
+            padding=["0.35em", "0.35em", "0.35em 0.35em 0.35em 1em", "0.35em 0.35em 0.35em 1em", "0.35em 0.35em 0.35em 1em"],
+            border="1px solid var(--gray-a6)",
             border_radius="9999px",
-            background="var(--gray-a5)",
-            display="flex",
-            align_items="center",
-            justify_content="center",
-            flex_shrink="0",
+            background="var(--gray-a2)",
         ),
-        spacing="3",
-        align="center",
-        # Symmetric padding once the text column above is hidden (avatar
-        # only), back to the wider left padding once it reappears at md+.
-        padding=["0.35em", "0.35em", "0.35em 0.35em 0.35em 1em", "0.35em 0.35em 0.35em 1em", "0.35em 0.35em 0.35em 1em"],
-        border="1px solid var(--gray-a6)",
-        border_radius="9999px",
-        background="var(--gray-a2)",
+        rx.cond(CoinState.profile_menu_open, _profile_dropdown(), rx.fragment()),
+        on_click=CoinState.toggle_profile_menu,
+        cursor="pointer",
+        position="relative",
+        class_name="profile-pill-trigger",
     )
 
 
@@ -69,25 +108,38 @@ _NAV_LINKS = [
 ]
 
 
+def _nav_link(label: str, href: str) -> rx.Component:
+    is_active = CoinState.current_nav_path == href
+    return rx.link(
+        rx.text(label, size="2", weight="medium"),
+        href=href,
+        underline="none",
+        color=rx.cond(is_active, "var(--accent-9)", rx.color_mode_cond(light="black", dark="white")),
+        class_name=rx.cond(is_active, "header-nav-link header-nav-link-active", "header-nav-link"),
+        flex_shrink="0",
+    )
+
+
 def _nav_links() -> rx.Component:
     return rx.hstack(
-        *[
-            rx.link(
-                rx.text(label, size="2", weight="medium"),
-                href=href,
-                underline="none",
-                color=rx.color_mode_cond(light="black", dark="white"),
-                class_name="header-nav-link",
-            )
-            for label, href in _NAV_LINKS
-        ],
-        spacing="5",
+        *[_nav_link(label, href) for label, href in _NAV_LINKS],
         align="center",
         justify="center",
-        # Hidden below the "lg" breakpoint (992px) — no room for a centered
-        # nav section next to the logo and the header's own search/toggle/
-        # profile controls at tablet/phone widths.
-        display=["none", "none", "none", "flex", "flex"],
+        # Tighter gap at phone/small-tablet widths, where the grid column
+        # holding this row is genuinely tight on space (see _header_bar's
+        # grid_template_columns) — plain "spacing" tokens are fixed, not
+        # responsive, so this uses a real CSS gap instead.
+        style={"gap": ["0.65em", "0.85em", "1.25em", "1.25em", "1.25em"]},
+        # Visible at every screen size per explicit request (previously
+        # hidden below the "lg" breakpoint) — min_width=0 lets this grid
+        # column actually shrink instead of forcing the header wider, and
+        # overflow_x + .hide-scrollbar (styles.css) turn any width the 4
+        # links genuinely don't fit into into a horizontal swipe/scroll
+        # instead of clipping or wrapping.
+        min_width="0",
+        overflow_x="auto",
+        flex_wrap="nowrap",
+        class_name="hide-scrollbar",
     )
 
 
@@ -108,8 +160,20 @@ def _header_bar() -> rx.Component:
                     # White reads fine against the header's dark background
                     # in dark mode, but is invisible against its light-mode
                     # background — needs to flip to black there.
+                    #
+                    # Hidden below the "sm" breakpoint (480px) — just the
+                    # logo mark stays. Freeing this ~90px is what actually
+                    # gives the nav-links column (center of the header grid)
+                    # a real, non-zero share of the remaining width on a
+                    # phone; confirmed live that without this, the fixed-
+                    # content logo+search+profile columns alone already
+                    # consumed the entire 375px header, squeezing the nav
+                    # links column down to ~2px.
                     rx.heading(
-                        "Repace", size="6", color=rx.color_mode_cond(light="black", dark="white")
+                        "Repace",
+                        size="6",
+                        color=rx.color_mode_cond(light="black", dark="white"),
+                        display=["none", "flex", "flex", "flex", "flex"],
                     ),
                     spacing="2",
                     align="center",
@@ -120,19 +184,46 @@ def _header_bar() -> rx.Component:
             _nav_links(),
             rx.hstack(
                 global_search(),
-                rx.color_mode.button(size="2"),
                 _profile_pill(),
+                # Hidden — clicked from JS (assets/chain_pills.js) on a real
+                # click outside .profile-pill-trigger, closing the dropdown
+                # (same click-outside-close pattern as the header search's
+                # own #global-search-close-trigger). Kept as a *sibling* of
+                # _profile_pill(), not nested inside it — that box's own
+                # on_click is a toggle covering its entire subtree, so a
+                # trigger nested inside it would double-fire on click
+                # (close, then immediately re-toggle back open).
+                rx.box(id="profile-menu-close-trigger", on_click=CoinState.close_profile_menu, display="none"),
                 spacing="3",
                 align="center",
                 justify="end",
+                flex_shrink="0",
             ),
             # A 3-column grid (not hstack + justify="between") so the nav
             # links land at the header's true horizontal center regardless
             # of how wide the logo or the right-side controls are — the two
             # outer 1fr columns stay equal width, and the center column
-            # (auto) hugs its own content.
+            # (auto) hugs its own content. Below md/768px this flips to
+            # `auto minmax(0, 1fr) auto`: with the outer columns still `1fr`
+            # there, the logo and search+profile group's own intrinsic
+            # widths already ate the whole 320–375px budget, squeezing the
+            # nav-links column to zero rather than merely off-center — an
+            # `auto` center column has no guaranteed minimum, so the "auto"
+            # track collapsed to nothing instead of becoming the horizontal
+            # -scroll strip _nav_links() itself was built to fall back to.
+            # `auto` outer columns (natural content width, no stretch) plus
+            # a `minmax(0, 1fr)` center (takes whatever's actually left,
+            # down to 0, but is a real, positive-width flex track rather
+            # than one with no minimum-size floor at all) is what actually
+            # leaves it a real width to scroll within on a phone.
             display="grid",
-            grid_template_columns="1fr auto 1fr",
+            grid_template_columns=[
+                "auto minmax(0, 1fr) auto",
+                "auto minmax(0, 1fr) auto",
+                "1fr auto 1fr",
+                "1fr auto 1fr",
+                "1fr auto 1fr",
+            ],
             align_items="center",
             width="100%",
             style={"column-gap": "1em"},

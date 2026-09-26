@@ -237,3 +237,20 @@
   });
 })();
 
+// Same click-outside-close pattern as global search's own listener above,
+// for the header profile-pill's dropdown (frontend.py::_profile_pill —
+// dark/light mode toggle). The pill's own click already toggles the
+// dropdown open/closed on its own (a real 2nd click on the pill), so this
+// only needs to handle a click that lands somewhere else entirely.
+(function () {
+  if (window.__profileMenuOutsideClickInit) return;
+  window.__profileMenuOutsideClickInit = true;
+
+  document.addEventListener("click", function (e) {
+    if (!document.querySelector(".profile-dropdown")) return;
+    if (e.target.closest(".profile-pill-trigger")) return;
+    const trigger = document.getElementById("profile-menu-close-trigger");
+    if (trigger) trigger.click();
+  });
+})();
+

@@ -158,22 +158,48 @@ _TREND_DOWN = [{"v": 1}, {"v": 0}]
 
 
 def _fmt_usd(value: float) -> str:
+    """The one place a coin's USD price gets turned into a display string —
+    every "price_display" field in this file (homepage table, coin detail's
+    big price header, Markets section pair rows, the header search
+    dropdown) is built from this function or from
+    _price_display_with_fallback below it, which itself just calls this.
+    That's deliberate, not incidental: PRICE-DISPLAY RULE — any new feature
+    that needs to show a coin's USD price must format it through this
+    function (or a helper that itself calls it), never a fresh ad hoc
+    f"${value:.2f}"/similar. A fixed decimal count silently rounds a real,
+    nonzero price down to "$0.00" once the coin is cheap enough (confirmed
+    live for both a sub-cent coin at a fixed 2 decimals, and later an
+    even-smaller coin at a fixed 8 decimals) — this function's whole job is
+    guaranteeing that never happens again, so any bypass reopens the exact
+    bug this was written to close.
+    """
     # Always 2 decimals (e.g. $3.11) for $1+ prices — was rounding to a
     # whole dollar there ("$3"), which lost precision on both the homepage
     # table's Price column and the coin detail page's big price display
     # (both read this same price_display field).
-    #
-    # Sub-$1 prices get up to 8 decimals instead of this same fixed 2 —
-    # confirmed live that a fixed ".2f" was showing "$0.00" for any coin
-    # priced under a cent (e.g. SHIB's real $0.000005887 rounded straight
-    # to zero), which is a real, non-negligible chunk of the coin universe
-    # (most memecoins). Trailing zeros are stripped (but not below 2
-    # decimals) so e.g. $0.05 still shows as "$0.05", not "$0.05000000".
     sign = "-" if value < 0 else ""
     value = abs(value)
     if value == 0 or value >= 1:
         return f"{sign}${value:,.2f}"
-    formatted = f"{value:.8f}".rstrip("0")
+    # Sub-$1: start at 8 decimals (enough for the vast majority of coins,
+    # e.g. SHIB's real $0.000005887), but keep extending in steps of 4 for
+    # anything smaller — a fixed decimal count of any size eventually rounds
+    # a real, nonzero price down to all zeros once a coin is cheap enough
+    # (well under a billionth of a dollar isn't rare among newly-listed
+    # micro-cap tokens), which used to silently display as "$0.00" instead
+    # of the coin's real price. Capped at 24 decimals — several times past
+    # any real crypto price's meaningful precision — purely so a
+    # pathological near-zero float can't loop forever.
+    decimals = 8
+    formatted = f"{value:.{decimals}f}"
+    while decimals < 24 and set(formatted.split(".")[1]) == {"0"}:
+        decimals += 4
+        formatted = f"{value:.{decimals}f}"
+    # Trailing zeros stripped (but not below 2 decimals) so e.g. $0.05
+    # still shows as "$0.05", not "$0.05000000" — this is what guarantees
+    # the displayed string always ends on a real, non-zero digit rather
+    # than a rounding artifact.
+    formatted = formatted.rstrip("0")
     if formatted.endswith("."):
         formatted += "00"
     return f"{sign}${formatted}"
@@ -902,6 +928,13 @@ class CoinState(rx.State):
     global_search_query: str = ""
     global_search_limit: int = 5
 
+    # Header profile-pill dropdown (frontend.py::_profile_pill) — holds the
+    # dark/light mode toggle now that the header no longer has room for it
+    # as a separate always-visible button on every screen size. Click the
+    # pill to open, click it again (or click outside — same
+    # click-outside-close pattern global search already uses) to close.
+    profile_menu_open: bool = False
+
     # In-page sort only: reorders the current page's rows, never re-ranks
     # across the full coin list. sort_key is one of the raw numeric fields
     # in each row dict (e.g. "pct_1h_raw"), or "" for the default (market-cap)
@@ -1312,6 +1345,17 @@ class CoinState(rx.State):
         self.global_search_query = ""
         self.global_search_limit = 5
 
+    @rx.event
+    def toggle_profile_menu(self):
+        self.profile_menu_open = not self.profile_menu_open
+
+    @rx.event
+    def close_profile_menu(self):
+        # Fired by a real click outside .profile-pill-trigger (same
+        # delegated click-outside JS pattern as global search's
+        # #global-search-close-trigger — see assets/chain_pills.js).
+        self.profile_menu_open = False
+
     @rx.event(background=True)
     async def show_copied_toast(self):
         """Shows the centered "Copied to clipboard" popup for exactly 3s.
@@ -1369,6 +1413,21 @@ class CoinState(rx.State):
         """
         name = self.selected_coin.get("name")
         return f"Repace — {name}" if name else "Repace — Coin Detail"
+
+    @rx.var(cache=True)
+    def current_nav_path(self) -> str:
+        """Drives the header nav links' active-color highlight
+        (frontend.py::_nav_links) — the route the visitor is actually on,
+        so the matching link (News/Narrative/Chains/Tools) stays visibly
+        highlighted after navigating there, not just for the instant of the
+        click. router.url.path (not the deprecated router.page.path) is the
+        actual resolved browser path — confirmed live it carries a trailing
+        slash for these static routes (e.g. "/narrative/") even though
+        their own registered route and each nav link's `href` don't
+        ("/narrative"), so that trailing slash is stripped here rather than
+        on every comparison site.
+        """
+        return self.router.url.path.rstrip("/") or "/"
 
     @rx.var(cache=True)
     def effective_market_pairs_filter(self) -> str:

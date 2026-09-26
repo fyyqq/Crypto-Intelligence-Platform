@@ -754,6 +754,10 @@
   top: calc(100% + 8px);
   right: 0;
   width: 320px;
+  /* The search bar itself now shrinks as low as 110px on a phone-width
+     header (global_search.py) — without this, the dropdown's own fixed
+     320px could run past the left edge of a narrow viewport entirely. */
+  max-width: calc(100vw - 2rem);
   max-height: 420px;
   overflow-y: auto;
   background: var(--gray-2);
@@ -820,6 +824,46 @@
 .header-nav-link:hover {
   opacity: 1;
   color: var(--accent-9) !important;
+}
+
+/* Current-route highlight (frontend.py::_nav_link, driven by
+   CoinState.current_nav_path) — full opacity so it doesn't fight the
+   default 0.85 above, on top of the accent color already set inline. */
+.header-nav-link-active {
+  opacity: 1;
+}
+
+/* Header profile-pill dropdown (frontend.py::_profile_pill/_profile_dropdown)
+   — holds the dark/light mode toggle, opened by clicking the pill itself
+   (CoinState.profile_menu_open), closed the same way (a 2nd click) or by a
+   real click outside it (assets/chain_pills.js, same pattern as the
+   header search's own click-outside close). */
+.profile-pill-trigger {
+  user-select: none;
+}
+
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 170px;
+  background: var(--gray-2);
+  border: 1px solid var(--gray-a5);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  padding: 0.3em;
+  z-index: 20;
+}
+
+.profile-menu-item {
+  padding: 0.55em 0.7em;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--gray-12);
+}
+
+.profile-menu-item:hover {
+  background: var(--gray-a3);
 }
 
 /* Coin detail page's info/sentiment side columns: still scrollable

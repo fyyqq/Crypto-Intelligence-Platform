@@ -127,7 +127,12 @@ def global_search() -> rx.Component:
         ),
         rx.cond(
             CoinState.global_search_query == "",
-            rx.text("/", size="1", class_name="global-search-kbd"),
+            # The "/" shortcut only means anything with a physical keyboard
+            # — hidden at the smallest breakpoint (phone widths) where it'd
+            # otherwise fight the input itself for space, rather than
+            # hiding the whole search bar there the way an earlier version
+            # of this header did.
+            rx.text("/", size="1", class_name="global-search-kbd", display=["none", "flex", "flex", "flex", "flex"]),
             rx.icon(
                 "x",
                 size=14,
@@ -145,7 +150,16 @@ def global_search() -> rx.Component:
         # the on_blur race described on CoinState.reset_global_search.
         rx.box(id="global-search-close-trigger", on_click=CoinState.reset_global_search, display="none"),
         class_name="global-search-container",
-        display=["none", "none", "flex", "flex", "flex"],
-        width=["0", "0", "170px", "210px", "240px"],
+        # Visible at every screen size per explicit request (previously
+        # hidden below md/768px) — a narrower-but-usable width at the
+        # smallest breakpoints instead of disappearing entirely. 70px at
+        # the very smallest breakpoint still fits the icon + a few
+        # characters of typed input (it's a real, focusable, typeable
+        # field at every width, just visually cropped) — chosen along with
+        # the logo-text hiding above so the header's fixed-content columns
+        # leave the nav-links column a real, usable width on a phone
+        # instead of squeezing it to ~0.
+        width=["70px", "110px", "170px", "210px", "240px"],
+        flex_shrink="0",
         position="relative",
     )
