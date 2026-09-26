@@ -33,14 +33,22 @@ class Settings(BaseSettings):
 
     # On-demand X (Twitter) post caching (see app/services/social_service.py)
     # — replaces the free embed widget, which X's own syndication backend
-    # rate-limits unpredictably. apify_actor_id defaults to a placeholder;
-    # whichever actor is actually configured must return per-tweet text +
-    # image URLs, since SocialService._normalize's field-name guessing is
-    # written against the common shapes seen across Apify's X-scraper
-    # actors, not one specific schema.
+    # rate-limits unpredictably. Configured actor: Apify's "Twitter (X)
+    # Scraper — No Login or Cookies" (atomus/twitter-scraper, id
+    # Y3cgyqvI46p0VMr0m) in "user-tweets" (profile timeline) mode —
+    # SocialService._normalize is written against that actor's own schema
+    # (confirmed live: {"searchType": "user-tweets", "handles": [...],
+    # "maxItems": ...} in, a mix of one {"record_type": "profile"} summary
+    # row plus N {"record_type": "tweet"} rows out), not a generic guess
+    # across Apify's various X-scraper actors — swapping the configured
+    # actor again would need re-verifying that shape.
     apify_api_token: str = ""
-    apify_actor_id: str = "apidojo~tweet-scraper"
+    apify_actor_id: str = "Y3cgyqvI46p0VMr0m"
     social_cache_ttl_hours: int = 4
+    # How many of a coin's own latest posts to scrape per profile — this is
+    # also the actor's own billing unit (pay-per-tweet-scraped), so this is
+    # a direct cost lever, not just a display cap.
+    social_max_posts: int = 20
 
     # On-demand "About the business" summary (see
     # app/services/business_summary_service.py) — Feature 2's AI Business
