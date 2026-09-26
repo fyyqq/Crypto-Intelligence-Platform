@@ -1,10 +1,14 @@
 """On-demand, cached X (Twitter) post fetching via Apify's "Twitter (X)
-Scraper — No Login or Cookies" actor (atomus/twitter-scraper, id
-Y3cgyqvI46p0VMr0m), replacing the free X "Embedded Timeline" widget — its
+Scraper - Tweets, Profiles & Monitor" actor (scrapesage/twitter-scraper, id
+FqR0b3b6K64iyiDHL), replacing the free X "Embedded Timeline" widget — its
 data backend (syndication.twitter.com) rate-limits unpredictably regardless
 of traffic volume, and when it does, the widget just silently renders empty
 with no error (see coin_detail.py's prior _x_timeline_section for that
-history).
+history). Also replaces a first Apify actor tried earlier
+(atomus/twitter-scraper, id Y3cgyqvI46p0VMr0m) — that one's free tier is a
+hard 10-tweet-scrapes/month cap account-wide (confirmed live, exhausted
+within one session of testing), while this one bills per event with no
+such fixed monthly wall.
 
 Only ever called from a coin detail page view (see CoinState.
 refresh_social_posts, a background on_load event on /coin/[symbol]) — never
@@ -91,9 +95,14 @@ class SocialService:
                 url,
                 params={"token": settings.apify_api_token},
                 json={
-                    "searchType": "user-tweets",
                     "handles": [username],
-                    "maxItems": settings.social_max_posts,
+                    "maxTweetsPerProfile": settings.social_max_posts,
+                    # No "profile" summary row requested — this app only
+                    # ever uses the actual posts, and that row is its own
+                    # separate billed event on this actor, so skipping it
+                    # is a real cost saving, not just a smaller payload.
+                    "includeProfile": False,
+                    "includeTweets": True,
                 },
                 timeout=45,
             )
@@ -107,31 +116,13 @@ class SocialService:
             logger.warning("X scrape for @%s returned unexpected payload shape: %r", username, type(items))
             return None
 
-        # Confirmed live: on a genuine run-level failure (e.g. exhausting
-        # this Apify account's free-tier monthly "tweet-scraped" quota),
-        # this actor still returns HTTP 200 with a single item shaped like
-        # {"status": "error", "error_kind": ..., "reason": "..."} instead
-        # of raising — logged distinctly here (with the actor's own reason
-        # text) since this is an account/billing-level problem, not a
-        # per-handle one, and would otherwise just look like an ordinary
-        # "no tweet records" no-op in the logs.
-        error_item = next((item for item in items if item.get("status") == "error"), None)
-        if error_item is not None:
-            logger.warning(
-                "X scrape for @%s failed at the account/run level (%s): %s",
-                username,
-                error_item.get("error_kind", "unknown"),
-                error_item.get("reason", ""),
-            )
-            return None
-
-        # One dataset item per run is a {"record_type": "profile"} summary
-        # row (bio/follower counts), not a post — real posts are the
-        # {"record_type": "tweet"} rows. A handle that doesn't exist at all
-        # comes back as an empty list (confirmed live), not an error or a
-        # placeholder row, so no separate "no results" flag to filter for
-        # here.
-        tweets = [item for item in items if item.get("record_type") == "tweet"]
+        # A handle that doesn't exist at all comes back as an empty list
+        # (confirmed live), not an error or a placeholder row. With
+        # includeProfile=False every real item here is already a tweet
+        # (confirmed live) — still filtered on "type" defensively in case
+        # that ever isn't true (e.g. a future actor version reintroducing
+        # a summary row regardless of the flag).
+        tweets = [item for item in items if item.get("type", "tweet") == "tweet"]
         if not tweets:
             logger.warning("X scrape for @%s returned no tweet records", username)
             return None
@@ -150,18 +141,27 @@ class SocialService:
     @staticmethod
     def _normalize(item: dict) -> dict:
         # Field names confirmed live against the configured actor's own
-        # "tweet" record shape (Apify Y3cgyqvI46p0VMr0m, "user-tweets"
-        # mode) — not a generic guess across different Apify X-scraper
-        # actors; swapping the configured actor would need re-verifying
-        # this. "media" is a list of {"type", "image_url", "video_url"}
-        # dicts (confirmed live) — this only ever surfaces the first
-        # photo, same single-image-per-card design as before.
+        # tweet-record shape (Apify FqR0b3b6K64iyiDHL, scrapesage/
+        # twitter-scraper) — not a generic guess across different Apify
+        # X-scraper actors; swapping the configured actor again would need
+        # re-verifying this against a real response. "media" is a list of
+        # {"type": "photo"|"video", "url", "width", "height", ...} dicts
+        # (confirmed live) — a photo's own "url" is the real image; a
+        # video has no static image of its own, so its "previewUrl"
+        # thumbnail is used instead (this app only ever renders a static
+        # <img>, never an embedded video player), same single-image-per-
+        # card design as before.
         text = item.get("text") or ""
 
         image_url = ""
         for media_item in item.get("media") or []:
-            if isinstance(media_item, dict) and media_item.get("image_url"):
-                image_url = media_item["image_url"]
+            if not isinstance(media_item, dict):
+                continue
+            if media_item.get("type") == "photo" and media_item.get("url"):
+                image_url = media_item["url"]
+                break
+            if media_item.get("type") == "video" and media_item.get("previewUrl"):
+                image_url = media_item["previewUrl"]
                 break
 
         return {
@@ -169,8 +169,8 @@ class SocialService:
             "image_url": image_url,
             "has_image": bool(image_url),
             "url": item.get("url") or "",
-            "time_display": item.get("created_at") or "",
-            "likes": item.get("favorite_count") or 0,
-            "replies": item.get("reply_count") or 0,
-            "retweets": item.get("retweet_count") or 0,
+            "time_display": item.get("createdAt") or "",
+            "likes": item.get("favoriteCount") or 0,
+            "replies": item.get("replyCount") or 0,
+            "retweets": item.get("retweetCount") or 0,
         }

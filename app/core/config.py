@@ -34,16 +34,25 @@ class Settings(BaseSettings):
     # On-demand X (Twitter) post caching (see app/services/social_service.py)
     # — replaces the free embed widget, which X's own syndication backend
     # rate-limits unpredictably. Configured actor: Apify's "Twitter (X)
-    # Scraper — No Login or Cookies" (atomus/twitter-scraper, id
-    # Y3cgyqvI46p0VMr0m) in "user-tweets" (profile timeline) mode —
-    # SocialService._normalize is written against that actor's own schema
-    # (confirmed live: {"searchType": "user-tweets", "handles": [...],
-    # "maxItems": ...} in, a mix of one {"record_type": "profile"} summary
-    # row plus N {"record_type": "tweet"} rows out), not a generic guess
-    # across Apify's various X-scraper actors — swapping the configured
-    # actor again would need re-verifying that shape.
+    # Scraper - Tweets, Profiles & Monitor" (scrapesage/twitter-scraper, id
+    # FqR0b3b6K64iyiDHL) — swapped from the previously-configured actor
+    # (Y3cgyqvI46p0VMr0m) specifically because that one's free tier is a
+    # hard 10-tweet-scrapes/month cap account-wide (confirmed live, and
+    # already exhausted), while this one bills per event with no such fixed
+    # monthly wall (confirmed live: $0.002/tweet, no "profile" event
+    # charged at all since SocialService requests includeProfile=false).
+    # SocialService._normalize is written against this actor's own schema
+    # (confirmed live: {"handles": [...], "maxTweetsPerProfile": ...,
+    # "includeProfile": false, "includeTweets": true} in, ISO
+    # "createdAt" + a "media": [{"type": "photo"|"video", "url", ...}] list
+    # out), not a generic guess across Apify's various X-scraper actors —
+    # swapping the configured actor again would need re-verifying that
+    # shape (confirmed live it differs meaningfully between actors: field
+    # names, date format, and whether a "profile" summary row is mixed
+    # into the same result list all varied across the three actors tried
+    # this session).
     apify_api_token: str = ""
-    apify_actor_id: str = "Y3cgyqvI46p0VMr0m"
+    apify_actor_id: str = "FqR0b3b6K64iyiDHL"
     social_cache_ttl_hours: int = 4
     # How many of a coin's own latest posts to scrape per profile — this is
     # also the actor's own billing unit (pay-per-tweet-scraped), so this is
