@@ -77,5 +77,12 @@ class Settings(BaseSettings):
     # model, which barely change week to week.
     market_pairs_cache_ttl_hours: int = 1
 
+    # Last-resort TradingView DEX-pool chart symbol lookup (see
+    # app/services/tradingview_symbol_service.py) — only ever queried for a
+    # coin with zero real CEX pairs, and a DEX pool's existence/symbol on
+    # TradingView is far more stable than exchange price/volume, so this
+    # gets a much longer TTL than market_pairs_cache_ttl_hours above.
+    tradingview_symbol_ttl_hours: int = 24
+
 
 settings = Settings()

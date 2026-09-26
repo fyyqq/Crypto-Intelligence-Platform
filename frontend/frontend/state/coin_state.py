@@ -492,6 +492,15 @@ def _build_row(coin: Coin) -> dict:
         # need this to avoid ever guessing an unreliable bare chart symbol
         # while the real one is still loading.
         "market_pairs_fetched": coin.market_pairs_updated_at is not None,
+        # Last-resort TradingView chart symbol for a coin with zero real CEX
+        # pairs (see app/services/tradingview_symbol_service.py), refreshed
+        # on-demand via CoinState.refresh_tradingview_dex_symbol. Same
+        # fetched/not-yet-fetched distinction as market_pairs_fetched above,
+        # for the same reason — CoinState._resolve_tradingview_symbol only
+        # ever reads tradingview_dex_symbol as a fallback after its own
+        # CEX-pairs path already came up empty.
+        "tradingview_dex_symbol": coin.tradingview_dex_symbol or "",
+        "tradingview_dex_symbol_fetched": coin.tradingview_dex_symbol_checked_at is not None,
         # Cached X posts (see app/services/social_service.py) — already
         # normalized {text, image_url, has_image, url, time_display, likes,
         # replies, retweets} dicts, refreshed on-demand via
@@ -758,6 +767,50 @@ def _fetch_market_pairs(symbol: str) -> tuple[int, list[dict]] | None:
             session.commit()
 
     return cmc_id, pairs
+
+
+def _fetch_tradingview_dex_symbol(symbol: str) -> tuple[int, str | None] | None:
+    """Blocking work for CoinState.refresh_tradingview_dex_symbol — same
+    lookup-by-ticker-in-Postgres pattern as _fetch_market_pairs above,
+    delegating to tradingview_symbol_service's own "skip unless this coin
+    has zero real CEX pairs" gate and TTL (settings.
+    tradingview_symbol_ttl_hours), so most calls here are a fast no-op.
+    Returns None if no coin matches this ticker.
+    """
+    import sys
+    from pathlib import Path
+
+    from sqlalchemy import select as sa_select
+
+    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+    from app.models.coin import Coin as OldCoin
+    from app.services.tradingview_symbol_service import resolve_dex_chart_symbol
+
+    old_db = OldSessionLocal()
+    try:
+        matches = old_db.scalars(sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol))).all()
+        if not matches:
+            return None
+        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
+        dex_symbol = resolve_dex_chart_symbol(old_db, coin)
+        cmc_id = coin.cmc_id
+        checked_at = coin.tradingview_dex_symbol_checked_at
+    finally:
+        old_db.close()
+
+    with rx.session() as session:
+        row = session.exec(select(Coin).where(Coin.cmc_id == cmc_id)).first()
+        if row is not None:
+            row.tradingview_dex_symbol = dex_symbol
+            row.tradingview_dex_symbol_checked_at = checked_at
+            session.add(row)
+            session.commit()
+
+    return cmc_id, dex_symbol
 
 
 def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None, str] | None:
@@ -1379,6 +1432,35 @@ class CoinState(rx.State):
                 for row in self.all_coins
             ]
 
+    @rx.event(background=True)
+    async def refresh_tradingview_dex_symbol(self):
+        """One-shot, on-demand last-resort chart-symbol lookup — fired once
+        per page view (see frontend.py's /coin/[symbol] on_load), same
+        pattern as refresh_market_pairs above. Almost always a fast no-op:
+        tradingview_symbol_service skips its own external call entirely
+        whenever this coin already has a real CEX pair (the vastly more
+        common case — this only ever does real work for a coin like zKML
+        with zero CEX listings anywhere).
+        """
+        symbol = self.symbol.strip()
+        if not symbol:
+            return
+        result = await asyncio.to_thread(_fetch_tradingview_dex_symbol, symbol)
+        if result is None:
+            return
+        cmc_id, dex_symbol = result
+        async with self:
+            self.all_coins = [
+                {
+                    **row,
+                    "tradingview_dex_symbol": dex_symbol or "",
+                    "tradingview_dex_symbol_fetched": True,
+                }
+                if row["cmc_id"] == cmc_id
+                else row
+                for row in self.all_coins
+            ]
+
     def _resolve_tradingview_symbol(self) -> str | None:
         """Picks the real, exchange-prefixed TradingView symbol for this
         coin (e.g. "MEXC:ZKMLUSDT") — never a bare, unprefixed
@@ -1420,6 +1502,17 @@ class CoinState(rx.State):
         every recompute. Market pairs only change on their own hourly TTL
         (not on detail_sync_loop's 60s price-only resync), so this resolves
         to the same string between syncs and the iframe still won't reload.
+
+        Falls back to `tradingview_dex_symbol` (see
+        app/services/tradingview_symbol_service.py /
+        CoinState.refresh_tradingview_dex_symbol) when this coin has no
+        real CEX pair at all — confirmed live that some real coins
+        genuinely only have a DEX pool listing (zKML: Uniswap v2 on
+        Ethereum, no CEX anywhere), and TradingView itself tracks a real,
+        chartable symbol for many of those pools directly. That fallback
+        symbol is pre-resolved and cached in Postgres (never computed here),
+        so this stays a fast, purely-local lookup either way — no network
+        call inside a cached var.
         """
         base = re.sub(r"[^A-Z0-9]", "", (self.symbol or "").strip().upper())
         if not base:
@@ -1436,7 +1529,8 @@ class CoinState(rx.State):
             quote = quote.strip().upper()
             if re.fullmatch(r"[A-Z0-9]{2,10}", quote):
                 return f"{prefix}:{base}{quote}"
-        return None
+        dex_symbol = self.selected_coin.get("tradingview_dex_symbol", "") if self.selected_coin else ""
+        return dex_symbol or None
 
     @rx.var(cache=True)
     def has_tradingview_chart(self) -> bool:
@@ -1451,8 +1545,21 @@ class CoinState(rx.State):
         either an unreliable bare-symbol guess or a premature "no chart"
         message on the very first render, before refresh_market_pairs'
         one-shot background fetch (see frontend.py's on_load) completes.
+
+        Also waits on "tradingview_dex_symbol_fetched" (see
+        CoinState.refresh_tradingview_dex_symbol) — only actually relevant
+        when this coin turns out to have zero CEX pairs (has_tradingview_
+        chart already short-circuits this to False the instant a CEX pair
+        resolves, regardless of that second flag's value), so a CEX-only
+        coin's chart never waits on the DEX-symbol lookup that a coin with
+        a real CEX pair never even triggers.
         """
-        return not self.has_tradingview_chart and not self.selected_coin.get("market_pairs_fetched", False)
+        if self.has_tradingview_chart:
+            return False
+        return not (
+            self.selected_coin.get("market_pairs_fetched", False)
+            and self.selected_coin.get("tradingview_dex_symbol_fetched", False)
+        )
 
     def _tradingview_iframe_src(self, theme: str) -> str:
         """Public, no-API-key TradingView "widgetembed" iframe URL. CMC's

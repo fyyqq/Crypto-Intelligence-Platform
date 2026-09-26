@@ -185,6 +185,7 @@ app.add_page(
         CoinState.refresh_coin_description,
         CoinState.refresh_business_summary,
         CoinState.refresh_market_pairs,
+        CoinState.refresh_tradingview_dex_symbol,
     ],
 )
 app.add_page(

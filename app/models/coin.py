@@ -119,6 +119,17 @@ class Coin(Base):
     cached_market_pairs: Mapped[list | None] = mapped_column(JSON, nullable=True)
     market_pairs_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Last-resort TradingView chart symbol for coins with NO real CEX pair
+    # (see app/services/tradingview_symbol_service.py) — queries TradingView's
+    # own symbol-search API for a real DEX-pool listing (e.g. Uniswap) when
+    # cached_market_pairs above has nothing a CEX-prefix map can use. Null
+    # means "checked, genuinely nothing found" (not "never checked") — the
+    # _checked_at timestamp alone (regardless of whether a symbol was found)
+    # is what gates re-checking, same TTL-cached-column pattern as
+    # cached_market_pairs/market_pairs_updated_at above.
+    tradingview_dex_symbol: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    tradingview_dex_symbol_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     # On-demand X (Twitter) post cache (see app/services/social_service.py)
     # — x_username is parsed from twitter_url above the first time a coin's
     # detail page is viewed; cached_tweets holds up to 10 already-normalized

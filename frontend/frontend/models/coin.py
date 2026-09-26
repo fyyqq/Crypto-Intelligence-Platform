@@ -64,6 +64,13 @@ class Coin(SQLModel, table=True):
     cached_market_pairs: list | None = Field(default=None, sa_column=Column(JSON))
     market_pairs_updated_at: datetime | None = None
 
+    # Mirrored from app/services/tradingview_symbol_service.py's last-resort
+    # TradingView chart-symbol lookup for a coin with zero real CEX pairs
+    # (see coin_state.py's CoinState.refresh_tradingview_dex_symbol /
+    # _resolve_tradingview_symbol).
+    tradingview_dex_symbol: str | None = None
+    tradingview_dex_symbol_checked_at: datetime | None = None
+
     # Mirrored from the app/ backend's on-demand X-post cache (see
     # app/services/social_service.py) — cached_tweets is a plain JSON column
     # (SQLite has no JSONB) holding up to 10 already-normalized
