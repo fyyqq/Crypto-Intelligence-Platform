@@ -896,6 +896,20 @@ def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None, str] | N
 
 class CoinState(rx.State):
     all_coins: list[dict] = []
+    # Small dict, keyed by cmc_id, holding only the fields that periodically
+    # get refreshed for an individual coin (price/volume/% changes from the
+    # sync loops, cached tweets, description, business summary, market
+    # pairs, TradingView chart symbol) — kept separate from the full,
+    # rarely-changing all_coins list specifically so a background refresh
+    # only ever needs to re-serialize and resend THIS small dict over the
+    # websocket, not the entire ~8,000-coin universe. Confirmed live this
+    # split was necessary: all_coins serializes to ~32MB, and every one of
+    # these refreshers used to reassign it wholesale on every single
+    # update (even a single coin's business summary finishing), which was
+    # the dominant cause of "every click/search/sync tick feels slow" —
+    # see _row_with_overrides/_merged_row below for how a display-facing
+    # computed var (filtered_coins, selected_coin) merges this back in.
+    coin_overrides: dict[int, dict] = {}
     categories: list[str] = []
     selected_category: str = "All narratives"
     # Drives just the pill's active/blue highlight. Kept separate from
@@ -1219,7 +1233,9 @@ class CoinState(rx.State):
                     top_100_ids = [
                         row["cmc_id"]
                         for row in sorted(
-                            self.all_coins, key=lambda r: r["market_cap_usd"], reverse=True
+                            (self._row_with_overrides(r) for r in self.all_coins),
+                            key=lambda r: r["market_cap_usd"],
+                            reverse=True,
                         )[:100]
                     ]
                     visible_ids = [row["cmc_id"] for row in self.sorted_paged_coins]
@@ -1238,10 +1254,47 @@ class CoinState(rx.State):
             async with self:
                 self._is_live_syncing = False
 
+    def _row_with_overrides(self, row: dict) -> dict:
+        """Merges row (from the rarely-changing all_coins) with whatever's
+        currently in coin_overrides for its cmc_id, if anything — the read
+        side of the all_coins/coin_overrides split. Every computed var that
+        exposes rows to a component (filtered_coins, selected_coin) applies
+        this before returning, so overrides stay invisible from the
+        frontend's perspective — it's still "just the coin's current
+        data," merged server-side on every read rather than kept fresh by
+        reassigning the giant list itself.
+        """
+        override = self.coin_overrides.get(row["cmc_id"])
+        return {**row, **override} if override else row
+
+    def _merged_row(self, cmc_id: int) -> dict | None:
+        """Finds cmc_id's row in all_coins and merges in any existing
+        override — used by the one-shot background refreshers below to
+        read a coin's current values (e.g. primary_narrative, price_raw)
+        before computing a new patch, without needing all_coins itself to
+        ever carry live data. A linear scan over all_coins, but only ever
+        called once per refresh (not per-render), so this is negligible
+        next to the cost it replaces (a full list reassignment + resend).
+        """
+        base = next((r for r in self.all_coins if r["cmc_id"] == cmc_id), None)
+        return self._row_with_overrides(base) if base is not None else None
+
     def _apply_updates(self, updated_rows: dict[int, dict]) -> None:
+        """Used by sync_visible_page/live_sync_loop/detail_sync_loop — each
+        already-fresh row from _sync_and_rebuild_rows becomes this coin's
+        entire override (a full replacement is still just a merge: any
+        stale prior override fields get superseded by the fresh row's own
+        values for the same keys).
+        """
         if not updated_rows:
             return
-        self.all_coins = [updated_rows.get(row["cmc_id"], row) for row in self.all_coins]
+        self.coin_overrides = {
+            **self.coin_overrides,
+            **{
+                cmc_id: {**self.coin_overrides.get(cmc_id, {}), **fresh_row}
+                for cmc_id, fresh_row in updated_rows.items()
+            },
+        }
 
     @rx.event
     def go_to_coin(self, symbol: str):
@@ -1281,7 +1334,11 @@ class CoinState(rx.State):
         symbol = self.symbol.strip().lower()
         if not symbol:
             return {}
-        matches = [row for row in self.all_coins if row["symbol"].lower() == symbol]
+        matches = [
+            self._row_with_overrides(row)
+            for row in self.all_coins
+            if row["symbol"].lower() == symbol
+        ]
         if not matches:
             return {}
         return max(matches, key=lambda r: r["market_cap_usd"])
@@ -1423,12 +1480,14 @@ class CoinState(rx.State):
             return
         cmc_id, tweets = result
         async with self:
-            self.all_coins = [
-                {**row, "cached_tweets": tweets, "has_cached_tweets": bool(tweets)}
-                if row["cmc_id"] == cmc_id
-                else row
-                for row in self.all_coins
-            ]
+            self.coin_overrides = {
+                **self.coin_overrides,
+                cmc_id: {
+                    **self.coin_overrides.get(cmc_id, {}),
+                    "cached_tweets": tweets,
+                    "has_cached_tweets": bool(tweets),
+                },
+            }
 
     @rx.event(background=True)
     async def refresh_coin_description(self):
@@ -1454,17 +1513,15 @@ class CoinState(rx.State):
             return
         cmc_id, description = result
         async with self:
-            self.all_coins = [
-                {
-                    **row,
+            self.coin_overrides = {
+                **self.coin_overrides,
+                cmc_id: {
+                    **self.coin_overrides.get(cmc_id, {}),
                     "description": description,
                     "has_description": True,
                     "description_tokens": _tokenize_highlights(description),
-                }
-                if row["cmc_id"] == cmc_id
-                else row
-                for row in self.all_coins
-            ]
+                },
+            }
 
     @rx.event(background=True)
     async def refresh_business_summary(self):
@@ -1483,9 +1540,12 @@ class CoinState(rx.State):
             return
         cmc_id, summary, model, category = result
         async with self:
-            self.all_coins = [
-                {
-                    **row,
+            base = self._merged_row(cmc_id)
+            primary_narrative = base["primary_narrative"] if base else ""
+            self.coin_overrides = {
+                **self.coin_overrides,
+                cmc_id: {
+                    **self.coin_overrides.get(cmc_id, {}),
                     "business_summary": summary,
                     "has_business_summary": True,
                     "business_summary_sections": _parse_business_summary_sections(summary),
@@ -1497,13 +1557,10 @@ class CoinState(rx.State):
                     # _build_row) — falls back again to that same
                     # already-computed narrative if this generation didn't
                     # produce one.
-                    "category_badge_display": category or row["primary_narrative"],
-                    "has_category_badge_display": bool(category or row["primary_narrative"]),
-                }
-                if row["cmc_id"] == cmc_id
-                else row
-                for row in self.all_coins
-            ]
+                    "category_badge_display": category or primary_narrative,
+                    "has_category_badge_display": bool(category or primary_narrative),
+                },
+            }
 
     @rx.event(background=True)
     async def refresh_market_pairs(self):
@@ -1522,9 +1579,12 @@ class CoinState(rx.State):
         cmc_id, pairs = result
         formatted = _format_market_pairs(pairs)
         async with self:
-            self.all_coins = [
-                {
-                    **row,
+            base = self._merged_row(cmc_id)
+            price_raw = base["price_raw"] if base else 0.0
+            self.coin_overrides = {
+                **self.coin_overrides,
+                cmc_id: {
+                    **self.coin_overrides.get(cmc_id, {}),
                     "market_pairs": formatted,
                     "has_market_pairs": bool(formatted),
                     "market_pairs_fetched": True,
@@ -1535,12 +1595,9 @@ class CoinState(rx.State):
                     # (this fetch hadn't completed yet); a coin with a real
                     # CMC price is untouched (price_usd truthy short-
                     # circuits the fallback).
-                    "price_display": _price_display_with_fallback(row["price_raw"], pairs),
-                }
-                if row["cmc_id"] == cmc_id
-                else row
-                for row in self.all_coins
-            ]
+                    "price_display": _price_display_with_fallback(price_raw, pairs),
+                },
+            }
 
     @rx.event(background=True)
     async def refresh_tradingview_dex_symbol(self):
@@ -1560,16 +1617,14 @@ class CoinState(rx.State):
             return
         cmc_id, dex_symbol = result
         async with self:
-            self.all_coins = [
-                {
-                    **row,
+            self.coin_overrides = {
+                **self.coin_overrides,
+                cmc_id: {
+                    **self.coin_overrides.get(cmc_id, {}),
                     "tradingview_dex_symbol": dex_symbol or "",
                     "tradingview_dex_symbol_fetched": True,
-                }
-                if row["cmc_id"] == cmc_id
-                else row
-                for row in self.all_coins
-            ]
+                },
+            }
 
     def _resolve_tradingview_symbol(self) -> str | None:
         """Picks the real, exchange-prefixed TradingView symbol for this
@@ -1773,7 +1828,13 @@ class CoinState(rx.State):
 
     @rx.var(cache=True)
     def filtered_coins(self) -> list[dict]:
-        rows = self.all_coins
+        # Merges coin_overrides in once, up front, for the full universe —
+        # see _row_with_overrides. Everything below (category/chain filter,
+        # search, ranking) reads this already-fresh list rather than the
+        # static all_coins directly, so a live-synced price or a just-
+        # arrived business summary shows up here immediately.
+        full_rows = [self._row_with_overrides(r) for r in self.all_coins]
+        rows = full_rows
         if self.selected_category != "All narratives":
             rows = [r for r in rows if self.selected_category in r["narratives"]]
         # AND'd with the narrative filter — e.g. "Memes" + "BNB Smart Chain
@@ -1794,7 +1855,7 @@ class CoinState(rx.State):
             global_rank_by_id = {
                 row["cmc_id"]: i
                 for i, row in enumerate(
-                    sorted(self.all_coins, key=lambda r: r["market_cap_usd"], reverse=True),
+                    sorted(full_rows, key=lambda r: r["market_cap_usd"], reverse=True),
                     start=1,
                 )
             }
