@@ -156,7 +156,7 @@ Per explicit request (with two reference screenshots — a compact "/" -shortcut
 
 ### 🔧 Current State
 - **Reflex server IS running** in prod mode (`reflex run --env prod --single-port`) on port 3000 — restarted this session to pick up the header nav-links + global-search changes above; confirmed responding and fully interactive via live Playwright testing as of the end of this session.
-- **Not yet committed/pushed** — this session's changes (`frontend/frontend/frontend.py`, `frontend/frontend/components/filters.py`, `frontend/frontend/components/__init__.py`, new `frontend/frontend/components/global_search.py`, `frontend/frontend/state/coin_state.py`, `frontend/assets/chain_pills.js`, `frontend/assets/styles.css`) are still sitting as local working-tree changes as of this note being written — commit/push is the very next action per this file's own Commit & Push Rule, not yet done at the point this paragraph was drafted (check `git status`/`git log` for whether that already landed by the time you're reading this).
+- **This session's changes are committed and pushed to `origin/main`** (`frontend/frontend/frontend.py`, `frontend/frontend/components/filters.py`, `frontend/frontend/components/__init__.py`, new `frontend/frontend/components/global_search.py`, `frontend/frontend/state/coin_state.py`, `frontend/assets/chain_pills.js`, `frontend/assets/styles.css`, this file) — see git log for the exact hash, follows `f49a2ad`.
 - No new migrations this session — purely frontend/state changes, no `Coin` model or schema touched.
 - Notion MCP (`.vscode/mcp.json`) still not authorized — unrelated to this session, carried over unchanged.
 
