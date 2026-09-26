@@ -862,6 +862,11 @@ class CoinState(rx.State):
     # computed var (filtered_coins, selected_coin) merges this back in.
     coin_overrides: dict[int, dict] = {}
     categories: list[str] = []
+    # Every narrative (no top-20 cap) — "More Narrative" toggles
+    # narratives_expanded to swap the sidebar's pill list over to this full
+    # set instead of firing a second query for the rest.
+    all_categories: list[str] = []
+    narratives_expanded: bool = False
     selected_category: str = "All narratives"
     # Drives just the pill's active/blue highlight. Kept separate from
     # selected_category (which drives the actual re-filter/re-sort of up to
@@ -869,6 +874,8 @@ class CoinState(rx.State):
     # waiting on that heavier computation to finish.
     active_category: str = "All narratives"
     chains: list[str] = []
+    all_chains: list[str] = []
+    chains_expanded: bool = False
     selected_chain: str = "All chains"
     active_chain: str = "All chains"
     is_loading: bool = True
@@ -1005,15 +1012,19 @@ class CoinState(rx.State):
 
         self.all_coins = rows
         # Top 20 by number of coins carrying that tag — out of ~600 dynamic
-        # CMC categories, this keeps the filter pill bar to the narratives
-        # that actually matter for most coins shown, not an alphabetical cut.
-        top_narratives = [name for name, _ in narrative_counts.most_common(20)]
-        self.categories = ["All narratives", *top_narratives]
-        # Top 20 chains by number of coins whose primary/native chain it is
-        # — same "most common" approach as narratives, dynamically computed
-        # each sync rather than a fixed chain list.
-        top_chains = [name for name, _ in chain_counts.most_common(20)]
-        self.chains = ["All chains", *top_chains]
+        # CMC categories, this keeps the default filter pill bar to the
+        # narratives that actually matter for most coins shown, not an
+        # alphabetical cut. all_categories holds every narrative (no cap) so
+        # "More Narrative" (see filters.py/narratives_expanded below) can
+        # reveal the rest without a second query.
+        all_narrative_names = [name for name, _ in narrative_counts.most_common()]
+        self.categories = ["All narratives", *all_narrative_names[:20]]
+        self.all_categories = ["All narratives", *all_narrative_names]
+        # Same split for chains — top 20 by default, all_chains holds the
+        # full "most common" ranking for "More Chain" to expand into.
+        all_chain_names = [name for name, _ in chain_counts.most_common()]
+        self.chains = ["All chains", *all_chain_names[:20]]
+        self.all_chains = ["All chains", *all_chain_names]
         self.is_loading = False
 
     @rx.event
@@ -1052,6 +1063,18 @@ class CoinState(rx.State):
         self.sort_direction = ""
         self.is_filtering = False
         yield CoinState.sync_visible_page
+
+    @rx.event
+    def toggle_narratives_expanded(self):
+        # "More Narrative"/"Show less" (filters.py::_more_narratives_pill) —
+        # swaps the sidebar's pill list between the default top-20 (categories)
+        # and every narrative (all_categories), no re-query either way since
+        # both were already computed once in load_coins.
+        self.narratives_expanded = not self.narratives_expanded
+
+    @rx.event
+    def toggle_chains_expanded(self):
+        self.chains_expanded = not self.chains_expanded
 
     @rx.event
     async def toggle_search(self):
@@ -1829,6 +1852,14 @@ class CoinState(rx.State):
     @rx.var(cache=True)
     def total_shown(self) -> int:
         return len(self.filtered_coins)
+
+    @rx.var(cache=True)
+    def displayed_categories(self) -> list[str]:
+        return self.all_categories if self.narratives_expanded else self.categories
+
+    @rx.var(cache=True)
+    def displayed_chains(self) -> list[str]:
+        return self.all_chains if self.chains_expanded else self.chains
 
     @rx.var(cache=True)
     def global_search_matches(self) -> list[dict]:

@@ -58,18 +58,14 @@ def _profile_pill() -> rx.Component:
     )
 
 
-# (label, href) — News/Narrative/Chains jump to the real section that
-# already exists on the homepage (see the matching `id=` on news_feed()'s
-# wrapper in index() and on filter_bar()'s two vstacks in filters.py); a
-# plain "/#id" href works as native browser anchor navigation from any
-# page, no JS required. Tools has no destination yet, so it's an inert
-# placeholder — same convention filters.py already uses for its own
-# "More Narrative"/"More Chain" pills ("No feature wired up yet").
+# (label, route) — each now its own dedicated (currently blank/placeholder)
+# page, per explicit request, rather than anchor-scrolling into a section of
+# the homepage the way an earlier version of this nav bar did.
 _NAV_LINKS = [
-    ("News", "/#news-feed-section"),
-    ("Narrative", "/#narrative-filters"),
-    ("Chains", "/#chain-filters"),
-    ("Tools", "#tools"),
+    ("News", "/news"),
+    ("Narrative", "/narrative"),
+    ("Chains", "/chains"),
+    ("Tools", "/tools"),
 ]
 
 
@@ -221,6 +217,46 @@ def coin_detail() -> rx.Component:
     )
 
 
+def _placeholder_page(heading: str) -> rx.Component:
+    # Blank/placeholder page for one of the header's nav links (News,
+    # Narrative, Chains, Tools) — real content for each is future work, this
+    # just gives the nav bar a real destination instead of a dead link, with
+    # the same shared header/footer shell every other page uses so it
+    # doesn't look like a broken navigation.
+    return rx.box(
+        _header_bar(),
+        rx.center(
+            rx.vstack(
+                rx.heading(heading, size="7"),
+                rx.text("Coming soon", size="3", color_scheme="gray"),
+                spacing="2",
+                align="center",
+            ),
+            min_height="60vh",
+            width="100%",
+        ),
+        footer(),
+        min_height="100vh",
+        width="100%",
+    )
+
+
+def news_page() -> rx.Component:
+    return _placeholder_page("News")
+
+
+def narrative_page() -> rx.Component:
+    return _placeholder_page("Narrative")
+
+
+def chains_page() -> rx.Component:
+    return _placeholder_page("Chains")
+
+
+def tools_page() -> rx.Component:
+    return _placeholder_page("Tools")
+
+
 app = rx.App(stylesheets=["/styles.css"])
 # Dynamic routes must be registered before static ones (Reflex route-matching
 # order), so /coin/[symbol] is added ahead of the "/" index page below.
@@ -252,3 +288,14 @@ app.add_page(
     meta=[rx.el.link(rel="icon", href="/favicon_logo.png", type="image/png")],
     on_load=[CoinState.load_coins, CoinState.live_sync_loop],
 )
+# Header nav-link destinations (_NAV_LINKS above) — blank/placeholder pages
+# today. Each still loads the coin universe so the shared header's own
+# search bar works even when one of these is the very first page a session
+# visits (a direct/bookmarked link, not navigated to from "/").
+for _route, _page_fn in [
+    ("/news", news_page),
+    ("/narrative", narrative_page),
+    ("/chains", chains_page),
+    ("/tools", tools_page),
+]:
+    app.add_page(_page_fn, route=_route, title=f"Repace — {_page_fn.__name__.replace('_page', '').title()}", on_load=[CoinState.load_coins])

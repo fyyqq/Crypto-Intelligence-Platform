@@ -19,11 +19,18 @@ def _narrative_pill(name: rx.Var[str]) -> rx.Component:
 
 
 def _more_narratives_pill() -> rx.Component:
-    # No feature wired up yet — just a placeholder link.
-    return rx.link(
-        rx.text("More Narrative", size="1", weight="bold"),
-        href="#narratives",
-        underline="none",
+    # Toggles between the default top-20 narratives (categories) and every
+    # narrative (all_categories) — both already computed once in
+    # load_coins, so this is a free client-side swap, not a re-query. Label
+    # flips to "Show less" once expanded, so the same pill also collapses
+    # back to the default view.
+    return rx.box(
+        rx.text(
+            rx.cond(CoinState.narratives_expanded, "Show less", "More Narrative"),
+            size="1",
+            weight="bold",
+        ),
+        on_click=CoinState.toggle_narratives_expanded,
         class_name="narrative-pill narrative-pill-more",
     )
 
@@ -33,7 +40,7 @@ def _narrative_pills() -> rx.Component:
     # lives in the narrower 1st-column sidebar (see frontend.py) instead of
     # a full-width top bar, so a horizontal slider no longer fits.
     return rx.box(
-        rx.foreach(CoinState.categories, _narrative_pill),
+        rx.foreach(CoinState.displayed_categories, _narrative_pill),
         _more_narratives_pill(),
         class_name="filter-pills-wrap",
     )
@@ -52,11 +59,15 @@ def _chain_filter_pill(name: rx.Var[str]) -> rx.Component:
 
 
 def _more_chains_pill() -> rx.Component:
-    # No feature wired up yet — just a placeholder link.
-    return rx.link(
-        rx.text("More Chain", size="1", weight="bold"),
-        href="#blockchain",
-        underline="none",
+    # Same expand/collapse toggle as _more_narratives_pill, over
+    # chains/all_chains instead.
+    return rx.box(
+        rx.text(
+            rx.cond(CoinState.chains_expanded, "Show less", "More Chain"),
+            size="1",
+            weight="bold",
+        ),
+        on_click=CoinState.toggle_chains_expanded,
         class_name="chain-filter-pill chain-filter-pill-more",
     )
 
@@ -65,7 +76,7 @@ def _chain_filter_pills() -> rx.Component:
     # Same top-20-by-count list as before, combined with the narrative
     # filter (AND) — just wrapped instead of slider-scrolled now too.
     return rx.box(
-        rx.foreach(CoinState.chains, _chain_filter_pill),
+        rx.foreach(CoinState.displayed_chains, _chain_filter_pill),
         _more_chains_pill(),
         class_name="filter-pills-wrap",
     )
