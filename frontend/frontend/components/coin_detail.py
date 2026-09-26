@@ -1189,9 +1189,9 @@ def _market_pairs_filter_button(label: str, value: str) -> rx.Component:
     )
 
 
-def _market_pair_row(pair: dict, index: int) -> rx.Component:
+def _market_pair_row(pair: dict) -> rx.Component:
     return rx.table.row(
-        rx.table.cell(rx.text(index + 1, size="2", color_scheme="gray")),
+        rx.table.cell(rx.text(pair["rank"], size="2", color_scheme="gray")),
         rx.table.cell(
             rx.hstack(
                 rx.cond(
@@ -1227,6 +1227,35 @@ def _market_pair_row(pair: dict, index: int) -> rx.Component:
         rx.table.cell(rx.text(pair["volume_pct_display"], size="2"), vertical_align="middle"),
         rx.table.cell(rx.text(pair["last_updated_display"], size="1", color_scheme="gray"), vertical_align="middle"),
         _hover={"background_color": "var(--gray-a3)"},
+    )
+
+
+def _market_pairs_pagination() -> rx.Component:
+    # Only rendered once _market_pairs_section already confirmed
+    # market_pairs_total_pages > 1 (see below) — a single-page list (the
+    # common case, since each side caps at 15 real rows) shows no controls
+    # at all rather than a disabled/no-op prev-next pair.
+    return rx.hstack(
+        rx.box(
+            rx.icon("chevron-left", size=16),
+            on_click=CoinState.market_pairs_prev_page,
+            class_name="page-arrow-btn",
+        ),
+        rx.text(
+            "Page ", CoinState.market_pairs_page, " of ", CoinState.market_pairs_total_pages,
+            size="2",
+            color_scheme="gray",
+            white_space="nowrap",
+        ),
+        rx.box(
+            rx.icon("chevron-right", size=16),
+            on_click=CoinState.market_pairs_next_page,
+            class_name="page-arrow-btn",
+        ),
+        spacing="2",
+        align="center",
+        justify="center",
+        width="100%",
     )
 
 
@@ -1280,7 +1309,7 @@ def _market_pairs_section() -> rx.Component:
                         ),
                     ),
                     rx.table.body(
-                        rx.foreach(CoinState.filtered_market_pairs, _market_pair_row),
+                        rx.foreach(CoinState.paged_market_pairs, _market_pair_row),
                     ),
                     variant="surface",
                     width="100%",
@@ -1288,6 +1317,10 @@ def _market_pairs_section() -> rx.Component:
                 overflow_x="auto",
                 width="100%",
                 class_name="visible-scrollbar",
+            ),
+            rx.cond(
+                CoinState.market_pairs_total_pages > 1,
+                _market_pairs_pagination(),
             ),
             spacing="3",
             width="100%",

@@ -928,6 +928,12 @@ class CoinState(rx.State):
     # Reset in load_coins for the same reason about_expanded is.
     market_pairs_filter: str = "cex"
 
+    # Current page (1-indexed) within whichever side (CEX/DEX)
+    # effective_market_pairs_filter is showing — see market_pairs_total_pages/
+    # paged_market_pairs below. Reset to 1 on every filter switch (below) and
+    # on load_coins, same reset spirit as market_pairs_filter itself.
+    market_pairs_page: int = 1
+
     @rx.event
     def toggle_about_expanded(self):
         self.about_expanded = not self.about_expanded
@@ -935,12 +941,22 @@ class CoinState(rx.State):
     @rx.event
     def set_market_pairs_filter(self, value: str):
         self.market_pairs_filter = value
+        self.market_pairs_page = 1
+
+    @rx.event
+    def market_pairs_prev_page(self):
+        self.market_pairs_page = max(1, self.market_pairs_page - 1)
+
+    @rx.event
+    def market_pairs_next_page(self):
+        self.market_pairs_page = min(self.market_pairs_total_pages, self.market_pairs_page + 1)
 
     @rx.event
     def load_coins(self):
         self.is_loading = True
         self.about_expanded = False
         self.market_pairs_filter = "cex"
+        self.market_pairs_page = 1
         with rx.session() as session:
             coins = session.exec(
                 select(Coin)
@@ -1262,6 +1278,36 @@ class CoinState(rx.State):
         if self.effective_market_pairs_filter == "dex":
             return [p for p in pairs if p["is_dex"]]
         return [p for p in pairs if not p["is_dex"]]
+
+    _MARKET_PAIRS_PAGE_SIZE = 10
+
+    @rx.var(cache=True)
+    def market_pairs_total_pages(self) -> int:
+        """At most 2 pages in practice (each side is already capped to 15
+        real rows — see market_pairs_service.py), but computed generically
+        rather than hardcoded in case that cap ever changes.
+        """
+        total = len(self.filtered_market_pairs)
+        return max(1, -(-total // self._MARKET_PAIRS_PAGE_SIZE))
+
+    @rx.var(cache=True)
+    def paged_market_pairs(self) -> list[dict]:
+        """filtered_market_pairs, sliced to the current
+        market_pairs_page's 10 rows — clamps the page itself (rather than
+        just the slice) so switching from a longer DEX list to a shorter
+        CEX list on page 2 doesn't silently show an empty table; the "#"
+        column (see _market_pair_row) reads this dict's own "rank" field
+        instead of rx.foreach's per-page index, so numbering continues
+        across pages (e.g. page 2 starts at #11) instead of restarting at
+        #1 every page.
+        """
+        pairs = self.filtered_market_pairs
+        page = max(1, min(self.market_pairs_page, self.market_pairs_total_pages))
+        start = (page - 1) * self._MARKET_PAIRS_PAGE_SIZE
+        return [
+            {**p, "rank": start + i + 1}
+            for i, p in enumerate(pairs[start : start + self._MARKET_PAIRS_PAGE_SIZE])
+        ]
 
     @rx.event(background=True)
     async def detail_sync_loop(self):

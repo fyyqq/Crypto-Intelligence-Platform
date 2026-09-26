@@ -90,18 +90,36 @@ def _pick_best_match(symbols: list[dict], ticker: str, coin_name: str) -> str | 
     real chart) whose de-tagged symbol starts with this coin's own ticker —
     "starts with", not "equals", since a DEX pool's symbol is
     "{TICKER}{QUOTE}_{hash}" (e.g. "ZCATWETH_95E308"), not a plain
-    "{TICKER}{QUOTE}". Prefers a result whose description actually mentions
-    this coin's real name when one is available — the same kind of
-    ticker-collision guard as market_pairs_service's own base/quote
-    validation, since a short ticker like this can coincidentally prefix-
-    match a completely unrelated listing. Falls back to TradingView's own
-    relevance ordering (the order the API already returned) when no
-    description mentions the name, rather than returning nothing — a
-    prefix match is still far more likely correct than nothing at all.
+    "{TICKER}{QUOTE}".
+
+    Ranks candidates by two independent signals rather than just taking
+    TradingView's own first result:
+    - **name match**: does the listing's own description actually mention
+      this coin's real name? Guards against a short ticker coincidentally
+      prefix-matching a completely unrelated listing — same spirit as
+      market_pairs_service's own base/quote validation (confirmed live
+      necessary: the Shiba Inu "SHIBA INU" base-field mismatch from the
+      previous session's fix).
+    - **USD-quoted**: a DEX pool is usually listed twice — once quoted in
+      its actual pair currency (e.g. "ZKMLWETH_315ED6", priced in WETH) and
+      once as a TradingView-computed ".USD" variant (e.g.
+      "ZKMLWETH_315ED6.USD", currency_code "USD") — same underlying pool,
+      same chart shape, just a different price axis. Confirmed live this
+      was a real bug: picking the plain WETH-quoted variant made the
+      chart's current price look completely wrong next to this page's own
+      USD-denominated price header, even though the *chart itself* wasn't
+      wrong — it was just denominated in a different currency. Preferring
+      the ".USD" variant (when one exists) keeps the chart's price axis
+      consistent with the rest of the page.
+
+    Tries name-match + USD-quoted first, then name-match alone, then
+    USD-quoted alone, then finally just TradingView's own top relevance
+    result — never returns nothing once at least one real spot match
+    exists, since even a plain prefix match beats no chart at all.
     """
     ticker_upper = ticker.upper()
     name_lower = coin_name.lower() if coin_name else ""
-    spot_matches = []
+    candidates = []
     for s in symbols:
         if s.get("type") != "spot":
             continue
@@ -111,19 +129,19 @@ def _pick_best_match(symbols: list[dict], ticker: str, coin_name: str) -> str | 
         prefix = s.get("prefix") or s.get("exchange", "")
         if not prefix:
             continue
-        spot_matches.append((s, symbol, prefix.upper()))
+        description = _EM_TAG_RE.sub("", s.get("description", "")).lower()
+        name_matches = bool(name_lower) and name_lower in description
+        is_usd = (s.get("currency_code") or "").upper() == "USD"
+        candidates.append((name_matches, is_usd, f"{prefix.upper()}:{symbol}"))
 
-    if not spot_matches:
+    if not candidates:
         return None
 
-    if name_lower:
-        for s, symbol, prefix in spot_matches:
-            description = _EM_TAG_RE.sub("", s.get("description", "")).lower()
-            if name_lower in description:
-                return f"{prefix}:{symbol}"
-
-    s, symbol, prefix = spot_matches[0]
-    return f"{prefix}:{symbol}"
+    for want_name, want_usd in ((True, True), (True, False), (False, True), (False, False)):
+        for name_matches, is_usd, resolved in candidates:
+            if name_matches == want_name and is_usd == want_usd:
+                return resolved
+    return candidates[0][2]
 
 
 def resolve_dex_chart_symbol(db: Session, coin: Coin) -> str | None:
