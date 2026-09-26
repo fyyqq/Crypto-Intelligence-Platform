@@ -179,6 +179,35 @@ def _fmt_usd(value: float) -> str:
     return f"{sign}${formatted}"
 
 
+def _price_display_with_fallback(price_usd: float | None, cached_market_pairs: list[dict] | None) -> str:
+    """_fmt_usd(price_usd), falling back to this coin's own already-fetched
+    top-volume real market pair's price when CMC's own quote is exactly
+    zero (or missing) — confirmed live for several obscure/low-cap coins
+    (e.g. CatCoin) where CMC's tracked price feed reports a flat $0 (likely
+    an illiquid/stale market CMC itself is quoting) while a real, actively-
+    traded pool exists and shows a genuine nonzero price — CoinGecko-sourced
+    the same way this coin's own Markets section already does (see
+    market_pairs_service.py). _fmt_usd itself already handles arbitrarily
+    small nonzero prices correctly (up to 8 decimals) — this only kicks in
+    when the canonical price is truly absent/zero, not merely small.
+
+    Only ever affects the DISPLAYED string, never coin.price_usd itself —
+    market cap, sorting, and every other calculation still use CMC's own
+    canonical (possibly-zero) number, same "raw stays raw, formatting
+    happens here" division of labor as every other _fmt_* helper.
+    """
+    if price_usd:
+        return _fmt_usd(price_usd)
+    pairs = cached_market_pairs or []
+    if not pairs:
+        return _fmt_usd(0.0)
+    best = max(pairs, key=lambda p: p.get("volume_24h") or 0)
+    fallback_price = best.get("price")
+    if not fallback_price:
+        return _fmt_usd(0.0)
+    return _fmt_usd(fallback_price)
+
+
 def _fmt_compact_usd(value: float) -> str:
     """Abbreviated $ amount for Market Cap / Volume columns, e.g. $2.43M."""
     sign = "-" if value < 0 else ""
@@ -389,7 +418,7 @@ def _build_row(coin: Coin) -> dict:
         "pct_1h_raw": coin.percent_change_1h or 0.0,
         "pct_24h_raw": coin.percent_change_24h or 0.0,
         "pct_7d_raw": coin.percent_change_7d or 0.0,
-        "price_display": _fmt_usd(coin.price_usd or 0.0),
+        "price_display": _price_display_with_fallback(coin.price_usd, coin.cached_market_pairs),
         "market_cap_display": _fmt_compact_usd(coin.market_cap_usd or 0.0),
         "volume_display": _fmt_compact_usd(coin.volume_24h_usd or 0.0),
         "change_1h_display": _fmt_pct(coin.percent_change_1h or 0.0),
@@ -1472,6 +1501,14 @@ class CoinState(rx.State):
                     "market_pairs": formatted,
                     "has_market_pairs": bool(formatted),
                     "market_pairs_fetched": True,
+                    # Recomputes price_display now that real pairs exist —
+                    # see _price_display_with_fallback. Only actually
+                    # changes anything for a coin whose canonical CMC price
+                    # was zero/missing at the time _build_row first ran
+                    # (this fetch hadn't completed yet); a coin with a real
+                    # CMC price is untouched (price_usd truthy short-
+                    # circuits the fallback).
+                    "price_display": _price_display_with_fallback(row["price_raw"], pairs),
                 }
                 if row["cmc_id"] == cmc_id
                 else row

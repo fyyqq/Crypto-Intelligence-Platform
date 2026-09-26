@@ -84,7 +84,25 @@ def _search_tradingview(ticker: str) -> list[dict] | None:
     return data.get("symbols", [])
 
 
-def _pick_best_match(symbols: list[dict], ticker: str, coin_name: str) -> str | None:
+# Stripped from a CoinContract.platform_name (e.g. "Robinhood Chain" ->
+# "robinhood", "BNB Smart Chain (BEP20)" -> "bnb"/"bep20") before using what's
+# left as a chain-identity hint — these words appear in enough unrelated
+# platform names to carry no real disambiguating signal on their own.
+_CHAIN_HINT_STOPWORDS = {"chain", "smart", "network", "mainnet", "the", "v2", "v3", "v4"}
+
+
+def _chain_hints(platform_names: list[str]) -> set[str]:
+    words: set[str] = set()
+    for name in platform_names:
+        for word in re.findall(r"[a-z0-9]+", name.lower()):
+            if len(word) >= 3 and word not in _CHAIN_HINT_STOPWORDS:
+                words.add(word)
+    return words
+
+
+def _pick_best_match(
+    symbols: list[dict], ticker: str, coin_name: str, chain_hints: set[str]
+) -> str | None:
     """Real spot listings only (TradingView's search also returns
     "fundamental" on-chain-metric rows and synthetic/index rows that have no
     real chart) whose de-tagged symbol starts with this coin's own ticker —
@@ -92,8 +110,22 @@ def _pick_best_match(symbols: list[dict], ticker: str, coin_name: str) -> str | 
     "{TICKER}{QUOTE}_{hash}" (e.g. "ZCATWETH_95E308"), not a plain
     "{TICKER}{QUOTE}".
 
-    Ranks candidates by two independent signals rather than just taking
+    Ranks candidates by three independent signals rather than just taking
     TradingView's own first result:
+    - **chain match**: does the listing's own exchange/description mention
+      this coin's actual known platform (CoinContract.platform_name, e.g.
+      "Ethereum", "Solana", "Robinhood Chain")? TradingView's own DEX
+      exchange labels consistently spell out the chain ("Uniswap v2
+      Ethereum", "Raydium Solana", "Uniswap v4 Base"), so this is a
+      reliable check when a chain hint exists at all. **The critical guard
+      this adds**: confirmed live that the exact ticker+similar-name
+      "MUMU"/"Mumu the Bull" is used by at least *three* completely
+      unrelated real coins across three different chains (Robinhood Chain,
+      Solana, Ethereum) — without this check, a real, well-matched listing
+      for a *different* project's identical-looking name/ticker would have
+      been charted as if it were this coin (worse than showing nothing).
+      When a chain hint exists, a candidate that doesn't match it is
+      dropped entirely rather than ranked low — see below.
     - **name match**: does the listing's own description actually mention
       this coin's real name? Guards against a short ticker coincidentally
       prefix-matching a completely unrelated listing — same spirit as
@@ -112,16 +144,42 @@ def _pick_best_match(symbols: list[dict], ticker: str, coin_name: str) -> str | 
       the ".USD" variant (when one exists) keeps the chart's price axis
       consistent with the rest of the page.
 
-    Tries name-match + USD-quoted first, then name-match alone, then
-    USD-quoted alone, then finally just TradingView's own top relevance
-    result — never returns nothing once at least one real spot match
-    exists, since even a plain prefix match beats no chart at all.
+    Excludes "synthetic"/"index"/"discontinued" typespecs (TradingView's own
+    aggregated cross-exchange index symbols, e.g. "CRYPTO:MUMUTHUSD") even
+    though they're technically type "spot" — confirmed live this was a real
+    bug for Mumu The Bull: TradingView's search surfaced that synthetic
+    symbol ahead of two genuinely real, per-venue listings, and it was
+    **also flagged "discontinued"** by TradingView itself — a dead index,
+    not a live chart. A synthetic/aggregated symbol doesn't correspond to
+    any single real, tradable venue the way this whole module's "find the
+    coin's actual platform" approach requires, so it's excluded outright
+    rather than ranked low.
+
+    When chain_hints is non-empty and NO real candidate matches any of
+    them, returns None rather than guessing between same-named-but-
+    unrelated coins on other chains — "don't guess" beats "chart the wrong
+    coin". When chain_hints is empty (native assets with no CoinContract
+    row, e.g. BTC/ETH/SOL themselves — though those almost always resolve
+    through the CEX path and never reach this function at all) or at least
+    one candidate does match, falls through to the name/USD tiers as
+    before: name-match + USD-quoted first, then name-match alone, then
+    USD-quoted alone, then TradingView's own top relevance result — never
+    returns nothing once at least one (chain-confirmed, when applicable)
+    real spot match exists.
     """
     ticker_upper = ticker.upper()
-    name_lower = coin_name.lower() if coin_name else ""
+    # Strips a trailing " (alias)" parenthetical some CMC coin names carry
+    # (e.g. "Mumu The Bull (mumuthatbull)") before the description
+    # substring check below — that alias suffix is never part of how any
+    # exchange actually describes its own listing, so leaving it in would
+    # make an otherwise-good name match fail on a technicality.
+    name_lower = re.sub(r"\s*\([^)]*\)\s*$", "", coin_name).strip().lower() if coin_name else ""
     candidates = []
     for s in symbols:
         if s.get("type") != "spot":
+            continue
+        typespecs = set(s.get("typespecs") or [])
+        if typespecs & {"synthetic", "index"} or "discontinued" in typespecs:
             continue
         symbol = _EM_TAG_RE.sub("", s.get("symbol", "")).upper()
         if not symbol.startswith(ticker_upper):
@@ -130,18 +188,26 @@ def _pick_best_match(symbols: list[dict], ticker: str, coin_name: str) -> str | 
         if not prefix:
             continue
         description = _EM_TAG_RE.sub("", s.get("description", "")).lower()
+        haystack = f"{description} {s.get('exchange', '').lower()}"
+        chain_matches = any(hint in haystack for hint in chain_hints)
         name_matches = bool(name_lower) and name_lower in description
         is_usd = (s.get("currency_code") or "").upper() == "USD"
-        candidates.append((name_matches, is_usd, f"{prefix.upper()}:{symbol}"))
+        candidates.append((chain_matches, name_matches, is_usd, f"{prefix.upper()}:{symbol}"))
 
     if not candidates:
         return None
 
+    if chain_hints:
+        chain_confirmed = [c for c in candidates if c[0]]
+        if not chain_confirmed:
+            return None
+        candidates = chain_confirmed
+
     for want_name, want_usd in ((True, True), (True, False), (False, True), (False, False)):
-        for name_matches, is_usd, resolved in candidates:
+        for _, name_matches, is_usd, resolved in candidates:
             if name_matches == want_name and is_usd == want_usd:
                 return resolved
-    return candidates[0][2]
+    return candidates[0][3]
 
 
 def resolve_dex_chart_symbol(db: Session, coin: Coin) -> str | None:
@@ -171,7 +237,12 @@ def resolve_dex_chart_symbol(db: Session, coin: Coin) -> str | None:
         return coin.tradingview_dex_symbol
 
     symbols = _search_tradingview(coin.symbol)
-    resolved = _pick_best_match(symbols, coin.symbol, coin.name or "") if symbols is not None else coin.tradingview_dex_symbol
+    hints = _chain_hints([c.platform_name for c in coin.contracts])
+    resolved = (
+        _pick_best_match(symbols, coin.symbol, coin.name or "", hints)
+        if symbols is not None
+        else coin.tradingview_dex_symbol
+    )
 
     coin.tradingview_dex_symbol = resolved
     coin.tradingview_dex_symbol_checked_at = datetime.utcnow()
