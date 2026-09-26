@@ -14,7 +14,34 @@ from frontend.components import (
 from frontend.state import CoinState
 
 
-def _profile_menu_item() -> rx.Component:
+def _watchlist_menu_item() -> rx.Component:
+    # Same "star" icon already used (currently unwired) next to a coin's
+    # name on its own detail page (coin_detail.py) — kept consistent rather
+    # than introducing a second icon for the same "watchlist" concept.
+    # Real navigation (an rx.link, not a click handler) to the new blank
+    # /watchlist page below; the click still bubbles up to
+    # .profile-pill-trigger's own on_click same as every other menu item,
+    # so the dropdown is already closed by the time the new page loads.
+    return rx.link(
+        rx.hstack(
+            rx.icon("star", size=16),
+            rx.text("Watchlist", size="2"),
+            spacing="2",
+            align="center",
+        ),
+        href="/watchlist",
+        underline="none",
+        # Radix's own rt-Link color rules live in a CSS @layer that
+        # outranks .profile-menu-item's plain class color (same @layer-
+        # priority issue noted elsewhere this session for rt-TextFieldRoot)
+        # — set inline so this row reads as plain menu text, not a
+        # hyperlink, matching the Dark Mode row right below it.
+        color="var(--gray-12)",
+        class_name="profile-menu-item",
+    )
+
+
+def _color_mode_menu_item() -> rx.Component:
     # Dark/light mode now lives here instead of its own always-visible
     # header button — freeing that width is what let the nav links (below)
     # stay visible down to phone widths instead of being hidden there.
@@ -36,7 +63,8 @@ def _profile_menu_item() -> rx.Component:
 
 def _profile_dropdown() -> rx.Component:
     return rx.box(
-        _profile_menu_item(),
+        _watchlist_menu_item(),
+        _color_mode_menu_item(),
         class_name="profile-dropdown",
     )
 
@@ -348,6 +376,10 @@ def tools_page() -> rx.Component:
     return _placeholder_page("Tools")
 
 
+def watchlist_page() -> rx.Component:
+    return _placeholder_page("Watchlist")
+
+
 app = rx.App(stylesheets=["/styles.css"])
 # Dynamic routes must be registered before static ones (Reflex route-matching
 # order), so /coin/[symbol] is added ahead of the "/" index page below.
@@ -388,5 +420,6 @@ for _route, _page_fn in [
     ("/narrative", narrative_page),
     ("/chains", chains_page),
     ("/tools", tools_page),
+    ("/watchlist", watchlist_page),
 ]:
     app.add_page(_page_fn, route=_route, title=f"Repace — {_page_fn.__name__.replace('_page', '').title()}", on_load=[CoinState.load_coins])
