@@ -284,16 +284,17 @@ def _floating_logo() -> rx.Component:
     # so it floats cleanly against the page rather than carrying a visible
     # square or checkered edge.
     #
-    # Positioned above Reflex's own "Built with Reflex" badge (confirmed
-    # live: fixed, bottom:16px/right:16px, 38px tall, z-index 9998) rather
-    # than overlapping it — bottom:70px clears it with a small gap.
+    # Reflex's own "Built with Reflex" sticky badge (fixed, bottom:16px/
+    # right:16px, 38px tall, z-index 9998 — confirmed live) is now hidden
+    # entirely (rxconfig.py's show_built_with_reflex=False), so this badge
+    # sits directly in that same corner spot instead of stacked above it.
     return rx.image(
         src="/floating_logo.png",
         alt="Repace",
         width="56px",
         height="56px",
         position="fixed",
-        bottom="70px",
+        bottom="16px",
         right="16px",
         z_index="9997",
         pointer_events="none",
