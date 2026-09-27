@@ -272,6 +272,35 @@ def _header_bar() -> rx.Component:
     )
 
 
+def _floating_logo() -> rx.Component:
+    # Decorative brand mark, fixed bottom-right on every page — per explicit
+    # request. `floating_logo.png` (frontend/assets) is a cleaned-up version
+    # of the coin artwork the user supplied: the source PNG had no real
+    # alpha channel at all (confirmed via PIL — mode "RGB"), just a
+    # checkerboard pattern baked into the pixels themselves to *represent*
+    # transparency, which showed through as a faint halo if naively faded
+    # out. Re-masked to a real circular alpha cutout instead (see this
+    # file's own dated fix entry for the exact radius/edge-color approach),
+    # so it floats cleanly against the page rather than carrying a visible
+    # square or checkered edge.
+    #
+    # Positioned above Reflex's own "Built with Reflex" badge (confirmed
+    # live: fixed, bottom:16px/right:16px, 38px tall, z-index 9998) rather
+    # than overlapping it — bottom:70px clears it with a small gap.
+    return rx.image(
+        src="/floating_logo.png",
+        alt="Repace",
+        width="56px",
+        height="56px",
+        position="fixed",
+        bottom="70px",
+        right="16px",
+        z_index="9997",
+        pointer_events="none",
+        style={"filter": "drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35))"},
+    )
+
+
 def index() -> rx.Component:
     return rx.box(
         _header_bar(),
@@ -311,6 +340,7 @@ def index() -> rx.Component:
             width="100%",
         ),
         footer(),
+        _floating_logo(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
@@ -329,6 +359,7 @@ def coin_detail() -> rx.Component:
         _header_bar(),
         coin_detail_page(),
         footer(),
+        _floating_logo(),
         # Needed for the X-posts slider's arrow/drag mechanics
         # (coin_detail.py::_x_posts_slider, assets/chain_pills.js) — was
         # previously only loaded on index()'s page, which happened not to
@@ -363,6 +394,7 @@ def _placeholder_page(heading: str) -> rx.Component:
             width="100%",
         ),
         footer(),
+        _floating_logo(),
         min_height="100vh",
         width="100%",
     )
