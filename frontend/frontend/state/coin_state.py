@@ -274,6 +274,16 @@ _TRADINGVIEW_EXCHANGE_PREFIXES = {
     "kraken": "KRAKEN",
 }
 
+# Every real quote asset this app's own USD-denominated price header/Markets
+# tables should be considered equivalent to when ranking a coin's real CEX
+# pairs for a TradingView chart symbol — a pair quoted in any of these reads
+# as "the same price" a viewer already sees elsewhere on the page; anything
+# else (KRW, JPY, EUR, a coin's own native L1 asset, ...) doesn't, even
+# though it's a perfectly real listing. See _resolve_tradingview_symbol.
+_USD_EQUIVALENT_QUOTES = {
+    "USD", "USDT", "USDC", "BUSD", "DAI", "TUSD", "USDD", "FDUSD", "PYUSD", "GUSD", "USDP",
+}
+
 
 def _fmt_pct(value: float) -> str:
     return f"{value:+.2f}%"
@@ -1705,6 +1715,19 @@ class CoinState(rx.State):
         (not on detail_sync_loop's 60s price-only resync), so this resolves
         to the same string between syncs and the iframe still won't reload.
 
+        Ranked by real 24h volume, but a USD-equivalent-quoted pair
+        (_USD_EQUIVALENT_QUOTES) always outranks a foreign-fiat one
+        regardless of volume — confirmed live for Ondo and Stellar that
+        Upbit's own real, high-volume ONDO/KRW and XLM/KRW pairs otherwise
+        won the ranking outright over either coin's own real USDT pair
+        (lower volume, but still real), producing a Korean-Won-denominated
+        chart next to this page's own USD-denominated price header — not a
+        wrong-coin or fake-listing bug, just the wrong currency, but it
+        reads exactly like a wrong price. This isn't Upbit-specific either:
+        the same ranking-by-raw-volume-alone would just as readily pick a
+        real JPY/EUR/GBP/... pair over a real USD one for any other coin
+        with a high-volume foreign-fiat listing.
+
         Falls back to `tradingview_dex_symbol` (see
         app/services/tradingview_symbol_service.py /
         CoinState.refresh_tradingview_dex_symbol) when this coin has no
@@ -1720,17 +1743,24 @@ class CoinState(rx.State):
         if not base:
             return None
         pairs = self.selected_coin.get("market_pairs", []) if self.selected_coin else []
-        candidates = [
-            p for p in pairs
-            if not p.get("is_dex") and _TRADINGVIEW_EXCHANGE_PREFIXES.get(p.get("exchange_name", "").strip().lower())
-        ]
-        candidates.sort(key=lambda p: p.get("volume_24h", 0), reverse=True)
-        for pair in candidates:
-            prefix = _TRADINGVIEW_EXCHANGE_PREFIXES[pair["exchange_name"].strip().lower()]
-            _, _, quote = pair.get("market_pair", "").partition("/")
+        candidates = []
+        for p in pairs:
+            if p.get("is_dex"):
+                continue
+            prefix = _TRADINGVIEW_EXCHANGE_PREFIXES.get(p.get("exchange_name", "").strip().lower())
+            if not prefix:
+                continue
+            _, _, quote = p.get("market_pair", "").partition("/")
             quote = quote.strip().upper()
-            if re.fullmatch(r"[A-Z0-9]{2,10}", quote):
-                return f"{prefix}:{base}{quote}"
+            if not re.fullmatch(r"[A-Z0-9]{2,10}", quote):
+                continue
+            candidates.append((prefix, quote, p.get("volume_24h", 0)))
+        # A USD-equivalent-quoted pair always outranks a foreign-fiat one,
+        # whatever the raw volume gap — see this function's own docstring.
+        candidates.sort(key=lambda c: (c[1] in _USD_EQUIVALENT_QUOTES, c[2]), reverse=True)
+        if candidates:
+            prefix, quote, _volume = candidates[0]
+            return f"{prefix}:{base}{quote}"
         dex_symbol = self.selected_coin.get("tradingview_dex_symbol", "") if self.selected_coin else ""
         return dex_symbol or None
 
