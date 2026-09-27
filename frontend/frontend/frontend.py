@@ -22,22 +22,30 @@ def _watchlist_menu_item() -> rx.Component:
     # /watchlist page below; the click still bubbles up to
     # .profile-pill-trigger's own on_click same as every other menu item,
     # so the dropdown is already closed by the time the new page loads.
+    # .profile-menu-item goes on the inner hstack (a real block-level flex
+    # <div>), not on the rx.link itself — an <a> is inline by default, so
+    # the class's padding/hover-highlight only wrapped tightly around the
+    # text instead of spanning the dropdown's full width the way the Dark
+    # Mode row below (a plain rx.hstack, no wrapping link) already does.
+    # The link just becomes a plain full-width block wrapper around it.
     return rx.link(
         rx.hstack(
             rx.icon("star", size=16),
             rx.text("Watchlist", size="2"),
             spacing="2",
             align="center",
+            class_name="profile-menu-item",
         ),
         href="/watchlist",
         underline="none",
+        display="block",
+        width="100%",
         # Radix's own rt-Link color rules live in a CSS @layer that
         # outranks .profile-menu-item's plain class color (same @layer-
         # priority issue noted elsewhere this session for rt-TextFieldRoot)
         # — set inline so this row reads as plain menu text, not a
         # hyperlink, matching the Dark Mode row right below it.
         color="var(--gray-12)",
-        class_name="profile-menu-item",
     )
 
 
