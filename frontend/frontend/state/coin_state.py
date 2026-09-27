@@ -284,6 +284,12 @@ _USD_EQUIVALENT_QUOTES = {
     "USD", "USDT", "USDC", "BUSD", "DAI", "TUSD", "USDD", "FDUSD", "PYUSD", "GUSD", "USDP",
 }
 
+# Per explicit request: when a coin is listed on all three of these
+# exchanges, the TradingView chart should prefer MEXC, then KuCoin, then
+# Binance — instead of ranking by volume/USD-equivalent quote, which
+# otherwise picks Binance for most coins. See _resolve_tradingview_symbol.
+_MEXC_KUCOIN_BINANCE_PRIORITY = ["MEXC", "KUCOIN", "BINANCE"]
+
 
 def _fmt_pct(value: float) -> str:
     return f"{value:+.2f}%"
@@ -500,6 +506,33 @@ def _build_row(coin: Coin) -> dict:
         ),
         "max_supply_display": (
             f"{_fmt_compact_number(coin.max_supply)} {coin.symbol}" if coin.max_supply else "—"
+        ),
+        # Locked Supply section (coin_detail.py) — no real vesting/unlock-
+        # schedule data anywhere for free (CMC/CoinGecko/CryptoRank/
+        # DeFiLlama all checked; real cliff/linear unlock *dates* are a paid
+        # data category everywhere), so this is honest supply math instead
+        # of a fabricated unlock calendar: max_supply - circulating_supply,
+        # its $ value at the coin's own current price, and what % of max
+        # supply that represents. Only shown when max_supply is actually
+        # greater than circulating_supply — a coin with no max supply, or
+        # one that's already fully circulating, has nothing to show here.
+        "has_locked_supply": bool(
+            coin.max_supply and coin.circulating_supply and coin.max_supply > coin.circulating_supply
+        ),
+        "locked_supply_display": (
+            f"{_fmt_compact_number(coin.max_supply - coin.circulating_supply)} {coin.symbol}"
+            if coin.max_supply and coin.circulating_supply and coin.max_supply > coin.circulating_supply
+            else "—"
+        ),
+        "locked_supply_value_display": (
+            _fmt_compact_usd((coin.max_supply - coin.circulating_supply) * (coin.price_usd or 0.0))
+            if coin.max_supply and coin.circulating_supply and coin.max_supply > coin.circulating_supply
+            else "—"
+        ),
+        "locked_supply_pct_display": (
+            f"{(coin.max_supply - coin.circulating_supply) / coin.max_supply * 100:.2f}%"
+            if coin.max_supply and coin.circulating_supply and coin.max_supply > coin.circulating_supply
+            else "—"
         ),
         "website_url": coin.website_url or "",
         "whitepaper_url": coin.whitepaper_url or "",
@@ -945,6 +978,12 @@ class CoinState(rx.State):
     # click-outside-close pattern global search already uses) to close.
     profile_menu_open: bool = False
 
+    # Floating-logo chatbot popup (frontend.py::_floating_logo/_chat_widget)
+    # — click the floating logo to open, click it again or click the popup's
+    # own "x" to close. UI shell only (static demo messages) — no real
+    # chatbot backend wired up yet.
+    chat_widget_open: bool = False
+
     # In-page sort only: reorders the current page's rows, never re-ranks
     # across the full coin list. sort_key is one of the raw numeric fields
     # in each row dict (e.g. "pct_1h_raw"), or "" for the default (market-cap)
@@ -1366,6 +1405,17 @@ class CoinState(rx.State):
         # #global-search-close-trigger — see assets/chain_pills.js).
         self.profile_menu_open = False
 
+    @rx.event
+    def toggle_chat_widget(self):
+        # Bound to the floating logo's own on_click — a 2nd click on the
+        # logo closes it again, per explicit request.
+        self.chat_widget_open = not self.chat_widget_open
+
+    @rx.event
+    def close_chat_widget(self):
+        # Bound to the popup's own "x" icon.
+        self.chat_widget_open = False
+
     @rx.event(background=True)
     async def show_copied_toast(self):
         """Shows the centered "Copied to clipboard" popup for exactly 3s.
@@ -1728,6 +1778,15 @@ class CoinState(rx.State):
         real JPY/EUR/GBP/... pair over a real USD one for any other coin
         with a high-volume foreign-fiat listing.
 
+        Manual exchange priority, per explicit request: when a coin's real
+        candidates include all three of MEXC, KuCoin, AND Binance, pick
+        MEXC first, then KuCoin, then Binance — overriding the volume/USD-
+        equivalent ranking above entirely for that coin (Binance otherwise
+        wins on raw volume for most coins, which is what this exists to
+        override). Only kicks in when all three are actually present;
+        otherwise falls through to the usual volume/USD-equivalent ranking
+        unchanged.
+
         Falls back to `tradingview_dex_symbol` (see
         app/services/tradingview_symbol_service.py /
         CoinState.refresh_tradingview_dex_symbol) when this coin has no
@@ -1755,10 +1814,19 @@ class CoinState(rx.State):
             if not re.fullmatch(r"[A-Z0-9]{2,10}", quote):
                 continue
             candidates.append((prefix, quote, p.get("volume_24h", 0)))
-        # A USD-equivalent-quoted pair always outranks a foreign-fiat one,
-        # whatever the raw volume gap — see this function's own docstring.
-        candidates.sort(key=lambda c: (c[1] in _USD_EQUIVALENT_QUOTES, c[2]), reverse=True)
         if candidates:
+            present_prefixes = {c[0] for c in candidates}
+            if all(p in present_prefixes for p in _MEXC_KUCOIN_BINANCE_PRIORITY):
+                priority_rank = {p: i for i, p in enumerate(_MEXC_KUCOIN_BINANCE_PRIORITY)}
+                # .get(..., len(...)) — candidates can include exchanges
+                # outside the priority list too (e.g. Coinbase); those just
+                # sort after MEXC/KuCoin/Binance rather than crashing.
+                candidates.sort(key=lambda c: priority_rank.get(c[0], len(_MEXC_KUCOIN_BINANCE_PRIORITY)))
+            else:
+                # A USD-equivalent-quoted pair always outranks a foreign-
+                # fiat one, whatever the raw volume gap — see this
+                # function's own docstring.
+                candidates.sort(key=lambda c: (c[1] in _USD_EQUIVALENT_QUOTES, c[2]), reverse=True)
             prefix, quote, _volume = candidates[0]
             return f"{prefix}:{base}{quote}"
         dex_symbol = self.selected_coin.get("tradingview_dex_symbol", "") if self.selected_coin else ""

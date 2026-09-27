@@ -636,6 +636,36 @@ def _tags_section(coin: dict) -> rx.Component:
     )
 
 
+def _locked_supply_section(coin: dict) -> rx.Component:
+    # Honest substitute for a real token-unlock/vesting calendar — no free
+    # API anywhere (CMC/CoinGecko/CryptoRank/DeFiLlama all checked) exposes
+    # real unlock *dates*, that's a paid data category industry-wide. This
+    # is plain supply math instead: max_supply - circulating_supply, its $
+    # value at the coin's current price, and what % of max supply that is
+    # — never a fabricated unlock schedule. Only rendered when this coin
+    # actually has a max supply greater than what's already circulating
+    # (see CoinState._build_row's "has_locked_supply").
+    return rx.vstack(
+        rx.text("Locked Supply", size="2", color_scheme="gray"),
+        rx.box(
+            rx.vstack(
+                _stat_row("Locked amount", coin["locked_supply_display"]),
+                _stat_row("Locked value", coin["locked_supply_value_display"]),
+                _stat_row("% of max supply", coin["locked_supply_pct_display"]),
+                spacing="3",
+                width="100%",
+            ),
+            padding="1em",
+            border_radius="10px",
+            background="var(--gray-a2)",
+            width="100%",
+        ),
+        spacing="2",
+        width="100%",
+        align="start",
+    )
+
+
 def _stat_row(label: str, value: rx.Var | str) -> rx.Component:
     return rx.hstack(
         rx.text(label, size="1", color_scheme="gray"),
@@ -732,6 +762,13 @@ def _info_column() -> rx.Component:
         _links_section(coin),
         rx.divider(),
         _tags_section(coin),
+        rx.cond(
+            coin["has_locked_supply"],
+            rx.fragment(
+                rx.divider(),
+                _locked_supply_section(coin),
+            ),
+        ),
         spacing="4",
         width="100%",
         align="start",
