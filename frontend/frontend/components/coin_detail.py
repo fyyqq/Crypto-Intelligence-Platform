@@ -652,6 +652,7 @@ def _locked_supply_section(coin: dict) -> rx.Component:
                 _stat_row("Locked amount", coin["locked_supply_display"]),
                 _stat_row("Locked value", coin["locked_supply_value_display"]),
                 _stat_row("% of max supply", coin["locked_supply_pct_display"]),
+                _supply_range_meter(coin),
                 spacing="3",
                 width="100%",
             ),
@@ -663,6 +664,35 @@ def _locked_supply_section(coin: dict) -> rx.Component:
         spacing="2",
         width="100%",
         align="start",
+    )
+
+
+def _supply_range_meter(coin: dict) -> rx.Component:
+    # Track sized to the coin's max supply; the already-circulating portion
+    # is filled green, the remainder is the locked amount shown numerically
+    # in the stat rows above.
+    return rx.vstack(
+        rx.box(
+            rx.box(
+                width=f"{coin['circulating_supply_pct_value']}%",
+                height="100%",
+                border_radius="9999px",
+                background="var(--green-9)",
+            ),
+            width="100%",
+            height="8px",
+            border_radius="9999px",
+            background="var(--gray-a5)",
+            overflow="hidden",
+        ),
+        rx.hstack(
+            rx.text("Circulating", size="1", color_scheme="gray"),
+            rx.spacer(),
+            rx.text("Max supply", size="1", color_scheme="gray"),
+            width="100%",
+        ),
+        spacing="1",
+        width="100%",
     )
 
 

@@ -534,6 +534,13 @@ def _build_row(coin: Coin) -> dict:
             if coin.max_supply and coin.circulating_supply and coin.max_supply > coin.circulating_supply
             else "—"
         ),
+        # Fill width (0-100) for the range meter below the Locked Supply
+        # stats — the circulating portion of max supply, shown in green.
+        "circulating_supply_pct_value": (
+            round(min(coin.circulating_supply / coin.max_supply * 100, 100), 2)
+            if coin.max_supply and coin.circulating_supply and coin.max_supply > coin.circulating_supply
+            else 0.0
+        ),
         "website_url": coin.website_url or "",
         "whitepaper_url": coin.whitepaper_url or "",
         "twitter_url": coin.twitter_url or "",
