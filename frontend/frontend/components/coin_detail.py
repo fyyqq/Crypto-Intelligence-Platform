@@ -790,8 +790,6 @@ def _info_column() -> rx.Component:
         ),
         rx.divider(),
         _links_section(coin),
-        rx.divider(),
-        _tags_section(coin),
         rx.cond(
             coin["has_locked_supply"],
             rx.fragment(
@@ -799,6 +797,8 @@ def _info_column() -> rx.Component:
                 _locked_supply_section(coin),
             ),
         ),
+        rx.divider(),
+        _tags_section(coin),
         spacing="4",
         width="100%",
         align="start",
