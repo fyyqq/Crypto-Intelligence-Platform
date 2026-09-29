@@ -203,6 +203,95 @@ def _build_article_row(row: dict) -> dict:
     }
 
 
+def _image_category(news_type: str) -> str:
+    if news_type.startswith("Cryptocurrency"):
+        return "Crypto"
+    if news_type.startswith("Artificial Intelligence"):
+        return "AI"
+    if news_type.startswith("Markets & Finance"):
+        return "Finance"
+    return "Tech"
+
+
+def _ensure_article_images(articles: list[dict]) -> dict[str, str]:
+    """Return persisted images for a visible page, filling missing web
+    articles with a free topic/category-matched Commons image. The regular
+    ingestion pipeline still prefers each publisher's own image; this fast
+    path prevents older rows from blocking a pagination page while a full
+    source-page backfill is still running.
+    """
+    candidates = {
+        article["url"]: article
+        for article in articles
+        if article.get("url") and not article.get("is_telegram")
+    }
+    if not candidates:
+        return {}
+
+    import sys
+    from pathlib import Path
+
+    from sqlalchemy import bindparam, text
+
+    root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+    from app.services.news_pipeline import _topic_fallback_image
+
+    db = OldSessionLocal()
+    try:
+        statement = text(
+            "SELECT url, image_url FROM news_articles WHERE url IN :urls"
+        ).bindparams(bindparam("urls", expanding=True))
+        stored = {
+            row.url: row.image_url
+            for row in db.execute(statement, {"urls": list(candidates)}).all()
+        }
+        updates: dict[str, str] = {}
+        for url, article in candidates.items():
+            image_url = stored.get(url)
+            if not image_url:
+                image_url = _topic_fallback_image(
+                    article.get("title", ""),
+                    _image_category(article.get("news_type", "")),
+                )
+                if image_url:
+                    db.execute(
+                        text(
+                            """
+                            UPDATE news_articles
+                            SET image_url = :image_url
+                            WHERE url = :url AND image_url IS NULL
+                            """
+                        ),
+                        {"image_url": image_url, "url": url},
+                    )
+            if image_url:
+                updates[url] = image_url
+        db.commit()
+        return updates
+    except Exception:
+        db.rollback()
+        return {}
+    finally:
+        db.close()
+
+
+def _merge_image_updates(articles: list[dict], updates: dict[str, str]) -> list[dict]:
+    if not updates:
+        return articles
+    return [
+        {
+            **article,
+            "image_url": updates.get(article["url"], article["image_url"]),
+            "has_image": bool(updates.get(article["url"], article["image_url"])),
+        }
+        for article in articles
+    ]
+
+
 class NewsState(rx.State):
     all_articles: list[dict] = []
     is_loading: bool = True
@@ -224,6 +313,13 @@ class NewsState(rx.State):
         # avoids (see coin_state.py's own asyncio.to_thread(...) calls).
         rows = await asyncio.to_thread(_fetch_articles)
         articles = [_build_article_row(r) for r in rows]
+        first_pages: list[dict] = []
+        for news_type in dict.fromkeys(article["news_type"] for article in articles):
+            first_pages.extend([
+                article for article in articles if article["news_type"] == news_type
+            ][:_PAGE_SIZE])
+        updates = await asyncio.to_thread(_ensure_article_images, first_pages)
+        articles = _merge_image_updates(articles, updates)
         async with self:
             self.all_articles = articles
             self.is_loading = False
@@ -232,30 +328,46 @@ class NewsState(rx.State):
     def set_category_page(self, news_type: str, page: int):
         self.category_pages = {**self.category_pages, news_type: page}
 
-    @rx.event
-    def prev_page(self, news_type: str):
-        current = self.category_pages.get(news_type, 1)
-        self.category_pages = {**self.category_pages, news_type: max(1, current - 1)}
+    async def _show_page_with_images(self, news_type: str, page: int):
+        async with self:
+            total = self._total_pages_for(news_type)
+            page = max(1, min(total, page))
+            self.category_pages = {**self.category_pages, news_type: page}
+            articles = self._filtered_category_articles(news_type)
+            start = (page - 1) * _PAGE_SIZE
+            visible = articles[start : start + _PAGE_SIZE]
+        updates = await asyncio.to_thread(_ensure_article_images, visible)
+        if updates:
+            async with self:
+                self.all_articles = _merge_image_updates(self.all_articles, updates)
 
-    @rx.event
-    def next_page(self, news_type: str):
-        current = self.category_pages.get(news_type, 1)
-        total = self._total_pages_for(news_type)
-        self.category_pages = {**self.category_pages, news_type: min(total, current + 1)}
+    @rx.event(background=True)
+    async def prev_page(self, news_type: str):
+        async with self:
+            page = self.category_pages.get(news_type, 1) - 1
+        await self._show_page_with_images(news_type, page)
 
-    @rx.event
-    def first_page(self, news_type: str):
-        self.category_pages = {**self.category_pages, news_type: 1}
+    @rx.event(background=True)
+    async def next_page(self, news_type: str):
+        async with self:
+            page = self.category_pages.get(news_type, 1) + 1
+        await self._show_page_with_images(news_type, page)
 
-    @rx.event
-    def last_page(self, news_type: str):
-        total = self._total_pages_for(news_type)
-        self.category_pages = {**self.category_pages, news_type: total}
+    @rx.event(background=True)
+    async def first_page(self, news_type: str):
+        await self._show_page_with_images(news_type, 1)
 
-    @rx.event
-    def set_category_source(self, news_type: str, source: str):
-        self.category_source_filter = {**self.category_source_filter, news_type: source}
-        self.category_pages = {**self.category_pages, news_type: 1}
+    @rx.event(background=True)
+    async def last_page(self, news_type: str):
+        async with self:
+            page = self._total_pages_for(news_type)
+        await self._show_page_with_images(news_type, page)
+
+    @rx.event(background=True)
+    async def set_category_source(self, news_type: str, source: str):
+        async with self:
+            self.category_source_filter = {**self.category_source_filter, news_type: source}
+        await self._show_page_with_images(news_type, 1)
 
     def _category_articles(self, news_type: str) -> list[dict]:
         return [a for a in self.all_articles if a["news_type"] == news_type]

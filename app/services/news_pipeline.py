@@ -400,6 +400,10 @@ _TOPIC_IMAGE_KEYWORDS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bstablecoin\b", re.IGNORECASE), "stablecoin cryptocurrency"),
     (re.compile(r"\bdefi\b", re.IGNORECASE), "decentralized finance cryptocurrency"),
     (re.compile(r"\bnft\b", re.IGNORECASE), "NFT digital art cryptocurrency"),
+    (re.compile(r"\bopenai\b|\bchatgpt\b|\bgpt-?\d", re.IGNORECASE), "OpenAI ChatGPT logo"),
+    (re.compile(r"\bgemini\b|\bgoogle ai\b", re.IGNORECASE), "Google AI Gemini"),
+    (re.compile(r"\banthropic\b|\bclaude\b", re.IGNORECASE), "Anthropic Claude AI"),
+    (re.compile(r"\bnvidia\b", re.IGNORECASE), "Nvidia AI chip"),
 ]
 
 # Per-category generic fallback search term — used when no specific coin/
