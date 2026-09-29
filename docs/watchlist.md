@@ -20,7 +20,7 @@ Same visual design as the homepage's coin table (`coin_table.py`) — coin icon/
 
 Deliberately **not** wired to the homepage's own browsing state (`categories`/`chains`/`search_query`/`sort_key`/pagination) — a personal watchlist is a small, already-curated list, not something that needs narrative/chain filtering, search, sorting, or pagination the way browsing all ~8,000 coins does. `CoinState.watchlist_coins` is its own computed var: filters `all_coins` (with `coin_overrides` merged in, so a live-synced price shows up here too) down to whichever `cmc_id`s are in `watchlist_ids`, sorted by market cap, re-ranked 1..N within just that subset.
 
-An empty state ("Your watchlist is empty — click the star icon on any coin's own page to add it here") shows instead of the table when nothing is starred yet.
+An empty state ("Your watchlist is empty — click the star icon on any coin's own page to add it here") shows above the table when nothing is starred yet, followed by 3 dummy skeleton coin rows in the same table shape (rank, name/badges, price, market cap, volume, % change, trend sparklines) as a real, populated row — a preview of what the table looks like once a coin is added, reusing `coin_table.py`'s own skeleton-cell helpers (`_skeleton_name_cell`, `_SKELETON_COL_DISPLAYS`) rather than duplicating them. The header row itself is shared (`_table_header_row`) between the real table and this empty-state skeleton table so both stay in sync automatically if a column is ever added or removed.
 </details>
 
 <details>
