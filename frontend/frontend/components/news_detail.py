@@ -51,16 +51,21 @@ def _article_sidebar(article: dict) -> rx.Component:
             rx.foreach(
                 article["related_articles"].to(list[dict]),
                 lambda related: rx.link(
-                    rx.hstack(
-                        rx.image(
-                            src=related["image_url"],
-                            width="72px",
-                            height="72px",
-                            min_width="72px",
-                            object_fit="cover",
+                    rx.vstack(
+                        rx.box(
+                            rx.image(
+                                src=related["image_url"],
+                                width="100%",
+                                height="100%",
+                                object_fit="cover",
+                                display="block",
+                                custom_attrs={"data-fallback-src": related["fallback_image_url"]},
+                            ),
+                            width="100%",
+                            aspect_ratio="16 / 9",
+                            overflow="hidden",
                             border_radius="4px",
                             background="var(--gray-a3)",
-                            custom_attrs={"data-fallback-src": related["fallback_image_url"]},
                         ),
                         rx.vstack(
                             rx.text(related["title"], size="2", weight="medium", line_height="1.35"),
@@ -84,7 +89,7 @@ def _article_sidebar(article: dict) -> rx.Component:
                             min_width="0",
                             width="100%",
                         ),
-                        spacing="2",
+                        spacing="3",
                         align="start",
                         width="100%",
                         padding="0.7em",
