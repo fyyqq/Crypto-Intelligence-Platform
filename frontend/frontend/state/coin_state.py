@@ -1469,19 +1469,28 @@ class CoinState(rx.State):
     def watchlist_coins(self) -> list[dict]:
         """The /watchlist page's own row list — same _row_with_overrides
         merge every other display-facing computed var uses (so a live-
-        synced price shows up here too), filtered to watchlist_ids and
-        re-ranked 1..N by market cap within just this subset (matching
-        filtered_coins' own "rank reflects position in the current view"
-        convention, not the coin's global cmc_rank).
+        synced price shows up here too), filtered to watchlist_ids. Rank is
+        each coin's real global market-cap position across every coin (same
+        convention filtered_coins' own search branch uses), not a 1..N
+        renumbering within just this watched subset.
         """
         watched = set(self.watchlist_ids)
         if not watched:
             return []
+        full_rows = [self._row_with_overrides(r) for r in self.all_coins]
+        global_rank_by_id = {
+            row["cmc_id"]: i
+            for i, row in enumerate(
+                sorted(full_rows, key=lambda r: r["market_cap_usd"], reverse=True),
+                start=1,
+            )
+        }
         rows = [
-            self._row_with_overrides(r) for r in self.all_coins if r["cmc_id"] in watched
+            {**row, "rank": global_rank_by_id[row["cmc_id"]]}
+            for row in full_rows
+            if row["cmc_id"] in watched
         ]
-        rows = sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
-        return [{**row, "rank": i} for i, row in enumerate(rows, start=1)]
+        return sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
 
     def _merged_row(self, cmc_id: int) -> dict | None:
         """Finds cmc_id's row in all_coins and merges in any existing
