@@ -8,3 +8,13 @@ pydantic-settings>=2.5
 apscheduler>=3.10
 python-dotenv>=1.0
 requests>=2.31
+
+# News aggregation pipeline (app/services/news_pipeline.py)
+feedparser>=6.0.8
+pygooglenews>=0.1.3
+trafilatura>=2.2.0
+# Not in the pipeline's originally-specified library list, but required:
+# pygooglenews' own RSS links are Google redirect URLs, not real article
+# URLs — trafilatura can't extract a real page from one, so this decodes
+# the real URL first. See news_pipeline.py's own module docstring.
+googlenewsdecoder>=0.2.1

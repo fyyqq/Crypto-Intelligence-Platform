@@ -400,6 +400,22 @@ def _resolve_unlock_source_url(symbol: str, defillama_slug: str | None) -> str:
     """
     if defillama_slug:
         return f"https://defillama.com/protocol/unlocks/{defillama_slug}"
+
+    import sys
+    from pathlib import Path
+
+    # Reflex's own process runs with only frontend/ on sys.path — see the
+    # matching comment on this same fix elsewhere in this file (e.g.
+    # _fetch_business_summary) for why this is needed before any `app.*`
+    # import. Confirmed live this was a real, silent bug: on a fresh
+    # session whose very first page is /news (whose own on_load runs
+    # CoinState.load_coins before anything else has had a chance to patch
+    # sys.path), every coin lacking a real defillama_slug hit this import
+    # and crashed load_coins entirely with ModuleNotFoundError.
+    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
     from app.services.coingecko_service import _get_top_coin_symbol_map
 
     gecko_id = _get_top_coin_symbol_map().get(symbol.upper())

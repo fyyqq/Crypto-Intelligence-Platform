@@ -10,9 +10,10 @@ from frontend.components import (
     global_search,
     narrative_alerts,
     news_feed,
+    news_page_content,
     watchlist_table,
 )
-from frontend.state import CoinState
+from frontend.state import CoinState, NewsState
 
 
 def _watchlist_menu_item() -> rx.Component:
@@ -581,7 +582,19 @@ def _placeholder_page(heading: str) -> rx.Component:
 
 
 def news_page() -> rx.Component:
-    return _placeholder_page("News")
+    # Real content, per explicit request — supersedes the blank
+    # _placeholder_page shell every other nav-link page still uses.
+    # news_page_content() reads real articles from the news_articles table
+    # (app/services/news_pipeline.py) via NewsState, grouped by outlet.
+    return rx.box(
+        _header_bar(),
+        news_page_content(),
+        footer(),
+        _floating_logo(),
+        _chat_widget(),
+        min_height="100vh",
+        width="100%",
+    )
 
 
 def narrative_page() -> rx.Component:
@@ -650,12 +663,20 @@ app.add_page(
     meta=[rx.el.link(rel="icon", href="/favicon_logo.png", type="image/png")],
     on_load=[CoinState.load_coins, CoinState.live_sync_loop],
 )
-# Header nav-link destinations (_NAV_LINKS above) — blank/placeholder pages
-# today. Each still loads the coin universe so the shared header's own
-# search bar works even when one of these is the very first page a session
-# visits (a direct/bookmarked link, not navigated to from "/").
+# /news has real content (news_page_content(), NewsState) — registered on
+# its own so it can add NewsState.load_news to the shared on_load list below
+# rather than going through the still-blank-placeholder loop.
+app.add_page(
+    news_page,
+    route="/news",
+    title="Repace — News",
+    on_load=[CoinState.load_coins, NewsState.load_news],
+)
+# Remaining header nav-link destinations (_NAV_LINKS above) — blank/
+# placeholder pages today. Each still loads the coin universe so the shared
+# header's own search bar works even when one of these is the very first
+# page a session visits (a direct/bookmarked link, not navigated to from "/").
 for _route, _page_fn in [
-    ("/news", news_page),
     ("/narrative", narrative_page),
     ("/chains", chains_page),
     ("/tools", tools_page),

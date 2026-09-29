@@ -1,8 +1,60 @@
 # News
 
-**Route:** `/news` · **Status:** Blank placeholder — shell only, no real content yet
-**Source:** `frontend/frontend/frontend.py::news_page` / `_placeholder_page`
+**Route:** `/news` · **Status:** Live
+**Source:** `app/services/news_pipeline.py` (ingestion), `frontend/frontend/state/news_state.py`, `frontend/frontend/components/news_page.py`, `frontend/frontend/frontend.py::news_page`
 
-Currently renders just the shared header/footer and a "News / Coming soon" message — a real destination for the header's "News" nav link to exist, built before any real content, per explicit request.
+A real, ingested news feed — grouped by real outlet (TechCrunch, Cointelegraph, WIRED, or whichever real publisher Google News attributes a historical result to), each outlet its own independently-paginated section.
 
-**Not to be confused with:** the [Home](./home.md) page's own "All News" and "Targeted Narrative + Coin" sliders (static placeholder headlines, already live on `/`) — those are a Home feature, not this page. This page is where a real, dedicated news feature would eventually live (a full article list, filtering, search, etc.) — nothing has been decided about its scope yet.
+**Not to be confused with:** the [Home](./home.md) page's own "All News" and "Targeted Narrative + Coin" sliders (static placeholder headlines, unrelated to this page's real data) — those stay exactly as they were, untouched by this feature.
+
+## Features
+
+<details>
+<summary><strong>📰 Zero-API-key ingestion pipeline</strong></summary>
+
+`app/services/news_pipeline.py` — a standalone script (no imports from the rest of this repo; genuinely copy-out-and-run-anywhere), run manually or on a cron, not wired into this app's own scheduler yet (see Known gaps below). Two ingestion paths, both writing into one `news_articles` table:
+
+1. **Real-time RSS** (`feedparser`) — three hardcoded feeds: TechCrunch (Tech), Cointelegraph (Crypto), and WIRED's own AI-tagged feed (AI). The originally-requested "Artificial Intelligence News" (artificialintelligence-news.com) was swapped for WIRED — confirmed live that site now sits behind a hard captcha wall (SiteGround's `SG-Captcha`) that returns a 176-byte redirect stub to every scripted request regardless of User-Agent, so it can never yield real articles.
+2. **Dynamic 90-day historical lookback** (`pygooglenews`) across three keywords (global stock market, artificial intelligence, cryptocurrency). The search window's start/end dates are computed fresh from `datetime.date.today()` on every run — never a hardcoded date string — so the same trailing 90-day window moves forward automatically whether the script runs today, next week, or next year. Capped at 25 results per query per run (Google's own top-relevance ranking) to keep one run's runtime and target-site load reasonable — a later run naturally surfaces different results since already-seen URLs are skipped.
+
+Every article's full body text is extracted with `trafilatura` (free, local, no API key — strips nav/ads/cookie banners down to the real article text).
+</details>
+
+<details>
+<summary><strong>🔗 Google News redirect decoding</strong></summary>
+
+A dependency beyond the pipeline's originally-specified library list, but a required one: `pygooglenews`'s own RSS links point to a Google redirect page (`news.google.com/rss/articles/<token>`), not the real publisher URL — confirmed live that page is a client-side-rendered SPA with no HTTP redirect or meta-refresh anything could follow. `googlenewsdecoder` (a small, actively-maintained package) resolves the real URL by replaying Google News's own internal decode request. Without it, every Google-News-sourced row would have an empty body and a URL that just opens Google's own JS shell instead of the article.
+</details>
+
+<details>
+<summary><strong>🛡️ Idempotency, resilience, and permanent archival</strong></summary>
+
+- **Idempotent**: every candidate URL is checked against `news_articles` *before* the (expensive) full-page fetch + extraction — a re-run only ever does real work for genuinely new articles. A `UNIQUE` constraint on `url` plus a caught `UniqueViolation`/`IntegrityError` is the race-condition backstop on top of that pre-check.
+- **Resilient**: the page-fetch + `trafilatura.extract` step is wrapped in a broad try/except — a Cloudflare wall, hard paywall, dead link, or timeout logs a warning and moves on to the next article rather than stalling the run. The article's title/URL/date are still recorded even when body extraction specifically fails (confirmed live: several real Google News results — RAND, Nature, The Economist, AP News, Reuters — hit exactly this path during a real run, all correctly skipped-with-a-null-body rather than crashing anything).
+- **Polite crawling**: a 1-second delay between every page fetch.
+- **Append-only, forever**: this module contains no `DELETE`, `TRUNCATE`, or any other data-expiration statement anywhere, by design. An article that scrolls past the 90-day lookback window as time moves forward isn't removed — it just stops being re-discovered by future searches, and stays in the database as permanent history.
+</details>
+
+<details>
+<summary><strong>🗄️ Dual-database configuration</strong></summary>
+
+Controlled by two environment variables read once at import: `NEWS_DB_BACKEND` (`"postgres"`, the default, or `"sqlite"`) and `NEWS_DATABASE_DSN` (a libpq DSN string for Postgres, or a file path for SQLite — defaults to this project's own local dev Postgres, or `news_fallback.db`, respectively, if unset). Schema (`news_articles`: `id`, `source_type`, `source_name`, `category_or_query`, `title`, `url` UNIQUE, `published_date`, `full_body_text`) is created with `CREATE TABLE IF NOT EXISTS` on every run — no separate migration step needed, and safe to run repeatedly. `source_name` is the one column added beyond the feature's originally-specified schema — the real display outlet (e.g. "TechCrunch", or Google News's own attributed "Reuters"/"SEC.gov"/...), needed so the `/news` page can group by real publisher rather than only the coarse `source_type` ("rss"/"google_news") or the raw search query text.
+
+Uses raw `psycopg2`/`sqlite3` directly, not this project's own SQLAlchemy models — a deliberate, genuinely standalone script per its own spec, not a service coupled to the rest of this app's ORM layer.
+</details>
+
+<details>
+<summary><strong>📋 The page itself — grouped, paginated grid</strong></summary>
+
+`NewsState` (Reflex) reads `news_articles` directly from the same Postgres database the pipeline writes to — via `app.core.database.SessionLocal`, the same "reach into the real Postgres app DB directly" pattern `CoinState`'s own background refreshers already use elsewhere in this app (raw SQL `SELECT`, not an ORM model, since the pipeline itself doesn't define one either).
+
+- One section per real outlet name present in the data (dynamic — not a fixed list of 3), sorted alphabetically.
+- Each section is a responsive grid (1 column on phones, 2 on tablets, 3 on desktop) capped at 6 articles per page — a 3×2 grid at desktop width, per explicit request — with its own independent pagination (`NewsState.source_pages`, keyed per outlet name), so paging through TechCrunch's articles doesn't affect Cointelegraph's current page.
+- Each card: a colored outlet badge (hashed to a stable color per outlet name, since outlets are dynamic rather than a fixed small set with its own lookup table), a relative-time string computed from the real `published_date`, the title (links out to the real article, opens in a new tab), and a short snippet of the extracted body text.
+- An empty state ("No news articles yet — run app/services/news_pipeline.py...") when the table is empty or doesn't exist yet, and a skeleton grid while `NewsState.load_news` is fetching — same loading-state conventions as the rest of this app.
+</details>
+
+## Known, accepted gaps
+
+- **Not wired into this app's own scheduler** (`app/scheduler/jobs.py`) — the pipeline is a standalone script, run manually or via an external cron, not an automatic periodic job. Add it there if automatic re-ingestion is wanted; not done this session since it wasn't asked for.
+- **A coin's own on-page news feed (`_x_posts_section`'s neighbor on the coin-detail page, and the Home page's sliders) are unrelated static placeholders**, not backed by this real pipeline — only this dedicated `/news` page is.
