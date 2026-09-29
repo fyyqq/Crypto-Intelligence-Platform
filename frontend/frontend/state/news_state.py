@@ -16,6 +16,7 @@ instead of an ORM query.
 
 import asyncio
 import datetime
+import hashlib
 import re
 
 import reflex as rx
@@ -148,6 +149,21 @@ _NEWS_TYPE_ORDER = {
     "General News": 8,
 }
 
+_FALLBACK_IMAGES = (
+    "/news-fallback-1.jpeg",
+    "/news-fallback-2.webp",
+    "/news-fallback-3.jpeg",
+)
+
+
+def _fallback_image_for(url: str) -> str:
+    """Choose a supplied fallback consistently for each article URL."""
+    image_index = (
+        int.from_bytes(hashlib.sha256(url.encode()).digest()[:2], "big")
+        % len(_FALLBACK_IMAGES)
+    )
+    return _FALLBACK_IMAGES[image_index]
+
 
 def _normalize_news_type(category_or_query: str | None, source_name: str) -> str:
     label = (category_or_query or "").strip()
@@ -184,18 +200,20 @@ def _build_article_row(row: dict) -> dict:
         snippet = snippet.rsplit(" ", 1)[0] + "…"
     source_name = row.get("source_name") or "Unknown"
     news_type = _normalize_news_type(row.get("category_or_query"), source_name)
+    article_url = row.get("url") or ""
+    image_url = row.get("image_url") or _fallback_image_for(article_url)
     return {
         "source_name": source_name,
         "badge_color": _BADGE_COLORS[hash(source_name) % len(_BADGE_COLORS)],
         "news_type": news_type,
         "news_type_color": _NEWS_TYPE_COLORS[news_type],
         "title": row.get("title") or "",
-        "url": row.get("url") or "",
+        "url": article_url,
         "time_display": _relative_time(published),
         "snippet": snippet,
         "has_snippet": bool(snippet),
-        "image_url": row.get("image_url") or "",
-        "has_image": bool(row.get("image_url")),
+        "image_url": image_url,
+        "has_image": bool(image_url),
         # Marks a card sourced from app/services/telegram_pipeline.py (a
         # Telegram group post, not a web article) so the card can show a
         # distinguishing "Telegram News" badge, per explicit request.
