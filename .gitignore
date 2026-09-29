@@ -10,3 +10,9 @@ reflex.log
 .claude/
 .claude-ctx/
 .playwright-mcp/
+
+# Telegram MTProto login session (holds a live, authenticated session for
+# the user's own Telegram account — never commit this, equivalent to a
+# password)
+*.session
+*.session-journal

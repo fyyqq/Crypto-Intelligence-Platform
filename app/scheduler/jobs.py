@@ -12,17 +12,19 @@ from app.services.reflex_cache_service import sync_reflex_cache
 scheduler = BackgroundScheduler(timezone="UTC")
 
 
-def _news_sync_due(db) -> bool:
+def _news_sync_due(db, sync_type: SyncType = SyncType.NEWS_PIPELINE) -> bool:
     """Same once-per-interval gate as MarketDataService.is_sync_due, kept
     standalone here rather than on that class since the news pipeline is
     deliberately not a MarketDataService concern (see
     app/services/news_pipeline.py's own "genuinely standalone" docstring)
     — this only needs the shared SyncLog table's gating convention, not
-    anything else that class owns.
+    anything else that class owns. Also reused by the Telegram pipeline
+    (sync_type=SyncType.TELEGRAM_PIPELINE) since it shares the exact same
+    cadence/gating shape, just a different SyncType row.
     """
     stmt = (
         select(SyncLog)
-        .where(SyncLog.sync_type == SyncType.NEWS_PIPELINE, SyncLog.status == SyncStatus.SUCCESS)
+        .where(SyncLog.sync_type == sync_type, SyncLog.status == SyncStatus.SUCCESS)
         .order_by(SyncLog.started_at.desc())
         .limit(1)
     )
@@ -142,6 +144,49 @@ def run_news_pipeline_sync() -> None:
         db.close()
 
 
+def run_telegram_pipeline_sync() -> None:
+    """Runs the standalone Telegram-group pipeline
+    (app/services/telegram_pipeline.py) on the same
+    NEWS_PIPELINE_SYNC_INTERVAL_HOURS cadence as run_news_pipeline_sync
+    above, per explicit request to treat "real-time" here as "resynced on
+    the same schedule the rest of /news already uses" rather than a
+    separate always-on listener process — gated by its own
+    SyncType.TELEGRAM_PIPELINE row so an app restart within the interval
+    never re-triggers a real Telegram pull for no reason, same pattern as
+    every other job in this module.
+
+    Requires a one-time manual login to have already been done (see
+    scripts/telegram_login.py's own docstring — Telegram's login code is
+    sent live to the account's own phone/Telegram app, so it can't be
+    automated here) — if that hasn't happened yet, telegram_pipeline.py's
+    run_telegram_pipeline() raises, which this job catches and records on
+    the log the same way any other failure is, rather than crashing the
+    whole scheduler.
+    """
+    db = SessionLocal()
+    try:
+        if not _news_sync_due(db, sync_type=SyncType.TELEGRAM_PIPELINE):
+            return
+        log = SyncLog(sync_type=SyncType.TELEGRAM_PIPELINE, status=SyncStatus.RUNNING)
+        db.add(log)
+        db.commit()
+        try:
+            from app.services.telegram_pipeline import run_telegram_pipeline
+
+            stats = run_telegram_pipeline()
+            log.status = SyncStatus.SUCCESS
+            log.records_synced = stats.inserted
+        except Exception as exc:  # noqa: BLE001 — recorded on the log, not raised
+            log.status = SyncStatus.FAILED
+            log.error_message = str(exc)[:2048]
+        finally:
+            log.finished_at = datetime.utcnow()
+            db.add(log)
+            db.commit()
+    finally:
+        db.close()
+
+
 def start_scheduler() -> None:
     if scheduler.running:
         return
@@ -166,6 +211,14 @@ def start_scheduler() -> None:
         trigger="interval",
         hours=settings.news_pipeline_sync_interval_hours,
         id="news_pipeline_sync",
+        replace_existing=True,
+        next_run_time=datetime.now(),
+    )
+    scheduler.add_job(
+        run_telegram_pipeline_sync,
+        trigger="interval",
+        hours=settings.news_pipeline_sync_interval_hours,
+        id="telegram_pipeline_sync",
         replace_existing=True,
         next_run_time=datetime.now(),
     )

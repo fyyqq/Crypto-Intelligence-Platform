@@ -30,6 +30,10 @@ def _news_card(article: dict) -> rx.Component:
                 rx.hstack(
                     rx.hstack(
                         rx.badge(article["source_name"], color_scheme=article["badge_color"], variant="surface", size="1"),
+                        rx.cond(
+                            article["is_telegram"],
+                            rx.badge("Telegram News", color_scheme="blue", variant="solid", size="1"),
+                        ),
                         rx.badge(
                             article["news_type"],
                             color_scheme=article["news_type_color"],
@@ -39,6 +43,7 @@ def _news_card(article: dict) -> rx.Component:
                         spacing="2",
                         align="center",
                         min_width="0",
+                        flex_wrap="wrap",
                     ),
                     rx.text(article["time_display"], size="1", color_scheme="gray", white_space="nowrap"),
                     spacing="2",

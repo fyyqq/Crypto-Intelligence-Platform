@@ -18,3 +18,8 @@ trafilatura>=2.2.0
 # URLs — trafilatura can't extract a real page from one, so this decodes
 # the real URL first. See news_pipeline.py's own module docstring.
 googlenewsdecoder>=0.2.1
+
+# Telegram group ingestion (app/services/telegram_pipeline.py) — MTProto
+# client library, logs in as the user's own account (not a bot) so it can
+# read groups the user is a member of without needing admin rights.
+telethon>=1.36
