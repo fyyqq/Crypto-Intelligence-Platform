@@ -1,13 +1,16 @@
 """The /news page's real content — replaces frontend.py's old
 _placeholder_page("News") shell. Groups real articles (ingested by
 app/services/news_pipeline.py into the news_articles table) by normalized
-news type, one section per category, each a 3-column x 2-row grid with its
-own independent pagination — see frontend/state/news_state.py.
+news type, one section per category, each a 4-column x 3-row grid with its
+own independent pagination and real-source filter dropdown — see
+frontend/state/news_state.py.
 """
 
 import reflex as rx
 
 from frontend.state import NewsState
+
+_GRID_COLUMNS = rx.breakpoints(initial="1", sm="2", md="3", lg="4")
 
 
 def _news_card(article: dict) -> rx.Component:
@@ -64,6 +67,11 @@ def _news_card(article: dict) -> rx.Component:
 def _section_pagination(news_type: str, page: rx.Var, total_pages: rx.Var) -> rx.Component:
     return rx.hstack(
         rx.box(
+            rx.icon("chevrons-left", size=16),
+            on_click=NewsState.first_page(news_type),
+            class_name="page-arrow-btn",
+        ),
+        rx.box(
             rx.icon("chevron-left", size=16),
             on_click=NewsState.prev_page(news_type),
             class_name="page-arrow-btn",
@@ -74,6 +82,11 @@ def _section_pagination(news_type: str, page: rx.Var, total_pages: rx.Var) -> rx
             on_click=NewsState.next_page(news_type),
             class_name="page-arrow-btn",
         ),
+        rx.box(
+            rx.icon("chevrons-right", size=16),
+            on_click=NewsState.last_page(news_type),
+            class_name="page-arrow-btn",
+        ),
         spacing="2",
         align="center",
         justify="center",
@@ -81,17 +94,32 @@ def _section_pagination(news_type: str, page: rx.Var, total_pages: rx.Var) -> rx
     )
 
 
+def _section_source_filter(section: dict) -> rx.Component:
+    return rx.select(
+        section["sources"].to(list[str]),
+        value=section["selected_source"],
+        on_change=lambda value: NewsState.set_category_source(section["news_type"], value),
+        size="1",
+    )
+
+
 def _news_section(section: dict) -> rx.Component:
     return rx.vstack(
         rx.hstack(
-            rx.heading(section["news_type"], size="4"),
-            rx.badge(section["article_count"], " articles", color_scheme="gray", variant="soft", size="1"),
-            spacing="2",
+            rx.hstack(
+                rx.heading(section["news_type"], size="4"),
+                rx.badge(section["article_count"], " articles", color_scheme="gray", variant="soft", size="1"),
+                spacing="2",
+                align="center",
+            ),
+            _section_source_filter(section),
+            justify="between",
             align="center",
+            width="100%",
         ),
         rx.grid(
             rx.foreach(section["articles"].to(list[dict]), _news_card),
-            columns=rx.breakpoints(initial="1", sm="2", md="3"),
+            columns=_GRID_COLUMNS,
             spacing="4",
             width="100%",
         ),
@@ -129,8 +157,8 @@ def _empty_state() -> rx.Component:
 def _loading_skeleton() -> rx.Component:
     return rx.vstack(
         rx.grid(
-            *[rx.skeleton(height="180px", width="100%", border_radius="12px") for _ in range(6)],
-            columns=rx.breakpoints(initial="1", sm="2", md="3"),
+            *[rx.skeleton(height="180px", width="100%", border_radius="12px") for _ in range(12)],
+            columns=_GRID_COLUMNS,
             spacing="4",
             width="100%",
         ),

@@ -1,7 +1,8 @@
 """State for the /news page — reads real articles from the news_articles
 table (app/services/news_pipeline.py) and groups them by normalized news
 type (Cryptocurrency, Artificial Intelligence, ...), each category its own
-independently-paginated 3-column x 2-row grid section.
+independently-paginated 4-column x 3-row grid section, further filterable
+by real source (Cointelegraph, BBC, ...) via a per-section dropdown.
 
 Reads the same Postgres database the FastAPI backend writes to, directly via
 SQLAlchemy — the same "from app.core.database import SessionLocal as
@@ -19,7 +20,7 @@ import re
 
 import reflex as rx
 
-_PAGE_SIZE = 6  # 3 columns x 2 rows per page, per explicit request
+_PAGE_SIZE = 12  # 4 columns x 3 rows per page, per explicit request
 
 _SLUG_STRIP_RE = re.compile(r"[^a-z0-9]+")
 
@@ -86,6 +87,7 @@ def _fetch_articles() -> list[dict]:
                 """
                 SELECT source_name, category_or_query, title, url, published_date, full_body_text
                 FROM news_articles
+                WHERE published_date >= NOW() - INTERVAL '90 days'
                 ORDER BY published_date DESC NULLS LAST, id DESC
                 """
             )
@@ -174,6 +176,8 @@ class NewsState(rx.State):
     # independent pagination, keyed dynamically since the set of real
     # categories may grow as the ingestion taxonomy expands.
     category_pages: dict[str, int] = {}
+    # news type -> selected real source name, or "All" (default, no filter).
+    category_source_filter: dict[str, str] = {}
 
     @rx.event(background=True)
     async def load_news(self):
@@ -205,8 +209,49 @@ class NewsState(rx.State):
         total = self._total_pages_for(news_type)
         self.category_pages = {**self.category_pages, news_type: min(total, current + 1)}
 
+    @rx.event
+    def first_page(self, news_type: str):
+        self.category_pages = {**self.category_pages, news_type: 1}
+
+    @rx.event
+    def last_page(self, news_type: str):
+        total = self._total_pages_for(news_type)
+        self.category_pages = {**self.category_pages, news_type: total}
+
+    @rx.event
+    def set_category_source(self, news_type: str, source: str):
+        self.category_source_filter = {**self.category_source_filter, news_type: source}
+        self.category_pages = {**self.category_pages, news_type: 1}
+
+    def _category_articles(self, news_type: str) -> list[dict]:
+        return [a for a in self.all_articles if a["news_type"] == news_type]
+
+    @staticmethod
+    def _category_sources(category_articles: list[dict]) -> list[str]:
+        counts: dict[str, int] = {}
+        for article in category_articles:
+            counts[article["source_name"]] = counts.get(article["source_name"], 0) + 1
+        # "All" first (the default), then real sources ranked by how many
+        # articles they contribute to this category, ties broken alphabetically.
+        return ["All"] + sorted(counts, key=lambda name: (-counts[name], name))
+
+    def _selected_source(self, news_type: str, sources: list[str]) -> str:
+        selected = self.category_source_filter.get(news_type, "All")
+        # A stale filter (the outlet no longer has any articles in this
+        # category, e.g. after a fresh load) falls back to "All" rather
+        # than silently showing zero results.
+        return selected if selected in sources else "All"
+
+    def _filtered_category_articles(self, news_type: str) -> list[dict]:
+        category_articles = self._category_articles(news_type)
+        sources = self._category_sources(category_articles)
+        selected_source = self._selected_source(news_type, sources)
+        if selected_source == "All":
+            return category_articles
+        return [a for a in category_articles if a["source_name"] == selected_source]
+
     def _total_pages_for(self, news_type: str) -> int:
-        count = sum(1 for a in self.all_articles if a["news_type"] == news_type)
+        count = len(self._filtered_category_articles(news_type))
         return max(1, -(-count // _PAGE_SIZE))
 
     @rx.var(cache=True)
@@ -234,7 +279,15 @@ class NewsState(rx.State):
         sections = []
         used_slugs: set[str] = set()
         for news_type in ordered_categories:
-            articles = grouped[news_type]
+            category_articles = grouped[news_type]
+            sources = self._category_sources(category_articles)
+            selected_source = self._selected_source(news_type, sources)
+            articles = (
+                category_articles
+                if selected_source == "All"
+                else [a for a in category_articles if a["source_name"] == selected_source]
+            )
+
             total_pages = max(1, -(-len(articles) // _PAGE_SIZE))
             page = max(1, min(self.category_pages.get(news_type, 1), total_pages))
             start = (page - 1) * _PAGE_SIZE
@@ -257,6 +310,8 @@ class NewsState(rx.State):
                     "total_pages": total_pages,
                     "has_pagination": total_pages > 1,
                     "articles": articles[start : start + _PAGE_SIZE],
+                    "sources": sources,
+                    "selected_source": selected_source,
                 }
             )
         return sections
