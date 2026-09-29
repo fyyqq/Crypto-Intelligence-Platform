@@ -28,12 +28,18 @@ class Settings(BaseSettings):
     hot_sync_top_n: int = 500
 
     # How often app/scheduler/jobs.py::run_news_pipeline_sync re-runs the
-    # standalone news pipeline (app/services/news_pipeline.py). Daily by
-    # default — the RSS feeds it ingests only ever expose a site's current
-    # "latest N" items (not an archive), so real 90-day-deep coverage for
-    # those sources only accumulates by actually running this repeatedly
-    # over time, not from any one run.
-    news_pipeline_sync_interval_hours: int = 24
+    # standalone news pipeline (app/services/news_pipeline.py). Float, not
+    # int — APScheduler's interval trigger and datetime.timedelta both
+    # accept fractional hours, needed to express a sub-hour cadence (e.g.
+    # 0.25 = 15 minutes). The RSS feeds it ingests only ever expose a
+    # site's current "latest N" items (not an archive), so real 90-day-deep
+    # coverage for those sources only accumulates by actually running this
+    # repeatedly over time, not from any one run; a shorter interval
+    # surfaces newly-published articles (RSS and Google News alike) sooner
+    # — though see this module's own note on _news_sync_due for why an
+    # interval shorter than a single run's real duration doesn't actually
+    # buy extra freshness.
+    news_pipeline_sync_interval_hours: float = 0.25
 
     # Feature 1 placeholders: reserved for the CoinMarketCap wrapper, unused until connected.
     coinmarketcap_api_key: str = ""

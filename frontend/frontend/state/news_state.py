@@ -85,7 +85,7 @@ def _fetch_articles() -> list[dict]:
         rows = db.execute(
             text(
                 """
-                SELECT source_name, category_or_query, title, url, published_date, full_body_text
+                SELECT source_name, category_or_query, title, url, published_date, full_body_text, image_url
                 FROM news_articles
                 WHERE published_date >= NOW() - INTERVAL '90 days'
                 ORDER BY published_date DESC NULLS LAST, id DESC
@@ -166,6 +166,8 @@ def _build_article_row(row: dict) -> dict:
         "time_display": _relative_time(published),
         "snippet": snippet,
         "has_snippet": bool(snippet),
+        "image_url": row.get("image_url") or "",
+        "has_image": bool(row.get("image_url")),
     }
 
 

@@ -16,43 +16,60 @@ _GRID_COLUMNS = rx.breakpoints(initial="1", sm="2", md="3", lg="4")
 def _news_card(article: dict) -> rx.Component:
     return rx.link(
         rx.vstack(
-            rx.hstack(
+            rx.cond(
+                article["has_image"],
+                rx.image(
+                    src=article["image_url"],
+                    width="100%",
+                    height="160px",
+                    object_fit="cover",
+                    display="block",
+                ),
+            ),
+            rx.vstack(
                 rx.hstack(
-                    rx.badge(article["source_name"], color_scheme=article["badge_color"], variant="surface", size="1"),
-                    rx.badge(
-                        article["news_type"],
-                        color_scheme=article["news_type_color"],
-                        variant="soft",
-                        size="1",
+                    rx.hstack(
+                        rx.badge(article["source_name"], color_scheme=article["badge_color"], variant="surface", size="1"),
+                        rx.badge(
+                            article["news_type"],
+                            color_scheme=article["news_type_color"],
+                            variant="soft",
+                            size="1",
+                        ),
+                        spacing="2",
+                        align="center",
+                        min_width="0",
                     ),
+                    rx.text(article["time_display"], size="1", color_scheme="gray", white_space="nowrap"),
                     spacing="2",
                     align="center",
-                    min_width="0",
+                    justify="between",
+                    width="100%",
                 ),
-                rx.text(article["time_display"], size="1", color_scheme="gray", white_space="nowrap"),
+                rx.text(article["title"], weight="bold", size="3", style={"display": "-webkit-box", "-webkit-line-clamp": "3", "-webkit-box-orient": "vertical", "overflow": "hidden"}),
+                rx.cond(
+                    article["has_snippet"],
+                    rx.text(
+                        article["snippet"],
+                        size="2",
+                        color_scheme="gray",
+                        style={"display": "-webkit-box", "-webkit-line-clamp": "3", "-webkit-box-orient": "vertical", "overflow": "hidden"},
+                    ),
+                ),
                 spacing="2",
-                align="center",
-                justify="between",
+                align="start",
                 width="100%",
+                height="100%",
+                padding="1em",
             ),
-            rx.text(article["title"], weight="bold", size="3", style={"display": "-webkit-box", "-webkit-line-clamp": "3", "-webkit-box-orient": "vertical", "overflow": "hidden"}),
-            rx.cond(
-                article["has_snippet"],
-                rx.text(
-                    article["snippet"],
-                    size="2",
-                    color_scheme="gray",
-                    style={"display": "-webkit-box", "-webkit-line-clamp": "3", "-webkit-box-orient": "vertical", "overflow": "hidden"},
-                ),
-            ),
-            spacing="2",
+            spacing="0",
             align="start",
             width="100%",
             height="100%",
-            padding="1em",
             border="1px solid var(--gray-a5)",
             border_radius="12px",
             background="var(--gray-a2)",
+            overflow="hidden",
             class_name="news-card",
         ),
         href=article["url"],
@@ -157,7 +174,7 @@ def _empty_state() -> rx.Component:
 def _loading_skeleton() -> rx.Component:
     return rx.vstack(
         rx.grid(
-            *[rx.skeleton(height="180px", width="100%", border_radius="12px") for _ in range(12)],
+            *[rx.skeleton(height="320px", width="100%", border_radius="12px") for _ in range(12)],
             columns=_GRID_COLUMNS,
             spacing="4",
             width="100%",

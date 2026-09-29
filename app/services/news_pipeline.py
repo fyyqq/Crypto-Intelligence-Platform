@@ -86,11 +86,14 @@ found.
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 import os
 import re
 import sqlite3
 import time
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
@@ -117,20 +120,62 @@ SQLITE_PATH = SQLITE_PATH or "news_fallback.db"
 
 # (display category, outlet name, RSS URL) — outlet name is what the /news
 # page groups articles by (see coin-intelligence-platform's NewsState).
+#
+# Every URL below was confirmed live (feedparser + a real HTTP GET, not
+# guessed) to be a genuinely public, unauthenticated RSS feed before being
+# added — see the request that added the second batch for the full set of
+# candidates that were tried and rejected (CryptoSlate: 403 bot-blocked;
+# aimagazine.com: no feed at any standard path; artificialintelligence-news.com:
+# SG-Captcha wall, see this module's own top docstring; Reuters: no public
+# feed exists anywhere on reuters.com as of this check; Bloomberg/WSJ: their
+# feeds themselves respond, but individual article pages are hard paywalled
+# (confirmed via this pipeline's own live 401/403 logs), so they'd only ever
+# yield a title/link/date with no real body text — not added by default).
 RSS_FEEDS: list[tuple[str, str, str]] = [
     ("Tech", "TechCrunch", "https://techcrunch.com/feed/"),
     ("Crypto", "Cointelegraph", "https://cointelegraph.com/rss"),
     ("AI", "WIRED", "https://www.wired.com/feed/tag/ai/latest/rss"),
+    ("Crypto", "CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),
+    ("Crypto", "The Block", "https://www.theblock.co/rss.xml"),
+    ("Crypto", "Decrypt", "https://decrypt.co/feed"),
+    ("Tech", "The Verge", "https://www.theverge.com/rss/index.xml"),
+    ("Tech", "MIT Technology Review", "https://www.technologyreview.com/feed/"),
+    ("Tech", "Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
+    ("AI", "CNBC", "https://www.cnbc.com/id/19854910/device/rss/rss.html"),
+    ("Finance", "CNBC", "https://www.cnbc.com/id/100727362/device/rss/rss.html"),
+    ("Finance", "MarketWatch", "https://www.marketwatch.com/rss/topstories"),
 ]
 
 # Dynamic historical lookback queries — real outlet name per article comes
 # from Google News's own <source> tag (feedparser exposes it as
 # entry.source.title), not from this list; this list only drives which
-# stories get found.
-GOOGLE_NEWS_QUERIES: list[str] = [
-    "global stock market",
-    "artificial intelligence",
-    "cryptocurrency",
+# stories get found. The leading (category, query) tag mirrors RSS_FEEDS'
+# own (category, outlet, url) shape — it's what gets stored as this row's
+# category_or_query (see ingest_historical_google_news below), NOT the raw
+# search text, so /news's own NewsState._normalize_news_type can reliably
+# bucket every query (e.g. "eth"/"defi"/"stablecoin" don't themselves
+# contain the word "crypto" and would otherwise fall through to General
+# News) — each tag must be one of "Crypto"/"AI"/"Finance"/"Tech" to match
+# that function's existing keyword checks.
+GOOGLE_NEWS_QUERIES: list[tuple[str, str]] = [
+    ("Crypto", "cryptocurrency"),
+    ("Crypto", "bitcoin"),
+    ("Crypto", "eth"),
+    ("Crypto", "real world asset"),
+    ("Crypto", "defi"),
+    ("Crypto", "stablecoin"),
+    ("Crypto", "web3"),
+    ("Crypto", "crypto regulation"),
+    ("Crypto", "crypto ETF"),
+    ("AI", "artificial intelligence"),
+    ("AI", "machine learning"),
+    ("AI", "generative AI"),
+    ("AI", "AI regulation"),
+    ("Finance", "global stock market"),
+    ("Finance", "federal reserve interest rates"),
+    ("Finance", "inflation report"),
+    ("Tech", "big tech layoffs"),
+    ("Tech", "semiconductor industry"),
 ]
 
 # Real-world ceiling per query — pygooglenews' search() can return up to
@@ -140,7 +185,7 @@ GOOGLE_NEWS_QUERIES: list[str] = [
 # reasonable, still-substantial slice of the most relevant (Google's own
 # ranking) results per query, per run — a later run naturally picks up
 # different top results over time since already-seen URLs are skipped.
-MAX_RESULTS_PER_QUERY = 25
+MAX_RESULTS_PER_QUERY = 100
 
 # Used only by ingest_historical_backfill_for_named_outlets below (a
 # one-time, manually-triggered deep backfill, never the recurring cron
@@ -167,7 +212,8 @@ CREATE TABLE IF NOT EXISTS news_articles (
     title TEXT NOT NULL,
     url TEXT NOT NULL UNIQUE,
     published_date TIMESTAMP,
-    full_body_text TEXT
+    full_body_text TEXT,
+    image_url TEXT
 )
 """
 
@@ -180,7 +226,8 @@ CREATE TABLE IF NOT EXISTS news_articles (
     title TEXT NOT NULL,
     url TEXT NOT NULL UNIQUE,
     published_date TEXT,
-    full_body_text TEXT
+    full_body_text TEXT,
+    image_url TEXT
 )
 """
 
@@ -207,7 +254,15 @@ class NewsDB:
         schema = _SQLITE_SCHEMA if self.backend == "sqlite" else _POSTGRES_SCHEMA
         cur = self._conn.cursor()
         cur.execute(schema)
-        self._conn.commit()
+        # CREATE TABLE IF NOT EXISTS never adds a column to an already-
+        # existing table from an earlier pipeline version — this ALTER
+        # covers that upgrade path for image_url specifically, since this
+        # column was added after the table already existed in real usage.
+        try:
+            cur.execute("ALTER TABLE news_articles ADD COLUMN image_url TEXT")
+            self._conn.commit()
+        except (psycopg2.errors.DuplicateColumn, sqlite3.OperationalError):
+            self._conn.rollback()
         cur.close()
 
     def article_exists(self, url: str) -> bool:
@@ -233,6 +288,7 @@ class NewsDB:
         url: str,
         published_date: datetime.datetime | None,
         full_body_text: str | None,
+        image_url: str | None = None,
     ) -> bool:
         """Returns True if a new row was actually written, False if a
         UNIQUE-constraint race lost to a concurrent/prior insert (belt-and-
@@ -247,10 +303,10 @@ class NewsDB:
             cur.execute(
                 f"""
                 INSERT INTO news_articles
-                    (source_type, source_name, category_or_query, title, url, published_date, full_body_text)
-                VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p})
+                    (source_type, source_name, category_or_query, title, url, published_date, full_body_text, image_url)
+                VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p}, {p})
                 """,
-                (source_type, source_name, category_or_query, title, url, published_value, full_body_text),
+                (source_type, source_name, category_or_query, title, url, published_value, full_body_text, image_url),
             )
             self._conn.commit()
             cur.close()
@@ -284,25 +340,199 @@ def _parse_published(entry: Any) -> datetime.datetime | None:
         return None
 
 
-def _safe_extract_full_text(url: str) -> str | None:
+def _rss_entry_image(entry: Any) -> str | None:
+    """An RSS entry's own declared featured image, when the feed provides
+    one — confirmed live that roughly half of RSS_FEEDS' outlets expose
+    this (Cointelegraph/WIRED/CoinDesk/The Block/Decrypt/Ars Technica/
+    MarketWatch via media:content or media:thumbnail), the rest don't
+    (TechCrunch/The Verge/MIT Tech Review/CNBC) — those fall through to
+    the in-page image tiers below instead. Prefers media_content (the
+    outlet's own primary image) over media_thumbnail.
+    """
+    for field in ("media_content", "media_thumbnail"):
+        items = getattr(entry, field, None)
+        if items:
+            url = items[0].get("url")
+            if url:
+                return url
+    return None
+
+
+# Non-content image URL fragments — author headshots/avatars/site icons
+# that trafilatura's include_images pass will still pick up alongside real
+# in-article photos, confirmed live (e.g. The Verge embeds the byline
+# author's own headshot as a second <graphic> right after the real lead
+# image) — filtered out so the "1st section image"/backup tiers below
+# never select someone's tiny profile photo instead of real article art.
+_NON_CONTENT_IMAGE_MARKERS = ("avatar", "gravatar", "headshot", "author-photo", "profile-pic", "favicon", "sprite")
+
+
+def _extract_content_images(downloaded: str) -> list[str]:
+    """The article's own in-body images, in the order they appear —
+    "1st section image" is candidates[0], "other image as backup" is
+    whatever follows. Confirmed live via trafilatura's own include_images
+    pass (emits <graphic src="..."/> tags in its XML output) that the
+    first tag is reliably the real lead/content image and a later one is
+    sometimes a byline headshot — hence the marker-based filter above.
+    """
+    try:
+        xml = trafilatura.extract(downloaded, include_images=True, output_format="xml")
+    except Exception:  # noqa: BLE001 — a bonus extraction pass, never fatal
+        return []
+    if not xml:
+        return []
+    import html as _html
+
+    urls = re.findall(r'<graphic src="([^"]+)"', xml)
+    urls = [_html.unescape(u) for u in urls]
+    return [u for u in urls if not any(marker in u.lower() for marker in _NON_CONTENT_IMAGE_MARKERS)] or urls
+
+
+# Specific coin/topic keywords (checked against an article's own title)
+# mapped to a real Wikimedia Commons search term — deliberately small and
+# literal per the request's own examples (btc/eth/altcoin), not an attempt
+# at exhaustive coin coverage. Checked in order; first match wins.
+_TOPIC_IMAGE_KEYWORDS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\bbitcoin\b|\bbtc\b", re.IGNORECASE), "Bitcoin cryptocurrency coin"),
+    (re.compile(r"\bethereum\b|\beth\b", re.IGNORECASE), "Ethereum cryptocurrency"),
+    (re.compile(r"\bsolana\b", re.IGNORECASE), "Solana cryptocurrency blockchain"),
+    (re.compile(r"\bdogecoin\b", re.IGNORECASE), "Dogecoin cryptocurrency"),
+    (re.compile(r"\bstablecoin\b", re.IGNORECASE), "stablecoin cryptocurrency"),
+    (re.compile(r"\bdefi\b", re.IGNORECASE), "decentralized finance cryptocurrency"),
+    (re.compile(r"\bnft\b", re.IGNORECASE), "NFT digital art cryptocurrency"),
+]
+
+# Per-category generic fallback search term — used when no specific coin/
+# topic keyword above matches the article's own title.
+_CATEGORY_IMAGE_FALLBACK = {
+    "Crypto": "cryptocurrency bitcoin altcoin",
+    "AI": "artificial intelligence technology",
+    "Finance": "stock market finance",
+    "Tech": "technology computer",
+}
+
+_COMMONS_HEADERS = {"User-Agent": "RepaceNewsPipeline/1.0 (crypto-intelligence-platform; contact@example.com)"}
+# In-memory only, for the life of one pipeline run — a handful of shared
+# topic/category terms cover most articles, so this avoids re-querying
+# Wikimedia Commons for the same term dozens of times per run.
+_topic_image_cache: dict[str, str | None] = {}
+
+
+def _commons_search_image(term: str) -> str | None:
+    """Real, free, keyless image search via Wikimedia Commons' own public
+    API (confirmed live: no API key, no rate-limit issues at this volume,
+    every result is a real, appropriately-licensed Commons file) — the
+    "search online for a related image" fallback, used only when an
+    article has no real image of its own anywhere (RSS, og:image, or
+    in-content). Returns the top real-photo result's own 800px thumbnail,
+    or None if the search itself fails/returns nothing.
+    """
+    if term in _topic_image_cache:
+        return _topic_image_cache[term]
+    query = urllib.parse.urlencode(
+        {
+            "action": "query",
+            "generator": "search",
+            "gsrsearch": f"filetype:bitmap {term}",
+            "gsrlimit": 1,
+            "gsrnamespace": 6,
+            "prop": "imageinfo",
+            "iiprop": "url",
+            "iiurlwidth": 800,
+            "format": "json",
+        }
+    )
+    url = f"https://commons.wikimedia.org/w/api.php?{query}"
+    try:
+        req = urllib.request.Request(url, headers=_COMMONS_HEADERS)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        pages = data.get("query", {}).get("pages", {})
+        image = None
+        for page in pages.values():
+            info = page.get("imageinfo", [{}])[0]
+            image = info.get("thumburl") or info.get("url")
+            if image:
+                break
+        _topic_image_cache[term] = image
+        return image
+    except Exception as exc:  # noqa: BLE001 — a fallback search, never fatal
+        logger.warning("SKIP Commons image search (error: %s): %s", exc, term)
+        _topic_image_cache[term] = None
+        return None
+
+
+def _topic_fallback_image(title: str, category: str) -> str | None:
+    """Last-resort image tier: a specific coin/topic keyword match against
+    the article's own title, else this category's generic term — see
+    _TOPIC_IMAGE_KEYWORDS/_CATEGORY_IMAGE_FALLBACK above.
+    """
+    for pattern, term in _TOPIC_IMAGE_KEYWORDS:
+        if pattern.search(title):
+            image = _commons_search_image(term)
+            if image:
+                return image
+    fallback_term = _CATEGORY_IMAGE_FALLBACK.get(category)
+    if fallback_term:
+        return _commons_search_image(fallback_term)
+    return None
+
+
+def _resolve_article_image(
+    *,
+    rss_image: str | None,
+    page_images: list[str],
+    title: str,
+    category: str,
+) -> str | None:
+    """The full priority chain, in the order requested: (1) the outlet's
+    own declared featured image (RSS media field or og:image — both are
+    "featured image" sources, so tried together as one tier), (2) the
+    article's own first in-content image, (3) any other in-content image
+    on the same page, (4) a real, freely-licensed topic-matched image
+    found via an actual online search — never fabricated, always a real
+    Commons file, only reached when the article genuinely has no image of
+    its own anywhere.
+    """
+    for candidate in (rss_image, *page_images):
+        if candidate:
+            return candidate
+    return _topic_fallback_image(title, category)
+
+
+def _safe_extract_full_text(url: str) -> tuple[str | None, list[str]]:
     """Wraps both the page fetch and the trafilatura extraction in one
     try/except per the resilience requirement — a Cloudflare/anti-bot wall,
-    a hard paywall, a dead link, or a timeout all just log and return None
-    here rather than raising and stalling the whole pipeline run.
+    a hard paywall, a dead link, or a timeout all just log and return
+    (None, []) here rather than raising and stalling the whole pipeline
+    run. Also recovers every usable image already on the SAME downloaded
+    page — the site's own og:image (via trafilatura's metadata parser)
+    first, then any real in-content images (see _extract_content_images)
+    — at no extra network cost beyond the one fetch already needed for the
+    body text itself.
     """
     try:
         downloaded = trafilatura.fetch_url(url)
         if not downloaded:
             logger.warning("SKIP body extraction (could not download): %s", url)
-            return None
+            return None, []
         text = trafilatura.extract(downloaded)
+        images: list[str] = []
+        try:
+            meta = trafilatura.extract_metadata(downloaded)
+            og_image = getattr(meta, "image", None) if meta else None
+            if og_image:
+                images.append(og_image)
+        except Exception:  # noqa: BLE001 — metadata is a bonus, never fatal
+            pass
+        images.extend(_extract_content_images(downloaded))
         if not text:
             logger.warning("SKIP body extraction (no extractable article text): %s", url)
-            return None
-        return text
+            return None, images
+        return text, images
     except Exception as exc:  # noqa: BLE001 — deliberately broad, see docstring
         logger.warning("SKIP body extraction (error: %s): %s", exc, url)
-        return None
+        return None, []
 
 
 def _resolve_google_news_url(google_url: str) -> str | None:
@@ -352,7 +582,13 @@ def ingest_rss_feeds(db: NewsDB) -> IngestStats:
             if db.article_exists(article_url):
                 stats.skipped += 1
                 continue
-            body = _safe_extract_full_text(article_url)
+            body, page_images = _safe_extract_full_text(article_url)
+            image_url = _resolve_article_image(
+                rss_image=_rss_entry_image(entry),
+                page_images=page_images,
+                title=title,
+                category=category,
+            )
             time.sleep(REQUEST_DELAY_SECONDS)
             inserted = db.insert_article(
                 source_type="rss",
@@ -362,6 +598,7 @@ def ingest_rss_feeds(db: NewsDB) -> IngestStats:
                 url=article_url,
                 published_date=_parse_published(entry),
                 full_body_text=body,
+                image_url=image_url,
             )
             if inserted:
                 stats.inserted += 1
@@ -393,7 +630,7 @@ def ingest_historical_google_news(db: NewsDB) -> IngestStats:
     start_date = today - datetime.timedelta(days=_HISTORICAL_WINDOW_DAYS)
     gn = GoogleNews(lang="en", country="US")
 
-    for query in GOOGLE_NEWS_QUERIES:
+    for category, query in GOOGLE_NEWS_QUERIES:
         search_query = f"{query} after:{start_date.isoformat()} before:{today.isoformat()}"
         try:
             result = gn.search(search_query)
@@ -424,16 +661,23 @@ def ingest_historical_google_news(db: NewsDB) -> IngestStats:
             source_field = entry.get("source")
             source_title = source_field.get("title") if isinstance(source_field, dict) else None
             source_name = _clean_source_name(source_title, query)
-            body = _safe_extract_full_text(real_url)
+            body, page_images = _safe_extract_full_text(real_url)
+            image_url = _resolve_article_image(
+                rss_image=None,
+                page_images=page_images,
+                title=title,
+                category=category,
+            )
             time.sleep(REQUEST_DELAY_SECONDS)
             inserted = db.insert_article(
                 source_type="google_news",
                 source_name=source_name,
-                category_or_query=query,
+                category_or_query=category,
                 title=title,
                 url=real_url,
                 published_date=_parse_published(entry),
                 full_body_text=body,
+                image_url=image_url,
             )
             if inserted:
                 stats.inserted += 1
@@ -498,7 +742,13 @@ def ingest_historical_backfill_for_named_outlets(db: NewsDB) -> IngestStats:
             if db.article_exists(real_url):
                 stats.skipped += 1
                 continue
-            body = _safe_extract_full_text(real_url)
+            body, page_images = _safe_extract_full_text(real_url)
+            image_url = _resolve_article_image(
+                rss_image=None,
+                page_images=page_images,
+                title=title,
+                category=category,
+            )
             time.sleep(REQUEST_DELAY_SECONDS)
             # source_name is forced to this RSS_FEEDS entry's own outlet
             # name (not Google's own <source> attribution, which for a
@@ -516,6 +766,7 @@ def ingest_historical_backfill_for_named_outlets(db: NewsDB) -> IngestStats:
                 url=real_url,
                 published_date=_parse_published(entry),
                 full_body_text=body,
+                image_url=image_url,
             )
             if inserted:
                 stats.inserted += 1
