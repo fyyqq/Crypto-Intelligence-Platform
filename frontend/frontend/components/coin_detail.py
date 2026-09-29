@@ -653,7 +653,7 @@ def _locked_supply_section(coin: dict) -> rx.Component:
                 _stat_row("Locked value", coin["locked_supply_value_display"]),
                 _stat_row("% of max supply", coin["locked_supply_pct_display"]),
                 _supply_range_meter(coin),
-                _unlock_source_link(),
+                _unlock_source_link(coin),
                 spacing="3",
                 width="100%",
             ),
@@ -668,19 +668,18 @@ def _locked_supply_section(coin: dict) -> rx.Component:
     )
 
 
-def _unlock_source_link() -> rx.Component:
+def _unlock_source_link(coin: dict) -> rx.Component:
     # The amounts above resync live from CMC's own circulating/max supply
     # figures (same sync jobs that drive every other stat on this page), so
     # they do reflect a real unlock once CMC's data catches up to it — but
     # this app has no real unlock *calendar* (see the section-level comment
     # above), so a link out to a real one is the honest complement rather
-    # than trying to fabricate dates/schedules ourselves. DeFiLlama's own
-    # per-protocol "/unlocks/<slug>" pages are real and free to browse, but
-    # their slug rarely matches this app's own ticker/CoinGecko id (e.g.
-    # ARB's page is "arbitrum-foundation", not "arbitrum") — confirmed live
-    # that guessing one would 404 for most coins, so this points at the
-    # general dashboard (always a valid, real destination) instead of a
-    # per-coin deep link we can't reliably construct.
+    # than trying to fabricate dates/schedules ourselves. coin["unlock_
+    # source_url"] (see CoinState._build_row / refresh_defillama_unlocks_
+    # slug) is a real per-coin DeFiLlama "/protocol/unlocks/<slug>" deep
+    # link whenever this coin's cmc_id matches a real DeFiLlama-tracked
+    # protocol, falling back to the general https://defillama.com/unlocks
+    # dashboard otherwise — never a guessed/broken per-coin URL.
     return rx.box(
         rx.link(
             rx.hstack(
@@ -689,7 +688,7 @@ def _unlock_source_link() -> rx.Component:
                 spacing="2",
                 align="center",
             ),
-            href="https://defillama.com/unlocks",
+            href=coin["unlock_source_url"],
             is_external=True,
             underline="none",
             color_scheme="indigo",

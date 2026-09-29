@@ -71,6 +71,13 @@ class Coin(SQLModel, table=True):
     tradingview_dex_symbol: str | None = None
     tradingview_dex_symbol_checked_at: datetime | None = None
 
+    # Mirrored from app/services/defillama_unlocks_service.py's real
+    # cmcId-matched DeFiLlama protocol slug (see coin_detail.py's "View live
+    # unlock data" link) — null means "checked, no match", not "never
+    # checked" (see coin_state.py's refresh_defillama_unlocks_slug).
+    defillama_unlocks_slug: str | None = None
+    defillama_unlocks_checked_at: datetime | None = None
+
     # Mirrors the app/ backend's dormant X-post cache columns (see
     # app/models/coin.py — the scraping backend that used to populate
     # these was removed per explicit request). cached_tweets is a plain

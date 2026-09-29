@@ -73,5 +73,11 @@ class Settings(BaseSettings):
     # gets a much longer TTL than market_pairs_cache_ttl_hours above.
     tradingview_symbol_ttl_hours: int = 24
 
+    # DeFiLlama unlocks deep-link resolution (see
+    # app/services/defillama_unlocks_service.py) — whether a token's
+    # DefiLlama protocol slug exists at all barely ever changes, same
+    # reasoning as tradingview_symbol_ttl_hours above.
+    defillama_unlocks_ttl_hours: int = 24
+
 
 settings = Settings()

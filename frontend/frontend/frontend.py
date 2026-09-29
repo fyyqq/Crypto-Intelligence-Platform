@@ -297,8 +297,183 @@ def _floating_logo() -> rx.Component:
         bottom="16px",
         right="16px",
         z_index="9997",
-        pointer_events="none",
+        cursor="pointer",
+        on_click=CoinState.toggle_chat_widget,
         style={"filter": "drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35))"},
+    )
+
+
+def _chat_widget_message(text: str, *, from_user: bool = False) -> rx.Component:
+    # Bot avatar/bubble on the left, user bubble/avatar on the right — same
+    # two-side layout as the reference screenshot, just recolored (see
+    # _chat_widget's own note on why green was dropped for a neutral
+    # gray/white scheme instead).
+    bubble = rx.box(
+        rx.text(text, size="2", style={"white-space": "pre-wrap"}),
+        padding="0.55em 0.8em",
+        border_radius="14px",
+        background=rx.color_mode_cond(light="var(--gray-3)", dark="var(--gray-a4)") if from_user else "var(--gray-a3)",
+        max_width="200px",
+    )
+    avatar = rx.box(
+        rx.icon("bot" if not from_user else "user", size=14, color="var(--gray-12)"),
+        width="26px",
+        height="26px",
+        border_radius="9999px",
+        background="var(--gray-a4)",
+        display="flex",
+        align_items="center",
+        justify_content="center",
+        flex_shrink="0",
+    )
+    return rx.hstack(
+        *([bubble, avatar] if from_user else [avatar, bubble]),
+        spacing="2",
+        align="end",
+        justify="end" if from_user else "start",
+        width="100%",
+    )
+
+
+def _chat_widget_typing_indicator() -> rx.Component:
+    # Static three-dot "typing" bubble, same spot as the reference image's
+    # own trailing bot bubble — this is a UI shell only (no live chatbot
+    # backend wired up yet), so it never actually resolves into a message.
+    return rx.hstack(
+        rx.box(
+            rx.icon("bot", size=14, color="var(--gray-12)"),
+            width="26px",
+            height="26px",
+            border_radius="9999px",
+            background="var(--gray-a4)",
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            flex_shrink="0",
+        ),
+        rx.hstack(
+            rx.box(width="6px", height="6px", border_radius="9999px", background="var(--gray-9)"),
+            rx.box(width="6px", height="6px", border_radius="9999px", background="var(--gray-9)"),
+            rx.box(width="6px", height="6px", border_radius="9999px", background="var(--gray-9)"),
+            spacing="1",
+            align="center",
+            padding="0.7em 0.8em",
+            border_radius="14px",
+            background="var(--gray-a3)",
+        ),
+        spacing="2",
+        align="end",
+        justify="start",
+        width="100%",
+    )
+
+
+def _chat_widget() -> rx.Component:
+    # Popup chatbot window, opened/closed by clicking the floating logo
+    # (CoinState.toggle_chat_widget) or the "x" in this popup's own header
+    # (CoinState.close_chat_widget) — same design as the reference
+    # screenshot, but with every green surface swapped for a neutral
+    # gray/white one that follows the app's own light/dark mode instead of
+    # a fixed brand color. In light mode the header reads as plain white
+    # (per explicit request); in dark mode it matches the rest of the app's
+    # dark surfaces. UI shell only — static demo messages, no real chatbot
+    # backend wired up yet (same "shell first, real content later" pattern
+    # as the /news, /narrative, /chains, /tools, /watchlist placeholder
+    # pages).
+    return rx.cond(
+        CoinState.chat_widget_open,
+        rx.box(
+            # Header
+            rx.hstack(
+                rx.hstack(
+                    rx.box(
+                        rx.icon("bot", size=16, color="var(--gray-12)"),
+                        width="30px",
+                        height="30px",
+                        border_radius="9999px",
+                        background="var(--gray-a4)",
+                        display="flex",
+                        align_items="center",
+                        justify_content="center",
+                        flex_shrink="0",
+                    ),
+                    rx.text("Repace Assistant", size="3", weight="bold"),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.icon(
+                    "x",
+                    size=18,
+                    color="var(--gray-12)",
+                    cursor="pointer",
+                    on_click=CoinState.close_chat_widget,
+                ),
+                align="center",
+                justify="between",
+                width="100%",
+                padding="0.85em 1em",
+                background=rx.color_mode_cond(light="white", dark="var(--gray-3)"),
+                border_bottom="1px solid var(--gray-a5)",
+            ),
+            # Messages
+            rx.vstack(
+                _chat_widget_message("Hi there! I'm the Repace Assistant. How can I help you today?"),
+                _chat_widget_message("How does this work?", from_user=True),
+                _chat_widget_message("I can help you look up coins, narratives, and market data once I'm connected."),
+                _chat_widget_typing_indicator(),
+                spacing="3",
+                width="100%",
+                padding="1em",
+                overflow_y="auto",
+                flex="1",
+            ),
+            # Input row
+            rx.hstack(
+                rx.el.input(
+                    placeholder="Type a message...",
+                    disabled=True,
+                    width="100%",
+                    padding="0.6em 0.9em",
+                    border_radius="9999px",
+                    border="1px solid var(--gray-a5)",
+                    background="var(--gray-a2)",
+                    color="var(--gray-12)",
+                    style={"outline": "none"},
+                ),
+                rx.box(
+                    rx.icon("send", size=16, color="var(--gray-12)"),
+                    width="34px",
+                    height="34px",
+                    border_radius="9999px",
+                    background="var(--gray-a4)",
+                    display="flex",
+                    align_items="center",
+                    justify_content="center",
+                    flex_shrink="0",
+                ),
+                spacing="2",
+                align="center",
+                width="100%",
+                padding="0.85em 1em",
+                border_top="1px solid var(--gray-a5)",
+                background="var(--gray-2)",
+            ),
+            position="fixed",
+            bottom="84px",
+            right="16px",
+            width=["calc(100vw - 32px)", "320px", "320px", "320px", "320px"],
+            max_width="320px",
+            height="420px",
+            display="flex",
+            flex_direction="column",
+            border_radius="16px",
+            border="1px solid var(--gray-a5)",
+            background="var(--gray-2)",
+            box_shadow="0 12px 32px rgba(0, 0, 0, 0.3)",
+            overflow="hidden",
+            z_index="9998",
+        ),
+        rx.fragment(),
     )
 
 
@@ -342,6 +517,7 @@ def index() -> rx.Component:
         ),
         footer(),
         _floating_logo(),
+        _chat_widget(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
@@ -361,6 +537,7 @@ def coin_detail() -> rx.Component:
         coin_detail_page(),
         footer(),
         _floating_logo(),
+        _chat_widget(),
         # Needed for the X-posts slider's arrow/drag mechanics
         # (coin_detail.py::_x_posts_slider, assets/chain_pills.js) — was
         # previously only loaded on index()'s page, which happened not to
@@ -396,6 +573,7 @@ def _placeholder_page(heading: str) -> rx.Component:
         ),
         footer(),
         _floating_logo(),
+        _chat_widget(),
         min_height="100vh",
         width="100%",
     )
@@ -440,6 +618,7 @@ app.add_page(
         CoinState.refresh_business_summary,
         CoinState.refresh_market_pairs,
         CoinState.refresh_tradingview_dex_symbol,
+        CoinState.refresh_defillama_unlocks_slug,
     ],
 )
 app.add_page(

@@ -606,6 +606,17 @@ def _build_row(coin: Coin) -> dict:
         # CEX-pairs path already came up empty.
         "tradingview_dex_symbol": coin.tradingview_dex_symbol or "",
         "tradingview_dex_symbol_fetched": coin.tradingview_dex_symbol_checked_at is not None,
+        # Real per-coin DeFiLlama "View live unlock data" deep link (see
+        # app/services/defillama_unlocks_service.py) — a real cmcId-matched
+        # protocol slug resolves to that project's own unlock page; no match
+        # (most coins — DeFiLlama's free protocol list is TVL-tracked
+        # projects only) falls back to the general unlocks dashboard, never
+        # a guessed/broken per-coin URL.
+        "unlock_source_url": (
+            f"https://defillama.com/protocol/unlocks/{coin.defillama_unlocks_slug}"
+            if coin.defillama_unlocks_slug
+            else "https://defillama.com/unlocks"
+        ),
         # Cached X posts — the scraping backend that populated this (Apify,
         # app/services/social_service.py) was removed per explicit request
         # (cost/ToS concerns with every third-party scraping option tried),
@@ -867,6 +878,49 @@ def _fetch_tradingview_dex_symbol(symbol: str) -> tuple[int, str | None] | None:
             session.commit()
 
     return cmc_id, dex_symbol
+
+
+def _fetch_defillama_unlocks_slug(symbol: str) -> tuple[int, str | None] | None:
+    """Blocking work for CoinState.refresh_defillama_unlocks_slug — same
+    lookup-by-ticker-in-Postgres pattern as _fetch_tradingview_dex_symbol
+    above, delegating to defillama_unlocks_service's own TTL (settings.
+    defillama_unlocks_ttl_hours). Returns None if no coin matches this
+    ticker.
+    """
+    import sys
+    from pathlib import Path
+
+    from sqlalchemy import select as sa_select
+
+    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+    from app.models.coin import Coin as OldCoin
+    from app.services.defillama_unlocks_service import resolve_unlocks_slug
+
+    old_db = OldSessionLocal()
+    try:
+        matches = old_db.scalars(sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol))).all()
+        if not matches:
+            return None
+        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
+        slug = resolve_unlocks_slug(old_db, coin)
+        cmc_id = coin.cmc_id
+        checked_at = coin.defillama_unlocks_checked_at
+    finally:
+        old_db.close()
+
+    with rx.session() as session:
+        row = session.exec(select(Coin).where(Coin.cmc_id == cmc_id)).first()
+        if row is not None:
+            row.defillama_unlocks_slug = slug
+            row.defillama_unlocks_checked_at = checked_at
+            session.add(row)
+            session.commit()
+
+    return cmc_id, slug
 
 
 def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None, str] | None:
@@ -1727,6 +1781,31 @@ class CoinState(rx.State):
                     **self.coin_overrides.get(cmc_id, {}),
                     "tradingview_dex_symbol": dex_symbol or "",
                     "tradingview_dex_symbol_fetched": True,
+                },
+            }
+
+    @rx.event(background=True)
+    async def refresh_defillama_unlocks_slug(self):
+        """One-shot, on-demand DeFiLlama-protocol-slug lookup — fired once
+        per page view (see frontend.py's /coin/[symbol] on_load). Patches
+        unlock_source_url in place once a real slug resolves (or confirms
+        there's none), rather than waiting on a fresh full-row rebuild.
+        """
+        symbol = self.symbol.strip()
+        if not symbol:
+            return
+        result = await asyncio.to_thread(_fetch_defillama_unlocks_slug, symbol)
+        if result is None:
+            return
+        cmc_id, slug = result
+        async with self:
+            self.coin_overrides = {
+                **self.coin_overrides,
+                cmc_id: {
+                    **self.coin_overrides.get(cmc_id, {}),
+                    "unlock_source_url": (
+                        f"https://defillama.com/protocol/unlocks/{slug}" if slug else "https://defillama.com/unlocks"
+                    ),
                 },
             }
 

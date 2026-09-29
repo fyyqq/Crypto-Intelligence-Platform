@@ -130,6 +130,17 @@ class Coin(Base):
     tradingview_dex_symbol: Mapped[str | None] = mapped_column(String(120), nullable=True)
     tradingview_dex_symbol_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Real DeFiLlama protocol slug for this coin's "View live unlock data"
+    # deep link (see app/services/defillama_unlocks_service.py) — resolved
+    # by matching this coin's own cmc_id against DeFiLlama's free /protocols
+    # listing (which includes a cmcId field), never guessed from the coin's
+    # name (confirmed live that a naive kebab-case guess breaks for coins
+    # like Arbitrum, whose real DefiLlama entity is "Arbitrum Foundation").
+    # Null means "checked, no matching protocol" (not "never checked") —
+    # same checked_at-gates-refresh pattern as tradingview_dex_symbol above.
+    defillama_unlocks_slug: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    defillama_unlocks_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     # Dormant X (Twitter) post cache — the on-demand scraping backend that
     # used to populate these (Apify-based, app/services/social_service.py)
     # was removed per explicit request (every third-party X-scraping option
