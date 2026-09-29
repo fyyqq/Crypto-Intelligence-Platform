@@ -1,6 +1,11 @@
 """Repace — Reflex app entrypoint."""
 
+from pathlib import Path
+
 import reflex as rx
+from starlette.applications import Starlette
+from starlette.routing import Mount
+from starlette.staticfiles import StaticFiles
 
 from frontend.components import (
     coin_detail_page,
@@ -650,7 +655,28 @@ def watchlist_page() -> rx.Component:
     )
 
 
-app = rx.App(stylesheets=["/styles.css"])
+# app/services/telegram_pipeline.py downloads new post images into
+# frontend/assets/telegram_media/ continuously (every scheduled pipeline
+# run, not just once) — but Reflex's own asset serving copies frontend/
+# assets/ into a build-time snapshot (frontend/.web/public/), so a file
+# added there *after* the app was last compiled 404s until the next
+# rebuild/restart. Confirmed live: a file dropped in post-startup was
+# unreachable even though it existed on disk.
+#
+# Fixed by mounting a real, live Starlette StaticFiles route directly onto
+# Reflex's own backend ASGI app via api_transformer (Reflex's documented
+# extension point for exactly this — see api-routes/overview in the
+# reflex-docs skill) — StaticFiles serves straight from disk on every
+# request, so a newly-downloaded image is reachable immediately, no
+# restart needed. Mirrors the same StaticFiles-mount pattern Reflex's own
+# app.py already uses internally for rx.upload's uploaded-files route.
+_telegram_media_dir = Path(__file__).resolve().parent.parent / "assets" / "telegram_media"
+_telegram_media_dir.mkdir(parents=True, exist_ok=True)
+_api_transformer = Starlette(
+    routes=[Mount("/telegram_media", app=StaticFiles(directory=str(_telegram_media_dir)), name="telegram_media")]
+)
+
+app = rx.App(stylesheets=["/styles.css"], api_transformer=_api_transformer)
 # Dynamic routes must be registered before static ones (Reflex route-matching
 # order), so /coin/[symbol] is added ahead of the "/" index page below.
 # Ticker-based (not cmc_id-based) per explicit request — CoinState.

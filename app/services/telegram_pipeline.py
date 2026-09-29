@@ -75,6 +75,18 @@ logger = logging.getLogger("telegram_pipeline")
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 SESSION_PATH = str(_REPO_ROOT / "telegram_session")
 
+# Real photo/video-thumbnail downloads land here and are served at
+# /telegram_media/<file> the same way frontend/assets/floating_logo.png is
+# served at /floating_logo.png — Reflex serves the whole assets/ directory
+# (including subdirectories) as static files, no rebuild needed for a new
+# file to become reachable. Per explicit request: only a real image the
+# post itself actually has is ever shown — no generic/topic-matched search
+# fallback for text-only posts (a near-identical fallback was just removed
+# from the RSS/Google News side of this same app for being "misleading" —
+# see CLAUDE.md's own dated entry — so Telegram intentionally doesn't
+# reintroduce the same pattern).
+_TELEGRAM_MEDIA_DIR = _REPO_ROOT / "frontend" / "assets" / "telegram_media"
+
 # Unlike news_pipeline.py (which only reads a DSN string with a safe
 # built-in default), this module needs real Telegram API credentials that
 # only ever live in .env — load it explicitly so this works both when run
@@ -205,6 +217,37 @@ class TelegramNewsDB:
             self._conn.rollback()
             return False
 
+    def missing_image_ids_by_group(self) -> dict[str, list[int]]:
+        """Every already-stored Telegram row with no image_url yet, grouped
+        by username and parsed back to a real message id — used by
+        backfill_missing_images to re-fetch just those specific messages
+        (not the whole group's history again) and check whether each one
+        actually has real media worth downloading. Text-only rows are
+        included too but will simply have no media on re-fetch, so they're
+        cheap no-ops rather than something worth filtering out here.
+        """
+        cur = self._conn.cursor()
+        cur.execute("SELECT url FROM news_articles WHERE source_type = 'telegram' AND image_url IS NULL")
+        rows = cur.fetchall()
+        cur.close()
+        by_group: dict[str, list[int]] = {}
+        for (url,) in rows:
+            match = _TELEGRAM_URL_RE.match(url)
+            if not match:
+                continue
+            username, msg_id = match.group(1), int(match.group(2))
+            by_group.setdefault(username, []).append(msg_id)
+        return by_group
+
+    def update_image(self, url: str, image_url: str) -> None:
+        cur = self._conn.cursor()
+        cur.execute(
+            "UPDATE news_articles SET image_url = %s WHERE url = %s AND image_url IS NULL",
+            (image_url, url),
+        )
+        self._conn.commit()
+        cur.close()
+
     def close(self) -> None:
         self._conn.close()
 
@@ -214,6 +257,10 @@ class TelegramNewsDB:
 # ---------------------------------------------------------------------------
 
 _WHITESPACE_RE = re.compile(r"\s+")
+_TELEGRAM_URL_RE = re.compile(r"^https://t\.me/([^/]+)/(\d+)$")
+
+# Telethon's get_messages accepts at most this many ids in one batched call.
+_GET_MESSAGES_BATCH_SIZE = 100
 
 
 def _title_from_text(text: str) -> str:
@@ -235,9 +282,36 @@ def _title_from_text(text: str) -> str:
 class IngestStats:
     inserted: int = 0
     skipped: int = 0
+    images_backfilled: int = 0
 
     def __add__(self, other: "IngestStats") -> "IngestStats":
         return IngestStats(self.inserted + other.inserted, self.skipped + other.skipped)
+
+
+async def _download_message_image(client: TelegramClient, message, username: str) -> str | None:
+    """Downloads a real preview image straight from the message's own
+    media (photo, or a video's own thumbnail — `thumb=-1` picks the
+    largest available thumbnail for either, which is plenty for a
+    160px-tall card and far cheaper than a full-resolution photo/video
+    download) — never anything the post doesn't actually have. Returns
+    None (not a fallback) for a text-only message, or if the download
+    itself fails for any reason.
+    """
+    if not getattr(message, "media", None):
+        return None
+    try:
+        _TELEGRAM_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+        existing = list(_TELEGRAM_MEDIA_DIR.glob(f"{username}_{message.id}.*"))
+        if existing:
+            return f"/telegram_media/{existing[0].name}"
+        dest_prefix = str(_TELEGRAM_MEDIA_DIR / f"{username}_{message.id}")
+        saved_path = await client.download_media(message, file=dest_prefix, thumb=-1)
+        if not saved_path:
+            return None
+        return f"/telegram_media/{Path(saved_path).name}"
+    except Exception as exc:  # noqa: BLE001 — an image is a bonus, never fatal to ingestion
+        logger.warning("SKIP image download for @%s/%s: %s", username, message.id, exc)
+        return None
 
 
 def _group_display_title(entity) -> str:
@@ -270,20 +344,21 @@ async def _ingest_group(client: TelegramClient, db: TelegramNewsDB, username: st
         async for message in client.iter_messages(entity, **kwargs):
             if min_id == 0 and message.date < cutoff:
                 break  # newest-first iteration — anything older than the window ends a first-time backfill
-            text = (message.text or message.raw_text or "").strip()
+            # message.raw_text is the message's own plain text with all
+            # formatting entities simply dropped; message.text instead
+            # re-serializes those entities back into literal Markdown
+            # syntax (Telethon's default parse mode) — e.g. a real bold
+            # run becomes the literal characters "**bold**". Since this
+            # card is plain rx.text (no Markdown renderer), that syntax
+            # showed up as literal asterisks/underscores/backticks on the
+            # page instead of being rendered — raw_text avoids the syntax
+            # entirely rather than requiring it to be stripped back out.
+            text = (message.raw_text or message.text or "").strip()
             if not text:
                 stats.skipped += 1
                 continue
             url = f"https://t.me/{username}/{message.id}"
-            image_url = None
-            if getattr(message, "photo", None) is not None:
-                # Telethon exposes the photo object itself, not a URL —
-                # downloading/re-hosting it is out of scope for this
-                # pipeline (news_pipeline.py's own RSS/Google-News rows
-                # only ever store a URL the source already publishes, never
-                # bytes this app re-hosts itself), so photo posts are
-                # ingested with their real text/link but no image_url.
-                image_url = None
+            image_url = await _download_message_image(client, message, username)
             published = message.date.astimezone(datetime.timezone.utc).replace(tzinfo=None)
             inserted = db.insert_article(
                 source_name=display_title,
@@ -306,6 +381,43 @@ async def _ingest_group(client: TelegramClient, db: TelegramNewsDB, username: st
     return stats
 
 
+async def backfill_missing_images(client: TelegramClient, db: TelegramNewsDB) -> int:
+    """One-time-per-message catch-up for rows ingested before real image
+    downloads existed (every Telegram row up to this feature shipping has
+    image_url NULL, regardless of whether the original post actually had a
+    photo/video) — re-fetches each such message by id (batched up to 100
+    per Telethon get_messages call, not one request per message) and
+    downloads a real image only for the ones that genuinely have media.
+    Returns the count of rows actually updated with a real image.
+    """
+    updated = 0
+    for username, msg_ids in db.missing_image_ids_by_group().items():
+        try:
+            entity = await client.get_entity(username)
+        except Exception as exc:  # noqa: BLE001 — one bad group must not kill the whole backfill
+            logger.warning("SKIP image backfill (could not resolve @%s: %s)", username, exc)
+            continue
+        for i in range(0, len(msg_ids), _GET_MESSAGES_BATCH_SIZE):
+            batch = msg_ids[i : i + _GET_MESSAGES_BATCH_SIZE]
+            try:
+                messages = await client.get_messages(entity, ids=batch)
+            except FloodWaitError as exc:
+                logger.warning("SKIP rest of @%s image backfill (flood-wait, %ss)", username, exc.seconds)
+                break
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("SKIP @%s image backfill batch (error: %s)", username, exc)
+                continue
+            for message in messages:
+                if message is None:  # deleted since it was first ingested
+                    continue
+                image_url = await _download_message_image(client, message, username)
+                if image_url:
+                    db.update_image(f"https://t.me/{username}/{message.id}", image_url)
+                    updated += 1
+        time.sleep(REQUEST_DELAY_SECONDS)
+    return updated
+
+
 async def _run_async() -> IngestStats:
     if not API_ID or not API_HASH:
         raise RuntimeError("API_ID_TELEGRAM / API_HASH_TELEGRAM not set — see .env")
@@ -322,16 +434,26 @@ async def _run_async() -> IngestStats:
 
     db = TelegramNewsDB()
     total = IngestStats()
+    images_backfilled = 0
     try:
         for username, category in TELEGRAM_GROUPS:
             stats = await _ingest_group(client, db, username, category)
             total += stats
             logger.info("Telegram @%s (%s): inserted=%d skipped=%d", username, category, stats.inserted, stats.skipped)
             time.sleep(REQUEST_DELAY_SECONDS)
+        # Catches up any row still missing a real image — every row ingested
+        # before this feature shipped, plus any single message whose own
+        # download failed transiently above. Self-limiting: once a row has
+        # an image (or has been confirmed to have none), it's never
+        # re-checked again, so this shrinks to near-zero cost on later runs.
+        images_backfilled = await backfill_missing_images(client, db)
+        if images_backfilled:
+            logger.info("Image backfill: %d rows updated with a real image", images_backfilled)
     finally:
         db.close()
         await client.disconnect()
 
+    total.images_backfilled = images_backfilled
     return total
 
 
@@ -348,7 +470,7 @@ def main() -> None:
     logger.info("Starting Telegram pipeline (%d groups)", len(TELEGRAM_GROUPS))
     stats = run_telegram_pipeline()
     print("--- Telegram pipeline run complete ---")
-    print(f"TOTAL — inserted: {stats.inserted:>4}  skipped: {stats.skipped:>4}")
+    print(f"TOTAL — inserted: {stats.inserted:>4}  skipped: {stats.skipped:>4}  images backfilled: {stats.images_backfilled:>4}")
 
 
 if __name__ == "__main__":
