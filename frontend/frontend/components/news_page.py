@@ -86,6 +86,7 @@ def _news_section(section: dict) -> rx.Component:
             section["has_pagination"],
             _section_pagination(section["source_name"], section["page"], section["total_pages"]),
         ),
+        id=section["anchor_id"],
         spacing="4",
         align="start",
         width="100%",

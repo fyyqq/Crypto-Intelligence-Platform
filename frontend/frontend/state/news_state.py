@@ -15,10 +15,24 @@ instead of an ORM query.
 
 import asyncio
 import datetime
+import re
 
 import reflex as rx
 
 _PAGE_SIZE = 6  # 3 columns x 2 rows per page, per explicit request
+
+_SLUG_STRIP_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify(name: str) -> str:
+    """URL-fragment id for a section's outlet name, e.g. "24/7 Wall St."
+    -> "24-7-wall-st" — used so each source's section is directly linkable
+    (`/news#<slug>`). Non-ASCII outlet names (Google News occasionally
+    attributes a result to a non-English-language source) fall back to a
+    generic "source-N" id rather than an empty/unusable slug.
+    """
+    slug = _SLUG_STRIP_RE.sub("-", name.strip().lower()).strip("-")
+    return slug or "source"
 
 
 def _relative_time(dt: datetime.datetime | None) -> str:
@@ -182,14 +196,26 @@ class NewsState(rx.State):
         ordered_sources = sorted(grouped.keys(), key=lambda name: (-len(grouped[name]), name))
 
         sections = []
+        used_slugs: set[str] = set()
         for source_name in ordered_sources:
             articles = grouped[source_name]
             total_pages = max(1, -(-len(articles) // _PAGE_SIZE))
             page = max(1, min(self.source_pages.get(source_name, 1), total_pages))
             start = (page - 1) * _PAGE_SIZE
+            # Disambiguate a slug collision (e.g. two non-ASCII outlet names
+            # that both fall back to the generic "source" slug) by
+            # appending a counter rather than silently sharing one anchor.
+            slug = _slugify(source_name)
+            if slug in used_slugs:
+                i = 2
+                while f"{slug}-{i}" in used_slugs:
+                    i += 1
+                slug = f"{slug}-{i}"
+            used_slugs.add(slug)
             sections.append(
                 {
                     "source_name": source_name,
+                    "anchor_id": slug,
                     "article_count": len(articles),
                     "page": page,
                     "total_pages": total_pages,

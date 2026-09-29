@@ -48,10 +48,18 @@ Uses raw `psycopg2`/`sqlite3` directly, not this project's own SQLAlchemy models
 
 `NewsState` (Reflex) reads `news_articles` directly from the same Postgres database the pipeline writes to — via `app.core.database.SessionLocal`, the same "reach into the real Postgres app DB directly" pattern `CoinState`'s own background refreshers already use elsewhere in this app (raw SQL `SELECT`, not an ORM model, since the pipeline itself doesn't define one either).
 
-- One section per real outlet name present in the data (dynamic — not a fixed list of 3), sorted alphabetically.
+- One section per real outlet name present in the data (dynamic — not a fixed list of 3), sorted by article count descending, ties broken alphabetically — an earlier alphabetical-only order buried the three curated RSS feeds under dozens of one-article Google News outlets starting with "2"/"A", confirmed live, then fixed.
 - Each section is a responsive grid (1 column on phones, 2 on tablets, 3 on desktop) capped at 6 articles per page — a 3×2 grid at desktop width, per explicit request — with its own independent pagination (`NewsState.source_pages`, keyed per outlet name), so paging through TechCrunch's articles doesn't affect Cointelegraph's current page.
 - Each card: a colored outlet badge (hashed to a stable color per outlet name, since outlets are dynamic rather than a fixed small set with its own lookup table), a relative-time string computed from the real `published_date`, the title (links out to the real article, opens in a new tab), and a short snippet of the extracted body text.
 - An empty state ("No news articles yet — run app/services/news_pipeline.py...") when the table is empty or doesn't exist yet, and a skeleton grid while `NewsState.load_news` is fetching — same loading-state conventions as the rest of this app.
+</details>
+
+<details>
+<summary><strong>🔗 Direct links to each source's section</strong></summary>
+
+Every section has a stable `id` (`NewsState.news_sections`' own `"anchor_id"` field, slugified from the outlet's real name, e.g. "reuters.com" → `reuters-com`), so `/news#<slug>` jumps straight to that outlet's section — useful for sharing a link to one specific source's coverage rather than the whole page. Two same-name-collision edge cases handled: a non-ASCII outlet name (Google News occasionally attributes a result to a non-English-language source) falls back to a generic `source` slug, and a second such collision gets `source-2`, `source-3`, etc., rather than two sections silently sharing one anchor.
+
+**A real bug found and fixed while building this**: a plain `#fragment` only auto-scrolls to content already present the moment the browser parses the URL — this page's own sections render asynchronously (`NewsState.load_news` does a real DB fetch first), so a fresh or shared link's native hash-scroll fired too early and found nothing, confirmed live. Fixed with a small script (`assets/chain_pills.js`) that polls briefly for the target section to exist, then scrolls to it — also re-runs on `hashchange` so clicking a same-page `#section` link works after the initial load too. This also surfaced (and fixed) a separate pre-existing gap: `frontend.py::news_page` wasn't loading `chain_pills.js` at all, so the header's own search/profile-dropdown click-outside-close handlers were silently missing on this page — `_placeholder_page` (used by `/narrative`, `/chains`, `/tools`, `/watchlist`) has the same gap, not fixed here since it's a different page's own template, out of scope for this pass.
 </details>
 
 ## Known, accepted gaps

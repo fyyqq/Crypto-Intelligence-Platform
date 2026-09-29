@@ -254,3 +254,43 @@
   });
 })();
 
+// Scrolls a /news URL fragment (e.g. /news#reuters-com, matching each
+// section's own id — see NewsState.news_sections' "anchor_id" field) to its
+// real section once that section actually exists in the DOM. A plain
+// #fragment only auto-scrolls to content already present at the moment the
+// browser parses the URL; this page's own sections render asynchronously
+// (NewsState.load_news does a real DB fetch first), so a fresh or shared
+// link's native hash-scroll fires too early and finds nothing. Polls
+// briefly (10s max) for the target to appear, then scrolls once — also
+// re-runs on "hashchange" so clicking a same-page #section link still works
+// after the initial load.
+(function () {
+  if (window.__newsHashScrollInit) return;
+  window.__newsHashScrollInit = true;
+
+  function scrollToNewsHash() {
+    const hash = window.location.hash.replace(/^#/, "");
+    if (!hash) return true;
+    const target = document.getElementById(hash);
+    if (!target) return false;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    return true;
+  }
+
+  function watchForNewsHash() {
+    if (scrollToNewsHash()) return;
+    let attempts = 0;
+    const interval = setInterval(function () {
+      attempts += 1;
+      if (scrollToNewsHash() || attempts > 40) clearInterval(interval);
+    }, 250);
+  }
+
+  window.addEventListener("load", watchForNewsHash);
+  window.addEventListener("hashchange", watchForNewsHash);
+  // The script tag itself loads after "load" may have already fired on a
+  // client-side navigation into /news (not a real page load) — run once
+  // immediately too, same idea as the other IIFEs in this file.
+  watchForNewsHash();
+})();
+

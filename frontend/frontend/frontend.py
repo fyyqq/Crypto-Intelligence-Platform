@@ -592,6 +592,11 @@ def news_page() -> rx.Component:
         footer(),
         _floating_logo(),
         _chat_widget(),
+        # Needed for the header search/profile dropdowns' click-outside
+        # handlers (this page has the same header as every other page) and
+        # this page's own #<source> anchor-scroll fix — see chain_pills.js's
+        # own comment on the latter for why it's needed here specifically.
+        rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
     )
