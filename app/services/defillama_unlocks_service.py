@@ -9,30 +9,48 @@ real, public, no-auth page showing a project's real unlock schedule/chart —
 we just can't pull that data programmatically for free, only link a user to
 go look at it themselves.
 
-The hard part is <slug> — DeFiLlama's protocol *name* often differs from
-this app's own coin name (confirmed live: Arbitrum's real DefiLlama entity
-is "Arbitrum Foundation", not "Arbitrum"), so naively kebab-casing our own
-coin name would silently 404 for many coins. DeFiLlama's free, no-auth
-`https://api.llama.fi/protocols` endpoint solves this properly — each entry
-includes both a `slug` and a `cmcId` field, and cmcId is the exact same
-CoinMarketCap ID this app already keys every coin by. Matching on cmcId
-(confirmed live for Virtuals Protocol: cmcId "29420" -> slug
-"virtuals-protocol", which really works) is a real identity match, not a
-name guess.
+The hard part is <slug>. Three real, verified data sources feed it, tried in
+order:
 
-This endpoint only lists DeFiLlama's ~8,400 TVL-tracked "protocols" — a
-governance-token-only entity with no TVL (e.g. Arbitrum Foundation itself)
-won't appear here at all, since DeFiLlama's Unlocks feature draws from a
-broader, paid-only list (confirmed live: /api/emissions and
-/emission/{protocol} both 402). So this only resolves a real deep link for
-coins that happen to also be a tracked protocol — every other coin falls
-back to the general https://defillama.com/unlocks dashboard (see
-coin_state.py's unlock_source_url), never a guessed/broken per-coin URL.
+1. Contract-address match (app/data/defillama_unlocks_slugs.json's
+   "contracts_by_chain_address") — DeFiLlama's own /unlocks page embeds its
+   full ~370-entry unlock-tracked dataset (each entry's own governance-token
+   contract address, as "<chain>:<address>") directly in that page's own
+   __NEXT_DATA__, for every anonymous visitor. Extracted once via a real
+   browser session (defillama.com itself sits behind Cloudflare
+   bot-protection — confirmed live, a plain server-side request gets a 403
+   "Just a moment..." challenge page, not the real content — but a real
+   browser session isn't blocked). Matched against this app's own already-
+   synced CoinContract rows (chain + address), the most reliable identity
+   match there is: no external call, no ambiguity. This is also the only
+   path that finds governance-only entities with no TVL at all (e.g.
+   Arbitrum's real entry is "arbitrum-foundation", which never appears in
+   the free /protocols TVL list below).
+2. gecko_id match (that same file's "slugs_by_gecko_id") — a secondary path
+   for entries with no on-chain contract (native L1 assets like Bitcoin/
+   Solana, or off-chain-governed tokens), resolved via
+   coingecko_service._get_top_coin_symbol_map(). Depends on CoinGecko's own
+   public API being reachable (confirmed it can itself be rate-limited/
+   blocked independent of this app), so this is best-effort, not guaranteed.
+3. DeFiLlama's free, no-auth `https://api.llama.fi/protocols` endpoint —
+   each of its ~8,400 entries includes both `slug` and `cmcId` fields,
+   matched against this coin's own CMC id. Only covers DeFiLlama's
+   TVL-tracked protocols (a different, mostly-overlapping set from the
+   Unlocks feature's own list above), so this is a last-resort fallback.
+
+Never guesses a slug from the coin's own name — confirmed live that a naive
+kebab-case guess breaks even for coins where the *identity* match is
+unambiguous (e.g. "Arbitrum" -> "arbitrum" 404s; the real page is
+"arbitrum-foundation"). No match from any source falls back to the general
+https://defillama.com/unlocks dashboard (see coin_state.py's
+unlock_source_url) — never a guessed/broken per-coin URL.
 """
 
+import json
 import logging
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import requests
 from sqlalchemy.orm import Session
@@ -43,15 +61,63 @@ from app.models.coin import Coin
 logger = logging.getLogger(__name__)
 
 _PROTOCOLS_URL = "https://api.llama.fi/protocols"
+_SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / "data" / "defillama_unlocks_slugs.json"
 
-# Process-wide cache of the whole {cmcId: slug} map — one ~8,400-row fetch
-# shared across every coin's own per-coin TTL below, not refetched per coin.
+# CMC's own chain-name spelling (CoinContract.platform_name) -> DeFiLlama's
+# own short chain code (as used in that "<chain>:<address>" token field) —
+# a different convention from coingecko_service's own
+# _CHAIN_TO_COINGECKO_PLATFORM (e.g. DeFiLlama uses "bsc"/"avax"/"era", not
+# CoinGecko's "binance-smart-chain"/"avalanche"/"zksync"). Only the chains
+# actually observed in the extracted snapshot are listed — an unmapped
+# platform_name just means this path can't match that coin, never a false
+# positive.
+_CHAIN_TO_DEFILLAMA_CODE = {
+    "Ethereum": "ethereum",
+    "BNB Smart Chain (BEP20)": "bsc",
+    "Solana": "solana",
+    "Base": "base",
+    "Arbitrum": "arbitrum",
+    "Polygon": "polygon",
+    "Avalanche C-Chain": "avax",
+    "Optimism": "optimism",
+    "Sui Network": "sui",
+    "Fantom": "fantom",
+    "Mantle": "mantle",
+    "Cronos": "cronos",
+    "Linea": "linea",
+    "zkSync Era": "era",
+    "Celo": "celo",
+    "Sonic": "sonic",
+    "Aptos": "aptos",
+    "Tron20": "tron",
+    "Ronin": "ronin",
+    "Manta Pacific": "manta",
+}
+
+# Process-wide cache of the whole {cmcId: slug} map from /protocols — one
+# ~8,400-row fetch shared across every coin's own per-coin TTL below, not
+# refetched per coin.
 _slug_by_cmc_id: dict[str, str] | None = None
 _fetched_at: float = 0.0
 _MAP_TTL_SECONDS = 6 * 3600
 
+_snapshot: dict | None = None
 
-def _load_slug_map() -> dict[str, str]:
+
+def _load_snapshot() -> dict:
+    global _snapshot
+    if _snapshot is not None:
+        return _snapshot
+    try:
+        with open(_SNAPSHOT_PATH, encoding="utf-8") as f:
+            _snapshot = json.load(f)
+    except Exception:
+        logger.warning("defillama_unlocks_service: failed to load %s", _SNAPSHOT_PATH, exc_info=True)
+        _snapshot = {"contracts_by_chain_address": {}, "slugs_by_gecko_id": {}}
+    return _snapshot
+
+
+def _load_protocols_map() -> dict[str, str]:
     global _slug_by_cmc_id, _fetched_at
     now = time.monotonic()
     if _slug_by_cmc_id is not None and (now - _fetched_at) < _MAP_TTL_SECONDS:
@@ -77,6 +143,29 @@ def _load_slug_map() -> dict[str, str]:
     return mapping
 
 
+def _match_by_contract(coin: Coin) -> str | None:
+    contracts = _load_snapshot().get("contracts_by_chain_address", {})
+    if not contracts:
+        return None
+    for contract in coin.contracts:
+        chain = _CHAIN_TO_DEFILLAMA_CODE.get(contract.platform_name)
+        if not chain or not contract.contract_address:
+            continue
+        slug = contracts.get(f"{chain}:{contract.contract_address.lower()}")
+        if slug:
+            return slug
+    return None
+
+
+def _match_by_gecko_id(coin: Coin) -> str | None:
+    from app.services.coingecko_service import _get_top_coin_symbol_map
+
+    gecko_id = _get_top_coin_symbol_map().get(coin.symbol.upper())
+    if not gecko_id:
+        return None
+    return _load_snapshot().get("slugs_by_gecko_id", {}).get(gecko_id)
+
+
 def needs_refresh(coin: Coin) -> bool:
     """Same checked_at-gates-refresh shape as tradingview_symbol_service's
     own needs_refresh — a coin confirmed to have no matching protocol
@@ -89,14 +178,14 @@ def needs_refresh(coin: Coin) -> bool:
 
 
 def resolve_unlocks_slug(db: Session, coin: Coin) -> str | None:
-    """Returns this coin's cached DeFiLlama protocol slug (refreshing from
-    the free /protocols map first if the cache is stale), or None if this
-    coin genuinely isn't a DeFiLlama-tracked protocol. Never raises.
+    """Returns this coin's cached DeFiLlama protocol slug (refreshing first
+    if the cache is stale), or None if this coin isn't found in any of the
+    three real data sources above. Never raises.
     """
     if not needs_refresh(coin):
         return coin.defillama_unlocks_slug
 
-    slug = _load_slug_map().get(str(coin.cmc_id))
+    slug = _match_by_contract(coin) or _match_by_gecko_id(coin) or _load_protocols_map().get(str(coin.cmc_id))
 
     coin.defillama_unlocks_slug = slug
     coin.defillama_unlocks_checked_at = datetime.utcnow()
