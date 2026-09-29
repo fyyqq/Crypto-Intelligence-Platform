@@ -149,20 +149,47 @@ _NEWS_TYPE_ORDER = {
     "General News": 8,
 }
 
-_FALLBACK_IMAGES = (
-    "/news-fallback-1.jpeg",
-    "/news-fallback-2.webp",
-    "/news-fallback-3.jpeg",
-)
+_FALLBACK_IMAGES_BY_TYPE = {
+    "Cryptocurrency": (
+        "/crypto-news-fallback-image/crypto-news-fallback-1.jpeg",
+        "/crypto-news-fallback-image/crypto-news-fallback-2.webp",
+        "/crypto-news-fallback-image/crypto-news-fallback-3.jpeg",
+    ),
+    "Artificial Intelligence": (
+        "/ai-news-fallback-image/ai-fallback-image-1.jpeg",
+        "/ai-news-fallback-image/ai-fallback-image-2.jpeg",
+        "/ai-news-fallback-image/ai-fallback-image-3.png",
+    ),
+    "Markets & Finance": (
+        "/financial-market-news-fallback-image/market-financial-fallback-image-1.webp",
+        "/financial-market-news-fallback-image/market-financial-fallback-image-2.jpeg",
+        "/financial-market-news-fallback-image/market-financial-fallback-image-3.webp",
+    ),
+}
+
+_FALLBACK_TYPE_BY_NEWS_TYPE = {
+    "Cryptocurrency": "Cryptocurrency",
+    "Cryptocurrency Telegram News": "Cryptocurrency",
+    "Artificial Intelligence": "Artificial Intelligence",
+    "Artificial Intelligence Telegram News": "Artificial Intelligence",
+    "Technology": "Artificial Intelligence",
+    "Technology Telegram News": "Artificial Intelligence",
+    "Markets & Finance": "Markets & Finance",
+    "Markets & Finance Telegram News": "Markets & Finance",
+    "General News": "Markets & Finance",
+}
 
 
-def _fallback_image_for(url: str) -> str:
-    """Choose a supplied fallback consistently for each article URL."""
+def _fallback_image_for(url: str, news_type: str) -> str:
+    """Choose a supplied category fallback consistently for each article URL."""
+    image_pool = _FALLBACK_IMAGES_BY_TYPE[
+        _FALLBACK_TYPE_BY_NEWS_TYPE.get(news_type, "Markets & Finance")
+    ]
     image_index = (
         int.from_bytes(hashlib.sha256(url.encode()).digest()[:2], "big")
-        % len(_FALLBACK_IMAGES)
+        % len(image_pool)
     )
-    return _FALLBACK_IMAGES[image_index]
+    return image_pool[image_index]
 
 
 def _normalize_news_type(category_or_query: str | None, source_name: str) -> str:
@@ -201,7 +228,7 @@ def _build_article_row(row: dict) -> dict:
     source_name = row.get("source_name") or "Unknown"
     news_type = _normalize_news_type(row.get("category_or_query"), source_name)
     article_url = row.get("url") or ""
-    image_url = row.get("image_url") or _fallback_image_for(article_url)
+    image_url = row.get("image_url") or _fallback_image_for(article_url, news_type)
     return {
         "source_name": source_name,
         "badge_color": _BADGE_COLORS[hash(source_name) % len(_BADGE_COLORS)],
