@@ -62,7 +62,14 @@ Every section has a stable `id` (`NewsState.news_sections`' own `"anchor_id"` fi
 **A real bug found and fixed while building this**: a plain `#fragment` only auto-scrolls to content already present the moment the browser parses the URL — this page's own sections render asynchronously (`NewsState.load_news` does a real DB fetch first), so a fresh or shared link's native hash-scroll fired too early and found nothing, confirmed live. Fixed with a small script (`assets/chain_pills.js`) that polls briefly for the target section to exist, then scrolls to it — also re-runs on `hashchange` so clicking a same-page `#section` link works after the initial load too. This also surfaced (and fixed) a separate pre-existing gap: `frontend.py::news_page` wasn't loading `chain_pills.js` at all, so the header's own search/profile-dropdown click-outside-close handlers were silently missing on this page — `_placeholder_page` (used by `/narrative`, `/chains`, `/tools`, `/watchlist`) has the same gap, not fixed here since it's a different page's own template, out of scope for this pass.
 </details>
 
+## Automatic daily re-ingestion
+
+`app/scheduler/jobs.py::run_news_pipeline_sync` runs the pipeline once every `settings.news_pipeline_sync_interval_hours` (24h by default), gated the same once-per-interval way every other scheduled job in this app is (a `SyncLog` row per run, checked before starting). This only takes effect while the FastAPI backend process (`app/main.py`) is actually running — it calls `start_scheduler()` on startup, same as this app's other scheduled jobs.
+
+**Why daily matters specifically for the RSS feeds (TechCrunch/Cointelegraph/WIRED)**: an RSS feed only ever exposes a site's *current* "latest N" items, not an archive — a single run can never retroactively pull 90 days of RSS history that isn't in the feed anymore. Real 90-day depth for those three sources only builds up by actually running the pipeline repeatedly over time; each day's run picks up whatever's newly published since the last one (already-seen URLs stay skipped).
+
+**Why the Google News historical path still looks sparse per outlet, even though its own 90-day window is correct**: `MAX_RESULTS_PER_QUERY = 25` across only 3 keywords caps that path at ≤75 raw results per run, spread across dozens of different real outlets — that's a deliberate, easy-to-change module constant (see `news_pipeline.py`'s own comment on it), not a bug, and hasn't been changed as of this note pending a decision on the cap/keyword-breadth tradeoff.
+
 ## Known, accepted gaps
 
-- **Not wired into this app's own scheduler** (`app/scheduler/jobs.py`) — the pipeline is a standalone script, run manually or via an external cron, not an automatic periodic job. Add it there if automatic re-ingestion is wanted; not done this session since it wasn't asked for.
 - **A coin's own on-page news feed (`_x_posts_section`'s neighbor on the coin-detail page, and the Home page's sliders) are unrelated static placeholders**, not backed by this real pipeline — only this dedicated `/news` page is.

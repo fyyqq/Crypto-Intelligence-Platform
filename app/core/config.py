@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     hot_sync_interval_hours: int = 1
     hot_sync_top_n: int = 500
 
+    # How often app/scheduler/jobs.py::run_news_pipeline_sync re-runs the
+    # standalone news pipeline (app/services/news_pipeline.py). Daily by
+    # default — the RSS feeds it ingests only ever expose a site's current
+    # "latest N" items (not an archive), so real 90-day-deep coverage for
+    # those sources only accumulates by actually running this repeatedly
+    # over time, not from any one run.
+    news_pipeline_sync_interval_hours: int = 24
+
     # Feature 1 placeholders: reserved for the CoinMarketCap wrapper, unused until connected.
     coinmarketcap_api_key: str = ""
     coinmarketcap_base_url: str = "https://pro-api.coinmarketcap.com"
