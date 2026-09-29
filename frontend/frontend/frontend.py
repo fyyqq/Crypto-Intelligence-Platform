@@ -721,7 +721,7 @@ app.add_page(
     news_page,
     route="/news",
     title="Repace — News",
-    on_load=[CoinState.load_coins, NewsState.load_news],
+    on_load=[CoinState.load_coins, NewsState.load_news, NewsState.watch_new_articles],
 )
 # Remaining header nav-link destinations (_NAV_LINKS above) — blank/
 # placeholder pages today. Each still loads the coin universe so the shared

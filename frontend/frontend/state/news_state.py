@@ -97,6 +97,7 @@ def _fetch_articles() -> list[dict]:
                 SELECT id, source_name, category_or_query, title, url, published_date, full_body_text, image_url, source_type
                 FROM news_articles
                 WHERE published_date >= NOW() - INTERVAL '90 days'
+                  AND (source_type <> 'telegram' OR published_date >= NOW() - INTERVAL '30 days')
                 ORDER BY published_date DESC NULLS LAST, id DESC
                 """
             )
@@ -104,6 +105,29 @@ def _fetch_articles() -> list[dict]:
         return [dict(r) for r in rows]
     except Exception:
         return []
+    finally:
+        db.close()
+
+
+def _fetch_max_article_id() -> int:
+    """Cheap change check for NewsState.watch_new_articles: rows only ever
+    get appended (SERIAL ids), so a higher max id means something new."""
+    import sys
+    from pathlib import Path
+
+    from sqlalchemy import text
+
+    root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+
+    db = OldSessionLocal()
+    try:
+        return db.execute(text("SELECT COALESCE(MAX(id), 0) FROM news_articles")).scalar() or 0
+    except Exception:
+        return 0
     finally:
         db.close()
 
@@ -513,8 +537,36 @@ def _merge_image_updates(articles: list[dict], updates: dict[str, str]) -> list[
     ]
 
 
+def _load_display_articles(enrich_after_id: int) -> tuple[list[dict], int]:
+    """Blocking: every displayable article plus the table's current max id.
+
+    Only first-page articles newer than enrich_after_id get the publisher-
+    image lookup, so a periodic refresh doesn't re-fetch pages for articles
+    it already tried on an earlier load. The max id is read *before* the
+    rows, so anything inserted in between is picked up on the next check.
+    """
+    max_id = _fetch_max_article_id()
+    articles = _build_article_rows(_fetch_articles())
+    first_pages: list[dict] = []
+    for news_type in dict.fromkeys(article["news_type"] for article in articles):
+        first_pages.extend([
+            article for article in articles if article["news_type"] == news_type
+        ][:_PAGE_SIZE])
+    new_first_page_articles = [article for article in first_pages if (article["id"] or 0) > enrich_after_id]
+    updates = _ensure_article_images(new_first_page_articles)
+    return _merge_image_updates(articles, updates), max_id
+
+
 class NewsState(rx.State):
-    all_articles: list[dict] = []
+    # Backend-only (underscore prefix — never sent to the browser). The page
+    # only renders news_sections' current page slices, so keeping the full
+    # ~4k-article list server-side means each 60s refresh ships a few dozen
+    # cards to the client, not every article.
+    _all_articles: list[dict] = []
+    # Highest news_articles.id as of the last load — watch_new_articles
+    # reloads only when the table's max id moves past it.
+    _last_seen_id: int = 0
+    _is_watching: bool = False
     is_loading: bool = True
     # news type -> current page (1-indexed) — each section's own
     # independent pagination, keyed dynamically since the set of real
@@ -526,24 +578,49 @@ class NewsState(rx.State):
     @rx.event(background=True)
     async def load_news(self):
         async with self:
-            if self.all_articles or not self.is_loading:
+            if self._all_articles or not self.is_loading:
                 return  # already loaded this session — on_load can re-fire on nav
         # DB access is blocking (psycopg2/SQLAlchemy sync session) — runs in
         # a thread so it doesn't block this app's single asyncio event loop
         # the way every other on-demand DB refresh in this codebase already
         # avoids (see coin_state.py's own asyncio.to_thread(...) calls).
-        rows = await asyncio.to_thread(_fetch_articles)
-        articles = _build_article_rows(rows)
-        first_pages: list[dict] = []
-        for news_type in dict.fromkeys(article["news_type"] for article in articles):
-            first_pages.extend([
-                article for article in articles if article["news_type"] == news_type
-            ][:_PAGE_SIZE])
-        updates = await asyncio.to_thread(_ensure_article_images, first_pages)
-        articles = _merge_image_updates(articles, updates)
+        articles, max_id = await asyncio.to_thread(_load_display_articles, 0)
         async with self:
-            self.all_articles = articles
+            self._all_articles = articles
+            self._last_seen_id = max_id
             self.is_loading = False
+
+    @rx.event(background=True)
+    async def watch_new_articles(self):
+        """Every 60s while the tab is open, checks for new rows (e.g. a post
+        telegram_listener.py just stored) and reloads the list if any
+        arrived — so new posts appear without a page reload. Same
+        started-once / stop-on-disconnect shape as CoinState.live_sync_loop.
+        """
+        async with self:
+            if self._is_watching:
+                return
+            self._is_watching = True
+
+        from frontend.frontend import app as reflex_app
+
+        try:
+            while True:
+                await asyncio.sleep(60)
+                if self.router.session.client_token not in reflex_app.event_namespace.token_to_sid:
+                    break
+                async with self:
+                    last_seen = self._last_seen_id
+                    loaded = not self.is_loading
+                if not loaded or await asyncio.to_thread(_fetch_max_article_id) <= last_seen:
+                    continue
+                articles, max_id = await asyncio.to_thread(_load_display_articles, last_seen)
+                async with self:
+                    self._all_articles = articles
+                    self._last_seen_id = max_id
+        finally:
+            async with self:
+                self._is_watching = False
 
     @rx.event
     def set_category_page(self, news_type: str, page: int):
@@ -560,7 +637,7 @@ class NewsState(rx.State):
         updates = await asyncio.to_thread(_ensure_article_images, visible)
         if updates:
             async with self:
-                self.all_articles = _merge_image_updates(self.all_articles, updates)
+                self._all_articles = _merge_image_updates(self._all_articles, updates)
 
     @rx.event(background=True)
     async def prev_page(self, news_type: str):
@@ -591,7 +668,7 @@ class NewsState(rx.State):
         await self._show_page_with_images(news_type, 1)
 
     def _category_articles(self, news_type: str) -> list[dict]:
-        return [a for a in self.all_articles if a["news_type"] == news_type]
+        return [a for a in self._all_articles if a["news_type"] == news_type]
 
     @staticmethod
     def _category_sources(category_articles: list[dict]) -> list[str]:
@@ -623,11 +700,11 @@ class NewsState(rx.State):
 
     @rx.var(cache=True)
     def has_articles(self) -> bool:
-        return len(self.all_articles) > 0
+        return len(self._all_articles) > 0
 
     @rx.var(cache=True)
     def news_sections(self) -> list[dict]:
-        """One dict per normalized news type present in all_articles,
+        """One dict per normalized news type present in _all_articles,
         already sliced to that category's own current page — see this module's
         docstring for why this bakes the per-category pagination fully into
         one server-side computed var rather than trying to parameterize a
@@ -635,7 +712,7 @@ class NewsState(rx.State):
         sliced per-`rx.foreach`-item that way).
         """
         grouped: dict[str, list[dict]] = {}
-        for article in self.all_articles:
+        for article in self._all_articles:
             grouped.setdefault(article["news_type"], []).append(article)
 
         ordered_categories = sorted(

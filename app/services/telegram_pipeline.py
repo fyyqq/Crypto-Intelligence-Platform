@@ -40,12 +40,9 @@ or re-check messages already on file.
 Not part of news_pipeline.py itself (kept as a separate module) since it
 has a genuinely different transport (Telethon vs. feedparser/pygooglenews)
 and a genuinely different dependency (a live, authenticated user
-session vs. stateless HTTP) — but it is wired into the exact same
-recurring cadence via app/scheduler/jobs.py::run_telegram_pipeline_sync,
-reusing settings.news_pipeline_sync_interval_hours rather than
-introducing a second interval setting, per explicit request to treat
-"real-time" here the same way the rest of this app already does (a
-periodic re-sync, not a separate always-on listener process).
+session vs. stateless HTTP). Runs from app/services/telegram_listener.py
+(a standalone process: live push updates, plus sync_all_groups on startup
+and every 30 minutes as a catch-up) — not from app/scheduler/jobs.py.
 """
 
 from __future__ import annotations
@@ -55,7 +52,6 @@ import datetime
 import logging
 import os
 import re
-import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -75,11 +71,10 @@ logger = logging.getLogger("telegram_pipeline")
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 SESSION_PATH = str(_REPO_ROOT / "telegram_session")
 
-# Real photo/video-thumbnail downloads land here and are served at
-# /telegram_media/<file> the same way frontend/assets/floating_logo.png is
-# served at /floating_logo.png — Reflex serves the whole assets/ directory
-# (including subdirectories) as static files, no rebuild needed for a new
-# file to become reachable. Per explicit request: only a real image the
+# Real photo/video-thumbnail downloads land here and are served live at
+# /telegram_media/<file> by the StaticFiles mount in frontend/frontend.py
+# (Reflex's own assets/ serving is a build-time copy, so a file added after
+# startup would otherwise 404 until a restart). Per explicit request: only a real image the
 # post itself actually has is ever shown — no generic/topic-matched search
 # fallback for text-only posts (a near-identical fallback was just removed
 # from the RSS/Google News side of this same app for being "misleading" —
@@ -91,8 +86,8 @@ _TELEGRAM_MEDIA_DIR = _REPO_ROOT / "frontend" / "assets" / "telegram_media"
 # built-in default), this module needs real Telegram API credentials that
 # only ever live in .env — load it explicitly so this works both when run
 # directly (`python app/services/telegram_pipeline.py`) and when imported
-# by app/scheduler/jobs.py inside the FastAPI process (which loads .env
-# itself already, but a second load_dotenv() here is a harmless no-op in
+# by telegram_listener.py (if .env was already loaded elsewhere, a second
+# load_dotenv() here is a harmless no-op in
 # that case, not a conflict).
 load_dotenv(_REPO_ROOT / ".env")
 
@@ -135,14 +130,14 @@ TELEGRAM_GROUPS: list[tuple[str, str]] = [
 ]
 
 # How far back a group with NO prior stored messages backfills on its
-# first-ever run — matches the rest of /news's own rolling display window
-# rather than pulling a group's entire history.
-_HISTORICAL_WINDOW_DAYS = 90
+# first-ever fetch. Matches /news's own Telegram display window (NewsState
+# hides Telegram posts older than 30 days; RSS/Google News keep 90).
+_HISTORICAL_WINDOW_DAYS = 30
 
-# Safety ceiling per group on a first-time backfill, independent of the
-# 90-day window — a very high-volume group could otherwise return
-# thousands of messages in one run.
-_MAX_BACKFILL_MESSAGES = 300
+# Safety ceiling per group on a first-time backfill. Sized so the busiest
+# group seen so far (cryptocurrency_media, ~300 posts in 5 days) can still
+# reach the full 30-day window instead of being cut off early.
+_MAX_BACKFILL_MESSAGES = 2000
 
 # Polite pause between groups, same crawling-etiquette convention
 # news_pipeline.py already uses between article fetches.
@@ -218,16 +213,21 @@ class TelegramNewsDB:
             return False
 
     def missing_image_ids_by_group(self) -> dict[str, list[int]]:
-        """Every already-stored Telegram row with no image_url yet, grouped
-        by username and parsed back to a real message id — used by
-        backfill_missing_images to re-fetch just those specific messages
-        (not the whole group's history again) and check whether each one
-        actually has real media worth downloading. Text-only rows are
-        included too but will simply have no media on re-fetch, so they're
-        cheap no-ops rather than something worth filtering out here.
+        """Recent Telegram rows with no image_url, grouped by username and
+        parsed back to a real message id — backfill_missing_images re-fetches
+        just those messages to retry an image download that failed.
+
+        Limited to the last few hours on purpose: a text-only post never gets
+        an image, so without a cutoff every catch-up pass would re-fetch
+        every text-only post ever stored (~1,800 rows, ~4 minutes of
+        Telegram requests per pass). The one-time backfill for rows that
+        predate image downloads has already run.
         """
         cur = self._conn.cursor()
-        cur.execute("SELECT url FROM news_articles WHERE source_type = 'telegram' AND image_url IS NULL")
+        cur.execute(
+            "SELECT url FROM news_articles WHERE source_type = 'telegram' AND image_url IS NULL "
+            "AND published_date >= NOW() - INTERVAL '2 hours'"
+        )
         rows = cur.fetchall()
         cur.close()
         by_group: dict[str, list[int]] = {}
@@ -325,9 +325,43 @@ def _group_display_title(entity) -> str:
     return getattr(entity, "title", None) or getattr(entity, "username", None) or "Telegram"
 
 
+async def store_message(
+    client: TelegramClient,
+    db: TelegramNewsDB,
+    message,
+    username: str,
+    category: str,
+    display_title: str,
+) -> bool:
+    """Stores one Telegram message as a news_articles row. Shared by the
+    polling catch-up (_ingest_group) and the live listener
+    (telegram_listener.py) so both paths produce identical rows. Returns
+    True only for a genuinely new row — False for a text-less post (a bare
+    photo/sticker has nothing to show as a title) or one already stored.
+    """
+    # message.raw_text is the message's own plain text with all formatting
+    # entities simply dropped; message.text instead re-serializes those
+    # entities back into literal Markdown syntax (Telethon's default parse
+    # mode) — e.g. a real bold run becomes the literal characters
+    # "**bold**". Since the card is plain rx.text (no Markdown renderer),
+    # that syntax showed up as literal asterisks/underscores/backticks.
+    text = (message.raw_text or message.text or "").strip()
+    if not text:
+        return False
+    image_url = await _download_message_image(client, message, username)
+    return db.insert_article(
+        source_name=display_title,
+        category_label=f"Telegram {category}",
+        title=_title_from_text(text),
+        url=f"https://t.me/{username}/{message.id}",
+        published_date=message.date.astimezone(datetime.timezone.utc).replace(tzinfo=None),
+        full_body_text=text,
+        image_url=image_url,
+    )
+
+
 async def _ingest_group(client: TelegramClient, db: TelegramNewsDB, username: str, category: str) -> IngestStats:
     stats = IngestStats()
-    category_label = f"Telegram {category}"
     try:
         entity = await client.get_entity(username)
     except Exception as exc:  # noqa: BLE001 — one bad group must not kill the whole run
@@ -344,32 +378,7 @@ async def _ingest_group(client: TelegramClient, db: TelegramNewsDB, username: st
         async for message in client.iter_messages(entity, **kwargs):
             if min_id == 0 and message.date < cutoff:
                 break  # newest-first iteration — anything older than the window ends a first-time backfill
-            # message.raw_text is the message's own plain text with all
-            # formatting entities simply dropped; message.text instead
-            # re-serializes those entities back into literal Markdown
-            # syntax (Telethon's default parse mode) — e.g. a real bold
-            # run becomes the literal characters "**bold**". Since this
-            # card is plain rx.text (no Markdown renderer), that syntax
-            # showed up as literal asterisks/underscores/backticks on the
-            # page instead of being rendered — raw_text avoids the syntax
-            # entirely rather than requiring it to be stripped back out.
-            text = (message.raw_text or message.text or "").strip()
-            if not text:
-                stats.skipped += 1
-                continue
-            url = f"https://t.me/{username}/{message.id}"
-            image_url = await _download_message_image(client, message, username)
-            published = message.date.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-            inserted = db.insert_article(
-                source_name=display_title,
-                category_label=category_label,
-                title=_title_from_text(text),
-                url=url,
-                published_date=published,
-                full_body_text=text,
-                image_url=image_url,
-            )
-            if inserted:
+            if await store_message(client, db, message, username, category, display_title):
                 stats.inserted += 1
             else:
                 stats.skipped += 1
@@ -382,13 +391,11 @@ async def _ingest_group(client: TelegramClient, db: TelegramNewsDB, username: st
 
 
 async def backfill_missing_images(client: TelegramClient, db: TelegramNewsDB) -> int:
-    """One-time-per-message catch-up for rows ingested before real image
-    downloads existed (every Telegram row up to this feature shipping has
-    image_url NULL, regardless of whether the original post actually had a
-    photo/video) — re-fetches each such message by id (batched up to 100
-    per Telethon get_messages call, not one request per message) and
-    downloads a real image only for the ones that genuinely have media.
-    Returns the count of rows actually updated with a real image.
+    """Retries the image download for recent rows still missing one (see
+    missing_image_ids_by_group for the time cutoff) — re-fetches each such
+    message by id (batched up to 100 per Telethon get_messages call, not
+    one request per message) and downloads a real image only for the ones
+    that genuinely have media. Returns the count of rows updated.
     """
     updated = 0
     for username, msg_ids in db.missing_image_ids_by_group().items():
@@ -414,15 +421,23 @@ async def backfill_missing_images(client: TelegramClient, db: TelegramNewsDB) ->
                 if image_url:
                     db.update_image(f"https://t.me/{username}/{message.id}", image_url)
                     updated += 1
-        time.sleep(REQUEST_DELAY_SECONDS)
+        await asyncio.sleep(REQUEST_DELAY_SECONDS)
     return updated
 
 
-async def _run_async() -> IngestStats:
+async def connect_client() -> TelegramClient:
+    """Connected, authorized client on the shared session file. Only one
+    process may hold telegram_session.session at a time (it's SQLite —
+    a second process gets "database is locked"), so don't run this module's
+    one-shot CLI while telegram_listener.py is running.
+    """
     if not API_ID or not API_HASH:
         raise RuntimeError("API_ID_TELEGRAM / API_HASH_TELEGRAM not set — see .env")
 
-    client = TelegramClient(SESSION_PATH, API_ID, API_HASH)
+    # connection_retries=None: keep retrying through network drops forever
+    # instead of giving up after Telethon's default 5 attempts — matters for
+    # the long-running listener, harmless for a one-shot run.
+    client = TelegramClient(SESSION_PATH, API_ID, API_HASH, connection_retries=None)
     await client.connect()
     if not await client.is_user_authorized():
         await client.disconnect()
@@ -431,44 +446,47 @@ async def _run_async() -> IngestStats:
             "`python scripts/telegram_login.py` yourself first (needs a live login "
             "code from your own phone/Telegram app, so it can't be done non-interactively)."
         )
+    return client
 
+
+async def sync_all_groups(client: TelegramClient) -> IngestStats:
+    """One incremental pass over every group: new messages since each
+    group's last stored one, then a real-image catch-up for any row still
+    missing one. Opens its own DB connection so a long-running caller (the
+    listener's 30-min catch-up loop) never holds a connection that may have
+    gone stale in between.
+    """
     db = TelegramNewsDB()
     total = IngestStats()
-    images_backfilled = 0
     try:
         for username, category in TELEGRAM_GROUPS:
             stats = await _ingest_group(client, db, username, category)
             total += stats
             logger.info("Telegram @%s (%s): inserted=%d skipped=%d", username, category, stats.inserted, stats.skipped)
-            time.sleep(REQUEST_DELAY_SECONDS)
-        # Catches up any row still missing a real image — every row ingested
-        # before this feature shipped, plus any single message whose own
-        # download failed transiently above. Self-limiting: once a row has
-        # an image (or has been confirmed to have none), it's never
-        # re-checked again, so this shrinks to near-zero cost on later runs.
-        images_backfilled = await backfill_missing_images(client, db)
-        if images_backfilled:
-            logger.info("Image backfill: %d rows updated with a real image", images_backfilled)
+            await asyncio.sleep(REQUEST_DELAY_SECONDS)
+        total.images_backfilled = await backfill_missing_images(client, db)
+        if total.images_backfilled:
+            logger.info("Image backfill: %d rows updated with a real image", total.images_backfilled)
     finally:
         db.close()
-        await client.disconnect()
-
-    total.images_backfilled = images_backfilled
     return total
 
 
-def run_telegram_pipeline() -> IngestStats:
-    """Synchronous entry point — what app/scheduler/jobs.py calls, same
-    shape as news_pipeline.py's ingest_* functions so the scheduler job
-    doesn't need to know this one happens to be async under the hood.
-    """
-    return asyncio.run(_run_async())
+async def _run_once() -> IngestStats:
+    client = await connect_client()
+    try:
+        return await sync_all_groups(client)
+    finally:
+        await client.disconnect()
 
 
 def main() -> None:
+    """Manual one-shot sync. Normally not needed: telegram_listener.py does
+    this automatically on startup and every 30 minutes.
+    """
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logger.info("Starting Telegram pipeline (%d groups)", len(TELEGRAM_GROUPS))
-    stats = run_telegram_pipeline()
+    stats = asyncio.run(_run_once())
     print("--- Telegram pipeline run complete ---")
     print(f"TOTAL — inserted: {stats.inserted:>4}  skipped: {stats.skipped:>4}  images backfilled: {stats.images_backfilled:>4}")
 

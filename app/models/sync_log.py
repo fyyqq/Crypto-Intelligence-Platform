@@ -14,7 +14,6 @@ class SyncType(str, enum.Enum):
     LISTINGS_HOT = "listings_hot"
     LISTINGS_RANGE = "listings_range"
     NEWS_PIPELINE = "news_pipeline"
-    TELEGRAM_PIPELINE = "telegram_pipeline"
 
 
 class SyncStatus(str, enum.Enum):
