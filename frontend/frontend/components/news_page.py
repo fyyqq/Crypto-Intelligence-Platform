@@ -16,17 +16,17 @@ def _news_card(article: dict) -> rx.Component:
             rx.hstack(
                 rx.hstack(
                     rx.badge(article["source_name"], color_scheme=article["badge_color"], variant="surface", size="1"),
-                    rx.text(article["time_display"], size="1", color_scheme="gray"),
+                    rx.badge(
+                        article["news_type"],
+                        color_scheme=article["news_type_color"],
+                        variant="soft",
+                        size="1",
+                    ),
                     spacing="2",
                     align="center",
                     min_width="0",
                 ),
-                rx.badge(
-                    article["news_type"],
-                    color_scheme=article["news_type_color"],
-                    variant="soft",
-                    size="1",
-                ),
+                rx.text(article["time_display"], size="1", color_scheme="gray", white_space="nowrap"),
                 spacing="2",
                 align="center",
                 justify="between",

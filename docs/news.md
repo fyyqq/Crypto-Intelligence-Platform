@@ -50,7 +50,7 @@ Uses raw `psycopg2`/`sqlite3` directly, not this project's own SQLAlchemy models
 
 - `NewsState` reads each article's stored `category_or_query` alongside its publisher, then normalizes it into Cryptocurrency (`Crypto`/`cryptocurrency`), Artificial Intelligence (`AI`/`artificial intelligence`), Markets & Finance (`global stock market`), or Technology (`Tech`). A publisher-based fallback covers future unclassified RSS rows without changing stored data.
 - Sections appear in a fixed reader-oriented order: Cryptocurrency, Artificial Intelligence, Markets & Finance, Technology, then General News if an unclassified article ever arrives. Each section is a responsive grid (1 column on phones, 2 on tablets, 3 on desktop) capped at 6 articles per page — a 3×2 grid at desktop width — with its own independent pagination (`NewsState.category_pages`, keyed per news type).
-- Each card keeps a colored publisher badge and its relative publication time on the left, adds the normalized news-type badge on the right, and includes the title (external link) plus a short extracted-text snippet. Publisher badges remain hashed to stable colors; category badges use fixed semantic colors.
+- Each card keeps its colored publisher badge and normalized news-type badge together on the left, places the relative publication time at the far right, and includes the title (external link) plus a short extracted-text snippet. Publisher badges remain hashed to stable colors; category badges use fixed semantic colors.
 - An empty state ("No news articles yet — run app/services/news_pipeline.py...") when the table is empty or doesn't exist yet, and a skeleton grid while `NewsState.load_news` is fetching — same loading-state conventions as the rest of this app.
 </details>
 
