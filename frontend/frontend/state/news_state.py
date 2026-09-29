@@ -155,7 +155,7 @@ def _fetch_article_by_path(news_category: str, article_slug: str) -> tuple[dict 
         # Keep the latest matching articles first, but favor records whose
         # extracted source text gives the reader a meaningful related-card
         # description rather than an empty second line.
-        related = sorted(related_candidates, key=lambda item: not item["has_snippet"])[:5]
+        related = sorted(related_candidates, key=lambda item: not item["has_snippet"])[:3]
         return raw_article, related
     except Exception:
         return None, []
