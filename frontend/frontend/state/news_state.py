@@ -147,11 +147,15 @@ def _fetch_article_by_path(news_category: str, article_slug: str) -> tuple[dict 
         if article is None:
             return None, []
         raw_article = next(row for row in raw_rows if row["id"] == article["id"])
-        related = [
+        related_candidates = [
             item
             for item in articles
             if item["news_type"] == article["news_type"] and item["id"] != article["id"]
-        ][:3]
+        ]
+        # Keep the latest matching articles first, but favor records whose
+        # extracted source text gives the reader a meaningful related-card
+        # description rather than an empty second line.
+        related = sorted(related_candidates, key=lambda item: not item["has_snippet"])[:5]
         return raw_article, related
     except Exception:
         return None, []
@@ -278,12 +282,22 @@ def _normalize_news_type(category_or_query: str | None, source_name: str) -> str
     return "General News"
 
 
+def _article_excerpt(body: str, title: str) -> str:
+    """Build a concise source excerpt without repeating the card headline."""
+    lines = [re.sub(r"\s+", " ", line).strip() for line in body.splitlines()]
+    lines = [line for line in lines if line]
+    normalized_title = re.sub(r"\s+", " ", title).strip().casefold()
+    if lines and lines[0].casefold() == normalized_title:
+        lines.pop(0)
+    excerpt = " ".join(lines)[:220].strip()
+    return excerpt.rsplit(" ", 1)[0] + "…" if len(excerpt) == 220 else excerpt
+
+
 def _build_article_row(row: dict) -> dict:
     published = row.get("published_date")
     body = row.get("full_body_text") or ""
-    snippet = body[:220].strip()
-    if len(body) > 220:
-        snippet = snippet.rsplit(" ", 1)[0] + "…"
+    title = row.get("title") or ""
+    snippet = _article_excerpt(body, title)
     source_name = row.get("source_name") or "Unknown"
     news_type = _normalize_news_type(row.get("category_or_query"), source_name)
     article_url = row.get("url") or ""
@@ -296,7 +310,7 @@ def _build_article_row(row: dict) -> dict:
         "badge_color": _BADGE_COLORS[hash(source_name) % len(_BADGE_COLORS)],
         "news_type": news_type,
         "news_type_color": _NEWS_TYPE_COLORS[news_type],
-        "title": row.get("title") or "",
+        "title": title,
         "url": article_url,
         "time_display": _relative_time(published),
         "snippet": snippet,

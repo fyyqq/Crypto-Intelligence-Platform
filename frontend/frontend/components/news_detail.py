@@ -52,17 +52,37 @@ def _article_sidebar(article: dict) -> rx.Component:
                 article["related_articles"].to(list[dict]),
                 lambda related: rx.link(
                     rx.hstack(
-                        rx.icon("newspaper", size=15, color="var(--gray-9)"),
-                        rx.text(
-                            related["title"],
-                            size="2",
-                            weight="medium",
-                            style={
-                                "display": "-webkit-box",
-                                "-webkit-line-clamp": "2",
-                                "-webkit-box-orient": "vertical",
-                                "overflow": "hidden",
-                            },
+                        rx.image(
+                            src=related["image_url"],
+                            width="72px",
+                            height="72px",
+                            min_width="72px",
+                            object_fit="cover",
+                            border_radius="4px",
+                            background="var(--gray-a3)",
+                            custom_attrs={"data-fallback-src": related["fallback_image_url"]},
+                        ),
+                        rx.vstack(
+                            rx.text(related["title"], size="2", weight="medium", line_height="1.35"),
+                            rx.cond(
+                                related["has_snippet"],
+                                rx.text(
+                                    related["snippet"],
+                                    size="1",
+                                    color_scheme="gray",
+                                    line_height="1.4",
+                                    style={
+                                        "display": "-webkit-box",
+                                        "-webkit-line-clamp": "2",
+                                        "-webkit-box-orient": "vertical",
+                                        "overflow": "hidden",
+                                    },
+                                ),
+                            ),
+                            spacing="1",
+                            align="start",
+                            min_width="0",
+                            width="100%",
                         ),
                         spacing="2",
                         align="start",
