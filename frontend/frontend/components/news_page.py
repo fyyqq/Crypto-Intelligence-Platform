@@ -18,12 +18,22 @@ def _news_card(article: dict) -> rx.Component:
         rx.vstack(
             rx.cond(
                 article["has_image"],
-                rx.image(
-                    src=article["image_url"],
+                rx.box(
+                    rx.image(
+                        src=article["image_url"],
+                        width="100%",
+                        height="100%",
+                        object_fit="cover",
+                        display="block",
+                        class_name="news-card-image",
+                        custom_attrs={"data-fallback-src": article["fallback_image_url"]},
+                    ),
                     width="100%",
                     height="160px",
-                    object_fit="cover",
-                    display="block",
+                    min_height="160px",
+                    max_height="160px",
+                    flex_shrink="0",
+                    overflow="hidden",
                 ),
             ),
             rx.vstack(

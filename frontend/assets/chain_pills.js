@@ -132,6 +132,28 @@
   );
 })();
 
+// A publisher may remove or block a previously valid og:image after this app
+// has stored its URL. Replace only that failed card image with the row's own
+// category-matched local asset; the marker prevents a failed fallback request
+// from looping forever.
+(function () {
+  if (window.__newsImageFallbackInit) return;
+  window.__newsImageFallbackInit = true;
+
+  document.addEventListener(
+    "error",
+    function (event) {
+      const image = event.target;
+      if (!(image instanceof HTMLImageElement) || !image.matches(".news-card-image")) return;
+      const fallback = image.dataset.fallbackSrc;
+      if (!fallback || image.dataset.fallbackApplied === "true" || image.getAttribute("src") === fallback) return;
+      image.dataset.fallbackApplied = "true";
+      image.src = fallback;
+    },
+    true
+  );
+})();
+
 // Equalizes every card in a horizontal slider track to the tallest card's
 // natural height — percentage height (height: 100%) can't do this reliably
 // since the track's own height is intrinsic (sized by its tallest child),

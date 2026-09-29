@@ -228,7 +228,8 @@ def _build_article_row(row: dict) -> dict:
     source_name = row.get("source_name") or "Unknown"
     news_type = _normalize_news_type(row.get("category_or_query"), source_name)
     article_url = row.get("url") or ""
-    image_url = row.get("image_url") or _fallback_image_for(article_url, news_type)
+    fallback_image_url = _fallback_image_for(article_url, news_type)
+    image_url = row.get("image_url") or fallback_image_url
     return {
         "source_name": source_name,
         "badge_color": _BADGE_COLORS[hash(source_name) % len(_BADGE_COLORS)],
@@ -240,6 +241,7 @@ def _build_article_row(row: dict) -> dict:
         "snippet": snippet,
         "has_snippet": bool(snippet),
         "image_url": image_url,
+        "fallback_image_url": fallback_image_url,
         "has_image": bool(image_url),
         # Marks a card sourced from app/services/telegram_pipeline.py (a
         # Telegram group post, not a web article) so the card can show a
