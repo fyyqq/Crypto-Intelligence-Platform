@@ -12,7 +12,13 @@ Reflects the actual shipped implementation as of 2026-09-27. The original plan l
 <details>
 <summary><strong>📊 Coin listing table</strong></summary>
 
-All ~8,193 CMC-tracked coins, 10 columns always visible (never hidden by screen size): Rank, Name (icon + name + ticker + narrative/chain badges), Price, Market Cap, 24H Volume, 1H/24H/7D % change, 24H/7D trend sparklines. Market-cap-ranked by default, every column sortable by clicking its header (3-state cycle: desc → asc → back to default order). Horizontal scroll is the fallback when the table is wider than its column — the table itself never hides a column regardless of screen width.
+All ~8,193 CMC-tracked coins, 11 columns always visible (never hidden by screen size): a leading Watchlist star, Rank, Name (icon + name + ticker + narrative/chain badges), Price, Market Cap, 24H Volume, 1H/24H/7D % change, 24H/7D trend sparklines. Market-cap-ranked by default, every column sortable by clicking its header (3-state cycle: desc → asc → back to default order). Horizontal scroll is the fallback when the table is wider than its column — the table itself never hides a column regardless of screen width.
+</details>
+
+<details>
+<summary><strong>⭐ Watchlist star column</strong></summary>
+
+New leftmost column, before Rank — same toggle design as the coin-detail page's own star and the `/watchlist` page's own remove star: gray outline when a coin isn't watchlisted, filled amber when it is, reading/writing the same `CoinState.watchlist_ids`/`toggle_watchlist(cmc_id)` every other watchlist entry point uses. Clicking it toggles that one coin's membership without navigating to its detail page (`rx.stop_propagation` on the click). Lets a coin be starred straight from the browsing table, not just from its own detail page.
 </details>
 
 <details>

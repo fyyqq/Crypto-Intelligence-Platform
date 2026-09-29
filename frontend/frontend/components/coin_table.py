@@ -189,8 +189,27 @@ def _chain_badge(row: dict) -> rx.Component:
     )
 
 
+def _watchlist_star_cell(row: dict) -> rx.Component:
+    # Same toggle look as coin_detail.py's own star — gray outline when not
+    # watched, filled amber when it is; stop_propagation keeps the click from
+    # also firing the row's own on_click (navigate to the coin's page).
+    is_watched = CoinState.watchlist_ids.contains(row["cmc_id"])
+    return rx.table.cell(
+        rx.icon(
+            "star",
+            size=16,
+            color=rx.cond(is_watched, "var(--amber-9)", "var(--gray-9)"),
+            fill=rx.cond(is_watched, "var(--amber-9)", "none"),
+            cursor="pointer",
+        ),
+        on_click=[CoinState.toggle_watchlist(row["cmc_id"]), rx.stop_propagation],
+        vertical_align="middle",
+    )
+
+
 def _row(row: dict) -> rx.Component:
     return rx.table.row(
+        _watchlist_star_cell(row),
         rx.table.cell(row["rank"], vertical_align="middle"),
         rx.table.cell(
             rx.vstack(
@@ -353,6 +372,7 @@ _SKELETON_COL_DISPLAYS = (
 
 def _skeleton_row(_: rx.Var) -> rx.Component:
     return rx.table.row(
+        rx.table.cell(rx.skeleton(height="1em", width="1em")),
         rx.table.cell(rx.skeleton(height="1em", width="60%")),
         _skeleton_name_cell(),
         *[
@@ -495,6 +515,7 @@ def coin_table() -> rx.Component:
             rx.table.root(
                 rx.table.header(
                     rx.table.row(
+                        rx.table.column_header_cell("", **_STICKY_HEADER_STYLE),
                         _sortable_header("Rank", "rank"),
                         rx.table.column_header_cell("Name", **_STICKY_HEADER_STYLE),
                         _sortable_header("Price", "price_raw"),
