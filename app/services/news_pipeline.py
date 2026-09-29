@@ -504,6 +504,45 @@ def _resolve_article_image(
     return _topic_fallback_image(title, category)
 
 
+_PAGE_FETCH_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
+_META_TAG_RE = re.compile(r"<meta[^>]*>", re.IGNORECASE)
+_META_CONTENT_RE = re.compile(r'content=["\']([^"\']+)["\']', re.IGNORECASE)
+
+
+def is_fallback_image(image_url: str | None) -> bool:
+    """Whether an image is a generic Commons fallback."""
+    return bool(image_url) and "wikimedia.org" in image_url.lower()
+
+
+def quick_page_image(url: str, timeout: float = 6.0) -> str | None:
+    """Fetch an article's own meta or first content image without retries."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": _PAGE_FETCH_USER_AGENT})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            html = resp.read(300_000).decode("utf-8", errors="ignore")
+    except Exception:  # noqa: BLE001 — best-effort, caller has its own fallback
+        return None
+
+    for tag in _META_TAG_RE.findall(html):
+        lowered = tag.lower()
+        if "og:image" not in lowered and "twitter:image" not in lowered:
+            continue
+        match = _META_CONTENT_RE.search(tag)
+        if not match:
+            continue
+        candidate = urllib.parse.urljoin(url, match.group(1))
+        if not any(marker in candidate.lower() for marker in _NON_CONTENT_IMAGE_MARKERS):
+            return candidate
+
+    content_images = _extract_content_images(html)
+    if content_images:
+        return urllib.parse.urljoin(url, content_images[0])
+    return None
+
+
 def _safe_extract_full_text(url: str) -> tuple[str | None, list[str]]:
     """Wraps both the page fetch and the trafilatura extraction in one
     try/except per the resilience requirement — a Cloudflare/anti-bot wall,

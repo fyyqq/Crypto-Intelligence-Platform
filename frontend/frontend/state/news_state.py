@@ -214,12 +214,7 @@ def _image_category(news_type: str) -> str:
 
 
 def _ensure_article_images(articles: list[dict]) -> dict[str, str]:
-    """Return persisted images for a visible page, filling missing web
-    articles with a free topic/category-matched Commons image. The regular
-    ingestion pipeline still prefers each publisher's own image; this fast
-    path prevents older rows from blocking a pagination page while a full
-    source-page backfill is still running.
-    """
+    """Prefer and persist real article images for one visible page."""
     candidates = {
         article["url"]: article
         for article in articles
@@ -229,6 +224,7 @@ def _ensure_article_images(articles: list[dict]) -> dict[str, str]:
         return {}
 
     import sys
+    from concurrent.futures import ThreadPoolExecutor
     from pathlib import Path
 
     from sqlalchemy import bindparam, text
@@ -238,7 +234,11 @@ def _ensure_article_images(articles: list[dict]) -> dict[str, str]:
         sys.path.insert(0, root)
 
     from app.core.database import SessionLocal as OldSessionLocal
-    from app.services.news_pipeline import _topic_fallback_image
+    from app.services.news_pipeline import (
+        _topic_fallback_image,
+        is_fallback_image,
+        quick_page_image,
+    )
 
     db = OldSessionLocal()
     try:
@@ -250,14 +250,42 @@ def _ensure_article_images(articles: list[dict]) -> dict[str, str]:
             for row in db.execute(statement, {"urls": list(candidates)}).all()
         }
         updates: dict[str, str] = {}
-        for url, article in candidates.items():
-            image_url = stored.get(url)
-            if not image_url:
-                image_url = _topic_fallback_image(
+        to_fetch: list[str] = []
+        for url, image_url in stored.items():
+            if image_url and not is_fallback_image(image_url):
+                updates[url] = image_url
+            else:
+                to_fetch.append(url)
+        for url in candidates:
+            if url not in stored:
+                to_fetch.append(url)
+
+        if to_fetch:
+            pool = ThreadPoolExecutor(max_workers=6)
+            futures = {pool.submit(quick_page_image, url): url for url in to_fetch}
+            for future, url in futures.items():
+                try:
+                    real_image = future.result(timeout=8)
+                except Exception:  # noqa: BLE001 — timeout or fetch error, fall through
+                    real_image = None
+                if real_image:
+                    updates[url] = real_image
+                    db.execute(
+                        text("UPDATE news_articles SET image_url = :image_url WHERE url = :url"),
+                        {"image_url": real_image, "url": url},
+                    )
+                    continue
+                existing_fallback = stored.get(url)
+                if existing_fallback:
+                    updates[url] = existing_fallback
+                    continue
+                article = candidates[url]
+                fallback = _topic_fallback_image(
                     article.get("title", ""),
                     _image_category(article.get("news_type", "")),
                 )
-                if image_url:
+                if fallback:
+                    updates[url] = fallback
                     db.execute(
                         text(
                             """
@@ -266,10 +294,9 @@ def _ensure_article_images(articles: list[dict]) -> dict[str, str]:
                             WHERE url = :url AND image_url IS NULL
                             """
                         ),
-                        {"image_url": image_url, "url": url},
+                        {"image_url": fallback, "url": url},
                     )
-            if image_url:
-                updates[url] = image_url
+            pool.shutdown(wait=False)
         db.commit()
         return updates
     except Exception:
