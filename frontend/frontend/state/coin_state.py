@@ -374,6 +374,35 @@ def _narrative_icon(name: str) -> str:
     return "tag"
 
 
+def _resolve_unlock_source_url(symbol: str, defillama_slug: str | None) -> str:
+    """Three-tier fallback for the Locked Supply section's "View live
+    unlock data" link, in order:
+    1. A real per-project DeFiLlama Unlocks page, when
+       defillama_unlocks_service resolved one (contract-address/gecko_id/
+       cmcId matched — see that module's own docstring).
+    2. Tokenomist's own per-coin unlock-events page, keyed by this coin's
+       CoinGecko id — confirmed live tokenomist.ai's own slug convention
+       IS the CoinGecko id (e.g. "fetch-ai", "bitcoin", "chainlink"), not
+       the ticker (which 404s: "fet" does, "fetch-ai" doesn't). Reuses the
+       exact same top-500 ticker->gecko_id map defillama_unlocks_service's
+       own gecko_id path already depends on, so no new external call.
+    3. DeFiLlama's own per-ticker Token page, for a coin outside that
+       top-500 map (no gecko_id known at all) — the same real, ticker-
+       based page confirmed live for any listed coin.
+    Never guesses a slug from the coin's own name/ticker for tokenomist
+    either — same "real match or a known-safe fallback, never a guess"
+    rule this whole feature already follows.
+    """
+    if defillama_slug:
+        return f"https://defillama.com/protocol/unlocks/{defillama_slug}"
+    from app.services.coingecko_service import _get_top_coin_symbol_map
+
+    gecko_id = _get_top_coin_symbol_map().get(symbol.upper())
+    if gecko_id:
+        return f"https://tokenomist.ai/{gecko_id}/unlock-events"
+    return f"https://defillama.com/token/{symbol.upper()}"
+
+
 def _build_row(coin: Coin) -> dict:
     """Builds one table row dict from a Coin (with categories/contracts
     eager-loaded). Shared by load_coins (full load) and the view-driven
@@ -606,23 +635,11 @@ def _build_row(coin: Coin) -> dict:
         # CEX-pairs path already came up empty.
         "tradingview_dex_symbol": coin.tradingview_dex_symbol or "",
         "tradingview_dex_symbol_fetched": coin.tradingview_dex_symbol_checked_at is not None,
-        # Real per-coin DeFiLlama "View live unlock data" deep link (see
-        # app/services/defillama_unlocks_service.py) — a real contract/
-        # gecko_id/cmcId-matched protocol slug resolves to that project's
-        # own unlock page; no match (most coins — DeFiLlama's Unlocks
-        # feature only tracks a project if it has a real vesting schedule)
-        # falls back to that coin's own DeFiLlama Token page instead of the
-        # fully generic /unlocks dashboard — confirmed live (real browser,
-        # not a bot-blocked plain request) that /token/<TICKER> is a real,
-        # ticker-based page for any listed coin (e.g. FET has no Unlocks
-        # page anywhere, real or guessed, but /token/FET is real) even when
-        # no per-project unlock schedule exists. Never a guessed/broken
-        # per-coin unlocks URL either way.
-        "unlock_source_url": (
-            f"https://defillama.com/protocol/unlocks/{coin.defillama_unlocks_slug}"
-            if coin.defillama_unlocks_slug
-            else f"https://defillama.com/token/{coin.symbol.upper()}"
-        ),
+        # Real per-coin "View live unlock data" deep link — see
+        # _resolve_unlock_source_url's own docstring for the 3-tier
+        # fallback (real DeFiLlama project match -> tokenomist.ai by
+        # gecko_id -> DeFiLlama's own per-ticker Token page).
+        "unlock_source_url": _resolve_unlock_source_url(coin.symbol, coin.defillama_unlocks_slug),
         # Cached X posts — the scraping backend that populated this (Apify,
         # app/services/social_service.py) was removed per explicit request
         # (cost/ToS concerns with every third-party scraping option tried),
@@ -1855,11 +1872,7 @@ class CoinState(rx.State):
                 **self.coin_overrides,
                 cmc_id: {
                     **self.coin_overrides.get(cmc_id, {}),
-                    "unlock_source_url": (
-                        f"https://defillama.com/protocol/unlocks/{slug}"
-                        if slug
-                        else f"https://defillama.com/token/{symbol.upper()}"
-                    ),
+                    "unlock_source_url": _resolve_unlock_source_url(symbol, slug),
                 },
             }
 
