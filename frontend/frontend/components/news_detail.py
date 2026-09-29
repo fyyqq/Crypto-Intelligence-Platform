@@ -4,6 +4,9 @@ import reflex as rx
 
 from frontend.state import NewsDetailState
 
+# 1 column on mobile, 4 across from tablet/iPad width (768px) up, back to 1 in the narrow desktop rail (1280px+).
+_RELATED_GRID_COLUMNS = rx.breakpoints(initial="1", sm="4", lg="1")
+
 
 def _article_metadata(article: dict) -> rx.Component:
     return rx.hstack(
@@ -48,60 +51,65 @@ def _article_sidebar(article: dict) -> rx.Component:
         _source_link(article),
         rx.vstack(
             rx.heading("Other News Related", size="3"),
-            rx.foreach(
-                article["related_articles"].to(list[dict]),
-                lambda related: rx.link(
-                    rx.vstack(
-                        rx.box(
-                            rx.image(
-                                src=related["image_url"],
-                                width="100%",
-                                height="100%",
-                                object_fit="cover",
-                                display="block",
-                                custom_attrs={"data-fallback-src": related["fallback_image_url"]},
-                            ),
-                            width="100%",
-                            aspect_ratio="16 / 9",
-                            overflow="hidden",
-                            background="var(--gray-a3)",
-                        ),
+            rx.grid(
+                rx.foreach(
+                    article["related_articles"].to(list[dict]),
+                    lambda related: rx.link(
                         rx.vstack(
-                            rx.text(related["title"], size="2", weight="medium", line_height="1.35"),
-                            rx.cond(
-                                related["has_snippet"],
-                                rx.text(
-                                    related["snippet"],
-                                    size="1",
-                                    color_scheme="gray",
-                                    line_height="1.4",
-                                    style={
-                                        "display": "-webkit-box",
-                                        "-webkit-line-clamp": "2",
-                                        "-webkit-box-orient": "vertical",
-                                        "overflow": "hidden",
-                                    },
+                            rx.box(
+                                rx.image(
+                                    src=related["image_url"],
+                                    width="100%",
+                                    height="100%",
+                                    object_fit="cover",
+                                    display="block",
+                                    custom_attrs={"data-fallback-src": related["fallback_image_url"]},
                                 ),
+                                width="100%",
+                                aspect_ratio="16 / 9",
+                                overflow="hidden",
+                                background="var(--gray-a3)",
                             ),
-                            spacing="1",
+                            rx.vstack(
+                                rx.text(related["title"], size="2", weight="medium", line_height="1.35"),
+                                rx.cond(
+                                    related["has_snippet"],
+                                    rx.text(
+                                        related["snippet"],
+                                        size="1",
+                                        color_scheme="gray",
+                                        line_height="1.4",
+                                        style={
+                                            "display": "-webkit-box",
+                                            "-webkit-line-clamp": "2",
+                                            "-webkit-box-orient": "vertical",
+                                            "overflow": "hidden",
+                                        },
+                                    ),
+                                ),
+                                spacing="1",
+                                align="start",
+                                min_width="0",
+                                width="100%",
+                                padding="0.7em",
+                            ),
+                            spacing="0",
                             align="start",
-                            min_width="0",
                             width="100%",
-                            padding="0.7em",
+                            overflow="hidden",
+                            border="1px solid var(--gray-a4)",
+                            border_radius="6px",
+                            background="var(--gray-a2)",
                         ),
-                        spacing="0",
-                        align="start",
+                        href=related["detail_url"],
+                        underline="none",
+                        color="var(--gray-12)",
                         width="100%",
-                        overflow="hidden",
-                        border="1px solid var(--gray-a4)",
-                        border_radius="6px",
-                        background="var(--gray-a2)",
                     ),
-                    href=related["detail_url"],
-                    underline="none",
-                    color="var(--gray-12)",
-                    width="100%",
                 ),
+                columns=_RELATED_GRID_COLUMNS,
+                spacing="3",
+                width="100%",
             ),
             rx.button("View More", variant="soft", color_scheme="gray", width="100%"),
             spacing="2",
