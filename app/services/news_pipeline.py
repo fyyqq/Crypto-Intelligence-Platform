@@ -142,6 +142,11 @@ GOOGLE_NEWS_QUERIES: list[str] = [
 # different top results over time since already-seen URLs are skipped.
 MAX_RESULTS_PER_QUERY = 25
 
+# Used only by ingest_historical_backfill_for_named_outlets below (a
+# one-time, manually-triggered deep backfill, never the recurring cron
+# path) — Google's own realistic per-query ceiling, confirmed live.
+BACKFILL_RESULTS_PER_QUERY_CAP = 100
+
 # Polite crawling delay between each page fetch (RSS article pages AND
 # Google-News-resolved article pages alike).
 REQUEST_DELAY_SECONDS = 1.0
@@ -438,11 +443,108 @@ def ingest_historical_google_news(db: NewsDB) -> IngestStats:
 
 
 # ---------------------------------------------------------------------------
+# One-time backfill: full 90-day history for each NAMED outlet (RSS_FEEDS)
+# ---------------------------------------------------------------------------
+#
+# ingest_rss_feeds above only ever sees a feed's current "latest N" items —
+# an RSS feed is not an archive, so it structurally cannot backfill history
+# no matter how it's called. Google News's own search index, though, can
+# be scoped to a single real domain with the "site:" operator (confirmed
+# live: "site:techcrunch.com after:X before:Y" returns 100 real TechCrunch
+# results spanning the requested window) — this is how a genuine 90-day
+# history for each of RSS_FEEDS' three named outlets gets populated, in one
+# deliberate manual run, rather than waiting for ingest_rss_feeds to build
+# it up organically one "latest N" snapshot per daily cron tick.
+#
+# NOT part of the recurring cron job (app/scheduler/jobs.py::
+# run_news_pipeline_sync calls ingest_rss_feeds/ingest_historical_google_news
+# directly, never this function) — run it once manually (see main()'s
+# --backfill-outlets flag) whenever a fresh 90-day seed is wanted; the daily
+# cron job's own ingest_rss_feeds already takes over from there for
+# genuinely new/latest articles as each outlet actually publishes them.
+
+
+def _outlet_domain(feed_url: str) -> str:
+    from urllib.parse import urlparse
+
+    return urlparse(feed_url).netloc.removeprefix("www.")
+
+
+def ingest_historical_backfill_for_named_outlets(db: NewsDB) -> IngestStats:
+    stats = IngestStats()
+    today = datetime.date.today()
+    start_date = today - datetime.timedelta(days=_HISTORICAL_WINDOW_DAYS)
+    gn = GoogleNews(lang="en", country="US")
+
+    for category, outlet_name, feed_url in RSS_FEEDS:
+        domain = _outlet_domain(feed_url)
+        search_query = f"site:{domain} after:{start_date.isoformat()} before:{today.isoformat()}"
+        try:
+            result = gn.search(search_query)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("SKIP outlet backfill (search failed: %s): %s", exc, search_query)
+            continue
+        entries = result.get("entries", [])[:BACKFILL_RESULTS_PER_QUERY_CAP]
+        logger.info("Backfill %s (site:%s): %d entries", outlet_name, domain, len(entries))
+        for entry in entries:
+            google_url = entry.get("link")
+            title = entry.get("title", "").strip()
+            if not google_url or not title:
+                continue
+            real_url = _resolve_google_news_url(google_url)
+            if not real_url:
+                stats.skipped += 1
+                continue
+            if db.article_exists(real_url):
+                stats.skipped += 1
+                continue
+            body = _safe_extract_full_text(real_url)
+            time.sleep(REQUEST_DELAY_SECONDS)
+            # source_name is forced to this RSS_FEEDS entry's own outlet
+            # name (not Google's own <source> attribution, which for a
+            # site: query is always the same outlet anyway, just spelled
+            # inconsistently across articles — e.g. "TechCrunch" vs.
+            # "TechCrunch " vs. a byline) — this guarantees every backfilled
+            # article lands in the exact same /news section its own
+            # ingest_rss_feeds-sourced siblings do, not a near-duplicate
+            # section with a slightly different name.
+            inserted = db.insert_article(
+                source_type="google_news_backfill",
+                source_name=outlet_name,
+                category_or_query=category,
+                title=title,
+                url=real_url,
+                published_date=_parse_published(entry),
+                full_body_text=body,
+            )
+            if inserted:
+                stats.inserted += 1
+            else:
+                stats.skipped += 1
+    return stats
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--backfill-outlets",
+        action="store_true",
+        help=(
+            "One-time deep 90-day historical backfill for each RSS_FEEDS outlet "
+            "(via Google News's site: search), in addition to the normal run. "
+            "Never run automatically by the cron job — see "
+            "ingest_historical_backfill_for_named_outlets's own docstring."
+        ),
+    )
+    args = parser.parse_args()
+
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logger.info("Starting news pipeline (backend=%s)", DB_BACKEND)
 
@@ -450,13 +552,16 @@ def main() -> None:
     try:
         rss_stats = ingest_rss_feeds(db)
         google_stats = ingest_historical_google_news(db)
+        backfill_stats = ingest_historical_backfill_for_named_outlets(db) if args.backfill_outlets else IngestStats()
     finally:
         db.close()
 
-    total = rss_stats + google_stats
+    total = rss_stats + google_stats + backfill_stats
     print("--- News pipeline run complete ---")
     print(f"RSS feeds      — inserted: {rss_stats.inserted:>4}  skipped: {rss_stats.skipped:>4}")
     print(f"Google News    — inserted: {google_stats.inserted:>4}  skipped: {google_stats.skipped:>4}")
+    if args.backfill_outlets:
+        print(f"Outlet backfill— inserted: {backfill_stats.inserted:>4}  skipped: {backfill_stats.skipped:>4}")
     print(f"TOTAL          — inserted: {total.inserted:>4}  skipped: {total.skipped:>4}")
 
 
