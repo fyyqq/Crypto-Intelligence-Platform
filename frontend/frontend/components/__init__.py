@@ -5,6 +5,7 @@ from frontend.components.footer import footer
 from frontend.components.global_search import global_search
 from frontend.components.narrative_alerts import narrative_alerts
 from frontend.components.news_feed import news_feed
+from frontend.components.watchlist_table import watchlist_table
 
 __all__ = [
     "coin_detail_page",
@@ -14,4 +15,5 @@ __all__ = [
     "global_search",
     "narrative_alerts",
     "news_feed",
+    "watchlist_table",
 ]

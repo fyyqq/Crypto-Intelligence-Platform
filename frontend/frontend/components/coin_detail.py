@@ -762,7 +762,22 @@ def _info_column() -> rx.Component:
                 align="start",
             ),
             rx.spacer(),
-            rx.icon("star", size=18, color="var(--gray-9)"),
+            rx.icon(
+                "star",
+                size=18,
+                color=rx.cond(
+                    CoinState.watchlist_ids.contains(coin["cmc_id"]),
+                    "var(--amber-9)",
+                    "var(--gray-9)",
+                ),
+                fill=rx.cond(
+                    CoinState.watchlist_ids.contains(coin["cmc_id"]),
+                    "var(--amber-9)",
+                    "none",
+                ),
+                cursor="pointer",
+                on_click=CoinState.toggle_watchlist(coin["cmc_id"]),
+            ),
             rx.icon("share-2", size=18, color="var(--gray-9)"),
             spacing="3",
             align="center",

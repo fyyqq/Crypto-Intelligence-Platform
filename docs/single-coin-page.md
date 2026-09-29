@@ -57,9 +57,9 @@ UI-only right now — a horizontal slider of "View on X" cards linking to the co
 </details>
 
 <details>
-<summary><strong>⭐ Watchlist star — not yet wired up</strong></summary>
+<summary><strong>⭐ Watchlist star</strong></summary>
 
-A star icon sits next to the coin's name — visually present, but purely decorative right now. See [Watchlist](./watchlist.md).
+Next to the coin's name — gray outline when this coin isn't watched, filled amber when it is, toggled by `CoinState.toggle_watchlist`. Adding/removing here is what populates or empties the `/watchlist` page's own table. See [Watchlist](./watchlist.md) for the full feature.
 </details>
 
 ---

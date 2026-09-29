@@ -10,6 +10,7 @@ from frontend.components import (
     global_search,
     narrative_alerts,
     news_feed,
+    watchlist_table,
 )
 from frontend.state import CoinState
 
@@ -596,7 +597,25 @@ def tools_page() -> rx.Component:
 
 
 def watchlist_page() -> rx.Component:
-    return _placeholder_page("Watchlist")
+    # Real content, per explicit request — supersedes the blank
+    # _placeholder_page shell every other nav-link page still uses.
+    # watchlist_table() is its own component (not coin_table()) since it's
+    # scoped to CoinState.watchlist_coins/watchlist_ids rather than the full
+    # homepage browsing pipeline (categories/chains/search/pagination/sort),
+    # which don't apply to a small, already-curated personal list.
+    return rx.box(
+        _header_bar(),
+        rx.box(
+            watchlist_table(),
+            padding=["1em", "1em", "1.5em", "2em", "2em"],
+            width="100%",
+        ),
+        footer(),
+        _floating_logo(),
+        _chat_widget(),
+        min_height="100vh",
+        width="100%",
+    )
 
 
 app = rx.App(stylesheets=["/styles.css"])

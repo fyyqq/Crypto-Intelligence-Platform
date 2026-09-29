@@ -16,7 +16,7 @@ This folder, the matching [Notion pages](https://app.notion.com/p/3e1143f8052780
 | [Narrative](./narrative.md) | `/narrative` | Placeholder |
 | [Chains](./chains.md) | `/chains` | Placeholder |
 | [Tools](./tools.md) | `/tools` | Placeholder |
-| [Watchlist](./watchlist.md) | `/watchlist` | Placeholder |
+| [Watchlist](./watchlist.md) | `/watchlist` | Live |
 
 ## Shared
 

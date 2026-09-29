@@ -991,6 +991,12 @@ class CoinState(rx.State):
     # see _row_with_overrides/_merged_row below for how a display-facing
     # computed var (filtered_coins, selected_coin) merges this back in.
     coin_overrides: dict[int, dict] = {}
+    # cmc_ids the viewer has starred, in-session (not tied to any account —
+    # this app has no real user/auth system, just the one hardcoded "Fyqq"
+    # profile pill). Toggled from the coin-detail page's star icon
+    # (toggle_watchlist) and read back by watchlist_table.py's /watchlist
+    # page via watchlist_coins below.
+    watchlist_ids: list[int] = []
     categories: list[str] = []
     # Every narrative (no top-20 cap) — "More Narrative" toggles
     # narratives_expanded to swap the sidebar's pill list over to this full
@@ -1392,6 +1398,46 @@ class CoinState(rx.State):
         """
         override = self.coin_overrides.get(row["cmc_id"])
         return {**row, **override} if override else row
+
+    @rx.event
+    def toggle_watchlist(self, cmc_id: int) -> None:
+        """Star icon handler, called from both the coin-detail page (add/
+        remove the currently viewed coin) and the /watchlist page's own
+        table rows (always a remove there, since every row shown is
+        already-watchlisted). Reassigns the whole list rather than
+        mutating in place, matching this class's existing
+        coin_overrides convention.
+        """
+        if cmc_id in self.watchlist_ids:
+            self.watchlist_ids = [i for i in self.watchlist_ids if i != cmc_id]
+        else:
+            self.watchlist_ids = [*self.watchlist_ids, cmc_id]
+
+    @rx.var(cache=True)
+    def watchlist_count(self) -> int:
+        return len(self.watchlist_ids)
+
+    @rx.var(cache=True)
+    def has_watchlist_coins(self) -> bool:
+        return self.watchlist_count > 0
+
+    @rx.var(cache=True)
+    def watchlist_coins(self) -> list[dict]:
+        """The /watchlist page's own row list — same _row_with_overrides
+        merge every other display-facing computed var uses (so a live-
+        synced price shows up here too), filtered to watchlist_ids and
+        re-ranked 1..N by market cap within just this subset (matching
+        filtered_coins' own "rank reflects position in the current view"
+        convention, not the coin's global cmc_rank).
+        """
+        watched = set(self.watchlist_ids)
+        if not watched:
+            return []
+        rows = [
+            self._row_with_overrides(r) for r in self.all_coins if r["cmc_id"] in watched
+        ]
+        rows = sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
+        return [{**row, "rank": i} for i, row in enumerate(rows, start=1)]
 
     def _merged_row(self, cmc_id: int) -> dict | None:
         """Finds cmc_id's row in all_coins and merges in any existing
