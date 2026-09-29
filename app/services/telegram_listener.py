@@ -64,6 +64,11 @@ async def _catch_up_forever(client: TelegramClient) -> None:
 
 async def _run() -> None:
     client = await connect_client()
+    # Telegram only pushes a channel's new posts to a client that has loaded
+    # its dialog list — confirmed live: without this, the listener stayed
+    # connected but stored nothing, and posts only arrived via the 30-min
+    # catch-up.
+    await client.get_dialogs()
 
     # Marked peer id (e.g. -100123...) -> group info. event.chat_id uses the
     # marked form, so utils.get_peer_id (not entity.id) is the matching key.
