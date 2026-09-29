@@ -110,25 +110,53 @@ def _fetch_articles() -> list[dict]:
 # in the component from the row's own other fields.
 _BADGE_COLORS = ["blue", "green", "orange", "purple", "crimson", "cyan", "amber", "indigo"]
 
+# Telegram posts (app/services/telegram_pipeline.py) get their own
+# dedicated section per category — "Cryptocurrency Telegram News", etc. —
+# directly below that category's regular RSS/Google News section, rather
+# than being merged into it, per explicit request to keep the two sources
+# visually separated. The pipeline tags every Telegram row's
+# category_or_query as "Telegram <tag>" (tag one of Crypto/AI/Finance/
+# Tech) specifically so this map can route it here.
+_TELEGRAM_CATEGORY_MAP = {
+    "Crypto": "Cryptocurrency Telegram News",
+    "AI": "Artificial Intelligence Telegram News",
+    "Finance": "Markets & Finance Telegram News",
+    "Tech": "Technology Telegram News",
+}
+
 _NEWS_TYPE_COLORS = {
     "Cryptocurrency": "amber",
+    "Cryptocurrency Telegram News": "amber",
     "Artificial Intelligence": "purple",
+    "Artificial Intelligence Telegram News": "purple",
     "Markets & Finance": "green",
+    "Markets & Finance Telegram News": "green",
     "Technology": "cyan",
+    "Technology Telegram News": "cyan",
     "General News": "gray",
 }
 
 _NEWS_TYPE_ORDER = {
     "Cryptocurrency": 0,
-    "Artificial Intelligence": 1,
-    "Markets & Finance": 2,
-    "Technology": 3,
-    "General News": 4,
+    "Cryptocurrency Telegram News": 1,
+    "Artificial Intelligence": 2,
+    "Artificial Intelligence Telegram News": 3,
+    "Markets & Finance": 4,
+    "Markets & Finance Telegram News": 5,
+    "Technology": 6,
+    "Technology Telegram News": 7,
+    "General News": 8,
 }
 
 
 def _normalize_news_type(category_or_query: str | None, source_name: str) -> str:
-    label = (category_or_query or "").strip().lower()
+    label = (category_or_query or "").strip()
+    if label.startswith("Telegram "):
+        telegram_section = _TELEGRAM_CATEGORY_MAP.get(label[len("Telegram ") :].strip())
+        if telegram_section:
+            return telegram_section
+
+    label = label.lower()
     if any(term in label for term in ("crypto", "blockchain", "token", "web3")):
         return "Cryptocurrency"
     if label == "ai" or any(term in label for term in ("artificial intelligence", "machine learning")):

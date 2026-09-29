@@ -1,7 +1,11 @@
 """Standalone Telegram-group ingestion pipeline — feeds the same
-`news_articles` table app/services/news_pipeline.py writes to, so a
-Telegram post shows up in /news's existing Cryptocurrency section
-alongside RSS/Google News articles, not a separate feature.
+`news_articles` table app/services/news_pipeline.py writes to. Each group
+in TELEGRAM_GROUPS is tagged with which of the four /news categories
+(Crypto/AI/Finance/Tech) it belongs to; NewsState buckets every Telegram
+post into its own dedicated "<Category> Telegram News" section — e.g.
+"Cryptocurrency Telegram News" — directly below that category's regular
+RSS/Google News section, per explicit request to keep the two sources
+visually separated rather than merged into one section.
 
 Reads via Telethon (the MTProto *client* API — logs in as the user's own
 Telegram account, not a bot) rather than the Bot API, specifically because
@@ -89,31 +93,34 @@ POSTGRES_DSN = os.environ.get(
 )
 
 # Public group/channel usernames (from each group's own t.me/<username>
-# link) — every one confirmed to be a group the user is already a member
-# of, not something this pipeline joins on its own.
-TELEGRAM_GROUPS: list[str] = [
-    "WatcherGuru",
-    "cryptocurrency_media",
-    "lookonchainchannel",
-    "bitcoin",
-    "cointelegraph",
-    "wublockchainenglish",
-    "Cryptocurrency_Inside",
-    "news_crypto",
-    "sarjanacryptoindonesia",
-    "layergg",
-    "Fin_Watch",
-    "whalebotalerts",
-    "cryptoquant_official",
-    "Coin_Signals",
-    "crypto_memes",
-]
-
-# category_or_query stored for every row here — contains "crypto" so
-# NewsState._normalize_news_type (frontend/frontend/state/news_state.py)
-# reliably buckets every Telegram post into the "Cryptocurrency" section,
+# link) paired with which of the four /news reader-facing categories each
+# group's posts belong to — every group confirmed to be one the user is
+# already a member of, not something this pipeline joins on its own. The
+# category tag must be one of "Crypto"/"AI"/"Finance"/"Tech" (matches
+# news_pipeline.py's own RSS_FEEDS/GOOGLE_NEWS_QUERIES category vocabulary)
+# so NewsState._normalize_news_type's "Telegram <tag>" special-case (see
+# that module) can bucket it into the matching "<Category> Telegram News"
+# section, kept separate from that category's own RSS/Google News section
 # per explicit request.
-CATEGORY_LABEL = "Telegram Crypto"
+TELEGRAM_GROUPS: list[tuple[str, str]] = [
+    ("WatcherGuru", "Crypto"),
+    ("cryptocurrency_media", "Crypto"),
+    ("lookonchainchannel", "Crypto"),
+    ("bitcoin", "Crypto"),
+    ("cointelegraph", "Crypto"),
+    ("wublockchainenglish", "Crypto"),
+    ("Cryptocurrency_Inside", "Crypto"),
+    ("news_crypto", "Crypto"),
+    ("sarjanacryptoindonesia", "Crypto"),
+    ("layergg", "Crypto"),
+    ("Fin_Watch", "Finance"),  # switched from Crypto per explicit request
+    ("whalebotalerts", "Crypto"),
+    ("cryptoquant_official", "Crypto"),
+    ("Coin_Signals", "Crypto"),
+    ("crypto_memes", "Crypto"),
+    ("intradaydotmy", "Finance"),  # new, per explicit request
+    ("aipost", "AI"),  # new, per explicit request
+]
 
 # How far back a group with NO prior stored messages backfills on its
 # first-ever run — matches the rest of /news's own rolling display window
@@ -170,6 +177,7 @@ class TelegramNewsDB:
         self,
         *,
         source_name: str,
+        category_label: str,
         title: str,
         url: str,
         published_date: datetime.datetime | None,
@@ -188,7 +196,7 @@ class TelegramNewsDB:
                     (source_type, source_name, category_or_query, title, url, published_date, full_body_text, image_url)
                 VALUES ('telegram', %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (source_name, CATEGORY_LABEL, title, url, published_date, full_body_text, image_url),
+                (source_name, category_label, title, url, published_date, full_body_text, image_url),
             )
             self._conn.commit()
             cur.close()
@@ -243,8 +251,9 @@ def _group_display_title(entity) -> str:
     return getattr(entity, "title", None) or getattr(entity, "username", None) or "Telegram"
 
 
-async def _ingest_group(client: TelegramClient, db: TelegramNewsDB, username: str) -> IngestStats:
+async def _ingest_group(client: TelegramClient, db: TelegramNewsDB, username: str, category: str) -> IngestStats:
     stats = IngestStats()
+    category_label = f"Telegram {category}"
     try:
         entity = await client.get_entity(username)
     except Exception as exc:  # noqa: BLE001 — one bad group must not kill the whole run
@@ -278,6 +287,7 @@ async def _ingest_group(client: TelegramClient, db: TelegramNewsDB, username: st
             published = message.date.astimezone(datetime.timezone.utc).replace(tzinfo=None)
             inserted = db.insert_article(
                 source_name=display_title,
+                category_label=category_label,
                 title=_title_from_text(text),
                 url=url,
                 published_date=published,
@@ -313,10 +323,10 @@ async def _run_async() -> IngestStats:
     db = TelegramNewsDB()
     total = IngestStats()
     try:
-        for username in TELEGRAM_GROUPS:
-            stats = await _ingest_group(client, db, username)
+        for username, category in TELEGRAM_GROUPS:
+            stats = await _ingest_group(client, db, username, category)
             total += stats
-            logger.info("Telegram @%s: inserted=%d skipped=%d", username, stats.inserted, stats.skipped)
+            logger.info("Telegram @%s (%s): inserted=%d skipped=%d", username, category, stats.inserted, stats.skipped)
             time.sleep(REQUEST_DELAY_SECONDS)
     finally:
         db.close()
