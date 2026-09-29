@@ -198,35 +198,42 @@ def _fetch_article_by_path(news_category: str, article_slug: str) -> tuple[dict 
 # in the component from the row's own other fields.
 _BADGE_COLORS = ["blue", "green", "orange", "purple", "crimson", "cyan", "amber", "indigo"]
 
-# Telegram posts (app/services/telegram_pipeline.py) are merged into the
-# same category section as RSS/Google News articles, per explicit request
-# (reversing an earlier split into separate "<Category> Telegram News"
-# sections) — the card's own "Telegram News" badge still marks the source.
-# The pipeline tags every Telegram row's category_or_query as
-# "Telegram <tag>" (tag one of Crypto/AI/Finance/Tech); matched explicitly
-# here because a tag like "AI" doesn't contain any of the keywords the
-# generic matching below looks for.
+# Telegram posts (app/services/telegram_pipeline.py) get their own
+# dedicated section per category — "Cryptocurrency Telegram News", etc. —
+# directly below that category's regular RSS/Google News section, rather
+# than being merged into it, per explicit request to keep the two sources
+# visually separated. The pipeline tags every Telegram row's
+# category_or_query as "Telegram <tag>" (tag one of Crypto/AI/Finance/
+# Tech) specifically so this map can route it here.
 _TELEGRAM_CATEGORY_MAP = {
-    "Crypto": "Cryptocurrency",
-    "AI": "Artificial Intelligence",
-    "Finance": "Markets & Finance",
-    "Tech": "Technology",
+    "Crypto": "Cryptocurrency Telegram News",
+    "AI": "Artificial Intelligence Telegram News",
+    "Finance": "Markets & Finance Telegram News",
+    "Tech": "Technology Telegram News",
 }
 
 _NEWS_TYPE_COLORS = {
     "Cryptocurrency": "amber",
+    "Cryptocurrency Telegram News": "amber",
     "Artificial Intelligence": "purple",
+    "Artificial Intelligence Telegram News": "purple",
     "Markets & Finance": "green",
+    "Markets & Finance Telegram News": "green",
     "Technology": "cyan",
+    "Technology Telegram News": "cyan",
     "General News": "gray",
 }
 
 _NEWS_TYPE_ORDER = {
     "Cryptocurrency": 0,
-    "Artificial Intelligence": 1,
-    "Markets & Finance": 2,
-    "Technology": 3,
-    "General News": 4,
+    "Cryptocurrency Telegram News": 1,
+    "Artificial Intelligence": 2,
+    "Artificial Intelligence Telegram News": 3,
+    "Markets & Finance": 4,
+    "Markets & Finance Telegram News": 5,
+    "Technology": 6,
+    "Technology Telegram News": 7,
+    "General News": 8,
 }
 
 _FALLBACK_IMAGES_BY_TYPE = {
@@ -249,9 +256,13 @@ _FALLBACK_IMAGES_BY_TYPE = {
 
 _FALLBACK_TYPE_BY_NEWS_TYPE = {
     "Cryptocurrency": "Cryptocurrency",
+    "Cryptocurrency Telegram News": "Cryptocurrency",
     "Artificial Intelligence": "Artificial Intelligence",
+    "Artificial Intelligence Telegram News": "Artificial Intelligence",
     "Technology": "Artificial Intelligence",
+    "Technology Telegram News": "Artificial Intelligence",
     "Markets & Finance": "Markets & Finance",
+    "Markets & Finance Telegram News": "Markets & Finance",
     "General News": "Markets & Finance",
 }
 
@@ -271,9 +282,9 @@ def _fallback_image_for(url: str, news_type: str) -> str:
 def _normalize_news_type(category_or_query: str | None, source_name: str) -> str:
     label = (category_or_query or "").strip()
     if label.startswith("Telegram "):
-        telegram_category = _TELEGRAM_CATEGORY_MAP.get(label[len("Telegram ") :].strip())
-        if telegram_category:
-            return telegram_category
+        telegram_section = _TELEGRAM_CATEGORY_MAP.get(label[len("Telegram ") :].strip())
+        if telegram_section:
+            return telegram_section
 
     label = label.lower()
     if any(term in label for term in ("crypto", "blockchain", "token", "web3")):
