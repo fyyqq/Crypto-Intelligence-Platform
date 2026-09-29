@@ -203,16 +203,6 @@ def _build_article_row(row: dict) -> dict:
     }
 
 
-def _image_category(news_type: str) -> str:
-    if news_type.startswith("Cryptocurrency"):
-        return "Crypto"
-    if news_type.startswith("Artificial Intelligence"):
-        return "AI"
-    if news_type.startswith("Markets & Finance"):
-        return "Finance"
-    return "Tech"
-
-
 def _ensure_article_images(articles: list[dict]) -> dict[str, str]:
     """Prefer and persist real article images for one visible page."""
     candidates = {
@@ -235,7 +225,6 @@ def _ensure_article_images(articles: list[dict]) -> dict[str, str]:
 
     from app.core.database import SessionLocal as OldSessionLocal
     from app.services.news_pipeline import (
-        _topic_fallback_image,
         is_fallback_image,
         quick_page_image,
     )
@@ -277,25 +266,7 @@ def _ensure_article_images(articles: list[dict]) -> dict[str, str]:
                     continue
                 existing_fallback = stored.get(url)
                 if existing_fallback:
-                    updates[url] = existing_fallback
                     continue
-                article = candidates[url]
-                fallback = _topic_fallback_image(
-                    article.get("title", ""),
-                    _image_category(article.get("news_type", "")),
-                )
-                if fallback:
-                    updates[url] = fallback
-                    db.execute(
-                        text(
-                            """
-                            UPDATE news_articles
-                            SET image_url = :image_url
-                            WHERE url = :url AND image_url IS NULL
-                            """
-                        ),
-                        {"image_url": fallback, "url": url},
-                    )
             pool.shutdown(wait=False)
         db.commit()
         return updates

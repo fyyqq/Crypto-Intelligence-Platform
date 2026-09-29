@@ -86,7 +86,6 @@ found.
 from __future__ import annotations
 
 import datetime
-import json
 import logging
 import os
 import re
@@ -388,100 +387,6 @@ def _extract_content_images(downloaded: str) -> list[str]:
     return [u for u in urls if not any(marker in u.lower() for marker in _NON_CONTENT_IMAGE_MARKERS)] or urls
 
 
-# Specific coin/topic keywords (checked against an article's own title)
-# mapped to a real Wikimedia Commons search term — deliberately small and
-# literal per the request's own examples (btc/eth/altcoin), not an attempt
-# at exhaustive coin coverage. Checked in order; first match wins.
-_TOPIC_IMAGE_KEYWORDS: list[tuple[re.Pattern, str]] = [
-    (re.compile(r"\bbitcoin\b|\bbtc\b", re.IGNORECASE), "Bitcoin cryptocurrency coin"),
-    (re.compile(r"\bethereum\b|\beth\b", re.IGNORECASE), "Ethereum cryptocurrency"),
-    (re.compile(r"\bsolana\b", re.IGNORECASE), "Solana cryptocurrency blockchain"),
-    (re.compile(r"\bdogecoin\b", re.IGNORECASE), "Dogecoin cryptocurrency"),
-    (re.compile(r"\bstablecoin\b", re.IGNORECASE), "stablecoin cryptocurrency"),
-    (re.compile(r"\bdefi\b", re.IGNORECASE), "decentralized finance cryptocurrency"),
-    (re.compile(r"\bnft\b", re.IGNORECASE), "NFT digital art cryptocurrency"),
-    (re.compile(r"\bopenai\b|\bchatgpt\b|\bgpt-?\d", re.IGNORECASE), "OpenAI ChatGPT logo"),
-    (re.compile(r"\bgemini\b|\bgoogle ai\b", re.IGNORECASE), "Google AI Gemini"),
-    (re.compile(r"\banthropic\b|\bclaude\b", re.IGNORECASE), "Anthropic Claude AI"),
-    (re.compile(r"\bnvidia\b", re.IGNORECASE), "Nvidia AI chip"),
-]
-
-# Per-category generic fallback search term — used when no specific coin/
-# topic keyword above matches the article's own title.
-_CATEGORY_IMAGE_FALLBACK = {
-    "Crypto": "cryptocurrency bitcoin altcoin",
-    "AI": "artificial intelligence technology",
-    "Finance": "stock market finance",
-    "Tech": "technology computer",
-}
-
-_COMMONS_HEADERS = {"User-Agent": "RepaceNewsPipeline/1.0 (crypto-intelligence-platform; contact@example.com)"}
-# In-memory only, for the life of one pipeline run — a handful of shared
-# topic/category terms cover most articles, so this avoids re-querying
-# Wikimedia Commons for the same term dozens of times per run.
-_topic_image_cache: dict[str, str | None] = {}
-
-
-def _commons_search_image(term: str) -> str | None:
-    """Real, free, keyless image search via Wikimedia Commons' own public
-    API (confirmed live: no API key, no rate-limit issues at this volume,
-    every result is a real, appropriately-licensed Commons file) — the
-    "search online for a related image" fallback, used only when an
-    article has no real image of its own anywhere (RSS, og:image, or
-    in-content). Returns the top real-photo result's own 800px thumbnail,
-    or None if the search itself fails/returns nothing.
-    """
-    if term in _topic_image_cache:
-        return _topic_image_cache[term]
-    query = urllib.parse.urlencode(
-        {
-            "action": "query",
-            "generator": "search",
-            "gsrsearch": f"filetype:bitmap {term}",
-            "gsrlimit": 1,
-            "gsrnamespace": 6,
-            "prop": "imageinfo",
-            "iiprop": "url",
-            "iiurlwidth": 800,
-            "format": "json",
-        }
-    )
-    url = f"https://commons.wikimedia.org/w/api.php?{query}"
-    try:
-        req = urllib.request.Request(url, headers=_COMMONS_HEADERS)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
-        pages = data.get("query", {}).get("pages", {})
-        image = None
-        for page in pages.values():
-            info = page.get("imageinfo", [{}])[0]
-            image = info.get("thumburl") or info.get("url")
-            if image:
-                break
-        _topic_image_cache[term] = image
-        return image
-    except Exception as exc:  # noqa: BLE001 — a fallback search, never fatal
-        logger.warning("SKIP Commons image search (error: %s): %s", exc, term)
-        _topic_image_cache[term] = None
-        return None
-
-
-def _topic_fallback_image(title: str, category: str) -> str | None:
-    """Last-resort image tier: a specific coin/topic keyword match against
-    the article's own title, else this category's generic term — see
-    _TOPIC_IMAGE_KEYWORDS/_CATEGORY_IMAGE_FALLBACK above.
-    """
-    for pattern, term in _TOPIC_IMAGE_KEYWORDS:
-        if pattern.search(title):
-            image = _commons_search_image(term)
-            if image:
-                return image
-    fallback_term = _CATEGORY_IMAGE_FALLBACK.get(category)
-    if fallback_term:
-        return _commons_search_image(fallback_term)
-    return None
-
-
 def _resolve_article_image(
     *,
     rss_image: str | None,
@@ -493,15 +398,13 @@ def _resolve_article_image(
     own declared featured image (RSS media field or og:image — both are
     "featured image" sources, so tried together as one tier), (2) the
     article's own first in-content image, (3) any other in-content image
-    on the same page, (4) a real, freely-licensed topic-matched image
-    found via an actual online search — never fabricated, always a real
-    Commons file, only reached when the article genuinely has no image of
-    its own anywhere.
+    on the same page. Articles without a verified publisher image remain
+    image-free rather than receiving unrelated generic artwork.
     """
     for candidate in (rss_image, *page_images):
         if candidate:
             return candidate
-    return _topic_fallback_image(title, category)
+    return None
 
 
 _PAGE_FETCH_USER_AGENT = (
