@@ -1,7 +1,7 @@
 # News
 
-**Route:** `/news` · **Status:** Live
-**Source:** `app/services/news_pipeline.py` (RSS/Google News ingestion), `app/services/telegram_pipeline.py` (Telegram group ingestion), `frontend/frontend/state/news_state.py`, `frontend/frontend/components/news_page.py`, `frontend/frontend/frontend.py::news_page`
+**Routes:** `/news`, `/news/[article_id]` · **Status:** Live
+**Source:** `app/services/news_pipeline.py` (RSS/Google News ingestion), `app/services/telegram_pipeline.py` (Telegram group ingestion), `frontend/frontend/state/news_state.py`, `frontend/frontend/components/news_page.py`, `frontend/frontend/components/news_detail.py`, `frontend/frontend/frontend.py`
 
 A real, ingested news feed — grouped by news type (Cryptocurrency, Artificial Intelligence, Markets & Finance, and Technology), each category its own independently-paginated section, plus a separate "<Category> Telegram News" section per category for Telegram-sourced posts (kept apart from the regular RSS/Google News section rather than merged in). Every card still identifies its real publisher.
 
@@ -116,6 +116,16 @@ Each card additionally shows a blue **"Telegram News"** badge next to its real s
 <summary><strong>🔤 Literal Markdown syntax stripped from titles/snippets</strong></summary>
 
 Telethon's `message.text` (used for title/body) re-serializes the message's real rich-text formatting entities back into literal Markdown syntax — e.g. a genuine bold run in the original Telegram post becomes the literal characters `**bold**` in the returned string. Since these cards render plain text, not Markdown, this showed up as literal asterisks/underscores/backticks/link-brackets on the page (confirmed live, e.g. "Bitcoin hits **$83,000**" rendering with the asterisks visible). Fixed for new ingestion by switching to `message.raw_text` (the message's own plain text, with formatting entities simply dropped — no syntax at all). `scripts/clean_telegram_markdown.py` is a one-time historical cleanup for rows already stored before this fix (pure Postgres read+update, no Telethon/live session involved) — ran live: **2,400 of 3,836 rows had literal Markdown syntax stripped** from their title and/or body text.
+</details>
+
+<details>
+<summary><strong>📖 Internal article reader and source-body scan</strong></summary>
+
+Every card now opens an internal `/news/[article_id]` reader instead of navigating directly away from Repace. The route reads one permanent archive record by its database id, so a valid in-app article link remains useful after an item ages beyond the rolling 90-day grid. Its editorial layout uses a constrained reading column with the real source/category/date metadata and a responsive desktop source rail; mobile collapses this into one reading flow. It shows the stored publisher image (with the same category-local broken-image fallback used on grid cards), the extracted original paragraphs, and an explicit external **View original source** link. Telegram posts use their already-stored full message text.
+
+An article with no extractable web body stays honest: the reader displays an unavailable state and preserves its publisher link rather than fabricating text. `news_pipeline.py --backfill-missing-bodies` is a deliberate, one-time, 1-second-paced retry for only non-Telegram rows with an empty `full_body_text`; it never overwrites existing archive content and is not on the recurring scheduler, so known publisher blocks are not repeatedly hammered. The first live run retried 221 historical gaps, recovered 2 source bodies, and correctly left 219 unavailable because their source blocked download, paywalled the page, redirected endlessly, or exposed no extractable article text. In the current trailing-90-day display set, regular-source coverage is 596 with body / 216 unavailable; all 3,832 Telegram posts already have their full text.
+
+`reflex run --env prod --single-port` retains this project’s existing direct-dynamic-route limitation: a hard fresh request to `/news/[article_id]` can receive a static-export 404 before the SPA mounts. Opening an article from the `/news` card grid is client-side and verified; fixing hard-refresh/share deep links requires separate hosting/rewrite configuration rather than a reader-component change.
 </details>
 
 ## Automatic re-ingestion

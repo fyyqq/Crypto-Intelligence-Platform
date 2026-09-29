@@ -45,12 +45,6 @@ def _article_sidebar(article: dict) -> rx.Component:
     return rx.vstack(
         rx.text("Article source", size="2", weight="bold", color_scheme="gray"),
         rx.text(article["source_name"], size="4", weight="bold"),
-        rx.text(
-            "This reader preserves the publisher link and displays only text extracted from the original source.",
-            size="2",
-            color_scheme="gray",
-            line_height="1.55",
-        ),
         _source_link(article),
         spacing="3",
         align="start",
