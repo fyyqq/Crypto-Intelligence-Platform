@@ -12,7 +12,7 @@ This folder, the matching [Notion pages](https://app.notion.com/p/3e1143f8052780
 |---|---|---|
 | [Home](./home.md) | `/` | Live |
 | [Single Coin Page](./single-coin-page.md) | `/coin/[symbol]` | Live |
-| [News](./news.md) | `/news`, `/news/[article_id]` | Live |
+| [News](./news.md) | `/news`, `/news/[news_category]/[article_slug]` | Live |
 | [Narrative](./narrative.md) | `/narrative` | Placeholder |
 | [Chains](./chains.md) | `/chains` | Placeholder |
 | [Tools](./tools.md) | `/tools` | Placeholder |

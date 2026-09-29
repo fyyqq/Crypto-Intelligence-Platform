@@ -1,4 +1,4 @@
-"""Editorial reader for one persisted /news/[article_id] record."""
+"""Editorial reader for one persisted /news/[news_category]/[article_slug] record."""
 
 import reflex as rx
 
@@ -46,6 +46,44 @@ def _article_sidebar(article: dict) -> rx.Component:
         rx.text("Article source", size="2", weight="bold", color_scheme="gray"),
         rx.text(article["source_name"], size="4", weight="bold"),
         _source_link(article),
+        rx.vstack(
+            rx.heading("Other News Related", size="3"),
+            rx.foreach(
+                article["related_articles"].to(list[dict]),
+                lambda related: rx.link(
+                    rx.hstack(
+                        rx.icon("newspaper", size=15, color="var(--gray-9)"),
+                        rx.text(
+                            related["title"],
+                            size="2",
+                            weight="medium",
+                            style={
+                                "display": "-webkit-box",
+                                "-webkit-line-clamp": "2",
+                                "-webkit-box-orient": "vertical",
+                                "overflow": "hidden",
+                            },
+                        ),
+                        spacing="2",
+                        align="start",
+                        width="100%",
+                        padding="0.7em",
+                        border="1px solid var(--gray-a4)",
+                        border_radius="6px",
+                        background="var(--gray-a2)",
+                    ),
+                    href=related["detail_url"],
+                    underline="none",
+                    color="var(--gray-12)",
+                    width="100%",
+                ),
+            ),
+            spacing="2",
+            align="start",
+            width="100%",
+            padding_top="1em",
+            border_top="1px solid var(--gray-a4)",
+        ),
         spacing="3",
         align="start",
         border_left=rx.breakpoints(initial="none", lg="1px solid var(--gray-a5)"),
@@ -60,12 +98,16 @@ def _article_body(article: dict) -> rx.Component:
         article["has_body"],
         rx.vstack(
             rx.foreach(
-                article["body_paragraphs"].to(list[str]),
-                lambda paragraph: rx.text(
-                    paragraph,
-                    size="3",
-                    line_height="1.8",
-                    color="var(--gray-12)",
+                article["body_blocks"].to(list[dict]),
+                lambda block: rx.cond(
+                    block["is_heading"],
+                    rx.heading(block["text"], size="4", padding_top="0.7em"),
+                    rx.text(
+                        block["text"],
+                        size="3",
+                        line_height="1.8",
+                        color="var(--gray-12)",
+                    ),
                 ),
             ),
             spacing="4",

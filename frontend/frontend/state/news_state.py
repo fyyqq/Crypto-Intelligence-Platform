@@ -24,6 +24,8 @@ import reflex as rx
 _PAGE_SIZE = 12  # 4 columns x 3 rows per page, per explicit request
 
 _SLUG_STRIP_RE = re.compile(r"[^a-z0-9]+")
+_SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+(?=[\"'“‘A-Z0-9])")
+_MAX_SOURCE_PARAGRAPH_CHARS = 620
 
 
 def _slugify(name: str) -> str:
@@ -106,12 +108,12 @@ def _fetch_articles() -> list[dict]:
         db.close()
 
 
-def _fetch_article(article_id: int) -> dict | None:
-    """Read one archived article for /news/[article_id].
+def _fetch_article_by_path(news_category: str, article_slug: str) -> tuple[dict | None, list[dict]]:
+    """Resolve one permanent archive record from its readable route.
 
-    Detail pages intentionally are not limited to the rolling display window:
-    an existing direct link remains useful after an article ages out of the
-    category grid, while the archive itself stays append-only.
+    Title slugs are unique within their normalized category. Detail lookups
+    intentionally include the whole append-only archive, not just the
+    rolling grid window, so an in-app link stays valid after an item ages out.
     """
     import sys
     from pathlib import Path
@@ -126,20 +128,33 @@ def _fetch_article(article_id: int) -> dict | None:
 
     db = OldSessionLocal()
     try:
-        row = db.execute(
+        rows = db.execute(
             text(
                 """
                 SELECT id, source_name, category_or_query, title, url, published_date,
                        full_body_text, image_url, source_type
                 FROM news_articles
-                WHERE id = :article_id
+                ORDER BY published_date DESC NULLS LAST, id DESC
                 """
-            ),
-            {"article_id": article_id},
-        ).mappings().first()
-        return dict(row) if row else None
+            )
+        ).mappings().all()
+        raw_rows = [dict(row) for row in rows]
+        articles = _build_article_rows(raw_rows)
+        article = next(
+            (item for item in articles if item["news_category"] == news_category and item["article_slug"] == article_slug),
+            None,
+        )
+        if article is None:
+            return None, []
+        raw_article = next(row for row in raw_rows if row["id"] == article["id"])
+        related = [
+            item
+            for item in articles
+            if item["news_type"] == article["news_type"] and item["id"] != article["id"]
+        ][:3]
+        return raw_article, related
     except Exception:
-        return None
+        return None, []
     finally:
         db.close()
 
@@ -276,7 +291,7 @@ def _build_article_row(row: dict) -> dict:
     image_url = row.get("image_url") or fallback_image_url
     return {
         "id": row.get("id"),
-        "detail_url": f"/news/{row.get('id')}" if row.get("id") is not None else "/news",
+        "detail_url": "/news",
         "source_name": source_name,
         "badge_color": _BADGE_COLORS[hash(source_name) % len(_BADGE_COLORS)],
         "news_type": news_type,
@@ -296,19 +311,104 @@ def _build_article_row(row: dict) -> dict:
     }
 
 
-def _build_article_detail(row: dict | None) -> dict:
+def _build_article_rows(rows: list[dict]) -> list[dict]:
+    """Attach stable human-readable URLs to article display rows.
+
+    ID order means a later duplicate receives the next suffix without
+    changing an already-published path. The used-set also handles a title
+    that naturally ends in a numeric suffix (for example, "Report 1").
+    """
+    seen: dict[tuple[str, str], int] = {}
+    used_paths: set[tuple[str, str]] = set()
+    path_by_id: dict[int, tuple[str, str]] = {}
+    for row in sorted(rows, key=lambda item: int(item.get("id") or 0)):
+        source_name = row.get("source_name") or "Unknown"
+        category_slug = _slugify(_normalize_news_type(row.get("category_or_query"), source_name))
+        title_slug = _slugify(row.get("title") or "news")
+        path_key = (category_slug, title_slug)
+        duplicate_index = seen.get(path_key, 0)
+        candidate = title_slug if duplicate_index == 0 else f"{title_slug}-{duplicate_index}"
+        while (category_slug, candidate) in used_paths:
+            duplicate_index += 1
+            candidate = f"{title_slug}-{duplicate_index}"
+        seen[path_key] = duplicate_index + 1
+        used_paths.add((category_slug, candidate))
+        path_by_id[row["id"]] = (category_slug, candidate)
+
+    articles = []
+    for row in rows:
+        category_slug, article_slug = path_by_id[row["id"]]
+        article = _build_article_row(row)
+        articles.append(
+            {
+                **article,
+                "news_category": category_slug,
+                "article_slug": article_slug,
+                "detail_url": f"/news/{category_slug}/{article_slug}",
+            }
+        )
+    return articles
+
+
+def _is_source_heading(line: str) -> bool:
+    return 2 <= len(line.split()) <= 14 and len(line) <= 110 and not line.endswith((".", "!", "?", ":", ";"))
+
+
+def _split_long_source_paragraph(paragraph: str) -> list[str]:
+    if len(paragraph) <= _MAX_SOURCE_PARAGRAPH_CHARS:
+        return [paragraph]
+    sentences = _SENTENCE_BOUNDARY_RE.split(paragraph)
+    if len(sentences) < 2:
+        return [paragraph]
+    chunks: list[str] = []
+    current = ""
+    for sentence in sentences:
+        candidate = f"{current} {sentence}".strip()
+        if current and len(candidate) > _MAX_SOURCE_PARAGRAPH_CHARS:
+            chunks.append(current)
+            current = sentence
+        else:
+            current = candidate
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _body_blocks(body: str, title: str) -> list[dict]:
+    """Preserve source sections while keeping unusually long runs readable."""
+    blocks: list[dict] = []
+    normalized_title = re.sub(r"\s+", " ", title).strip().casefold()
+    for raw_line in body.splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if not line or line.casefold() == normalized_title:
+            continue
+        if _is_source_heading(line):
+            blocks.append({"text": line, "is_heading": True})
+            continue
+        blocks.extend(
+            {"text": paragraph, "is_heading": False}
+            for paragraph in _split_long_source_paragraph(line)
+        )
+    if not blocks and body.strip():
+        blocks = [
+            {"text": paragraph, "is_heading": False}
+            for paragraph in _split_long_source_paragraph(re.sub(r"\s+", " ", body).strip())
+        ]
+    return blocks
+
+
+def _build_article_detail(row: dict | None, related_articles: list[dict]) -> dict:
     if row is None:
         return {}
     article = _build_article_row(row)
     body = (row.get("full_body_text") or "").strip()
-    paragraphs = [paragraph.strip() for paragraph in re.split(r"\n\s*\n", body) if paragraph.strip()]
-    if not paragraphs and body:
-        paragraphs = [body]
+    blocks = _body_blocks(body, article["title"])
     return {
         **article,
         "published_display": _published_date_display(row.get("published_date")),
-        "body_paragraphs": paragraphs,
-        "has_body": bool(paragraphs),
+        "body_blocks": blocks,
+        "has_body": bool(blocks),
+        "related_articles": related_articles,
     }
 
 
@@ -419,7 +519,7 @@ class NewsState(rx.State):
         # the way every other on-demand DB refresh in this codebase already
         # avoids (see coin_state.py's own asyncio.to_thread(...) calls).
         rows = await asyncio.to_thread(_fetch_articles)
-        articles = [_build_article_row(r) for r in rows]
+        articles = _build_article_rows(rows)
         first_pages: list[dict] = []
         for news_type in dict.fromkeys(article["news_type"] for article in articles):
             first_pages.extend([
@@ -571,7 +671,7 @@ class NewsState(rx.State):
 
 
 class NewsDetailState(rx.State):
-    """State for one /news/[article_id] reader page."""
+    """State for one /news/[news_category]/[article_slug] reader page."""
 
     article: dict = {}
     is_loading: bool = True
@@ -579,16 +679,17 @@ class NewsDetailState(rx.State):
     @rx.event(background=True)
     async def load_article(self):
         async with self:
-            raw_article_id = self.article_id.strip()
+            news_category = self.news_category.strip()
+            article_slug = self.article_slug.strip()
             self.article = {}
             self.is_loading = True
-        try:
-            article_id = int(raw_article_id)
-        except ValueError:
-            article_id = 0
-        row = await asyncio.to_thread(_fetch_article, article_id) if article_id > 0 else None
+        row, related_articles = (
+            await asyncio.to_thread(_fetch_article_by_path, news_category, article_slug)
+            if news_category and article_slug
+            else (None, [])
+        )
         async with self:
-            self.article = _build_article_detail(row)
+            self.article = _build_article_detail(row, related_articles)
             self.is_loading = False
 
     @rx.var(cache=True)

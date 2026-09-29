@@ -700,7 +700,7 @@ app.add_page(
 )
 app.add_page(
     news_detail_page,
-    route="/news/[article_id]",
+    route="/news/[news_category]/[article_slug]",
     title=NewsDetailState.page_title,
     on_load=[CoinState.load_coins, NewsDetailState.load_article],
 )
