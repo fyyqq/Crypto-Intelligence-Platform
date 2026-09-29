@@ -31,7 +31,7 @@ Symbol resolution, in order:
 
 Default interval is 1 hour, clock shown in Kuala Lumpur time. Built as a real, stable React prop rather than a raw HTML string, so background data syncs elsewhere on the page don't tear down and rebuild the chart — that was previously resetting the viewer's manually-chosen interval roughly every 60 seconds.
 
-When a coin's real cached CEX pairs include all three of MEXC, KuCoin, and Binance, the chart picks MEXC first, then KuCoin, then Binance, overriding the usual USD-equivalent-quote/volume ranking for that one coin only — any other real exchange in the list just sorts after those three rather than being excluded. Falls through to the normal ranking whenever all three aren't present.
+The chart prefers whichever of MEXC, KuCoin, HTX, or Bybit (in that order) a coin actually has a real pair on, overriding the usual USD-equivalent-quote/volume ranking — a coin with just one of these four (e.g. only Bybit) still prefers it over a higher-volume Binance pair. Binance, Coinbase, or any other real exchange only get used via the normal ranking, and only when a coin has none of those four at all. An earlier version of this rule only kicked in when a coin had all three of MEXC, KuCoin, *and* Binance together — that left most real coins (which don't have all three) still defaulting to Binance, which is what this version fixes.
 </details>
 
 <details>
@@ -83,3 +83,4 @@ Next to the coin's name — gray outline when this coin isn't watched, filled am
 
 - No scheduled batch worker for the Top 500 and no side-drawer modal — both deliberate deviations from the original plan, not yet formally re-approved in the spec.
 - A few real coins' TradingView charts correctly show "No live chart available" rather than a wrong chart, even though a real chart theoretically exists somewhere with a ticker/chain mismatch this app's matching logic can't safely resolve — treated as an acceptable trade-off, not a bug to chase further right now.
+- **A real, not-yet-fixed bug**: NEAR Protocol's chart shows "No live chart available" even though NEAR trades on every major exchange — its own primary on-chain contract in this app's DB is mis-flagged to a bridged Ethereum representation instead of its native chain, so the Markets/chart data pipeline resolves off the wrong (DEX-only) token entirely. Lives in a different subsystem (`MarketDataService._upsert_contracts`'s primary-contract selection) from the TradingView-symbol logic elsewhere on this page.

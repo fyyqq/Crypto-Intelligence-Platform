@@ -284,11 +284,16 @@ _USD_EQUIVALENT_QUOTES = {
     "USD", "USDT", "USDC", "BUSD", "DAI", "TUSD", "USDD", "FDUSD", "PYUSD", "GUSD", "USDP",
 }
 
-# Per explicit request: when a coin is listed on all three of these
-# exchanges, the TradingView chart should prefer MEXC, then KuCoin, then
-# Binance — instead of ranking by volume/USD-equivalent quote, which
-# otherwise picks Binance for most coins. See _resolve_tradingview_symbol.
-_MEXC_KUCOIN_BINANCE_PRIORITY = ["MEXC", "KUCOIN", "BINANCE"]
+# Per explicit request: the TradingView chart should prefer whichever of
+# these four the coin is actually listed on, in this order — MEXC, then
+# KuCoin, then HTX, then Bybit — instead of ranking by volume/USD-equivalent
+# quote, which otherwise picks Binance for most coins (Binance/Coinbase/any
+# other real exchange only get used when a coin has NONE of these four).
+# Unlike an earlier version of this rule, this doesn't require all four (or
+# any specific subset) to be present at once — a coin listed on just one of
+# them (e.g. only Bybit) still prefers it over a higher-volume Binance pair.
+# See _resolve_tradingview_symbol.
+_EXCHANGE_PRIORITY = ["MEXC", "KUCOIN", "HTX", "BYBIT"]
 
 
 def _fmt_pct(value: float) -> str:
@@ -1931,14 +1936,14 @@ class CoinState(rx.State):
         real JPY/EUR/GBP/... pair over a real USD one for any other coin
         with a high-volume foreign-fiat listing.
 
-        Manual exchange priority, per explicit request: when a coin's real
-        candidates include all three of MEXC, KuCoin, AND Binance, pick
-        MEXC first, then KuCoin, then Binance — overriding the volume/USD-
-        equivalent ranking above entirely for that coin (Binance otherwise
-        wins on raw volume for most coins, which is what this exists to
-        override). Only kicks in when all three are actually present;
-        otherwise falls through to the usual volume/USD-equivalent ranking
-        unchanged.
+        Manual exchange priority, per explicit request: whichever of MEXC,
+        KuCoin, HTX, or Bybit (_EXCHANGE_PRIORITY, in that order) this coin
+        actually has a real pair on wins outright, overriding the volume/
+        USD-equivalent ranking above entirely — Binance otherwise wins on
+        raw volume for most coins, which is what this exists to override.
+        Only Binance/Coinbase/any other real exchange fall through to the
+        usual volume/USD-equivalent ranking below, and only when a coin has
+        none of those four at all.
 
         Falls back to `tradingview_dex_symbol` (see
         app/services/tradingview_symbol_service.py /
@@ -1968,19 +1973,26 @@ class CoinState(rx.State):
                 continue
             candidates.append((prefix, quote, p.get("volume_24h", 0)))
         if candidates:
-            present_prefixes = {c[0] for c in candidates}
-            if all(p in present_prefixes for p in _MEXC_KUCOIN_BINANCE_PRIORITY):
-                priority_rank = {p: i for i, p in enumerate(_MEXC_KUCOIN_BINANCE_PRIORITY)}
-                # .get(..., len(...)) — candidates can include exchanges
-                # outside the priority list too (e.g. Coinbase); those just
-                # sort after MEXC/KuCoin/Binance rather than crashing.
-                candidates.sort(key=lambda c: priority_rank.get(c[0], len(_MEXC_KUCOIN_BINANCE_PRIORITY)))
+            priority_rank = {p: i for i, p in enumerate(_EXCHANGE_PRIORITY)}
+            priority_candidates = [c for c in candidates if c[0] in priority_rank]
+            if priority_candidates:
+                # Ascending sort: priority rank first (MEXC < KuCoin < HTX <
+                # Bybit), then a USD-equivalent quote before a foreign-fiat
+                # one, then higher volume first — same tiebreakers as the
+                # else branch below, just applied within the priority tier.
+                priority_candidates.sort(
+                    key=lambda c: (priority_rank[c[0]], c[1] not in _USD_EQUIVALENT_QUOTES, -c[2])
+                )
+                prefix, quote, _volume = priority_candidates[0]
             else:
-                # A USD-equivalent-quoted pair always outranks a foreign-
-                # fiat one, whatever the raw volume gap — see this
-                # function's own docstring.
+                # None of MEXC/KuCoin/HTX/Bybit exist for this coin — rank
+                # whatever's left (Binance, Coinbase, or any other real
+                # exchange) by USD-equivalent quote first, then volume; a
+                # USD-equivalent-quoted pair always outranks a foreign-fiat
+                # one, whatever the raw volume gap — see this function's
+                # own docstring.
                 candidates.sort(key=lambda c: (c[1] in _USD_EQUIVALENT_QUOTES, c[2]), reverse=True)
-            prefix, quote, _volume = candidates[0]
+                prefix, quote, _volume = candidates[0]
             return f"{prefix}:{base}{quote}"
         dex_symbol = self.selected_coin.get("tradingview_dex_symbol", "") if self.selected_coin else ""
         return dex_symbol or None
