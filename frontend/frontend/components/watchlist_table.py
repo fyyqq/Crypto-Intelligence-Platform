@@ -13,19 +13,13 @@ from frontend.components.coin_table import (
     _COL_FROM_LG,
     _COL_FROM_MD,
     _COL_FROM_SM,
-    _SKELETON_COL_DISPLAYS,
     _STICKY_HEADER_STYLE,
     _change_cell,
     _chain_badge,
     _narrative_badge,
-    _skeleton_name_cell,
     _trend_cell,
 )
 from frontend.state import CoinState
-
-# Shown as a preview of the table's own shape while the watchlist is empty,
-# rather than a fixed loading count — this page never actually paginates.
-_EMPTY_STATE_SKELETON_ROWS = 3
 
 
 def _watchlist_star_cell(row: dict) -> rx.Component:
@@ -101,48 +95,20 @@ def _table_header_row() -> rx.Component:
     )
 
 
-def _watchlist_skeleton_row(_: int) -> rx.Component:
-    return rx.table.row(
-        rx.table.cell(rx.skeleton(height="1em", width="1em")),
-        rx.table.cell(rx.skeleton(height="1em", width="60%")),
-        _skeleton_name_cell(),
-        *[
-            rx.table.cell(rx.skeleton(height="1em", width="80%"), display=display)
-            for display in _SKELETON_COL_DISPLAYS
-        ],
-    )
-
-
 def _empty_state() -> rx.Component:
-    return rx.vstack(
-        rx.center(
-            rx.vstack(
-                rx.icon("star", size=32, color="var(--gray-8)"),
-                rx.text("Your watchlist is empty", size="4", weight="bold"),
-                rx.text(
-                    "Click the star icon on any coin's own page to add it here.",
-                    size="2",
-                    color_scheme="gray",
-                ),
-                spacing="2",
-                align="center",
+    return rx.center(
+        rx.vstack(
+            rx.icon("star", size=32, color="var(--gray-8)"),
+            rx.text("Your watchlist is empty", size="4", weight="bold"),
+            rx.text(
+                "Click the star icon on any coin's own page to add it here.",
+                size="2",
+                color_scheme="gray",
             ),
-            padding_y="2em",
-            width="100%",
+            spacing="2",
+            align="center",
         ),
-        rx.box(
-            rx.table.root(
-                rx.table.header(_table_header_row()),
-                rx.table.body(
-                    *[_watchlist_skeleton_row(i) for i in range(_EMPTY_STATE_SKELETON_ROWS)]
-                ),
-                variant="surface",
-                width="100%",
-            ),
-            width="100%",
-            class_name="coin-table-scroll-fix",
-        ),
-        spacing="4",
+        height="50vh",
         width="100%",
     )
 
