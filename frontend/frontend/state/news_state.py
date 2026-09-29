@@ -59,6 +59,12 @@ def _relative_time(dt: datetime.datetime | None) -> str:
     return f"{months}mo ago"
 
 
+def _published_date_display(dt: datetime.datetime | None) -> str:
+    if dt is None:
+        return ""
+    return dt.strftime("%B %d, %Y")
+
+
 def _fetch_articles() -> list[dict]:
     """Blocking DB read — see NewsState.load_news for why this runs in a
     background thread rather than directly in an async event handler.
@@ -86,7 +92,7 @@ def _fetch_articles() -> list[dict]:
         rows = db.execute(
             text(
                 """
-                SELECT source_name, category_or_query, title, url, published_date, full_body_text, image_url, source_type
+                SELECT id, source_name, category_or_query, title, url, published_date, full_body_text, image_url, source_type
                 FROM news_articles
                 WHERE published_date >= NOW() - INTERVAL '90 days'
                 ORDER BY published_date DESC NULLS LAST, id DESC
@@ -96,6 +102,44 @@ def _fetch_articles() -> list[dict]:
         return [dict(r) for r in rows]
     except Exception:
         return []
+    finally:
+        db.close()
+
+
+def _fetch_article(article_id: int) -> dict | None:
+    """Read one archived article for /news/[article_id].
+
+    Detail pages intentionally are not limited to the rolling display window:
+    an existing direct link remains useful after an article ages out of the
+    category grid, while the archive itself stays append-only.
+    """
+    import sys
+    from pathlib import Path
+
+    from sqlalchemy import text
+
+    root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+
+    db = OldSessionLocal()
+    try:
+        row = db.execute(
+            text(
+                """
+                SELECT id, source_name, category_or_query, title, url, published_date,
+                       full_body_text, image_url, source_type
+                FROM news_articles
+                WHERE id = :article_id
+                """
+            ),
+            {"article_id": article_id},
+        ).mappings().first()
+        return dict(row) if row else None
+    except Exception:
+        return None
     finally:
         db.close()
 
@@ -231,6 +275,8 @@ def _build_article_row(row: dict) -> dict:
     fallback_image_url = _fallback_image_for(article_url, news_type)
     image_url = row.get("image_url") or fallback_image_url
     return {
+        "id": row.get("id"),
+        "detail_url": f"/news/{row.get('id')}" if row.get("id") is not None else "/news",
         "source_name": source_name,
         "badge_color": _BADGE_COLORS[hash(source_name) % len(_BADGE_COLORS)],
         "news_type": news_type,
@@ -247,6 +293,22 @@ def _build_article_row(row: dict) -> dict:
         # Telegram group post, not a web article) so the card can show a
         # distinguishing "Telegram News" badge, per explicit request.
         "is_telegram": row.get("source_type") == "telegram",
+    }
+
+
+def _build_article_detail(row: dict | None) -> dict:
+    if row is None:
+        return {}
+    article = _build_article_row(row)
+    body = (row.get("full_body_text") or "").strip()
+    paragraphs = [paragraph.strip() for paragraph in re.split(r"\n\s*\n", body) if paragraph.strip()]
+    if not paragraphs and body:
+        paragraphs = [body]
+    return {
+        **article,
+        "published_display": _published_date_display(row.get("published_date")),
+        "body_paragraphs": paragraphs,
+        "has_body": bool(paragraphs),
     }
 
 
@@ -506,3 +568,34 @@ class NewsState(rx.State):
                 }
             )
         return sections
+
+
+class NewsDetailState(rx.State):
+    """State for one /news/[article_id] reader page."""
+
+    article: dict = {}
+    is_loading: bool = True
+
+    @rx.event(background=True)
+    async def load_article(self):
+        async with self:
+            raw_article_id = self.article_id.strip()
+            self.article = {}
+            self.is_loading = True
+        try:
+            article_id = int(raw_article_id)
+        except ValueError:
+            article_id = 0
+        row = await asyncio.to_thread(_fetch_article, article_id) if article_id > 0 else None
+        async with self:
+            self.article = _build_article_detail(row)
+            self.is_loading = False
+
+    @rx.var(cache=True)
+    def article_found(self) -> bool:
+        return bool(self.article)
+
+    @rx.var(cache=True)
+    def page_title(self) -> str:
+        title = self.article.get("title")
+        return f"Repace - {title}" if title else "Repace - News"

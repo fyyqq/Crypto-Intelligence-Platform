@@ -144,7 +144,7 @@
     "error",
     function (event) {
       const image = event.target;
-      if (!(image instanceof HTMLImageElement) || !image.matches(".news-card-image")) return;
+      if (!(image instanceof HTMLImageElement) || !image.matches("[data-fallback-src]")) return;
       const fallback = image.dataset.fallbackSrc;
       if (!fallback || image.dataset.fallbackApplied === "true" || image.getAttribute("src") === fallback) return;
       image.dataset.fallbackApplied = "true";

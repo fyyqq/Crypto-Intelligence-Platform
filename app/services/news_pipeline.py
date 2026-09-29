@@ -314,6 +314,53 @@ class NewsDB:
             self._conn.rollback()
             return False
 
+    def missing_body_articles(self) -> list[tuple[int, str, str, str]]:
+        """Return regular-source records without stored source text.
+
+        Telegram posts already store their complete message text at ingestion,
+        so this deliberately excludes them rather than attempting to fetch a
+        separate web page for every post.
+        """
+        p = self._param
+        cur = self._conn.cursor()
+        cur.execute(
+            f"""
+            SELECT id, url, title, category_or_query
+            FROM news_articles
+            WHERE source_type <> {p}
+              AND (full_body_text IS NULL OR TRIM(full_body_text) = '')
+            ORDER BY id
+            """,
+            ("telegram",),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return rows
+
+    def update_missing_body(
+        self,
+        article_id: int,
+        body: str,
+        image_url: str | None,
+    ) -> bool:
+        """Persist a newly extractable body without replacing existing data."""
+        p = self._param
+        cur = self._conn.cursor()
+        cur.execute(
+            f"""
+            UPDATE news_articles
+            SET full_body_text = {p},
+                image_url = COALESCE(NULLIF(image_url, ''), {p})
+            WHERE id = {p}
+              AND (full_body_text IS NULL OR TRIM(full_body_text) = '')
+            """,
+            (body, image_url, article_id),
+        )
+        updated = cur.rowcount == 1
+        self._conn.commit()
+        cur.close()
+        return updated
+
     def close(self) -> None:
         self._conn.close()
 
@@ -505,6 +552,41 @@ class IngestStats:
 
     def __add__(self, other: "IngestStats") -> "IngestStats":
         return IngestStats(self.inserted + other.inserted, self.skipped + other.skipped)
+
+
+@dataclass
+class BodyBackfillStats:
+    attempted: int = 0
+    updated: int = 0
+    unavailable: int = 0
+
+
+def backfill_missing_article_bodies(db: NewsDB) -> BodyBackfillStats:
+    """One-time source-body retry for archived non-Telegram articles.
+
+    It reuses the exact extraction policy used for newly discovered stories,
+    waits between requests, and intentionally leaves blocked, paywalled, or
+    non-extractable sources empty. Successful runs may fill a missing real
+    publisher image from the same downloaded page, but never replace a
+    stored image.
+    """
+    stats = BodyBackfillStats()
+    for article_id, url, title, category in db.missing_body_articles():
+        stats.attempted += 1
+        body, page_images = _safe_extract_full_text(url)
+        if body:
+            image_url = _resolve_article_image(
+                rss_image=None,
+                page_images=page_images,
+                title=title,
+                category=category,
+            )
+            if db.update_missing_body(article_id, body, image_url):
+                stats.updated += 1
+        else:
+            stats.unavailable += 1
+        time.sleep(REQUEST_DELAY_SECONDS)
+    return stats
 
 
 # ---------------------------------------------------------------------------
@@ -740,6 +822,15 @@ def main() -> None:
             "ingest_historical_backfill_for_named_outlets's own docstring."
         ),
     )
+    parser.add_argument(
+        "--backfill-missing-bodies",
+        action="store_true",
+        help=(
+            "One-time, rate-limited retry of every archived non-Telegram "
+            "record whose original source body is still empty. Does not run "
+            "the normal RSS/Google News ingestion path."
+        ),
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -747,6 +838,13 @@ def main() -> None:
 
     db = NewsDB(DB_BACKEND)
     try:
+        if args.backfill_missing_bodies:
+            body_stats = backfill_missing_article_bodies(db)
+            print("--- Missing news-body backfill complete ---")
+            print(f"Attempted        — {body_stats.attempted:>4}")
+            print(f"Bodies recovered — {body_stats.updated:>4}")
+            print(f"Still unavailable— {body_stats.unavailable:>4}")
+            return
         rss_stats = ingest_rss_feeds(db)
         google_stats = ingest_historical_google_news(db)
         backfill_stats = ingest_historical_backfill_for_named_outlets(db) if args.backfill_outlets else IngestStats()

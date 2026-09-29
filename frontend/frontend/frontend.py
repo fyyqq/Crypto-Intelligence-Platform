@@ -9,11 +9,12 @@ from frontend.components import (
     footer,
     global_search,
     narrative_alerts,
+    news_detail_content,
     news_feed,
     news_page_content,
     watchlist_table,
 )
-from frontend.state import CoinState, NewsState
+from frontend.state import CoinState, NewsDetailState, NewsState
 
 
 def _watchlist_menu_item() -> rx.Component:
@@ -602,6 +603,19 @@ def news_page() -> rx.Component:
     )
 
 
+def news_detail_page() -> rx.Component:
+    return rx.box(
+        _header_bar(),
+        news_detail_content(),
+        footer(),
+        _floating_logo(),
+        _chat_widget(),
+        rx.script(src="/chain_pills.js"),
+        min_height="100vh",
+        width="100%",
+    )
+
+
 def narrative_page() -> rx.Component:
     return _placeholder_page("Narrative")
 
@@ -657,6 +671,12 @@ app.add_page(
         CoinState.refresh_tradingview_dex_symbol,
         CoinState.refresh_defillama_unlocks_slug,
     ],
+)
+app.add_page(
+    news_detail_page,
+    route="/news/[article_id]",
+    title=NewsDetailState.page_title,
+    on_load=[CoinState.load_coins, NewsDetailState.load_article],
 )
 app.add_page(
     index,
