@@ -1,7 +1,7 @@
 """The /news page's real content — replaces frontend.py's old
 _placeholder_page("News") shell. Groups real articles (ingested by
-app/services/news_pipeline.py into the news_articles table) by their real
-outlet name, one section per outlet, each a 3-column x 2-row grid with its
+app/services/news_pipeline.py into the news_articles table) by normalized
+news type, one section per category, each a 3-column x 2-row grid with its
 own independent pagination — see frontend/state/news_state.py.
 """
 
@@ -14,10 +14,23 @@ def _news_card(article: dict) -> rx.Component:
     return rx.link(
         rx.vstack(
             rx.hstack(
-                rx.badge(article["source_name"], color_scheme=article["badge_color"], variant="surface", size="1"),
-                rx.text(article["time_display"], size="1", color_scheme="gray"),
+                rx.hstack(
+                    rx.badge(article["source_name"], color_scheme=article["badge_color"], variant="surface", size="1"),
+                    rx.text(article["time_display"], size="1", color_scheme="gray"),
+                    spacing="2",
+                    align="center",
+                    min_width="0",
+                ),
+                rx.badge(
+                    article["news_type"],
+                    color_scheme=article["news_type_color"],
+                    variant="soft",
+                    size="1",
+                ),
                 spacing="2",
                 align="center",
+                justify="between",
+                width="100%",
             ),
             rx.text(article["title"], weight="bold", size="3", style={"display": "-webkit-box", "-webkit-line-clamp": "3", "-webkit-box-orient": "vertical", "overflow": "hidden"}),
             rx.cond(
@@ -48,17 +61,17 @@ def _news_card(article: dict) -> rx.Component:
     )
 
 
-def _section_pagination(source_name: str, page: rx.Var, total_pages: rx.Var) -> rx.Component:
+def _section_pagination(news_type: str, page: rx.Var, total_pages: rx.Var) -> rx.Component:
     return rx.hstack(
         rx.box(
             rx.icon("chevron-left", size=16),
-            on_click=NewsState.prev_page(source_name),
+            on_click=NewsState.prev_page(news_type),
             class_name="page-arrow-btn",
         ),
         rx.text("Page ", page, " of ", total_pages, size="2", color_scheme="gray", white_space="nowrap"),
         rx.box(
             rx.icon("chevron-right", size=16),
-            on_click=NewsState.next_page(source_name),
+            on_click=NewsState.next_page(news_type),
             class_name="page-arrow-btn",
         ),
         spacing="2",
@@ -71,7 +84,7 @@ def _section_pagination(source_name: str, page: rx.Var, total_pages: rx.Var) -> 
 def _news_section(section: dict) -> rx.Component:
     return rx.vstack(
         rx.hstack(
-            rx.heading(section["source_name"], size="4"),
+            rx.heading(section["news_type"], size="4"),
             rx.badge(section["article_count"], " articles", color_scheme="gray", variant="soft", size="1"),
             spacing="2",
             align="center",
@@ -84,7 +97,7 @@ def _news_section(section: dict) -> rx.Component:
         ),
         rx.cond(
             section["has_pagination"],
-            _section_pagination(section["source_name"], section["page"], section["total_pages"]),
+            _section_pagination(section["news_type"], section["page"], section["total_pages"]),
         ),
         id=section["anchor_id"],
         spacing="4",

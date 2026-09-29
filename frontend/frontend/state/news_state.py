@@ -1,6 +1,6 @@
 """State for the /news page — reads real articles from the news_articles
-table (app/services/news_pipeline.py) and groups them by their real outlet
-name (TechCrunch, Cointelegraph, Reuters, ...), each outlet its own
+table (app/services/news_pipeline.py) and groups them by normalized news
+type (Cryptocurrency, Artificial Intelligence, ...), each category its own
 independently-paginated 3-column x 2-row grid section.
 
 Reads the same Postgres database the FastAPI backend writes to, directly via
@@ -84,7 +84,7 @@ def _fetch_articles() -> list[dict]:
         rows = db.execute(
             text(
                 """
-                SELECT source_name, title, url, published_date, full_body_text
+                SELECT source_name, category_or_query, title, url, published_date, full_body_text
                 FROM news_articles
                 ORDER BY published_date DESC NULLS LAST, id DESC
                 """
@@ -108,6 +108,43 @@ def _fetch_articles() -> list[dict]:
 # in the component from the row's own other fields.
 _BADGE_COLORS = ["blue", "green", "orange", "purple", "crimson", "cyan", "amber", "indigo"]
 
+_NEWS_TYPE_COLORS = {
+    "Cryptocurrency": "amber",
+    "Artificial Intelligence": "purple",
+    "Markets & Finance": "green",
+    "Technology": "cyan",
+    "General News": "gray",
+}
+
+_NEWS_TYPE_ORDER = {
+    "Cryptocurrency": 0,
+    "Artificial Intelligence": 1,
+    "Markets & Finance": 2,
+    "Technology": 3,
+    "General News": 4,
+}
+
+
+def _normalize_news_type(category_or_query: str | None, source_name: str) -> str:
+    label = (category_or_query or "").strip().lower()
+    if any(term in label for term in ("crypto", "blockchain", "token", "web3")):
+        return "Cryptocurrency"
+    if label == "ai" or any(term in label for term in ("artificial intelligence", "machine learning")):
+        return "Artificial Intelligence"
+    if any(term in label for term in ("stock market", "finance", "economy", "business")):
+        return "Markets & Finance"
+    if "tech" in label:
+        return "Technology"
+
+    source_lower = source_name.lower()
+    if "cointelegraph" in source_lower:
+        return "Cryptocurrency"
+    if source_lower == "wired":
+        return "Artificial Intelligence"
+    if "techcrunch" in source_lower:
+        return "Technology"
+    return "General News"
+
 
 def _build_article_row(row: dict) -> dict:
     published = row.get("published_date")
@@ -116,9 +153,12 @@ def _build_article_row(row: dict) -> dict:
     if len(body) > 220:
         snippet = snippet.rsplit(" ", 1)[0] + "…"
     source_name = row.get("source_name") or "Unknown"
+    news_type = _normalize_news_type(row.get("category_or_query"), source_name)
     return {
         "source_name": source_name,
         "badge_color": _BADGE_COLORS[hash(source_name) % len(_BADGE_COLORS)],
+        "news_type": news_type,
+        "news_type_color": _NEWS_TYPE_COLORS[news_type],
         "title": row.get("title") or "",
         "url": row.get("url") or "",
         "time_display": _relative_time(published),
@@ -130,10 +170,10 @@ def _build_article_row(row: dict) -> dict:
 class NewsState(rx.State):
     all_articles: list[dict] = []
     is_loading: bool = True
-    # outlet name -> current page (1-indexed) — each section's own
+    # news type -> current page (1-indexed) — each section's own
     # independent pagination, keyed dynamically since the set of real
-    # outlets in the database isn't fixed/hardcoded.
-    source_pages: dict[str, int] = {}
+    # categories may grow as the ingestion taxonomy expands.
+    category_pages: dict[str, int] = {}
 
     @rx.event(background=True)
     async def load_news(self):
@@ -151,22 +191,22 @@ class NewsState(rx.State):
             self.is_loading = False
 
     @rx.event
-    def set_source_page(self, source_name: str, page: int):
-        self.source_pages = {**self.source_pages, source_name: page}
+    def set_category_page(self, news_type: str, page: int):
+        self.category_pages = {**self.category_pages, news_type: page}
 
     @rx.event
-    def prev_page(self, source_name: str):
-        current = self.source_pages.get(source_name, 1)
-        self.source_pages = {**self.source_pages, source_name: max(1, current - 1)}
+    def prev_page(self, news_type: str):
+        current = self.category_pages.get(news_type, 1)
+        self.category_pages = {**self.category_pages, news_type: max(1, current - 1)}
 
     @rx.event
-    def next_page(self, source_name: str):
-        current = self.source_pages.get(source_name, 1)
-        total = self._total_pages_for(source_name)
-        self.source_pages = {**self.source_pages, source_name: min(total, current + 1)}
+    def next_page(self, news_type: str):
+        current = self.category_pages.get(news_type, 1)
+        total = self._total_pages_for(news_type)
+        self.category_pages = {**self.category_pages, news_type: min(total, current + 1)}
 
-    def _total_pages_for(self, source_name: str) -> int:
-        count = sum(1 for a in self.all_articles if a["source_name"] == source_name)
+    def _total_pages_for(self, news_type: str) -> int:
+        count = sum(1 for a in self.all_articles if a["news_type"] == news_type)
         return max(1, -(-count // _PAGE_SIZE))
 
     @rx.var(cache=True)
@@ -175,37 +215,33 @@ class NewsState(rx.State):
 
     @rx.var(cache=True)
     def news_sections(self) -> list[dict]:
-        """One dict per real outlet present in all_articles, already
-        sliced to that outlet's own current page — see this module's
-        docstring for why this bakes the per-source pagination fully into
+        """One dict per normalized news type present in all_articles,
+        already sliced to that category's own current page — see this module's
+        docstring for why this bakes the per-category pagination fully into
         one server-side computed var rather than trying to parameterize a
         computed var per dynamic source name (Reflex Vars can't easily be
         sliced per-`rx.foreach`-item that way).
         """
         grouped: dict[str, list[dict]] = {}
         for article in self.all_articles:
-            grouped.setdefault(article["source_name"], []).append(article)
+            grouped.setdefault(article["news_type"], []).append(article)
 
-        # Most-articles-first, not alphabetical — the historical Google
-        # News lookback surfaces dozens of real but single-article outlets
-        # (a state library site, a university newsroom, ...) alongside the
-        # three curated, substantial RSS feeds (TechCrunch/Cointelegraph/
-        # WIRED); alphabetical order buried those three under an "A"/"1"-
-        # heavy wall of one-off sources, confirmed live. Ties broken
-        # alphabetically for a stable order.
-        ordered_sources = sorted(grouped.keys(), key=lambda name: (-len(grouped[name]), name))
+        ordered_categories = sorted(
+            grouped.keys(),
+            key=lambda news_type: (_NEWS_TYPE_ORDER.get(news_type, len(_NEWS_TYPE_ORDER)), news_type),
+        )
 
         sections = []
         used_slugs: set[str] = set()
-        for source_name in ordered_sources:
-            articles = grouped[source_name]
+        for news_type in ordered_categories:
+            articles = grouped[news_type]
             total_pages = max(1, -(-len(articles) // _PAGE_SIZE))
-            page = max(1, min(self.source_pages.get(source_name, 1), total_pages))
+            page = max(1, min(self.category_pages.get(news_type, 1), total_pages))
             start = (page - 1) * _PAGE_SIZE
             # Disambiguate a slug collision (e.g. two non-ASCII outlet names
             # that both fall back to the generic "source" slug) by
             # appending a counter rather than silently sharing one anchor.
-            slug = _slugify(source_name)
+            slug = _slugify(news_type)
             if slug in used_slugs:
                 i = 2
                 while f"{slug}-{i}" in used_slugs:
@@ -214,7 +250,7 @@ class NewsState(rx.State):
             used_slugs.add(slug)
             sections.append(
                 {
-                    "source_name": source_name,
+                    "news_type": news_type,
                     "anchor_id": slug,
                     "article_count": len(articles),
                     "page": page,

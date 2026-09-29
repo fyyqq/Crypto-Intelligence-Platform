@@ -3,7 +3,7 @@
 **Route:** `/news` · **Status:** Live
 **Source:** `app/services/news_pipeline.py` (ingestion), `frontend/frontend/state/news_state.py`, `frontend/frontend/components/news_page.py`, `frontend/frontend/frontend.py::news_page`
 
-A real, ingested news feed — grouped by real outlet (TechCrunch, Cointelegraph, WIRED, or whichever real publisher Google News attributes a historical result to), each outlet its own independently-paginated section.
+A real, ingested news feed — grouped by news type (Cryptocurrency, Artificial Intelligence, Markets & Finance, and Technology), each category its own independently-paginated section. Every card still identifies its real publisher.
 
 **Not to be confused with:** the [Home](./home.md) page's own "All News" and "Targeted Narrative + Coin" sliders (static placeholder headlines, unrelated to this page's real data) — those stay exactly as they were, untouched by this feature.
 
@@ -12,7 +12,7 @@ A real, ingested news feed — grouped by real outlet (TechCrunch, Cointelegraph
 <details>
 <summary><strong>📰 Zero-API-key ingestion pipeline</strong></summary>
 
-`app/services/news_pipeline.py` — a standalone script (no imports from the rest of this repo; genuinely copy-out-and-run-anywhere), run manually or on a cron, not wired into this app's own scheduler yet (see Known gaps below). Two ingestion paths, both writing into one `news_articles` table:
+`app/services/news_pipeline.py` — a standalone script (no imports from the rest of this repo; genuinely copy-out-and-run-anywhere), runnable manually and invoked daily by this app's scheduler when the FastAPI backend is running. Two ingestion paths, both writing into one `news_articles` table:
 
 1. **Real-time RSS** (`feedparser`) — three hardcoded feeds: TechCrunch (Tech), Cointelegraph (Crypto), and WIRED's own AI-tagged feed (AI). The originally-requested "Artificial Intelligence News" (artificialintelligence-news.com) was swapped for WIRED — confirmed live that site now sits behind a hard captcha wall (SiteGround's `SG-Captcha`) that returns a 176-byte redirect stub to every scripted request regardless of User-Agent, so it can never yield real articles.
 2. **Dynamic 90-day historical lookback** (`pygooglenews`) across three keywords (global stock market, artificial intelligence, cryptocurrency). The search window's start/end dates are computed fresh from `datetime.date.today()` on every run — never a hardcoded date string — so the same trailing 90-day window moves forward automatically whether the script runs today, next week, or next year. Capped at 25 results per query per run (Google's own top-relevance ranking) to keep one run's runtime and target-site load reasonable — a later run naturally surfaces different results since already-seen URLs are skipped.
@@ -44,20 +44,20 @@ Uses raw `psycopg2`/`sqlite3` directly, not this project's own SQLAlchemy models
 </details>
 
 <details>
-<summary><strong>📋 The page itself — grouped, paginated grid</strong></summary>
+<summary><strong>📋 The page itself — category-grouped, paginated grid</strong></summary>
 
 `NewsState` (Reflex) reads `news_articles` directly from the same Postgres database the pipeline writes to — via `app.core.database.SessionLocal`, the same "reach into the real Postgres app DB directly" pattern `CoinState`'s own background refreshers already use elsewhere in this app (raw SQL `SELECT`, not an ORM model, since the pipeline itself doesn't define one either).
 
-- One section per real outlet name present in the data (dynamic — not a fixed list of 3), sorted by article count descending, ties broken alphabetically — an earlier alphabetical-only order buried the three curated RSS feeds under dozens of one-article Google News outlets starting with "2"/"A", confirmed live, then fixed.
-- Each section is a responsive grid (1 column on phones, 2 on tablets, 3 on desktop) capped at 6 articles per page — a 3×2 grid at desktop width, per explicit request — with its own independent pagination (`NewsState.source_pages`, keyed per outlet name), so paging through TechCrunch's articles doesn't affect Cointelegraph's current page.
-- Each card: a colored outlet badge (hashed to a stable color per outlet name, since outlets are dynamic rather than a fixed small set with its own lookup table), a relative-time string computed from the real `published_date`, the title (links out to the real article, opens in a new tab), and a short snippet of the extracted body text.
+- `NewsState` reads each article's stored `category_or_query` alongside its publisher, then normalizes it into Cryptocurrency (`Crypto`/`cryptocurrency`), Artificial Intelligence (`AI`/`artificial intelligence`), Markets & Finance (`global stock market`), or Technology (`Tech`). A publisher-based fallback covers future unclassified RSS rows without changing stored data.
+- Sections appear in a fixed reader-oriented order: Cryptocurrency, Artificial Intelligence, Markets & Finance, Technology, then General News if an unclassified article ever arrives. Each section is a responsive grid (1 column on phones, 2 on tablets, 3 on desktop) capped at 6 articles per page — a 3×2 grid at desktop width — with its own independent pagination (`NewsState.category_pages`, keyed per news type).
+- Each card keeps a colored publisher badge and its relative publication time on the left, adds the normalized news-type badge on the right, and includes the title (external link) plus a short extracted-text snippet. Publisher badges remain hashed to stable colors; category badges use fixed semantic colors.
 - An empty state ("No news articles yet — run app/services/news_pipeline.py...") when the table is empty or doesn't exist yet, and a skeleton grid while `NewsState.load_news` is fetching — same loading-state conventions as the rest of this app.
 </details>
 
 <details>
-<summary><strong>🔗 Direct links to each source's section</strong></summary>
+<summary><strong>🔗 Direct links to each news category</strong></summary>
 
-Every section has a stable `id` (`NewsState.news_sections`' own `"anchor_id"` field, slugified from the outlet's real name, e.g. "reuters.com" → `reuters-com`), so `/news#<slug>` jumps straight to that outlet's section — useful for sharing a link to one specific source's coverage rather than the whole page. Two same-name-collision edge cases handled: a non-ASCII outlet name (Google News occasionally attributes a result to a non-English-language source) falls back to a generic `source` slug, and a second such collision gets `source-2`, `source-3`, etc., rather than two sections silently sharing one anchor.
+Every section has a stable `id` (`NewsState.news_sections`' own `"anchor_id"` field, slugified from the normalized news type), so `/news#cryptocurrency`, `/news#artificial-intelligence`, `/news#markets-finance`, and `/news#technology` jump directly to that category's coverage.
 
 **A real bug found and fixed while building this**: a plain `#fragment` only auto-scrolls to content already present the moment the browser parses the URL — this page's own sections render asynchronously (`NewsState.load_news` does a real DB fetch first), so a fresh or shared link's native hash-scroll fired too early and found nothing, confirmed live. Fixed with a small script (`assets/chain_pills.js`) that polls briefly for the target section to exist, then scrolls to it — also re-runs on `hashchange` so clicking a same-page `#section` link works after the initial load too. This also surfaced (and fixed) a separate pre-existing gap: `frontend.py::news_page` wasn't loading `chain_pills.js` at all, so the header's own search/profile-dropdown click-outside-close handlers were silently missing on this page — `_placeholder_page` (used by `/narrative`, `/chains`, `/tools`, `/watchlist`) has the same gap, not fixed here since it's a different page's own template, out of scope for this pass.
 </details>
