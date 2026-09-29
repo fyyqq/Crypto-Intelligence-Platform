@@ -607,15 +607,21 @@ def _build_row(coin: Coin) -> dict:
         "tradingview_dex_symbol": coin.tradingview_dex_symbol or "",
         "tradingview_dex_symbol_fetched": coin.tradingview_dex_symbol_checked_at is not None,
         # Real per-coin DeFiLlama "View live unlock data" deep link (see
-        # app/services/defillama_unlocks_service.py) — a real cmcId-matched
-        # protocol slug resolves to that project's own unlock page; no match
-        # (most coins — DeFiLlama's free protocol list is TVL-tracked
-        # projects only) falls back to the general unlocks dashboard, never
-        # a guessed/broken per-coin URL.
+        # app/services/defillama_unlocks_service.py) — a real contract/
+        # gecko_id/cmcId-matched protocol slug resolves to that project's
+        # own unlock page; no match (most coins — DeFiLlama's Unlocks
+        # feature only tracks a project if it has a real vesting schedule)
+        # falls back to that coin's own DeFiLlama Token page instead of the
+        # fully generic /unlocks dashboard — confirmed live (real browser,
+        # not a bot-blocked plain request) that /token/<TICKER> is a real,
+        # ticker-based page for any listed coin (e.g. FET has no Unlocks
+        # page anywhere, real or guessed, but /token/FET is real) even when
+        # no per-project unlock schedule exists. Never a guessed/broken
+        # per-coin unlocks URL either way.
         "unlock_source_url": (
             f"https://defillama.com/protocol/unlocks/{coin.defillama_unlocks_slug}"
             if coin.defillama_unlocks_slug
-            else "https://defillama.com/unlocks"
+            else f"https://defillama.com/token/{coin.symbol.upper()}"
         ),
         # Cached X posts — the scraping backend that populated this (Apify,
         # app/services/social_service.py) was removed per explicit request
@@ -1850,7 +1856,9 @@ class CoinState(rx.State):
                 cmc_id: {
                     **self.coin_overrides.get(cmc_id, {}),
                     "unlock_source_url": (
-                        f"https://defillama.com/protocol/unlocks/{slug}" if slug else "https://defillama.com/unlocks"
+                        f"https://defillama.com/protocol/unlocks/{slug}"
+                        if slug
+                        else f"https://defillama.com/token/{symbol.upper()}"
                     ),
                 },
             }

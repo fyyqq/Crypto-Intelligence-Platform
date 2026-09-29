@@ -30,6 +30,18 @@ Symbol resolution, in order:
 3. If neither resolves to a real listing, shows an honest "No live chart available for this coin" placeholder rather than TradingView's own broken-looking error card or a guess.
 
 Default interval is 1 hour, clock shown in Kuala Lumpur time. Built as a real, stable React prop rather than a raw HTML string, so background data syncs elsewhere on the page don't tear down and rebuild the chart — that was previously resetting the viewer's manually-chosen interval roughly every 60 seconds.
+
+When a coin's real cached CEX pairs include all three of MEXC, KuCoin, and Binance, the chart picks MEXC first, then KuCoin, then Binance, overriding the usual USD-equivalent-quote/volume ranking for that one coin only — any other real exchange in the list just sorts after those three rather than being excluded. Falls through to the normal ranking whenever all three aren't present.
+</details>
+
+<details>
+<summary><strong>🔒 Locked Supply section</strong></summary>
+
+No free vesting/unlock-schedule API exists at any tier (CoinMarketCap has none; CryptoRank Pro is $4,750/yr; DeFiLlama's real emissions endpoint is Pro-only at $300/mo; CoinGecko's closest endpoint is also paid) — checked and confirmed paywalled before building anything. Shows `max_supply - circulating_supply` instead, as an honest supply-math-based fallback: locked amount, locked USD value at the current price, % of max supply, and a supply-range meter (green fill for the circulating portion). Rendered right after the Tags section, only when a coin actually has a max supply greater than its circulating supply — entirely absent otherwise (e.g. ETH, which has no max supply at all). Broadly applicable, not a rare edge case: roughly 1,700 of the top 2,000 ranked coins have a real supply gap.
+
+Below the meter, a "View live unlock data on DeFiLlama" link — this app can't pull real unlock dates/schedules for free (same paywall as above), so this only ever links out to DeFiLlama's own public, no-auth website for a human to read, never fabricated data. Resolving *which* DeFiLlama page to link to for a given coin is itself real work, tried in order:
+1. **Real per-project match** — DeFiLlama's own `/protocol/unlocks/<slug>` page for a project with a real, tracked vesting schedule. The `<slug>` comes from matching this coin's own on-chain contract address, then its CoinGecko id, then (last resort) its CMC id against DeFiLlama's public data — never a guessed slug from the coin's name (confirmed live that a naive guess breaks even for unambiguous names, e.g. "Arbitrum" → "arbitrum" 404s; the real page is "arbitrum-foundation").
+2. **No project match found** (most coins — DeFiLlama's Unlocks feature only tracks projects with a real vesting schedule to show) — links to that coin's own DeFiLlama **Token** page (`/token/<TICKER>`) instead of the fully generic `/unlocks` dashboard. Confirmed live (real browser — defillama.com's own bot protection blocks a plain scripted request with a 403 regardless of whether the URL is valid or not, so page-existence can't be live-checked from the backend; a real browser session isn't blocked) that this per-ticker Token page is real for any listed coin even when it has no unlock schedule at all — e.g. FET/Artificial Superintelligence Alliance has no Unlocks page under any slug, but `defillama.com/token/FET` is a real page showing its price/market data. More specific and useful to a viewer than the generic dashboard, and still never a guessed or broken link either way.
 </details>
 
 <details>
