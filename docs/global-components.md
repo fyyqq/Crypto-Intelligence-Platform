@@ -120,3 +120,7 @@ Password show/hide resets on every visit to /login and /signup. Errors are speci
 
 ### Persistent login (2026-10-01)
 Login survives closing the tab: a random token cookie (`repace_session`, 30 days, SameSite=Strict) maps to a hashed row in `user_sessions`; `CoinState.restore_session` restores the login on every page load; logout deletes the session. Not HttpOnly/Secure yet.
+
+
+### Remember me (2026-10-01)
+Persistent login is opt-in via a "Remember me" checkbox on the login form (unchecked by default). Signup logs in for the tab only.

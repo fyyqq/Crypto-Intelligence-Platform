@@ -95,7 +95,7 @@ class AuthState(CoinState):
         # reCAPTCHA tokens are single-use: recaptcha_init.js fetches a fresh one after every submit.
         return None
 
-    async def _succeed(self, result):
+    async def _succeed(self, result, remember: bool = False):
         self.is_logged_in = True
         self.user_id = result.user_id
         self.user_name = result.user_name
@@ -108,8 +108,9 @@ class AuthState(CoinState):
         from app.services import watchlist_service
 
         self.watchlist_ids = await asyncio.to_thread(watchlist_service.get_watchlist_ids, result.user_id)
-        # Remember this browser: the cookie lets a later visit (even a new tab) restore the login.
-        self.session_token = await self._run("create_session", result.user_id)
+        # Only when "Remember me" was ticked: the cookie lets a later visit (even a new tab)
+        # restore the login. Otherwise the login lives only in this tab's session.
+        self.session_token = await self._run("create_session", result.user_id) if remember else ""
         return rx.call_script("window.location.assign('/')")
 
     @rx.event
@@ -130,7 +131,7 @@ class AuthState(CoinState):
                 yield self._fail("Security check failed. Please try again.")
                 return
         result = await self._run("login_user", email, password)
-        yield (await self._succeed(result)) if result.ok else self._fail(result.error)
+        yield (await self._succeed(result, bool(form_data.get("remember")))) if result.ok else self._fail(result.error)
 
     @rx.event
     async def submit_signup(self, form_data: dict):
@@ -323,7 +324,17 @@ def _form_panel(mode: str) -> rx.Component:
                 *fields,
                 rx.cond(
                     login,
-                    rx.box(rx.link("Forgot password?", href="#", size="1", color="rgba(255,255,255,0.8)"), width="100%", text_align="right"),
+                    rx.hstack(
+                        rx.hstack(
+                            rx.checkbox(name="remember", size="1"),
+                            rx.text("Remember me", size="1", color="rgba(255,255,255,0.8)"),
+                            spacing="2",
+                            align="center",
+                        ),
+                        rx.link("Forgot password?", href="#", size="1", color="rgba(255,255,255,0.8)"),
+                        justify="between",
+                        width="100%",
+                    ),
                     rx.hstack(
                         rx.checkbox(name="terms", required=True, size="1"),
                         rx.text("I agree to the Terms & Conditions", size="1", color="rgba(255,255,255,0.8)"),
