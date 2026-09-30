@@ -189,7 +189,7 @@ Each section's source filter is a horizontal pill slider: All + the 10 biggest p
 
 <details><summary>Per-section title search and section header layout</summary>
 
-Each section's header is heading + count on the left, the source pill slider (shortened, centred) in the middle, and a title search box on the right. The search filters that section by title (case-insensitive, 300ms debounce), combines with the source filter, resets to page 1 and updates the count; other sections are independent.
+Each section's header is heading + count on the left, the source pill slider (shortened, centred) in the middle, and a title search box on the right (below the lg breakpoint: heading + search on one row, slider full-width below with equal spacing). The search filters that section by title (case-insensitive, 300ms debounce), combines with the source filter, resets to page 1 and updates the count; other sections are independent.
 
 </details>
 

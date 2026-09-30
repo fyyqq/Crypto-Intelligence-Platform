@@ -904,16 +904,29 @@
 
 
 /* "Other" publisher dropdown in each /news section's source pill slider:
-   pill-shaped, royalblue with white text, like the active pills. */
+   pill-shaped, royalblue with pure white text. Radix's soft variant paints an
+   accent-tinted ::before overlay and its own text colors on the inner span
+   and chevron, which made the label look washed out — neutralised here. */
+.narrative-pills-track .rt-SelectTrigger,
+.narrative-pills-track .rt-SelectTrigger .rt-SelectTriggerInner,
+.narrative-pills-track .rt-SelectTrigger .rt-SelectTriggerInner span,
+.narrative-pills-track .rt-SelectTrigger .rt-SelectIcon {
+  color: #fff !important;
+}
+
 .narrative-pills-track .rt-SelectTrigger {
   flex-shrink: 0;
   border-radius: 999px;
-  background-color: royalblue;
-  color: white;
+  background-color: royalblue !important;
   padding-left: 12px;
   padding-right: 12px;
 }
 
+.narrative-pills-track .rt-SelectTrigger::before {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .narrative-pills-track .rt-SelectTrigger:hover {
-  background-color: #3f5fd6;
+  background-color: #3f5fd6 !important;
 }
