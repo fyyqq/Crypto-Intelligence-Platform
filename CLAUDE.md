@@ -46,6 +46,9 @@ Per explicit request (`el-31/36/37`): the title search is smaller (180px wide, 1
 ### 🔧 Follow-up: bigger search on tablet, stacked title/count on mobile (2026-09-30 session)
 Per explicit request (`el-38..40`), all `/news` sections: the title search is larger only on tablet width (sm..<lg: Radix size 3, 280px wide, 40px tall, 16px text; mobile and desktop keep the small 180px/24px box), and on mobile (<768px) the category title and its "N articles" badge stack vertically (title above count) instead of sitting side by side. Verified live at 1440/834/375px (search 180x24 / 280x40 / 180x24; heading flex-direction row / row / column), zero console errors.
 
+### 🔧 Follow-up: desktop header — full-width slider, tablet-size search (2026-09-30 session)
+Per explicit request (`el-41/42`): at lg+ the section header grid is now `auto | 1fr | auto` so the source slider fills all the space between the heading and the search box (was a centred 560px block); the title search uses the larger size (280px x 40px, 16px text) from tablet up including desktop (only mobile stays small); the title/count gap uses `spacing` (Radix `gap` didn't apply, so the badge nearly touched the title). Verified at 1440/834/375px, zero console errors.
+
 ### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
 * **Why:** This ensures that if the terminal session suddenly runs out of API limits, the current progress state is perfectly preserved right here, allowing a seamless handoff to GitHub Copilot inside VS Code without losing data.
 

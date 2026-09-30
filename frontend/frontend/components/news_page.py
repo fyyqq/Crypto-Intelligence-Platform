@@ -173,8 +173,8 @@ def _section_search(section: dict) -> rx.Component:
             rx.input.slot(rx.icon("search", size=13)),
             value=section["search_text"],
             placeholder="Search title",
-            # Small on mobile and desktop, larger on tablet (sm..lg).
-            size=rx.breakpoints(initial="1", sm="3", lg="1"),
+            # Small on mobile, the larger size from tablet up (incl. desktop).
+            size=rx.breakpoints(initial="1", sm="3"),
             radius="full",
             width="100%",
             on_change=lambda value: NewsState.set_category_search(section["news_type"], value),
@@ -186,7 +186,7 @@ def _section_search(section: dict) -> rx.Component:
 
 def _news_section(section: dict) -> rx.Component:
     return rx.vstack(
-        # lg+: heading | centred source slider | title search on one row.
+        # lg+: heading | source slider (fills the space between) | title search on one row.
         # Below lg (tablet/mobile): heading + search share row 1 (search on the
         # right), the slider gets its own full-width row 2 with the same gap
         # above and below it.
@@ -196,7 +196,7 @@ def _news_section(section: dict) -> rx.Component:
                 rx.heading(section["news_type"], size="4"),
                 rx.badge(section["article_count"], " articles", color_scheme="gray", variant="soft", size="1"),
                 direction=rx.breakpoints(initial="column", sm="row"),
-                gap="2",
+                spacing="2",
                 align=rx.breakpoints(initial="start", sm="center"),
                 grid_column="1",
                 grid_row="1",
@@ -211,11 +211,11 @@ def _news_section(section: dict) -> rx.Component:
             rx.box(
                 _section_search(section),
                 justify_self="end",
-                width=rx.breakpoints(initial="180px", sm="280px", lg="180px"),
+                width=rx.breakpoints(initial="180px", sm="280px"),
                 grid_column=rx.breakpoints(initial="2", lg="3"),
                 grid_row="1",
             ),
-            columns=rx.breakpoints(initial="minmax(0, 1fr) auto", lg="minmax(0, 1fr) minmax(0, 560px) minmax(0, 1fr)"),
+            columns=rx.breakpoints(initial="minmax(0, 1fr) auto", lg="auto minmax(0, 1fr) auto"),
             spacing="4",
             align_items="center",
             width="100%",

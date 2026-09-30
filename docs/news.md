@@ -201,6 +201,6 @@ OpenRouter is only called when someone opens a page: the news reader (article su
 
 <details><summary>Responsive header details</summary>
 
-The title search is small on desktop and mobile (180px) and larger on tablet (280px, 40px tall, 16px text). On mobile the category title and its article-count badge stack vertically.
+On desktop the source slider fills the space between the heading and the search. The title search is small on mobile (180px) and larger from tablet up including desktop (280px, 40px tall, 16px text). On mobile the category title and its article-count badge stack vertically.
 
 </details>
