@@ -30,6 +30,9 @@ Per explicit request. Moving to another page (nav links, logo, coin-table row cl
 ### 🔧 Follow-up: source pills back to top 10, slider fills the space beside the heading (2026-09-30 session)
 Per explicit request (`el-22/23`): `_TOP_SOURCE_PILLS = 10` again, and each section's pill slider now takes all remaining width in the heading row (`flex: 1 1 0`, `min-width: 0`), so it starts right beside the heading block (12px gap) instead of shrink-wrapping at the far right. Overflow still scrolls horizontally. Verified live in all four sections (slider left edge 12px from the heading; Technology has only 5 publishers, so no "Other"); zero console errors.
 
+### 🔧 Follow-up: source slider gets arrows, more spacing, royalblue pill "Other" dropdown (2026-09-30 session)
+Per explicit request (`el-24..27`): the `/news` source pill slider (`news_page.py::_section_source_filter`) now reuses the narrative filter slider's own wrap/track/arrow classes and JS (`narrative-pills-wrap`, `narrative-pills-track`, `narrative-scroll-left/right` — drag-scroll, arrows that hide at either end), the heading row's gap is larger (`gap="5"`), and the "Other" dropdown trigger is pill-shaped (`border-radius: 999px`), royalblue with white text (`.narrative-pills-track .rt-SelectTrigger` in `styles.css`). Applies to every section. Verified live: arrow scrolls the slider (left arrow appears after scrolling, right arrow at the start), "Other" computed as royalblue/white/999px, all sections have arrows, zero console errors.
+
 ### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
 * **Why:** This ensures that if the terminal session suddenly runs out of API limits, the current progress state is perfectly preserved right here, allowing a seamless handoff to GitHub Copilot inside VS Code without losing data.
 

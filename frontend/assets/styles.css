@@ -902,3 +902,18 @@
   border-radius: 9999px;
 }
 
+
+/* "Other" publisher dropdown in each /news section's source pill slider:
+   pill-shaped, royalblue with white text, like the active pills. */
+.narrative-pills-track .rt-SelectTrigger {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background-color: royalblue;
+  color: white;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.narrative-pills-track .rt-SelectTrigger:hover {
+  background-color: #3f5fd6;
+}

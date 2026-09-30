@@ -138,31 +138,32 @@ def _source_pill(section: dict, source: rx.Var[str]) -> rx.Component:
 
 
 def _section_source_filter(section: dict) -> rx.Component:
-    """Horizontal slider of the top-10 publishers (plus All), ending with an
-    "Other" dropdown holding the remaining publishers."""
-    return rx.hstack(
-        _source_pill(section, "All"),
-        rx.foreach(section["top_sources"].to(list[str]), lambda source: _source_pill(section, source)),
-        rx.cond(
-            section["has_other_sources"],
-            rx.select(
-                section["other_sources"].to(list[str]),
-                value=section["other_selected"],
-                placeholder="Other",
-                on_change=lambda value: NewsState.set_category_source(section["news_type"], value),
-                size="1",
-                variant="soft",
-                flex_shrink="0",
+    """Draggable/arrow-scrollable slider of the top-10 publishers (plus All),
+    ending with an "Other" dropdown holding the remaining publishers. Same
+    wrap/track/arrow classes and JS as the narrative filter slider
+    (assets/chain_pills.js)."""
+    return rx.box(
+        rx.box(rx.icon("chevron-left", size=12), class_name="narrative-scroll-btn narrative-scroll-left"),
+        rx.box(
+            _source_pill(section, "All"),
+            rx.foreach(section["top_sources"].to(list[str]), lambda source: _source_pill(section, source)),
+            rx.cond(
+                section["has_other_sources"],
+                rx.select(
+                    section["other_sources"].to(list[str]),
+                    value=section["other_selected"],
+                    placeholder="Other",
+                    on_change=lambda value: NewsState.set_category_source(section["news_type"], value),
+                    size="1",
+                    variant="soft",
+                    flex_shrink="0",
+                    class_name="news-source-other",
+                ),
             ),
+            class_name="narrative-pills-track",
         ),
-        spacing="2",
-        align="center",
-        # Fills the space beside the heading so the slider starts right next to it.
-        flex="1 1 0",
-        min_width="0",
-        overflow_x="auto",
-        padding_y="2px",
-        class_name="hide-scrollbar",
+        rx.box(rx.icon("chevron-right", size=12), class_name="narrative-scroll-btn narrative-scroll-right"),
+        class_name="narrative-pills-wrap",
     )
 
 
@@ -179,7 +180,7 @@ def _news_section(section: dict) -> rx.Component:
             justify="between",
             align="center",
             width="100%",
-            gap="3",
+            gap="5",
         ),
         rx.grid(
             rx.foreach(section["articles"].to(list[dict]), _news_card),
