@@ -47,6 +47,12 @@ class LoginState(rx.State):
     show_repeat_password: bool = False
 
     @rx.event
+    def reset_visibility(self):
+        # State survives full page loads, so a field left on "show" would come back as plain text.
+        self.show_password = False
+        self.show_repeat_password = False
+
+    @rx.event
     def toggle_password(self):
         self.show_password = not self.show_password
 
@@ -342,6 +348,8 @@ def _form_panel(mode: str) -> rx.Component:
             ),
             on_submit=AuthState.submit_login if login else AuthState.submit_signup,
             reset_on_submit=False,
+            # Skip the browser's generic popups: the server returns specific messages instead.
+            custom_attrs={"noValidate": True},
             width="100%",
         ),
         _divider("Or log in with" if login else "Or register with"),

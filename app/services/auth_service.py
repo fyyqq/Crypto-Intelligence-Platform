@@ -34,7 +34,8 @@ _PASSWORD_MAX = 128
 _NAME_RE = re.compile(r"^[^\W\d_]+(?:[ '.\-][^\W\d_]+)*\.?$", re.UNICODE)
 
 GENERIC_LOGIN_ERROR = "Invalid email or password."
-GENERIC_SIGNUP_ERROR = "We couldn't create that account. If you already have one, try logging in."
+EMAIL_TAKEN_ERROR = "This email is already registered. Try logging in instead."
+GENERIC_SIGNUP_ERROR = "We couldn't create your account. Please try again."
 
 
 @dataclass
@@ -55,9 +56,17 @@ def validate_name(raw: str) -> tuple[str, str]:
     name = re.sub(r"\s+", " ", name)
     if not name:
         return "", "Full name is required."
-    if len(name) < 2 or len(name) > _NAME_MAX:
-        return "", f"Full name must be 2–{_NAME_MAX} characters."
-    if _has_control_chars(name) or not _NAME_RE.match(name):
+    if len(name) < 2:
+        return "", "Full name is too short (at least 2 characters)."
+    if len(name) > _NAME_MAX:
+        return "", f"Full name is too long (at most {_NAME_MAX} characters)."
+    if _has_control_chars(name):
+        return "", "Full name contains invalid characters."
+    if re.search(r"[<>]", name):
+        return "", "Full name can't contain < or >."
+    if re.search(r"\d", name):
+        return "", "Full name can't contain numbers."
+    if not _NAME_RE.match(name):
         return "", "Full name can only contain letters, spaces, apostrophes, hyphens and dots."
     return name, ""
 
@@ -66,8 +75,23 @@ def validate_email_address(raw: str) -> tuple[str, str]:
     email = (raw or "").strip()
     if not email:
         return "", "Email is required."
-    if len(email) > _EMAIL_MAX or _has_control_chars(email) or re.search(r"[<>\"'`;\\\s]", email):
-        return "", "Enter a valid email address."
+    if len(email) > _EMAIL_MAX:
+        return "", "Email is too long."
+    if _has_control_chars(email) or re.search(r"\s", email):
+        return "", "Email can't contain spaces."
+    if re.search(r"[<>\"'`;\\]", email):
+        return "", "Email contains characters that aren't allowed."
+    if "@" not in email:
+        return "", "Email must include an '@' (for example name@example.com)."
+    local, _, domain = email.rpartition("@")
+    if not local:
+        return "", "Email is missing the part before the '@'."
+    if not domain:
+        return "", "Email is missing the domain after the '@' (for example example.com)."
+    if "." not in domain:
+        return "", "Email domain must include a dot, for example example.com."
+    if domain.endswith(".") or len(domain.rsplit(".", 1)[1]) < 2:
+        return "", "Email ending is incomplete (for example .com)."
     try:
         result = validate_email(email, check_deliverability=False)
     except EmailNotValidError:
@@ -76,15 +100,26 @@ def validate_email_address(raw: str) -> tuple[str, str]:
 
 
 def validate_password(raw: str) -> str:
-    """Returns an error message, or '' if the password is acceptable."""
+    """Returns an error message naming exactly what's wrong, or '' if acceptable."""
     if not raw:
         return "Password is required."
-    if len(raw) < _PASSWORD_MIN or len(raw) > _PASSWORD_MAX:
-        return f"Password must be {_PASSWORD_MIN}–{_PASSWORD_MAX} characters."
+    if len(raw) < _PASSWORD_MIN:
+        return f"Password is too short: use at least {_PASSWORD_MIN} characters."
+    if len(raw) > _PASSWORD_MAX:
+        return f"Password is too long: use at most {_PASSWORD_MAX} characters."
     if _has_control_chars(raw):
         return "Password contains invalid characters."
-    if not (re.search(r"[a-z]", raw) and re.search(r"[A-Z]", raw) and re.search(r"\d", raw) and re.search(r"[^A-Za-z0-9]", raw)):
-        return "Password needs an uppercase letter, a lowercase letter, a number and a symbol."
+    missing = []
+    if not re.search(r"[A-Z]", raw):
+        missing.append("an uppercase letter")
+    if not re.search(r"[a-z]", raw):
+        missing.append("a lowercase letter")
+    if not re.search(r"\d", raw):
+        missing.append("a number")
+    if not re.search(r"[^A-Za-z0-9]", raw):
+        missing.append("a symbol (like ! @ #)")
+    if missing:
+        return "Password is not strong enough: add " + ", ".join(missing[:-1]) + (" and " if len(missing) > 1 else "") + missing[-1] + "."
     return ""
 
 
@@ -126,7 +161,7 @@ def register_user(full_name: str, email: str, password: str, repeat_password: st
     if err:
         return AuthResult(False, err)
     if not repeat_password:
-        return AuthResult(False, "Repeat your password.")
+        return AuthResult(False, "Repeat password is required.")
     if password != repeat_password:
         return AuthResult(False, "Passwords do not match.")
 
@@ -134,27 +169,27 @@ def register_user(full_name: str, email: str, password: str, repeat_password: st
     db = SessionLocal()
     try:
         if db.query(User.id).filter(User.email == addr).first():
-            return AuthResult(False, GENERIC_SIGNUP_ERROR)
+            return AuthResult(False, EMAIL_TAKEN_ERROR)
         user = User(full_name=name, email=addr, password_hash=password_hash)
         db.add(user)
         try:
             db.commit()
         except IntegrityError:  # lost a race with another sign-up for the same email
             db.rollback()
-            return AuthResult(False, GENERIC_SIGNUP_ERROR)
+            return AuthResult(False, EMAIL_TAKEN_ERROR)
         return AuthResult(True, user_id=user.id, user_name=user.full_name, user_email=user.email)
     finally:
         db.close()
 
 
 def login_user(email: str, password: str) -> AuthResult:
+    # Format problems (missing @, empty field...) are safe to explain; wrong credentials stay generic.
     addr, err = validate_email_address(email)
-    if err or not password or len(password) > _PASSWORD_MAX:
-        # Still do the hashing work so timing doesn't reveal which check failed.
-        try:
-            _hasher.verify(_DUMMY_HASH, password[:_PASSWORD_MAX] or "x")
-        except Exception:
-            pass
+    if err:
+        return AuthResult(False, err)
+    if not password:
+        return AuthResult(False, "Password is required.")
+    if len(password) > _PASSWORD_MAX:
         return AuthResult(False, GENERIC_LOGIN_ERROR)
 
     now = datetime.now(timezone.utc)

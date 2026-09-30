@@ -20,7 +20,7 @@ from frontend.components import (
     news_page_content,
     watchlist_table,
 )
-from frontend.components.login_page import AuthState, login_page, signup_page
+from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
 from frontend.state import CoinState, NewsDetailState, NewsState
 
 
@@ -161,7 +161,6 @@ def _profile_pill() -> rx.Component:
                 rx.badge("Standard", color_scheme="gray", size="1"),
                 spacing="1",
                 align="start",
-                padding_left="0.75em",
                 # Hidden below the iPad-portrait breakpoint (md, 768px) — on
                 # a phone-width header there isn't room for this text column
                 # too, so the pill collapses to just the avatar there.
@@ -190,11 +189,8 @@ def _profile_pill() -> rx.Component:
             align="center",
             # Symmetric padding once the text column above is hidden (avatar
             # only), back to the wider left padding once it reappears at md+.
-            padding=rx.cond(
-                CoinState.is_logged_in,
-                rx.breakpoints(initial="0.35em", sm="0.35em", md="0.35em 0.35em 0.35em 1em", lg="0.35em 0.35em 0.35em 1em", xl="0.35em 0.35em 0.35em 1em"),
-                "0.35em",
-            ),
+            # Logged in: 5px all round, per explicit request (the old breakpoint-based padding never applied).
+            padding=rx.cond(CoinState.is_logged_in, "5px", "0.35em"),
             border="1px solid var(--gray-a6)",
             border_radius="9999px",
             background="var(--gray-a2)",
@@ -830,8 +826,8 @@ app.add_page(
     title=NewsState.view_all_title,
     on_load=[CoinState.load_coins, NewsState.load_news, NewsState.reset_view_all_page, NewsState.watch_new_articles],
 )
-app.add_page(login_page, route="/login", title="Repace — Log in", on_load=[AuthState.clear_auth_error])
-app.add_page(signup_page, route="/signup", title="Repace — Sign up", on_load=[AuthState.clear_auth_error])
+app.add_page(login_page, route="/login", title="Repace — Log in", on_load=[AuthState.clear_auth_error, LoginState.reset_visibility])
+app.add_page(signup_page, route="/signup", title="Repace — Sign up", on_load=[AuthState.clear_auth_error, LoginState.reset_visibility])
 app.add_page(
     news_detail_page,
     route="/news/[news_category]/[article_slug]",

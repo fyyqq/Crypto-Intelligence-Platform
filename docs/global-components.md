@@ -112,3 +112,7 @@ Set RECAPTCHA_ENABLED=true in .env to turn the v3 check back on; off by default 
 
 ### Logged-in pill spacing (2026-10-01)
 The name/plan stack in the header pill has 0.75em left padding.
+
+
+### Auth error messages and password-visibility fix (2026-10-01)
+Password show/hide resets on every visit to /login and /signup. Errors are specific (email format, password strength items, name characters, already-registered email). The logged-in header pill has 5px padding.
