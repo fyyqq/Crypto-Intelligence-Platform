@@ -68,6 +68,9 @@ Per explicit request (`el-60..65`): homepage news strip cards are now compact (`
 ### 🔧 Follow-up: Markets & Finance strip removed from the homepage; continuous autoplay (2026-09-30 session)
 Per explicit request (`el-66/67`): the second homepage news strip ("Markets & Finance") is removed (`frontend.py::index`, plus the unused `NewsState.home_markets_news`); only the Cryptocurrency strip remains. Its autoplay (`assets/chain_pills.js`) is now a continuous drift (~45px/s, `requestAnimationFrame`) instead of stepping one card every 3.5s, looping to the start at the end; it still pauses while hovered (cards or arrows), dragging, or the tab is hidden, and resumes from wherever the user scrolled. Verified live: one strip, no Markets heading, scrollLeft rising steadily (~22px per 0.5s; one sampling gap looked like a headless-browser stall), hover holds the position, zero console errors.
 
+### 🔧 Follow-up: homepage news cards get their image back (2026-09-30 session)
+Per explicit request (`el-68`): the compact homepage cards show the post's own image again (its photo/video thumbnail, else the group's profile picture, else the category fallback — same as the `/news` cards); the source-group and category badges stay hidden (only "Telegram News" and the time remain). `news_page._news_card(compact=True)` now only hides the badges. Verified live: 50 cards, 50 images, badges = Telegram News only, zero console errors.
+
 ### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
 * **Why:** This ensures that if the terminal session suddenly runs out of API limits, the current progress state is perfectly preserved right here, allowing a seamless handoff to GitHub Copilot inside VS Code without losing data.
 

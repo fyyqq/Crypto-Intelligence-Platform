@@ -88,3 +88,9 @@ The homepage news strips show 50 compact cards each (no image; the source-group 
 The homepage now has a single news strip (Cryptocurrency, 50 compact cards); the Markets & Finance strip was removed. Autoplay is a continuous drift (about 45px/s), not card-by-card, looping at the end, and pausing on hover, drag or a hidden tab.
 
 </details>
+
+<details><summary>News strip cards show images again</summary>
+
+The homepage news cards show the post's own image (else the group's profile picture, else the category fallback) again; only the source-group and category badges stay hidden.
+
+</details>

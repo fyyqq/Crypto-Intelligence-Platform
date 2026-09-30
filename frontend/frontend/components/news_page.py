@@ -14,11 +14,11 @@ _GRID_COLUMNS = rx.breakpoints(initial="1", sm="2", md="3", lg="4")
 
 
 def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
-    """compact=True (homepage strips): no image, and only the Telegram/time row —
-    the source and category badges are hidden."""
+    """compact=True (homepage strip): keeps the post image but hides the source and
+    category badges (only the Telegram badge and time remain)."""
     return rx.link(
         rx.vstack(
-            rx.fragment() if compact else rx.cond(
+            rx.cond(
                 article["has_image"],
                 rx.box(
                     rx.image(
