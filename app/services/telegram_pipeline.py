@@ -1,11 +1,9 @@
 """Standalone Telegram-group ingestion pipeline — feeds the same
 `news_articles` table app/services/news_pipeline.py writes to. Each group
 in TELEGRAM_GROUPS is tagged with which of the four /news categories
-(Crypto/AI/Finance/Tech) it belongs to; NewsState buckets every Telegram
-post into its own dedicated "<Category> Telegram News" section — e.g.
-"Cryptocurrency Telegram News" — directly below that category's regular
-RSS/Google News section, per explicit request to keep the two sources
-visually separated rather than merged into one section.
+(Crypto/AI/Finance/Tech) it belongs to; NewsState shows each post in that
+category's section alongside RSS/Google News articles, marked with a
+"Telegram News" badge.
 
 Reads via Telethon (the MTProto *client* API — logs in as the user's own
 Telegram account, not a bot) rather than the Bot API, specifically because
@@ -106,9 +104,7 @@ POSTGRES_DSN = os.environ.get(
 # category tag must be one of "Crypto"/"AI"/"Finance"/"Tech" (matches
 # news_pipeline.py's own RSS_FEEDS/GOOGLE_NEWS_QUERIES category vocabulary)
 # so NewsState._normalize_news_type's "Telegram <tag>" special-case (see
-# that module) can bucket it into the matching "<Category> Telegram News"
-# section, kept separate from that category's own RSS/Google News section
-# per explicit request.
+# that module) can place it in the matching category section.
 TELEGRAM_GROUPS: list[tuple[str, str]] = [
     ("WatcherGuru", "Crypto"),
     ("cryptocurrency_media", "Crypto"),
