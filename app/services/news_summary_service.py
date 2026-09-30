@@ -87,15 +87,15 @@ def _related_headlines(title: str, own_url: str) -> list[str]:
 _FALLBACK_MODELS = ["google/gemma-4-31b-it:free", "qwen/qwen3.8-27b:free"]
 
 
-def _call_openrouter(prompt: str) -> tuple[str, str] | None:
+def _call_openrouter(prompt: str, system: str | None = None, max_tokens: int = 600) -> tuple[str, str] | None:
     for model in [settings.openrouter_model, *_FALLBACK_MODELS]:
-        result = _call_model(prompt, model)
+        result = _call_model(prompt, model, system, max_tokens)
         if result is not None:
             return result
     return None
 
 
-def _call_model(prompt: str, model: str) -> tuple[str, str] | None:
+def _call_model(prompt: str, model: str, system: str | None = None, max_tokens: int = 600) -> tuple[str, str] | None:
     if not settings.openrouter_api_key:
         logger.info("OPENROUTER_API_KEY not configured — skipping news summary")
         return None
@@ -110,10 +110,10 @@ def _call_model(prompt: str, model: str) -> tuple[str, str] | None:
                 json={
                     "model": model,
                     "messages": [
-                        {"role": "system", "content": _SYSTEM_PROMPT},
+                        {"role": "system", "content": system or _SYSTEM_PROMPT},
                         {"role": "user", "content": prompt},
                     ],
-                    "max_tokens": 600,
+                    "max_tokens": max_tokens,
                     "reasoning": {"enabled": False},
                 },
                 timeout=40,

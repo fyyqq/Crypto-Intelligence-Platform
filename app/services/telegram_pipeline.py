@@ -119,13 +119,26 @@ TELEGRAM_GROUPS: list[tuple[str, str]] = [
     ("sarjanacryptoindonesia", "Crypto"),
     ("layergg", "Crypto"),
     ("Fin_Watch", "Finance"),  # switched from Crypto per explicit request
-    ("whalebotalerts", "Crypto"),
     ("cryptoquant_official", "Crypto"),
     ("Coin_Signals", "Crypto"),
-    ("crypto_memes", "Crypto"),
+    ("crypto_memes", "Memecoin"),  # its own /news section, no AI filtering
     ("intradaydotmy", "Finance"),  # new, per explicit request
     ("aipost", "AI"),  # new, per explicit request
 ]
+
+# Groups whose posts mix several topics (or contain chat/signals): every NEW
+# post is routed by AI (telegram_classifier.classify_post) into
+# Crypto/AI/Finance/Tech, or "Excluded" (stored but hidden). Existing posts
+# were labelled once by hand, not by OpenRouter. whalebotalerts was dropped
+# entirely and crypto_memes goes wholesale to the Memecoins section.
+AI_CLASSIFIED_GROUPS = {
+    "WatcherGuru",
+    "cryptocurrency_media",
+    "Cryptocurrency_Inside",
+    "news_crypto",
+    "sarjanacryptoindonesia",
+    "Coin_Signals",
+}
 
 # How far back a group with NO prior stored messages backfills on its
 # first-ever fetch. Matches /news's own Telegram display window (NewsState
@@ -528,6 +541,25 @@ async def store_message(
     text = (message.raw_text or message.text or "").strip()
     if not text:
         return False
+    if username in AI_CLASSIFIED_GROUPS:
+        # Blocking HTTP call — off the event loop. None (AI unavailable)
+        # keeps the group's default category.
+        from app.services.telegram_classifier import classify_post
+
+        category = await asyncio.to_thread(classify_post, username, text) or category
+    if category == "Excluded":
+        # Stored (so the incremental fetch doesn't re-classify it) but hidden
+        # from /news, without spending any image/media/article downloads.
+        return db.insert_article(
+            source_name=display_title,
+            category_label="Telegram Excluded",
+            title=_title_from_text(text),
+            url=f"https://t.me/{username}/{message.id}",
+            published_date=message.date.astimezone(datetime.timezone.utc).replace(tzinfo=None),
+            full_body_text=text,
+            image_url=None,
+            media=[],
+        )
     image_url = await _download_message_image(client, message, username)
     title = _title_from_text(text)
     body = await expand_linked_article(username, text)

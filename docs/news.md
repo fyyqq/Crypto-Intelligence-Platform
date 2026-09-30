@@ -210,3 +210,9 @@ On desktop the source slider fills the space between the heading and the search.
 The "Other News Related" cards are 3 columns at tablet width (1 on mobile and in the desktop rail), equal height, and there is no View More button. The section title search is the same large size (40px tall, 16px text, 18px icon) at every width.
 
 </details>
+
+<details><summary>AI routing of mixed Telegram groups, Memecoins section</summary>
+
+Six Telegram groups (CRYPTO NEWS, Crypto News, Crypto | Bitcoin | Ethereum | Altcoin | News, Watcher Guru, Sarjana Crypto, Coin Signals) are routed per post into Cryptocurrency / Artificial Intelligence / Markets & Finance / Technology, or Excluded (stored but hidden: signals, admin chat/opinion, promos, giveaways, memes). Government/war/geopolitics goes to Markets & Finance. New posts are classified by OpenRouter when the listener stores them (one short call, hourly-capped; on failure the group's default category is kept). The 1,426 existing posts in the 30-day window were labelled once by hand (Claude Code), not by OpenRouter. WhaleBot Alerts is no longer ingested (its rows are hidden). Crypto Memes posts all go to a new "Memecoins" section with no AI filtering.
+
+</details>

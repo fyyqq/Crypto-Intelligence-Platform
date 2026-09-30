@@ -106,6 +106,7 @@ def _fetch_articles() -> list[dict]:
                 FROM news_articles
                 WHERE published_date >= NOW() - INTERVAL '90 days'
                   AND (source_type <> 'telegram' OR published_date >= NOW() - INTERVAL '30 days')
+                  AND category_or_query IS DISTINCT FROM 'Telegram Excluded'
                 ORDER BY published_date DESC NULLS LAST, id DESC
                 """
             )
@@ -166,6 +167,7 @@ def _fetch_article_by_path(news_category: str, article_slug: str) -> tuple[dict 
                 SELECT id, source_name, category_or_query, title, url, published_date,
                        full_body_text, image_url, source_type, media
                 FROM news_articles
+                WHERE category_or_query IS DISTINCT FROM 'Telegram Excluded'
                 ORDER BY published_date DESC NULLS LAST, id DESC
                 """
             )
@@ -220,6 +222,7 @@ _TELEGRAM_CATEGORY_MAP = {
     "AI": "Artificial Intelligence",
     "Finance": "Markets & Finance",
     "Tech": "Technology",
+    "Memecoin": "Memecoins",
 }
 
 _NEWS_TYPE_COLORS = {
@@ -227,6 +230,7 @@ _NEWS_TYPE_COLORS = {
     "Artificial Intelligence": "purple",
     "Markets & Finance": "green",
     "Technology": "cyan",
+    "Memecoins": "pink",
     "General News": "gray",
 }
 
@@ -235,7 +239,8 @@ _NEWS_TYPE_ORDER = {
     "Artificial Intelligence": 1,
     "Markets & Finance": 2,
     "Technology": 3,
-    "General News": 4,
+    "Memecoins": 4,
+    "General News": 5,
 }
 
 _FALLBACK_IMAGES_BY_TYPE = {
@@ -258,6 +263,7 @@ _FALLBACK_IMAGES_BY_TYPE = {
 
 _FALLBACK_TYPE_BY_NEWS_TYPE = {
     "Cryptocurrency": "Cryptocurrency",
+    "Memecoins": "Cryptocurrency",
     "Artificial Intelligence": "Artificial Intelligence",
     "Technology": "Artificial Intelligence",
     "Markets & Finance": "Markets & Finance",
