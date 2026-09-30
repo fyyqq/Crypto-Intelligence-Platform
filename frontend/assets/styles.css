@@ -605,12 +605,14 @@
    (.coin-table-scroll-fix above). Scoped to .coin-table-scroll-fix specifically
    rather than .rt-TableRoot globally, since other rt-TableRoot instances
    elsewhere in the app should keep their normal surface styling. */
-@media (max-width: 1279px) {
-  .coin-table-scroll-fix .rt-TableRoot {
-    border: 0px;
-    backdrop-filter: none;
-    background: transparent;
-  }
+/* The surface card only covers the table root's own width, so once the table scrolls
+   sideways the part past its edge showed a different (darker) background with a vertical
+   line between the two — a visible "gray overlay". Flat/transparent at every width now. */
+.coin-table-scroll-fix .rt-TableRoot {
+  border: 0px;
+  backdrop-filter: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 /* Coin search: the icon button and the input+clear-icon wrapper both stay

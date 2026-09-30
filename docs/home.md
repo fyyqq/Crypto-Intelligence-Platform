@@ -98,3 +98,7 @@ The homepage news cards show the post's own image (else the group's profile pict
 
 ### Update (2026-10-01)
 Homepage news strip cards show the title and time on one row (time at right). The coin table clips and scrolls horizontally at every width when its content is wider than its container (previously only <=1440px).
+
+
+### Table overlay removed (2026-10-01)
+The coin table root is flat/transparent at every width, so scrolled-in columns no longer show a darker area and vertical line past the table edge. Row hover highlight is unchanged.
