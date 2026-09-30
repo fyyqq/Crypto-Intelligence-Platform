@@ -104,3 +104,7 @@ Below lg the avatar opens the profile dropdown with Log in and Sign up first; at
 
 ### reCAPTCHA v3 (2026-10-01)
 Login/signup use invisible reCAPTCHA v3 (hidden token field refreshed by `assets/recaptcha_init.js`, server check of success + action + score >= 0.5). Keys come from `.env` (`RECAPTCHA_SITE_KEY`, `RECAPTCHA_SECRET_KEY`); the site key must list the domain (e.g. localhost) in the reCAPTCHA admin console.
+
+
+### reCAPTCHA disabled by default (2026-10-01)
+Set RECAPTCHA_ENABLED=true in .env to turn the v3 check back on; off by default until the key works for the domain in use.

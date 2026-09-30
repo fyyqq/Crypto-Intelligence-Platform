@@ -78,6 +78,8 @@ class Settings(BaseSettings):
 
     # Google reCAPTCHA v3 (invisible, score based) on the login/signup forms. Set
     # RECAPTCHA_SITE_KEY / RECAPTCHA_SECRET_KEY in .env (v3 keys; v2 keys will not work).
+    # Off by default until the v3 keys are confirmed to work for the domain in use.
+    recaptcha_enabled: bool = False
     recaptcha_site_key: str = ""
     recaptcha_secret_key: str = ""
 

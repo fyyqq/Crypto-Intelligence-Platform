@@ -17,6 +17,7 @@ try:
     load_dotenv(_REPO_ROOT / ".env")
 except Exception:
     pass
+_RECAPTCHA_ENABLED = os.getenv("RECAPTCHA_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
 _RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")
 
 _GOOGLE_SVG = (
@@ -105,13 +106,14 @@ class AuthState(CoinState):
         yield
         email = str(form_data.get("email", ""))
         password = str(form_data.get("password", ""))
-        token = str(form_data.get("g-recaptcha-response", ""))
-        if not token:
-            yield self._fail("Security check not ready yet. Please try again in a moment.")
-            return
-        if not await self._run("verify_recaptcha", token, "login"):
-            yield self._fail("Security check failed. Please try again.")
-            return
+        if _RECAPTCHA_ENABLED:
+            token = str(form_data.get("g-recaptcha-response", ""))
+            if not token:
+                yield self._fail("Security check not ready yet. Please try again in a moment.")
+                return
+            if not await self._run("verify_recaptcha", token, "login"):
+                yield self._fail("Security check failed. Please try again.")
+                return
         result = await self._run("login_user", email, password)
         yield self._succeed(result) if result.ok else self._fail(result.error)
 
@@ -122,16 +124,17 @@ class AuthState(CoinState):
         self.auth_loading = True
         self.auth_error = ""
         yield
-        token = str(form_data.get("g-recaptcha-response", ""))
         if not form_data.get("terms"):
             yield self._fail("You must agree to the Terms & Conditions.")
             return
-        if not token:
-            yield self._fail("Security check not ready yet. Please try again in a moment.")
-            return
-        if not await self._run("verify_recaptcha", token, "signup"):
-            yield self._fail("Security check failed. Please try again.")
-            return
+        if _RECAPTCHA_ENABLED:
+            token = str(form_data.get("g-recaptcha-response", ""))
+            if not token:
+                yield self._fail("Security check not ready yet. Please try again in a moment.")
+                return
+            if not await self._run("verify_recaptcha", token, "signup"):
+                yield self._fail("Security check failed. Please try again.")
+                return
         result = await self._run(
             "register_user",
             str(form_data.get("full_name", "")),
@@ -266,6 +269,8 @@ def _google_button() -> rx.Component:
 def _recaptcha(action: str) -> rx.Component:
     """reCAPTCHA v3 is invisible: a hidden field holds the token, which recaptcha_init.js
     keeps fresh (and refreshes after every submit). The server checks score and action."""
+    if not _RECAPTCHA_ENABLED:
+        return rx.fragment()
     return rx.box(
         rx.el.input(type="hidden", name="g-recaptcha-response", custom_attrs={"data-action": action, "data-sitekey": _RECAPTCHA_SITE_KEY}),
         rx.script(src=f"https://www.google.com/recaptcha/api.js?render={_RECAPTCHA_SITE_KEY}"),
