@@ -216,3 +216,9 @@ The "Other News Related" cards are 3 columns at tablet width (1 on mobile and in
 Six Telegram groups (CRYPTO NEWS, Crypto News, Crypto | Bitcoin | Ethereum | Altcoin | News, Watcher Guru, Sarjana Crypto, Coin Signals) are routed per post into Cryptocurrency / Artificial Intelligence / Markets & Finance / Technology, or Excluded (stored but hidden: signals, admin chat/opinion, promos, giveaways, memes). Government/war/geopolitics goes to Markets & Finance. New posts are classified by OpenRouter when the listener stores them (one short call, hourly-capped; on failure the group's default category is kept). The 1,426 existing posts in the 30-day window were labelled once by hand (Claude Code), not by OpenRouter. WhaleBot Alerts is no longer ingested (its rows are hidden). Crypto Memes posts all go to a new "Memecoins" section with no AI filtering.
 
 </details>
+
+<details><summary>Sarjana Crypto: every photo post is kept</summary>
+
+Sarjana Crypto posts with a photo are always shown, whatever their text: a photo without a caption is stored as "📷 Photo" (default category Crypto, no AI), and a photo post the AI would have excluded as chat/opinion/signal is kept in the closest category. Photo-only members of an album already covered by a captioned post are skipped. Text-only chat/opinion/signal posts from this group are still excluded; videos without text are not stored.
+
+</details>

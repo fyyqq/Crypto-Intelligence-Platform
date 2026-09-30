@@ -140,6 +140,13 @@ AI_CLASSIFIED_GROUPS = {
     "Coin_Signals",
 }
 
+# Groups where a post with a photo is always kept, whatever its text — even
+# no text at all (a bare photo used to be dropped) or text the AI would
+# otherwise exclude as chat/opinion/signal. A photo-only post gets the title
+# "📷 Photo" and the group's default category.
+IMAGE_ALWAYS_GROUPS = {"sarjanacryptoindonesia"}
+PHOTO_ONLY_TITLE = "📷 Photo"
+
 # How far back a group with NO prior stored messages backfills on its
 # first-ever fetch. Matches /news's own Telegram display window (NewsState
 # hides Telegram posts older than 30 days; RSS/Google News keep 90).
@@ -539,14 +546,22 @@ async def store_message(
     # "**bold**". Since the card is plain rx.text (no Markdown renderer),
     # that syntax showed up as literal asterisks/underscores/backticks.
     text = (message.raw_text or message.text or "").strip()
-    if not text:
+    keep_image_post = username in IMAGE_ALWAYS_GROUPS and bool(getattr(message, "photo", None))
+    if not text and not keep_image_post:
         return False
-    if username in AI_CLASSIFIED_GROUPS:
+    if not text and getattr(message, "grouped_id", None):
+        # A photo-only member of an album: the album is already represented by
+        # its captioned post (whose reader shows every photo), or — for a pure
+        # photo album — by its first photo; storing each member would repeat it.
+        members = await _album_messages(client, message)
+        if any((m.raw_text or "").strip() for m in members) or message.id != min(m.id for m in members):
+            return False
+    if text and username in AI_CLASSIFIED_GROUPS:
         # Blocking HTTP call — off the event loop. None (AI unavailable)
         # keeps the group's default category.
         from app.services.telegram_classifier import classify_post
 
-        category = await asyncio.to_thread(classify_post, username, text) or category
+        category = await asyncio.to_thread(classify_post, username, text, not keep_image_post) or category
     if category == "Excluded":
         # Stored (so the incremental fetch doesn't re-classify it) but hidden
         # from /news, without spending any image/media/article downloads.
@@ -561,8 +576,8 @@ async def store_message(
             media=[],
         )
     image_url = await _download_message_image(client, message, username)
-    title = _title_from_text(text)
-    body = await expand_linked_article(username, text)
+    title = _title_from_text(text) if text else PHOTO_ONLY_TITLE
+    body = await expand_linked_article(username, text) if text else ""
     media, media_complete = await collect_post_media(client, message, username)
     return db.insert_article(
         source_name=display_title,

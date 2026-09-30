@@ -38,11 +38,13 @@ _GROUP_HINTS = {
 }
 
 
-def classify_post(username: str, text: str) -> str | None:
+def classify_post(username: str, text: str, allow_excluded: bool = True) -> str | None:
     if not ai_budget.allow_call():
         logger.warning("Hourly OpenRouter budget reached — @%s post keeps its default category", username)
         return None
     system = _SYSTEM_PROMPT + ("\n" + _GROUP_HINTS[username] if username in _GROUP_HINTS else "")
+    if not allow_excluded:
+        system += "\nThis post has an image that must be kept: never answer Excluded; pick the closest of Crypto, AI, Finance, Tech."
     result = _call_openrouter(f"Post:\n{text[:1500]}", system=system, max_tokens=8)
     if result is None:
         return None
@@ -50,4 +52,5 @@ def classify_post(username: str, text: str) -> str | None:
     if not match:
         return None
     word = match.group(1).lower()
-    return next(label for label in LABELS if label.lower() == word)
+    label = next(label for label in LABELS if label.lower() == word)
+    return None if (label == "Excluded" and not allow_excluded) else label
