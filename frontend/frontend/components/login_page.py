@@ -23,11 +23,17 @@ _INPUT_STYLE = {
 
 
 class LoginState(rx.State):
+    # One flag per password field so each eye only reveals its own field.
     show_password: bool = False
+    show_repeat_password: bool = False
 
     @rx.event
     def toggle_password(self):
         self.show_password = not self.show_password
+
+    @rx.event
+    def toggle_repeat_password(self):
+        self.show_repeat_password = not self.show_repeat_password
 
 
 def _left_panel() -> rx.Component:
@@ -75,9 +81,8 @@ def _left_panel() -> rx.Component:
         display="flex",
         flex_direction="column",
         justify_content="space-between",
-        min_height="520px",
+        min_height=rx.breakpoints(initial="220px", xs="100vh"),
         height="100%",
-        border_radius="14px",
         background_image="url('/login_bg.jpg')",
         background_size="cover",
         background_position="center",
@@ -89,20 +94,20 @@ def _field(placeholder: str, input_type: str = "text") -> rx.Component:
     return rx.el.input(placeholder=placeholder, type=input_type, style=_INPUT_STYLE)
 
 
-def _password_field(placeholder: str = "Enter your password") -> rx.Component:
+def _password_field(placeholder: str, show, toggle) -> rx.Component:
     return rx.box(
         rx.el.input(
             placeholder=placeholder,
-            type=rx.cond(LoginState.show_password, "text", "password"),
+            type=rx.cond(show, "text", "password"),
             style={**_INPUT_STYLE, "padding_right": "2.8em"},
         ),
         rx.box(
             rx.cond(
-                LoginState.show_password,
+                show,
                 rx.icon("eye-off", size=16, color="rgba(255,255,255,0.6)"),
                 rx.icon("eye", size=16, color="rgba(255,255,255,0.6)"),
             ),
-            on_click=LoginState.toggle_password,
+            on_click=toggle,
             position="absolute",
             right="1em",
             top="50%",
@@ -151,13 +156,13 @@ def _form_panel(mode: str) -> rx.Component:
         ),
         rx.vstack(
             *(
-                [_field("Email", "email"), _password_field()]
+                [_field("Email", "email"), _password_field("Enter your password", LoginState.show_password, LoginState.toggle_password)]
                 if login
                 else [
                     _field("Full name"),
                     _field("Email", "email"),
-                    _password_field("Password"),
-                    _password_field("Repeat password"),
+                    _password_field("Password", LoginState.show_password, LoginState.toggle_password),
+                    _password_field("Repeat password", LoginState.show_repeat_password, LoginState.toggle_repeat_password),
                 ]
             ),
             spacing="3",
@@ -189,30 +194,27 @@ def _form_panel(mode: str) -> rx.Component:
 
 
 def _auth_page(mode: str) -> rx.Component:
+    # Full-screen split: image half on the left, form half on the right (no card,
+    # no popup). Only a phone narrower than 520px stacks them (image banner on top).
     return rx.box(
         rx.script(src="/chain_pills.js"),
-        rx.box(
-            # Always two columns (image left, form right); only a phone narrower than 520px stacks them.
-            rx.grid(
-                _left_panel(),
+        rx.grid(
+            _left_panel(),
+            rx.box(
                 _form_panel(mode),
-                columns=rx.breakpoints(initial="1", xs="2"),
-                spacing="5",
-                align="stretch",
-                width="100%",
+                display="flex",
+                align_items="center",
+                justify_content="center",
+                padding="2em 1.5em",
+                background="#1c1a22",
             ),
+            columns=rx.breakpoints(initial="1", xs="2"),
+            spacing="0",
             width="100%",
-            max_width="980px",
-            padding="1em",
-            border_radius="18px",
-            background="#2b2833",
-            box_shadow="0 20px 60px rgba(0,0,0,0.5)",
+            min_height="100vh",
         ),
-        display="flex",
-        align_items="center",
-        justify_content="center",
+        width="100%",
         min_height="100vh",
-        padding="1em",
         background="#0f0e14",
         class_name="login-page",
     )

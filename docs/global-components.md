@@ -92,3 +92,7 @@ No auth yet: `CoinState.is_logged_in` is False, so the header pill shows only th
 
 ### Logged-out avatar dropdown and /signup (2026-10-01)
 Below lg the avatar opens the profile dropdown with Log in and Sign up first; at lg+ it links to /login. Login and signup (`components/login_page.py`) are two columns (image left, form right) from 520px up. `/signup` is a dummy form: Full name, Email, Password, Repeat password, terms, Google option; no backend.
+
+
+### Auth pages layout (2026-10-01)
+`/login` and `/signup` are full-screen two-column splits (image left, form right, no card), stacking below 520px. Each password field has its own show/hide toggle.
