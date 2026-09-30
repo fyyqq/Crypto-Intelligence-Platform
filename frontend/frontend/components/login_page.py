@@ -1,5 +1,24 @@
 """Dummy login and signup pages (design only — the forms aren't connected to any backend yet)."""
+import asyncio
+import os
+import sys
+from pathlib import Path
+
 import reflex as rx
+
+from frontend.state import CoinState
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Public reCAPTCHA site key (safe to expose). Defaults to Google's always-passing test key;
+# set RECAPTCHA_SITE_KEY (and RECAPTCHA_SECRET_KEY for the backend) in .env for real use.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(_REPO_ROOT / ".env")
+except Exception:
+    pass
+_RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI")
 
 _GOOGLE_SVG = (
     '<svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">'
@@ -34,6 +53,94 @@ class LoginState(rx.State):
     @rx.event
     def toggle_repeat_password(self):
         self.show_repeat_password = not self.show_repeat_password
+
+
+class AuthState(CoinState):
+    """Log in / sign up handlers. Passwords only ever pass through the submit handler —
+    they are never stored in state. Validation runs again on the server."""
+
+    auth_error: str = ""
+    auth_loading: bool = False
+    _last_submit: float = 0.0
+
+    @rx.event
+    def clear_auth_error(self):
+        self.auth_error = ""
+
+    def _throttled(self) -> bool:
+        import time
+
+        now = time.monotonic()
+        if now - self._last_submit < 1.5:
+            return True
+        self._last_submit = now
+        return False
+
+    async def _run(self, fn, *args):
+        if str(_REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(_REPO_ROOT))
+        from app.services import auth_service
+
+        return await asyncio.to_thread(getattr(auth_service, fn), *args)
+
+    def _fail(self, message: str):
+        self.auth_error = message
+        self.auth_loading = False
+        # A reCAPTCHA token is single-use: give the user a fresh checkbox after any failure.
+        return rx.call_script("if (window.grecaptcha) { grecaptcha.reset(); }")
+
+    def _succeed(self, result):
+        self.is_logged_in = True
+        self.user_name = result.user_name
+        self.user_email = result.user_email
+        self.auth_error = ""
+        self.auth_loading = False
+        return rx.call_script("window.location.assign('/')")
+
+    @rx.event
+    async def submit_login(self, form_data: dict):
+        if self._throttled():
+            return
+        self.auth_loading = True
+        self.auth_error = ""
+        yield
+        email = str(form_data.get("email", ""))
+        password = str(form_data.get("password", ""))
+        token = str(form_data.get("g-recaptcha-response", ""))
+        if not token:
+            yield self._fail("Please confirm you are not a robot.")
+            return
+        if not await self._run("verify_recaptcha", token):
+            yield self._fail("reCAPTCHA verification failed. Please try again.")
+            return
+        result = await self._run("login_user", email, password)
+        yield self._succeed(result) if result.ok else self._fail(result.error)
+
+    @rx.event
+    async def submit_signup(self, form_data: dict):
+        if self._throttled():
+            return
+        self.auth_loading = True
+        self.auth_error = ""
+        yield
+        token = str(form_data.get("g-recaptcha-response", ""))
+        if not form_data.get("terms"):
+            yield self._fail("You must agree to the Terms & Conditions.")
+            return
+        if not token:
+            yield self._fail("Please confirm you are not a robot.")
+            return
+        if not await self._run("verify_recaptcha", token):
+            yield self._fail("reCAPTCHA verification failed. Please try again.")
+            return
+        result = await self._run(
+            "register_user",
+            str(form_data.get("full_name", "")),
+            str(form_data.get("email", "")),
+            str(form_data.get("password", "")),
+            str(form_data.get("repeat_password", "")),
+        )
+        yield self._succeed(result) if result.ok else self._fail(result.error)
 
 
 def _left_panel() -> rx.Component:
@@ -90,14 +197,26 @@ def _left_panel() -> rx.Component:
     )
 
 
-def _field(placeholder: str, input_type: str = "text") -> rx.Component:
-    return rx.el.input(placeholder=placeholder, type=input_type, style=_INPUT_STYLE)
+def _field(placeholder: str, name: str, input_type: str = "text", max_length: int = 254, autocomplete: str = "off") -> rx.Component:
+    return rx.el.input(
+        placeholder=placeholder,
+        name=name,
+        type=input_type,
+        required=True,
+        max_length=max_length,
+        auto_complete=autocomplete,
+        style=_INPUT_STYLE,
+    )
 
 
-def _password_field(placeholder: str, show, toggle) -> rx.Component:
+def _password_field(placeholder: str, name: str, show, toggle, autocomplete: str) -> rx.Component:
     return rx.box(
         rx.el.input(
             placeholder=placeholder,
+            name=name,
+            required=True,
+            max_length=128,
+            auto_complete=autocomplete,
             type=rx.cond(show, "text", "password"),
             style={**_INPUT_STYLE, "padding_right": "2.8em"},
         ),
@@ -135,6 +254,7 @@ def _google_button() -> rx.Component:
     return rx.button(
         rx.html(_GOOGLE_SVG),
         "Google",
+        type="button",
         size="3",
         variant="outline",
         width="100%",
@@ -144,8 +264,31 @@ def _google_button() -> rx.Component:
     )
 
 
+def _recaptcha() -> rx.Component:
+    return rx.box(
+        rx.el.div(class_name="g-recaptcha", custom_attrs={"data-sitekey": _RECAPTCHA_SITE_KEY}),
+        rx.script(src="https://www.google.com/recaptcha/api.js?render=explicit"),
+        rx.script(src="/recaptcha_init.js"),
+        width="100%",
+        min_height="78px",
+    )
+
+
 def _form_panel(mode: str) -> rx.Component:
     login = mode == "login"
+    fields = (
+        [
+            _field("Email", "email", "email", autocomplete="email"),
+            _password_field("Enter your password", "password", LoginState.show_password, LoginState.toggle_password, "current-password"),
+        ]
+        if login
+        else [
+            _field("Full name", "full_name", "text", max_length=80, autocomplete="name"),
+            _field("Email", "email", "email", autocomplete="email"),
+            _password_field("Password", "password", LoginState.show_password, LoginState.toggle_password, "new-password"),
+            _password_field("Repeat password", "repeat_password", LoginState.show_repeat_password, LoginState.toggle_repeat_password, "new-password"),
+        ]
+    )
     return rx.vstack(
         rx.heading("Log in to your account" if login else "Create an account", size="6", color="#fff"),
         rx.hstack(
@@ -154,33 +297,40 @@ def _form_panel(mode: str) -> rx.Component:
             spacing="2",
             wrap="wrap",
         ),
-        rx.vstack(
-            *(
-                [_field("Email", "email"), _password_field("Enter your password", LoginState.show_password, LoginState.toggle_password)]
-                if login
-                else [
-                    _field("Full name"),
-                    _field("Email", "email"),
-                    _password_field("Password", LoginState.show_password, LoginState.toggle_password),
-                    _password_field("Repeat password", LoginState.show_repeat_password, LoginState.toggle_repeat_password),
-                ]
+        rx.form(
+            rx.vstack(
+                *fields,
+                rx.cond(
+                    login,
+                    rx.box(rx.link("Forgot password?", href="#", size="1", color="rgba(255,255,255,0.8)"), width="100%", text_align="right"),
+                    rx.hstack(
+                        rx.checkbox(name="terms", required=True, size="1"),
+                        rx.text("I agree to the Terms & Conditions", size="1", color="rgba(255,255,255,0.8)"),
+                        spacing="2",
+                        align="center",
+                    ),
+                ),
+                _recaptcha(),
+                rx.cond(
+                    AuthState.auth_error != "",
+                    rx.callout(AuthState.auth_error, icon="triangle-alert", color_scheme="red", size="1", width="100%"),
+                ),
+                rx.button(
+                    rx.cond(AuthState.auth_loading, rx.spinner(size="2"), rx.text("Log in" if login else "Create account")),
+                    type="submit",
+                    size="3",
+                    width="100%",
+                    color_scheme="blue",
+                    cursor="pointer",
+                    disabled=AuthState.auth_loading,
+                ),
+                spacing="3",
+                width="100%",
             ),
-            spacing="3",
-            width="100%",
-            margin_top="0.5em",
-        ),
-        rx.hstack(
-            rx.hstack(
-                rx.checkbox(default_checked=True, size="1"),
-                rx.text("Remember me" if login else "I agree to the Terms & Conditions", size="1", color="rgba(255,255,255,0.8)"),
-                spacing="2",
-                align="center",
-            ),
-            *([rx.link("Forgot password?", href="#", size="1", color="rgba(255,255,255,0.8)")] if login else []),
-            justify="between",
+            on_submit=AuthState.submit_login if login else AuthState.submit_signup,
+            reset_on_submit=False,
             width="100%",
         ),
-        rx.button("Log in" if login else "Create account", size="3", width="100%", color_scheme="blue", cursor="pointer"),
         _divider("Or log in with" if login else "Or register with"),
         _google_button(),
         spacing="4",

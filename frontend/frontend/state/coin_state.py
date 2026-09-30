@@ -1092,6 +1092,8 @@ class CoinState(rx.State):
     # No real auth yet (login form is a dummy): everyone is logged out, so the
     # header pill hides the name/plan text and leads to /login.
     is_logged_in: bool = False
+    user_name: str = ""
+    user_email: str = ""
 
     # Floating-logo chatbot popup (frontend.py::_floating_logo/_chat_widget)
     # — click the floating logo to open, click it again or click the popup's
@@ -1566,6 +1568,14 @@ class CoinState(rx.State):
         # Logged out: read the viewport width. lg+ (1280px) goes straight to
         # /login; below that the dropdown opens (it holds the nav links too).
         return rx.call_script("window.innerWidth", callback=CoinState.profile_pill_click_width)
+
+    @rx.event
+    def logout(self):
+        self.is_logged_in = False
+        self.user_name = ""
+        self.user_email = ""
+        self.profile_menu_open = False
+        return rx.call_script("window.location.assign('/')")
 
     @rx.event
     def profile_pill_click_width(self, width: int):

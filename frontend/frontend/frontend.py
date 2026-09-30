@@ -20,7 +20,7 @@ from frontend.components import (
     news_page_content,
     watchlist_table,
 )
-from frontend.components.login_page import login_page, signup_page
+from frontend.components.login_page import AuthState, login_page, signup_page
 from frontend.state import CoinState, NewsDetailState, NewsState
 
 
@@ -128,6 +128,16 @@ def _profile_dropdown() -> rx.Component:
         _nav_menu_items(),
         _watchlist_menu_item(),
         _color_mode_menu_item(),
+        rx.cond(
+            CoinState.is_logged_in,
+            rx.hstack(
+                rx.icon("log-out", size=16),
+                rx.text("Log out", size="2"),
+                align="center",
+                class_name="profile-menu-item",
+                on_click=CoinState.logout,
+            ),
+        ),
         class_name="profile-dropdown",
     )
 
@@ -147,7 +157,7 @@ def _profile_pill() -> rx.Component:
     return rx.box(
         rx.hstack(
             rx.vstack(
-                rx.text("Fyqq", size="2", weight="bold"),
+                rx.text(CoinState.user_name, size="2", weight="bold", max_width="140px", overflow="hidden", text_overflow="ellipsis", white_space="nowrap"),
                 rx.badge("Standard", color_scheme="gray", size="1"),
                 spacing="1",
                 align="start",
@@ -819,8 +829,8 @@ app.add_page(
     title=NewsState.view_all_title,
     on_load=[CoinState.load_coins, NewsState.load_news, NewsState.reset_view_all_page, NewsState.watch_new_articles],
 )
-app.add_page(login_page, route="/login", title="Repace — Log in")
-app.add_page(signup_page, route="/signup", title="Repace — Sign up")
+app.add_page(login_page, route="/login", title="Repace — Log in", on_load=[AuthState.clear_auth_error])
+app.add_page(signup_page, route="/signup", title="Repace — Sign up", on_load=[AuthState.clear_auth_error])
 app.add_page(
     news_detail_page,
     route="/news/[news_category]/[article_slug]",

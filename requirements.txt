@@ -23,3 +23,5 @@ googlenewsdecoder>=0.2.1
 # client library, logs in as the user's own account (not a bot) so it can
 # read groups the user is a member of without needing admin rights.
 telethon>=1.36
+argon2-cffi>=23.1
+email-validator>=2.1

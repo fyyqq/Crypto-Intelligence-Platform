@@ -96,3 +96,7 @@ Below lg the avatar opens the profile dropdown with Log in and Sign up first; at
 
 ### Auth pages layout (2026-10-01)
 `/login` and `/signup` are full-screen two-column splits (image left, form right, no card), stacking below 520px. Each password field has its own show/hide toggle.
+
+
+### Login/signup backend (2026-10-01)
+`users` table (Argon2id hashes), `app/services/auth_service.py` (server-side validation, generic login errors, 5-failure/15-minute lockout), reCAPTCHA v2 on both forms (Google test keys by default; set RECAPTCHA_SITE_KEY/RECAPTCHA_SECRET_KEY in .env), `AuthState` handlers, header shows the user name and a Log out row. Session is in-memory per browser session. Forgot password and Google login are not built yet.
