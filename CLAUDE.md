@@ -140,6 +140,9 @@ Per explicit request (real v3 keys now in `.env` as `RECAPTCHA_SITE_KEY` / `RECA
 ### 🔧 Follow-up: reCAPTCHA turned off by default via a flag (2026-10-01 session)
 The user's own signup failed and my v3 test had shown Google rejecting tokens (`browser-error`), so per their instruction reCAPTCHA is now disabled: `RECAPTCHA_ENABLED` (env; `settings.recaptcha_enabled`, default false). When off, the forms render no captcha and the handlers skip the check; all other validation, hashing and lockout are unchanged. To re-enable: set `RECAPTCHA_ENABLED=true` in `.env` (keys already there) after adding the domain to the key's allowed domains, then restart. Verified: signup with no captcha succeeded end to end (test user `sec.ui@example.com` / `Sec Tester`, then deleted; `users` is empty). Docs in `docs/global-components.md`; Notion pending.
 
+### 🔧 Follow-up: spacing left of the name in the logged-in header pill (2026-10-01 session)
+Per explicit request (`el-104`): the name + "Standard" stack in the header pill touched the pill's left border because the pill's breakpoint-based left padding (an `rx.cond` around `rx.breakpoints`) computed to 0px. The stack itself now has `padding_left="0.75em"` (`frontend.py::_profile_pill`). Verified logged in: name starts 13px inside the pill. Test user deleted afterwards (`users` empty).
+
 ### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
 * **Why:** This ensures that if the terminal session suddenly runs out of API limits, the current progress state is perfectly preserved right here, allowing a seamless handoff to GitHub Copilot inside VS Code without losing data.
 

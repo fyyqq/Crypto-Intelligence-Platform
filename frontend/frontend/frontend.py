@@ -161,6 +161,7 @@ def _profile_pill() -> rx.Component:
                 rx.badge("Standard", color_scheme="gray", size="1"),
                 spacing="1",
                 align="start",
+                padding_left="0.75em",
                 # Hidden below the iPad-portrait breakpoint (md, 768px) — on
                 # a phone-width header there isn't room for this text column
                 # too, so the pill collapses to just the avatar there.

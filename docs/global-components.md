@@ -108,3 +108,7 @@ Login/signup use invisible reCAPTCHA v3 (hidden token field refreshed by `assets
 
 ### reCAPTCHA disabled by default (2026-10-01)
 Set RECAPTCHA_ENABLED=true in .env to turn the v3 check back on; off by default until the key works for the domain in use.
+
+
+### Logged-in pill spacing (2026-10-01)
+The name/plan stack in the header pill has 0.75em left padding.
