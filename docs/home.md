@@ -94,3 +94,7 @@ The homepage now has a single news strip (Cryptocurrency, 50 compact cards); the
 The homepage news cards show the post's own image (else the group's profile picture, else the category fallback) again; only the source-group and category badges stay hidden.
 
 </details>
+
+
+### Update (2026-10-01)
+Homepage news strip cards show the title and time on one row (time at right). The coin table clips and scrolls horizontally at every width when its content is wider than its container (previously only <=1440px).

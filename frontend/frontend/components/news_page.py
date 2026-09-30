@@ -40,35 +40,53 @@ def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
                 ),
             ),
             rx.vstack(
-                rx.hstack(
-                    rx.hstack(
-                        rx.fragment() if compact else rx.badge(
-                            article["source_name"],
-                            color_scheme=article["badge_color"],
-                            variant="surface",
-                            size="1",
-                            # A long publisher/group name is cut with an ellipsis instead of overflowing the card.
-                            style={"max_width": "100%", "display": "inline-block", "overflow": "hidden", "text_overflow": "ellipsis", "white_space": "nowrap"},
-                        ),
-                        rx.fragment() if compact else rx.badge(
-                            article["news_type"],
-                            color_scheme=article["news_type_color"],
-                            variant="soft",
-                            size="1",
-                        ),
-                        spacing="2",
-                        align="center",
-                        min_width="0",
-                        flex="1 1 0",
-                        flex_wrap="wrap",
-                    ),
-                    rx.text(article["time_display"], size="1", color_scheme="gray", white_space="nowrap", flex_shrink="0"),
-                    spacing="2",
-                    align="start",
-                    justify="between",
-                    width="100%",
+                *(
+                    []
+                    if compact
+                    else [
+                        rx.hstack(
+                            rx.hstack(
+                                rx.badge(
+                                    article["source_name"],
+                                    color_scheme=article["badge_color"],
+                                    variant="surface",
+                                    size="1",
+                                    # A long publisher/group name is cut with an ellipsis instead of overflowing the card.
+                                    style={"max_width": "100%", "display": "inline-block", "overflow": "hidden", "text_overflow": "ellipsis", "white_space": "nowrap"},
+                                ),
+                                rx.badge(
+                                    article["news_type"],
+                                    color_scheme=article["news_type_color"],
+                                    variant="soft",
+                                    size="1",
+                                ),
+                                spacing="2",
+                                align="center",
+                                min_width="0",
+                                flex="1 1 0",
+                                flex_wrap="wrap",
+                            ),
+                            rx.text(article["time_display"], size="1", color_scheme="gray", white_space="nowrap", flex_shrink="0"),
+                            spacing="2",
+                            align="start",
+                            justify="between",
+                            width="100%",
+                        )
+                    ]
                 ),
-                rx.text(article["title"], weight="bold", size="3", style={"display": "-webkit-box", "-webkit-line-clamp": "3", "-webkit-box-orient": "vertical", "overflow": "hidden"}),
+                (
+                    # Compact (homepage strip): title and time share one row, time at the right.
+                    rx.hstack(
+                        rx.text(article["title"], weight="bold", size="3", style={"flex": "1 1 0", "min_width": "0", "display": "-webkit-box", "-webkit-line-clamp": "3", "-webkit-box-orient": "vertical", "overflow": "hidden"}),
+                        rx.text(article["time_display"], size="1", color_scheme="gray", white_space="nowrap", flex_shrink="0"),
+                        spacing="3",
+                        align="start",
+                        justify="between",
+                        width="100%",
+                    )
+                    if compact
+                    else rx.text(article["title"], weight="bold", size="3", style={"display": "-webkit-box", "-webkit-line-clamp": "3", "-webkit-box-orient": "vertical", "overflow": "hidden"})
+                ),
                 rx.cond(
                     article["has_snippet"],
                     rx.text(
