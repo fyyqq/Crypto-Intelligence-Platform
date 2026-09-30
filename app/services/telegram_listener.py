@@ -80,7 +80,7 @@ async def _run() -> None:
         except Exception as exc:  # noqa: BLE001 — one bad group must not stop the others
             logger.warning("SKIP group (could not resolve @%s: %s)", username, exc)
             continue
-        groups[utils.get_peer_id(entity)] = (username, category, _group_display_title(entity))
+        groups[utils.get_peer_id(entity)] = (username, category, _group_display_title(entity, username))
         entities.append(entity)
 
     @client.on(events.NewMessage(chats=entities))

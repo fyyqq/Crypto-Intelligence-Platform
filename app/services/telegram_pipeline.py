@@ -338,12 +338,63 @@ async def ensure_group_avatar(client: TelegramClient, entity, username: str) -> 
         logger.warning("SKIP avatar download for @%s: %s", username, exc)
 
 
-def _group_display_title(entity) -> str:
+# Short display names for groups whose Telegram title is a slogan.
+_DISPLAY_NAME_OVERRIDES = {"intradaydotmy": "INTRADAY.my"}
+
+# Groups whose posts are just a teaser plus a link to their own website
+# article, mapped to that website's domain. For these, the article's real
+# body text replaces the teaser (see expand_linked_article).
+_LINKED_ARTICLE_DOMAINS = {"intradaydotmy": "intraday.my"}
+
+
+def _linked_article_url(text: str, domain: str) -> str | None:
+    """First link in the post that points at the group's own website
+    (exactly `domain` or `www.<domain>`, not a subdomain like vip.<domain>)."""
+    pattern = rf"https?://(?:www\.)?{re.escape(domain)}/[^\s)\]>]+"
+    match = re.search(pattern, text, flags=re.IGNORECASE)
+    return match.group(0).rstrip(".,;!?") if match else None
+
+
+def fetch_linked_article_body(url: str) -> str | None:
+    """Blocking: downloads the page and extracts its article text with
+    trafilatura (the same extractor the RSS/Google News pipeline uses).
+    Returns None on any failure, so the caller keeps the original post text.
+    """
+    import trafilatura
+
+    try:
+        downloaded = trafilatura.fetch_url(url)
+        body = trafilatura.extract(downloaded) if downloaded else None
+    except Exception as exc:  # noqa: BLE001 — a dead link must never stop ingestion
+        logger.warning("SKIP linked article %s (%s)", url, exc)
+        return None
+    body = (body or "").strip()
+    return body or None
+
+
+async def expand_linked_article(username: str, text: str) -> str:
+    """For a group in _LINKED_ARTICLE_DOMAINS, returns the linked article's
+    body in place of the post's teaser text; otherwise (or on failure) the
+    original text unchanged.
+    """
+    domain = _LINKED_ARTICLE_DOMAINS.get(username)
+    if not domain:
+        return text
+    url = _linked_article_url(text, domain)
+    if not url:
+        return text
+    body = await asyncio.to_thread(fetch_linked_article_body, url)
+    return body or text
+
+
+def _group_display_title(entity, username: str | None = None) -> str:
     """The group/channel's real display name (what /news shows as
     `source_name`), not the @username slug — matches how every other
     source in news_articles is named (e.g. "TechCrunch", not
     "techcrunch.com").
     """
+    if username in _DISPLAY_NAME_OVERRIDES:
+        return _DISPLAY_NAME_OVERRIDES[username]
     if isinstance(entity, (Channel, Chat)):
         return entity.title or entity.username or "Telegram"
     return getattr(entity, "title", None) or getattr(entity, "username", None) or "Telegram"
@@ -373,13 +424,15 @@ async def store_message(
     if not text:
         return False
     image_url = await _download_message_image(client, message, username)
+    title = _title_from_text(text)
+    body = await expand_linked_article(username, text)
     return db.insert_article(
         source_name=display_title,
         category_label=f"Telegram {category}",
-        title=_title_from_text(text),
+        title=title,
         url=f"https://t.me/{username}/{message.id}",
         published_date=message.date.astimezone(datetime.timezone.utc).replace(tzinfo=None),
-        full_body_text=text,
+        full_body_text=body,
         image_url=image_url,
     )
 
@@ -392,7 +445,7 @@ async def _ingest_group(client: TelegramClient, db: TelegramNewsDB, username: st
         logger.warning("SKIP group (could not resolve @%s: %s)", username, exc)
         return stats
 
-    display_title = _group_display_title(entity)
+    display_title = _group_display_title(entity, username)
     await ensure_group_avatar(client, entity, username)
     min_id = db.last_message_id(username)
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=_HISTORICAL_WINDOW_DAYS)

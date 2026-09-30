@@ -143,6 +143,12 @@ An article with no extractable web body stays honest: the reader displays an una
 `reflex run --env prod --single-port` retains this project’s existing direct-dynamic-route limitation: a hard fresh request to `/news/[news_category]/[article_slug]` can receive a static-export 404 before the SPA mounts. Opening an article from the `/news` card grid is client-side and verified; fixing hard-refresh/share deep links requires separate hosting/rewrite configuration rather than a reader-component change.
 </details>
 
+<details>
+<summary><strong>🔗 INTRADAY.my posts: linked article body and short source name</strong></summary>
+
+The INTRADAY.my group posts a short teaser plus a link to the article on intraday.my. For that group, `telegram_pipeline.expand_linked_article` finds the first link to exactly `intraday.my`/`www.intraday.my` (not subdomains such as `vip.intraday.my`, nor other sites), downloads the page and extracts the article text with `trafilatura`, and stores that as the post's body in place of the teaser; the post title stays the post's own first line. If the fetch fails, the original teaser is kept. The source name is overridden from the group's Telegram slogan ("INTRADAY.my - Website Pasaran Kewangan No 1 di Malaysia") to **INTRADAY.my** (`_DISPLAY_NAME_OVERRIDES`). Both apply to new posts at ingestion; `scripts/expand_intraday_links.py` did the one-time backfill (renamed 306 rows; 268 posts had a link and were all expanded, 0 failures; 38 without a link were left alone). The teaser text isn't kept, since the article contains the same information. Other groups are unaffected.
+</details>
+
 ## Automatic re-ingestion
 
 `app/scheduler/jobs.py::run_news_pipeline_sync` (RSS/Google News) runs every `settings.news_pipeline_sync_interval_hours` (0.25h/15min default; this project's own `.env` overrides it to 0.5h/30min), gated by its `SyncLog` row (`SyncType.NEWS_PIPELINE`). This only takes effect while the FastAPI backend process (`app/main.py`) is running — it calls `start_scheduler()` on startup. Telegram is not scheduled here: it runs in its own real-time listener process (see "Real-time listener and page auto-refresh" above).
