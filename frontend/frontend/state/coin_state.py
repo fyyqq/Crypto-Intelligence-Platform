@@ -1560,7 +1560,16 @@ class CoinState(rx.State):
 
     @rx.event
     def profile_pill_click(self):
-        if not self.is_logged_in:
+        if self.is_logged_in:
+            self.profile_menu_open = not self.profile_menu_open
+            return
+        # Logged out: read the viewport width. lg+ (1280px) goes straight to
+        # /login; below that the dropdown opens (it holds the nav links too).
+        return rx.call_script("window.innerWidth", callback=CoinState.profile_pill_click_width)
+
+    @rx.event
+    def profile_pill_click_width(self, width: int):
+        if width >= 1280:
             return rx.call_script("window.location.assign('/login')")
         self.profile_menu_open = not self.profile_menu_open
 

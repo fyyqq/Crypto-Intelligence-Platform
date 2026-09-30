@@ -20,7 +20,7 @@ from frontend.components import (
     news_page_content,
     watchlist_table,
 )
-from frontend.components.login_page import login_page
+from frontend.components.login_page import login_page, signup_page
 from frontend.state import CoinState, NewsDetailState, NewsState
 
 
@@ -99,8 +99,32 @@ def _nav_menu_items() -> rx.Component:
     )
 
 
+def _auth_menu_items() -> rx.Component:
+    """Log in / Sign up rows, first in the dropdown while logged out (the avatar
+    opens the dropdown below lg instead of linking straight to /login)."""
+    return rx.cond(
+        CoinState.is_logged_in,
+        rx.fragment(),
+        rx.box(
+            *[
+                rx.link(
+                    rx.hstack(rx.text(label, size="2"), align="center", class_name="profile-menu-item"),
+                    href=href,
+                    underline="none",
+                    display="block",
+                    width="100%",
+                    color="var(--gray-12)",
+                )
+                for label, href in [("Log in", "/login"), ("Sign up", "/signup")]
+            ],
+            rx.divider(margin_y="0.25em"),
+        ),
+    )
+
+
 def _profile_dropdown() -> rx.Component:
     return rx.box(
+        _auth_menu_items(),
         _nav_menu_items(),
         _watchlist_menu_item(),
         _color_mode_menu_item(),
@@ -164,8 +188,8 @@ def _profile_pill() -> rx.Component:
             border_radius="9999px",
             background="var(--gray-a2)",
         ),
-        rx.cond(CoinState.profile_menu_open & CoinState.is_logged_in, _profile_dropdown(), rx.fragment()),
-        # Logged out: the avatar leads to the login page instead of opening the menu.
+        rx.cond(CoinState.profile_menu_open, _profile_dropdown(), rx.fragment()),
+        # Logged out: at lg+ the avatar links to /login; below lg it opens the dropdown (Log in / Sign up first).
         on_click=CoinState.profile_pill_click,
         cursor="pointer",
         position="relative",
@@ -796,6 +820,7 @@ app.add_page(
     on_load=[CoinState.load_coins, NewsState.load_news, NewsState.reset_view_all_page, NewsState.watch_new_articles],
 )
 app.add_page(login_page, route="/login", title="Repace — Log in")
+app.add_page(signup_page, route="/signup", title="Repace — Sign up")
 app.add_page(
     news_detail_page,
     route="/news/[news_category]/[article_slug]",

@@ -88,3 +88,7 @@ At desktop width the header's "News" link has a hover dropdown listing Cryptocur
 
 ### Login page and logged-out header pill (2026-10-01)
 No auth yet: `CoinState.is_logged_in` is False, so the header pill shows only the avatar and click goes to `/login`. `/login` is a dummy design-only page (`components/login_page.py`): email/password form, Google option (no Apple), no backend. `/signup` is not built yet. Below lg the nav links live in the profile dropdown, so logged-out small-screen users cannot reach them from the header until this is revisited.
+
+
+### Logged-out avatar dropdown and /signup (2026-10-01)
+Below lg the avatar opens the profile dropdown with Log in and Sign up first; at lg+ it links to /login. Login and signup (`components/login_page.py`) are two columns (image left, form right) from 520px up. `/signup` is a dummy form: Full name, Email, Password, Repeat password, terms, Google option; no backend.

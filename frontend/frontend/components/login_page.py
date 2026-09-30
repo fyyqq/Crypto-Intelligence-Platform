@@ -1,4 +1,4 @@
-"""Dummy login page (design only — the form isn't connected to any backend yet)."""
+"""Dummy login and signup pages (design only — the forms aren't connected to any backend yet)."""
 import reflex as rx
 
 _GOOGLE_SVG = (
@@ -75,7 +75,7 @@ def _left_panel() -> rx.Component:
         display="flex",
         flex_direction="column",
         justify_content="space-between",
-        min_height="560px",
+        min_height="520px",
         height="100%",
         border_radius="14px",
         background_image="url('/login_bg.jpg')",
@@ -89,10 +89,10 @@ def _field(placeholder: str, input_type: str = "text") -> rx.Component:
     return rx.el.input(placeholder=placeholder, type=input_type, style=_INPUT_STYLE)
 
 
-def _password_field() -> rx.Component:
+def _password_field(placeholder: str = "Enter your password") -> rx.Component:
     return rx.box(
         rx.el.input(
-            placeholder="Enter your password",
+            placeholder=placeholder,
             type=rx.cond(LoginState.show_password, "text", "password"),
             style={**_INPUT_STYLE, "padding_right": "2.8em"},
         ),
@@ -115,70 +115,89 @@ def _password_field() -> rx.Component:
     )
 
 
-def _form_panel() -> rx.Component:
+def _divider(label: str) -> rx.Component:
+    return rx.hstack(
+        rx.box(height="1px", flex="1", background="rgba(255,255,255,0.12)"),
+        rx.text(label, size="1", color="rgba(255,255,255,0.5)", white_space="nowrap"),
+        rx.box(height="1px", flex="1", background="rgba(255,255,255,0.12)"),
+        spacing="3",
+        align="center",
+        width="100%",
+    )
+
+
+def _google_button() -> rx.Component:
+    return rx.button(
+        rx.html(_GOOGLE_SVG),
+        "Google",
+        size="3",
+        variant="outline",
+        width="100%",
+        color="#fff",
+        cursor="pointer",
+        style={"border": "1px solid rgba(255,255,255,0.25)", "gap": "0.6em", "color": "#fff"},
+    )
+
+
+def _form_panel(mode: str) -> rx.Component:
+    login = mode == "login"
     return rx.vstack(
-        rx.heading("Log in to your account", size="7", color="#fff"),
+        rx.heading("Log in to your account" if login else "Create an account", size="6", color="#fff"),
         rx.hstack(
-            rx.text("Don't have an account?", size="2", color="rgba(255,255,255,0.6)"),
-            rx.link("Sign up", href="/signup", size="2", color="#fff"),
+            rx.text("Don't have an account?" if login else "Already have an account?", size="2", color="rgba(255,255,255,0.6)"),
+            rx.link("Sign up" if login else "Log in", href="/signup" if login else "/login", size="2", color="#fff"),
             spacing="2",
+            wrap="wrap",
         ),
         rx.vstack(
-            _field("Email", "email"),
-            _password_field(),
+            *(
+                [_field("Email", "email"), _password_field()]
+                if login
+                else [
+                    _field("Full name"),
+                    _field("Email", "email"),
+                    _password_field("Password"),
+                    _password_field("Repeat password"),
+                ]
+            ),
             spacing="3",
             width="100%",
-            margin_top="0.75em",
+            margin_top="0.5em",
         ),
         rx.hstack(
             rx.hstack(
                 rx.checkbox(default_checked=True, size="1"),
-                rx.text("Remember me", size="1", color="rgba(255,255,255,0.8)"),
+                rx.text("Remember me" if login else "I agree to the Terms & Conditions", size="1", color="rgba(255,255,255,0.8)"),
                 spacing="2",
                 align="center",
             ),
-            rx.link("Forgot password?", href="#", size="1", color="rgba(255,255,255,0.8)"),
+            *([rx.link("Forgot password?", href="#", size="1", color="rgba(255,255,255,0.8)")] if login else []),
             justify="between",
             width="100%",
         ),
-        rx.button("Log in", size="3", width="100%", color_scheme="blue", cursor="pointer"),
-        rx.hstack(
-            rx.box(height="1px", flex="1", background="rgba(255,255,255,0.12)"),
-            rx.text("Or log in with", size="1", color="rgba(255,255,255,0.5)", white_space="nowrap"),
-            rx.box(height="1px", flex="1", background="rgba(255,255,255,0.12)"),
-            spacing="3",
-            align="center",
-            width="100%",
-        ),
-        rx.button(
-            rx.html(_GOOGLE_SVG),
-            "Google",
-            size="3",
-            variant="outline",
-            width="100%",
-            color="#fff",
-            cursor="pointer",
-            style={"border": "1px solid rgba(255,255,255,0.25)", "gap": "0.6em", "color": "#fff"},
-        ),
+        rx.button("Log in" if login else "Create account", size="3", width="100%", color_scheme="blue", cursor="pointer"),
+        _divider("Or log in with" if login else "Or register with"),
+        _google_button(),
         spacing="4",
         align="start",
         width="100%",
         max_width="380px",
         margin="0 auto",
         justify="center",
-        padding="1.5em 0",
+        padding="1em 0",
     )
 
 
-def login_page() -> rx.Component:
+def _auth_page(mode: str) -> rx.Component:
     return rx.box(
         rx.script(src="/chain_pills.js"),
         rx.box(
+            # Always two columns (image left, form right); only a phone narrower than 520px stacks them.
             rx.grid(
                 _left_panel(),
-                _form_panel(),
-                columns=rx.breakpoints(initial="1", md="2"),
-                spacing="6",
+                _form_panel(mode),
+                columns=rx.breakpoints(initial="1", xs="2"),
+                spacing="5",
                 align="stretch",
                 width="100%",
             ),
@@ -193,7 +212,15 @@ def login_page() -> rx.Component:
         align_items="center",
         justify_content="center",
         min_height="100vh",
-        padding="1.5em",
+        padding="1em",
         background="#0f0e14",
         class_name="login-page",
     )
+
+
+def login_page() -> rx.Component:
+    return _auth_page("login")
+
+
+def signup_page() -> rx.Component:
+    return _auth_page("signup")
