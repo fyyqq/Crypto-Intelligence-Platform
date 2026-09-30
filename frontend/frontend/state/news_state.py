@@ -614,6 +614,7 @@ def _build_article_detail(row: dict | None, related_articles: list[dict]) -> dic
         **article,
         "published_display": _published_date_display(row.get("published_date")),
         **_media_grid(row.get("media")),
+        "category_url": f"/news/{_slugify(article['news_type'])}",
         "body_blocks": blocks,
         "has_body": bool(blocks),
         "related_articles": related_articles,

@@ -252,3 +252,9 @@ News cards are laid out 5 across at desktop width (3 on tablet, 2 on phones), on
 On `/news/<category>` the title and count are centred with extra space above the filter row, and the search box is centred below the desktop breakpoint. A long source name in a card's badge row is cut with an ellipsis so it never overlaps the time.
 
 </details>
+
+<details><summary>Summarize button placeholder, no Telegram badge, linked category badge</summary>
+
+Each `/news/<category>` page has a placeholder "Summarize What Happened Today" button (sparkles icon) at the right of the "Showing … articles" line; it does nothing yet. The "Telegram News" badge is no longer shown on any card or reader page. In the article reader, the category badge links to that category's page.
+
+</details>

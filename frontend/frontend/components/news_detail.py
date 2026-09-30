@@ -13,11 +13,12 @@ def _article_metadata(article: dict) -> rx.Component:
     return rx.hstack(
         rx.hstack(
             rx.badge(article["source_name"], color_scheme=article["badge_color"], variant="surface", size="1"),
-            rx.cond(
-                article["is_telegram"],
-                rx.badge("Telegram News", color_scheme="blue", variant="solid", size="1"),
+            # The category badge links to that category's own page (/news/<category>).
+            rx.link(
+                rx.badge(article["news_type"], color_scheme=article["news_type_color"], variant="soft", size="1", cursor="pointer"),
+                href=article["category_url"],
+                underline="none",
             ),
-            rx.badge(article["news_type"], color_scheme=article["news_type_color"], variant="soft", size="1"),
             spacing="2",
             flex_wrap="wrap",
         ),

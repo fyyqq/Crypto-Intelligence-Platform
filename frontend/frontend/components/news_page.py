@@ -50,10 +50,6 @@ def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
                             # A long publisher/group name is cut with an ellipsis instead of overflowing the card.
                             style={"max_width": "100%", "display": "inline-block", "overflow": "hidden", "text_overflow": "ellipsis", "white_space": "nowrap"},
                         ),
-                        rx.cond(
-                            article["is_telegram"],
-                            rx.badge("Telegram News", color_scheme="blue", variant="solid", size="1"),
-                        ),
                         rx.fragment() if compact else rx.badge(
                             article["news_type"],
                             color_scheme=article["news_type_color"],
@@ -396,16 +392,30 @@ def news_category_content() -> rx.Component:
                         width="100%",
                     ),
                     _category_filter_row(view),
-                    rx.text(
-                        "Showing ",
-                        view["range_start"],
-                        "–",
-                        view["range_end"],
-                        " of ",
-                        view["article_count"],
-                        " articles",
-                        size="2",
-                        color_scheme="gray",
+                    rx.hstack(
+                        rx.text(
+                            "Showing ",
+                            view["range_start"],
+                            "–",
+                            view["range_end"],
+                            " of ",
+                            view["article_count"],
+                            " articles",
+                            size="2",
+                            color_scheme="gray",
+                        ),
+                        # Placeholder — not wired to anything yet.
+                        rx.button(
+                            rx.icon("sparkles", size=16),
+                            "Summarize What Happened Today",
+                            size="2",
+                            variant="soft",
+                            cursor="pointer",
+                        ),
+                        justify="between",
+                        align="center",
+                        wrap="wrap",
+                        width="100%",
                     ),
                     rx.cond(
                         view["article_count"].to(int) > 0,
