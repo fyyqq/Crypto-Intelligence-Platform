@@ -339,7 +339,7 @@ async def ensure_group_avatar(client: TelegramClient, entity, username: str) -> 
 
 
 # Short display names for groups whose Telegram title is a slogan.
-_DISPLAY_NAME_OVERRIDES = {"intradaydotmy": "INTRADAY.my"}
+_DISPLAY_NAME_OVERRIDES = {"intradaydotmy": "INTRADAY.my", "sarjanacryptoindonesia": "Sarjana Crypto"}
 
 # Groups whose posts are just a teaser plus a link to their own website
 # article, mapped to that website's domain. For these, the article's real

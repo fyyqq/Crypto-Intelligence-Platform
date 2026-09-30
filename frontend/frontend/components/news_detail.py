@@ -127,6 +127,26 @@ def _article_sidebar(article: dict) -> rx.Component:
     )
 
 
+def _body_segment(segment: dict) -> rx.Component:
+    """One piece of a body line: plain text, or a URL as a real link that
+    opens in a new tab, with an external-link icon."""
+    return rx.cond(
+        segment["is_link"],
+        rx.link(
+            segment["text"],
+            rx.icon("external-link", size=14, style={"display": "inline", "vertical_align": "-2px", "margin_left": "4px"}),
+            href=segment["url"],
+            is_external=True,
+            word_break="break-all",
+        ),
+        rx.el.span(segment["text"]),
+    )
+
+
+def _body_segments(block: dict) -> rx.Component:
+    return rx.foreach(block["segments"].to(list[dict]), _body_segment)
+
+
 def _article_body(article: dict) -> rx.Component:
     return rx.cond(
         article["has_body"],
@@ -135,9 +155,9 @@ def _article_body(article: dict) -> rx.Component:
                 article["body_blocks"].to(list[dict]),
                 lambda block: rx.cond(
                     block["is_heading"],
-                    rx.heading(block["text"], size="4", padding_top="0.7em"),
+                    rx.heading(_body_segments(block), size="4", padding_top="0.7em"),
                     rx.text(
-                        block["text"],
+                        _body_segments(block),
                         size="3",
                         line_height="1.8",
                         color="var(--gray-12)",

@@ -19,6 +19,7 @@ import datetime
 import hashlib
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 import reflex as rx
 
@@ -426,7 +427,68 @@ def _split_long_source_paragraph(paragraph: str) -> list[str]:
     return chunks
 
 
-def _body_blocks(body: str, title: str) -> list[dict]:
+_URL_RE = re.compile(r"https?://[^\s<>\"']+")
+_TRAILING_URL_PUNCT = ".,;:!?\u2019\u201d\u00bb"
+# A URL is only linked when its host ends in a plausible TLD (letters only,
+# up to 12 of them): extracted web article bodies sometimes contain garbled
+# fragments like "https://www.beckershospitalreview." whose "TLD" would be a
+# 20-letter word, or "https://investor" with no dot at all, and those would
+# become dead links. Reserved names (RFC 2606) are never real.
+_MAX_TLD_LENGTH = 12
+_RESERVED_TLDS = {"invalid", "example", "test", "localhost"}
+# Telegram group whose posts are replaced by the linked article's own text
+# (see telegram_pipeline.expand_linked_article) — its bodies are not linkified.
+_NO_LINKIFY_TELEGRAM_GROUPS = {"intradaydotmy"}
+
+
+def _clean_url(raw: str) -> str:
+    url = raw
+    while url:
+        if url[-1] in _TRAILING_URL_PUNCT:
+            url = url[:-1]
+        elif url[-1] in ")]}" and url.count(")") + url.count("]") + url.count("}") > url.count("(") + url.count("[") + url.count("{"):
+            url = url[:-1]
+        else:
+            break
+    return url
+
+
+def _is_linkable_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    labels = host.split(".")
+    return (
+        len(labels) >= 2
+        and all(re.fullmatch(r"[a-z0-9-]+", label) for label in labels)
+        and re.fullmatch(r"[a-z]{2,%d}" % _MAX_TLD_LENGTH, labels[-1]) is not None
+        and labels[-1] not in _RESERVED_TLDS
+    )
+
+
+def _link_segments(text: str, linkify: bool = True) -> list[dict]:
+    """Splits one line of body text into plain and link segments so the
+    reader can render each URL as a real link (new tab, with an icon)."""
+    segments: list[dict] = []
+    position = 0
+    if linkify:
+        for match in _URL_RE.finditer(text):
+            url = _clean_url(match.group(0))
+            if not url or not _is_linkable_url(url):
+                continue
+            if match.start() > position:
+                segments.append({"text": text[position : match.start()], "url": "", "is_link": False})
+            segments.append({"text": url, "url": url, "is_link": True})
+            position = match.start() + len(url)
+    if position < len(text):
+        segments.append({"text": text[position:], "url": "", "is_link": False})
+    return segments or [{"text": text, "url": "", "is_link": False}]
+
+
+def _is_linkified_row(row: dict) -> bool:
+    match = _TELEGRAM_URL_RE.match(row.get("url") or "")
+    return not (match and match.group(1) in _NO_LINKIFY_TELEGRAM_GROUPS)
+
+
+def _body_blocks(body: str, title: str, linkify: bool = True) -> list[dict]:
     """Preserve source sections while keeping unusually long runs readable."""
     blocks: list[dict] = []
     normalized_title = re.sub(r"\s+", " ", title).strip().casefold()
@@ -435,15 +497,15 @@ def _body_blocks(body: str, title: str) -> list[dict]:
         if not line or line.casefold() == normalized_title:
             continue
         if _is_source_heading(line):
-            blocks.append({"text": line, "is_heading": True})
+            blocks.append({"text": line, "is_heading": True, "segments": _link_segments(line, linkify)})
             continue
         blocks.extend(
-            {"text": paragraph, "is_heading": False}
+            {"text": paragraph, "is_heading": False, "segments": _link_segments(paragraph, linkify)}
             for paragraph in _split_long_source_paragraph(line)
         )
     if not blocks and body.strip():
         blocks = [
-            {"text": paragraph, "is_heading": False}
+            {"text": paragraph, "is_heading": False, "segments": _link_segments(paragraph, linkify)}
             for paragraph in _split_long_source_paragraph(re.sub(r"\s+", " ", body).strip())
         ]
     return blocks
@@ -454,7 +516,7 @@ def _build_article_detail(row: dict | None, related_articles: list[dict]) -> dic
         return {}
     article = _build_article_row(row)
     body = (row.get("full_body_text") or "").strip()
-    blocks = _body_blocks(body, article["title"])
+    blocks = _body_blocks(body, article["title"], linkify=_is_linkified_row(row))
     return {
         **article,
         "published_display": _published_date_display(row.get("published_date")),
