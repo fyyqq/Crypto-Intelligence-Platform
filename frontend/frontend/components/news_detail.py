@@ -5,8 +5,8 @@ import reflex as rx
 from frontend.components.coin_detail import _ai_provider_icon
 from frontend.state import NewsDetailState
 
-# 1 column on mobile, 4 across from tablet/iPad width (768px) up, back to 1 in the narrow desktop rail (1280px+).
-_RELATED_GRID_COLUMNS = rx.breakpoints(initial="1", sm="4", lg="1")
+# 1 column on mobile, 3 across at tablet/iPad width (768px+), back to 1 in the narrow desktop rail (1280px+).
+_RELATED_GRID_COLUMNS = rx.breakpoints(initial="1", sm="3", lg="1")
 
 
 def _article_metadata(article: dict) -> rx.Component:
@@ -101,6 +101,7 @@ def _article_sidebar(article: dict) -> rx.Component:
                             spacing="0",
                             align="start",
                             width="100%",
+                            height="100%",
                             overflow="hidden",
                             border="1px solid var(--gray-a4)",
                             border_radius="6px",
@@ -110,13 +111,14 @@ def _article_sidebar(article: dict) -> rx.Component:
                         underline="none",
                         color="var(--gray-12)",
                         width="100%",
+                        display="block",
+                        height="100%",
                     ),
                 ),
                 columns=_RELATED_GRID_COLUMNS,
                 spacing="3",
                 width="100%",
             ),
-            rx.button("View More", variant="soft", color_scheme="gray", width="100%"),
             spacing="2",
             align="start",
             width="100%",

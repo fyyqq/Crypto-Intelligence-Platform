@@ -170,11 +170,11 @@ def _section_source_filter(section: dict) -> rx.Component:
 def _section_search(section: dict) -> rx.Component:
     return rx.debounce_input(
         rx.input(
-            rx.input.slot(rx.icon("search", size=13)),
+            rx.input.slot(rx.icon("search", size=18)),
             value=section["search_text"],
             placeholder="Search title",
-            # Small on mobile, the larger size from tablet up (incl. desktop).
-            size=rx.breakpoints(initial="1", sm="3"),
+            # Same (large) size at every width.
+            size="3",
             radius="full",
             width="100%",
             on_change=lambda value: NewsState.set_category_search(section["news_type"], value),
@@ -211,11 +211,12 @@ def _news_section(section: dict) -> rx.Component:
             rx.box(
                 _section_search(section),
                 justify_self="end",
-                width=rx.breakpoints(initial="180px", sm="280px"),
+                width=rx.breakpoints(initial="100%", sm="280px"),
+                max_width="280px",
                 grid_column=rx.breakpoints(initial="2", lg="3"),
                 grid_row="1",
             ),
-            columns=rx.breakpoints(initial="minmax(0, 1fr) auto", lg="auto minmax(0, 1fr) auto"),
+            columns=rx.breakpoints(initial="auto minmax(0, 1fr)", lg="auto minmax(0, 1fr) auto"),
             spacing="4",
             align_items="center",
             width="100%",

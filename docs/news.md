@@ -204,3 +204,9 @@ OpenRouter is only called when someone opens a page: the news reader (article su
 On desktop the source slider fills the space between the heading and the search. The title search is small on mobile (180px) and larger from tablet up including desktop (280px, 40px tall, 16px text). On mobile the category title and its article-count badge stack vertically.
 
 </details>
+
+<details><summary>Reader related-news layout update</summary>
+
+The "Other News Related" cards are 3 columns at tablet width (1 on mobile and in the desktop rail), equal height, and there is no View More button. The section title search is the same large size (40px tall, 16px text, 18px icon) at every width.
+
+</details>

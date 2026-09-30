@@ -49,6 +49,9 @@ Per explicit request (`el-38..40`), all `/news` sections: the title search is la
 ### 🔧 Follow-up: desktop header — full-width slider, tablet-size search (2026-09-30 session)
 Per explicit request (`el-41/42`): at lg+ the section header grid is now `auto | 1fr | auto` so the source slider fills all the space between the heading and the search box (was a centred 560px block); the title search uses the larger size (280px x 40px, 16px text) from tablet up including desktop (only mobile stays small); the title/count gap uses `spacing` (Radix `gap` didn't apply, so the badge nearly touched the title). Verified at 1440/834/375px, zero console errors.
 
+### 🔧 Follow-up: bigger search icon everywhere, 3-column equal-height related cards on tablet, View More removed (2026-09-30 session)
+Per explicit request (`el-43..46`): the `/news` section title search keeps its size 3 (40px tall, 16px text) on tablet/desktop and now uses it on mobile too (fills the space beside the stacked title, 191px at 375px; 280px max elsewhere), and its search icon is 18px (was 13). In the article reader, the "Other News Related" grid is 3 columns at tablet width (was 4; still 1 on mobile and in the narrow desktop rail) and each card link/stack fills its grid row so cards are equal height; the inert "View More" button is removed. Verified live (834px reader: three 248px columns, all cards 295px tall, no View More; search 280x40 / 280x40 / 191x40 at 1440/834/375, icon 18px; zero real console errors beyond the known dynamic-route 404 status).
+
 ### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
 * **Why:** This ensures that if the terminal session suddenly runs out of API limits, the current progress state is perfectly preserved right here, allowing a seamless handoff to GitHub Copilot inside VS Code without losing data.
 
