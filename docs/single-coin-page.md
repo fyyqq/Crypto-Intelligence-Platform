@@ -84,3 +84,7 @@ Next to the coin's name — gray outline when this coin isn't watched, filled am
 - No scheduled batch worker for the Top 500 and no side-drawer modal — both deliberate deviations from the original plan, not yet formally re-approved in the spec.
 - A few real coins' TradingView charts correctly show "No live chart available" rather than a wrong chart, even though a real chart theoretically exists somewhere with a ticker/chain mismatch this app's matching logic can't safely resolve — treated as an acceptable trade-off, not a bug to chase further right now.
 - **A real, not-yet-fixed bug**: NEAR Protocol's chart shows "No live chart available" even though NEAR trades on every major exchange — its own primary on-chain contract in this app's DB is mis-flagged to a bridged Ethereum representation instead of its native chain, so the Markets/chart data pipeline resolves off the wrong (DEX-only) token entirely. Lives in a different subsystem (`MarketDataService._upsert_contracts`'s primary-contract selection) from the TradingView-symbol logic elsewhere on this page.
+
+
+### TradingView base/price guard (2026-10-01)
+Chart symbols use the exchange pair's own base ticker when it is a plain ticker (e.g. Beam is `BEAMX` on MEXC/Binance), and pairs whose USD price is outside 0.5x-2x of the coin's price are ignored, so a same-ticker different coin can no longer be charted. Exchange priority (MEXC > KuCoin > HTX > Bybit) and USD-quote preference are unchanged.

@@ -1986,6 +1986,7 @@ class CoinState(rx.State):
         if not base:
             return None
         pairs = self.selected_coin.get("market_pairs", []) if self.selected_coin else []
+        coin_price = float((self.selected_coin or {}).get("price_raw") or 0)
         candidates = []
         for p in pairs:
             if p.get("is_dex"):
@@ -1993,11 +1994,22 @@ class CoinState(rx.State):
             prefix = _TRADINGVIEW_EXCHANGE_PREFIXES.get(p.get("exchange_name", "").strip().lower())
             if not prefix:
                 continue
-            _, _, quote = p.get("market_pair", "").partition("/")
+            pair_base, _, quote = p.get("market_pair", "").partition("/")
             quote = quote.strip().upper()
             if not re.fullmatch(r"[A-Z0-9]{2,10}", quote):
                 continue
-            candidates.append((prefix, quote, p.get("volume_24h", 0)))
+            # Price sanity: a pair whose USD price is far from this coin's own
+            # price is a different asset that merely shares the ticker.
+            pair_price = float(p.get("price") or 0)
+            if coin_price > 0 and pair_price > 0 and not (0.5 <= pair_price / coin_price <= 2.0):
+                continue
+            # Use the exchange's own base when it is a plain ticker (Beam is
+            # listed as BEAMX on Binance/MEXC/HTX/Gate; "BEAMUSDT" there is
+            # the unrelated privacy coin). A full-name base such as
+            # "SHIBA INU" is not a ticker, so those keep this coin's ticker.
+            pair_base = pair_base.strip().upper()
+            pbase = pair_base if re.fullmatch(r"[A-Z0-9]{2,15}", pair_base) else base
+            candidates.append((prefix, quote, p.get("volume_24h", 0), pbase))
         if candidates:
             priority_rank = {p: i for i, p in enumerate(_EXCHANGE_PRIORITY)}
             priority_candidates = [c for c in candidates if c[0] in priority_rank]
@@ -2009,7 +2021,7 @@ class CoinState(rx.State):
                 priority_candidates.sort(
                     key=lambda c: (priority_rank[c[0]], c[1] not in _USD_EQUIVALENT_QUOTES, -c[2])
                 )
-                prefix, quote, _volume = priority_candidates[0]
+                prefix, quote, _volume, base = priority_candidates[0]
             else:
                 # None of MEXC/KuCoin/HTX/Bybit exist for this coin — rank
                 # whatever's left (Binance, Coinbase, or any other real
@@ -2018,7 +2030,7 @@ class CoinState(rx.State):
                 # one, whatever the raw volume gap — see this function's
                 # own docstring.
                 candidates.sort(key=lambda c: (c[1] in _USD_EQUIVALENT_QUOTES, c[2]), reverse=True)
-                prefix, quote, _volume = candidates[0]
+                prefix, quote, _volume, base = candidates[0]
             return f"{prefix}:{base}{quote}"
         dex_symbol = self.selected_coin.get("tradingview_dex_symbol", "") if self.selected_coin else ""
         return dex_symbol or None
