@@ -174,3 +174,15 @@ Every URL in a post's body — Telegram posts and web articles alike — is show
 Posts store a `media` JSONB list (`{type, src, poster}`; NULL = unprocessed, `[]` = none). Photos and videos up to 100 MB are downloaded into the gitignored `frontend/assets/telegram_media/` (served live with Range support); larger videos show their thumbnail with a "Watch on Telegram" link. Albums are collected from neighbouring message ids. In the reader: a single video plays inline; a video plus photos shows the video in a large full-row cell with small square photo cells; photos only show a 2-column grid (odd first cell spans the row). Grid cards show a photo only if the post has one, otherwise the video's thumbnail. Existing posts are filled by `backfill_media` (part of the listener's catch-up). Disk use grows about 1 GB/day; no pruning yet.
 
 </details>
+
+<details><summary>AI summary in the reader</summary>
+
+Every reader page shows an "AI Summarizations" card above the body, generated on first open from the article's title and text plus up to 6 headlines about the same story from other outlets (Google News RSS search), and cached in `news_articles.ai_summary`. Free OpenRouter models are tried in turn (nemotron, gemma-4-31b, qwen3.8-27b) because they are often overloaded. Text-only: the image is not read. The prompt forbids facts not in the provided text/headlines.
+
+</details>
+
+<details><summary>Source pills per section</summary>
+
+Each section's source filter is a horizontal pill slider: All + the 10 biggest publishers of that category, ending with an "Other" dropdown for the rest. Selecting resets that section to page 1; sections stay independent.
+
+</details>

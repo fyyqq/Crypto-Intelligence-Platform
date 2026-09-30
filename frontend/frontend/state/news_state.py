@@ -23,9 +23,12 @@ from urllib.parse import urlparse
 
 import reflex as rx
 
+from frontend.state.coin_state import _format_model_badge
+
 _TELEGRAM_MEDIA_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "telegram_media"
 
 _PAGE_SIZE = 12  # 4 columns x 3 rows per page, per explicit request
+_TOP_SOURCE_PILLS = 10  # publishers shown as pills; the rest go in the "Other" dropdown
 
 _SLUG_STRIP_RE = re.compile(r"[^a-z0-9]+")
 _SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+(?=[\"'“‘A-Z0-9])")
@@ -561,6 +564,35 @@ def _body_blocks(body: str, title: str, linkify: bool = True) -> list[dict]:
     return blocks
 
 
+def _fetch_news_summary(article_id: int) -> tuple[str, str] | None:
+    import sys
+
+    root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from app.services.news_summary_service import get_news_summary
+
+    try:
+        return get_news_summary(article_id)
+    except Exception:
+        return None
+
+
+def _parse_summary_sections(raw: str) -> list[dict]:
+    """Splits the model's `TITLE: <heading>` + paragraph output into sections."""
+    parts = re.split(r"(?m)^TITLE:\s*(.+)$", raw.strip())
+    if len(parts) == 1:
+        return [{"title": "", "text": raw.strip()}] if raw.strip() else []
+    sections = []
+    if parts[0].strip():
+        sections.append({"title": "", "text": parts[0].strip()})
+    for i in range(1, len(parts), 2):
+        body = parts[i + 1].strip() if i + 1 < len(parts) else ""
+        if body:
+            sections.append({"title": parts[i].strip(), "text": body})
+    return sections
+
+
 def _build_article_detail(row: dict | None, related_articles: list[dict]) -> dict:
     if row is None:
         return {}
@@ -883,6 +915,11 @@ class NewsState(rx.State):
                     "articles": articles[start : start + _PAGE_SIZE],
                     "sources": sources,
                     "selected_source": selected_source,
+                    # Top publishers become pills; the rest go in an "Other" dropdown.
+                    "top_sources": sources[1 : 1 + _TOP_SOURCE_PILLS],
+                    "other_sources": sources[1 + _TOP_SOURCE_PILLS :],
+                    "has_other_sources": len(sources) > 1 + _TOP_SOURCE_PILLS,
+                    "other_selected": selected_source if selected_source in sources[1 + _TOP_SOURCE_PILLS :] else "",
                 }
             )
         return sections
@@ -893,6 +930,11 @@ class NewsDetailState(rx.State):
 
     article: dict = {}
     is_loading: bool = True
+    # AI summary above the body: "loading" while it's generated, then
+    # "ready" (summary_sections filled) or "none" (couldn't be produced).
+    summary_status: str = "none"
+    summary_sections: list[dict] = []
+    summary_model_badge: dict = {}
 
     @rx.event(background=True)
     async def load_article(self):
@@ -909,6 +951,23 @@ class NewsDetailState(rx.State):
         async with self:
             self.article = _build_article_detail(row, related_articles)
             self.is_loading = False
+            self.summary_sections = []
+            self.summary_model_badge = {}
+            article_id = row.get("id") if row else None
+            self.summary_status = "loading" if article_id else "none"
+        if not article_id:
+            return
+        result = await asyncio.to_thread(_fetch_news_summary, int(article_id))
+        async with self:
+            if self.article.get("id") != article_id:
+                return  # the viewer already moved to another article
+            if result is None:
+                self.summary_status = "none"
+                return
+            raw, model = result
+            self.summary_sections = _parse_summary_sections(raw)
+            self.summary_model_badge = _format_model_badge(model)
+            self.summary_status = "ready" if self.summary_sections else "none"
 
     @rx.var(cache=True)
     def article_found(self) -> bool:

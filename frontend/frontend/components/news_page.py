@@ -125,12 +125,42 @@ def _section_pagination(news_type: str, page: rx.Var, total_pages: rx.Var) -> rx
     )
 
 
+def _source_pill(section: dict, source: rx.Var[str]) -> rx.Component:
+    return rx.box(
+        rx.text(source, size="1"),
+        on_click=NewsState.set_category_source(section["news_type"], source),
+        class_name=rx.cond(
+            section["selected_source"] == source,
+            "narrative-pill narrative-pill-active",
+            "narrative-pill",
+        ),
+    )
+
+
 def _section_source_filter(section: dict) -> rx.Component:
-    return rx.select(
-        section["sources"].to(list[str]),
-        value=section["selected_source"],
-        on_change=lambda value: NewsState.set_category_source(section["news_type"], value),
-        size="1",
+    """Horizontal slider of the top-10 publishers (plus All), ending with an
+    "Other" dropdown holding the remaining publishers."""
+    return rx.hstack(
+        _source_pill(section, "All"),
+        rx.foreach(section["top_sources"].to(list[str]), lambda source: _source_pill(section, source)),
+        rx.cond(
+            section["has_other_sources"],
+            rx.select(
+                section["other_sources"].to(list[str]),
+                value=section["other_selected"],
+                placeholder="Other",
+                on_change=lambda value: NewsState.set_category_source(section["news_type"], value),
+                size="1",
+                variant="soft",
+                flex_shrink="0",
+            ),
+        ),
+        spacing="2",
+        align="center",
+        width="100%",
+        overflow_x="auto",
+        padding_y="2px",
+        class_name="hide-scrollbar",
     )
 
 
@@ -143,11 +173,11 @@ def _news_section(section: dict) -> rx.Component:
                 spacing="2",
                 align="center",
             ),
-            _section_source_filter(section),
             justify="between",
             align="center",
             width="100%",
         ),
+        _section_source_filter(section),
         rx.grid(
             rx.foreach(section["articles"].to(list[dict]), _news_card),
             columns=_GRID_COLUMNS,
