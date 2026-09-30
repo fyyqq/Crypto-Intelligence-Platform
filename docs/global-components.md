@@ -116,3 +116,7 @@ The name/plan stack in the header pill has 0.75em left padding.
 
 ### Auth error messages and password-visibility fix (2026-10-01)
 Password show/hide resets on every visit to /login and /signup. Errors are specific (email format, password strength items, name characters, already-registered email). The logged-in header pill has 5px padding.
+
+
+### Persistent login (2026-10-01)
+Login survives closing the tab: a random token cookie (`repace_session`, 30 days, SameSite=Strict) maps to a hashed row in `user_sessions`; `CoinState.restore_session` restores the login on every page load; logout deletes the session. Not HttpOnly/Secure yet.

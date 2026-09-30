@@ -3,6 +3,7 @@ from app.models.coin import Coin
 from app.models.coin_contract import CoinContract
 from app.models.sync_log import SyncLog, SyncStatus, SyncType
 from app.models.user import User
+from app.models.user_session import UserSession
 from app.models.user_watchlist import UserWatchlist
 
 __all__ = [
@@ -13,6 +14,7 @@ __all__ = [
     "SyncStatus",
     "SyncType",
     "User",
+    "UserSession",
     "UserWatchlist",
     "coin_category",
 ]

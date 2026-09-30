@@ -1101,6 +1101,8 @@ class CoinState(rx.State):
     user_email: str = ""
     # DB id of the logged-in account; set server-side at login, never from the browser.
     user_id: int = 0
+    # "Stay logged in" cookie: a random token whose SHA-256 is stored in user_sessions (30 days).
+    session_token: str = rx.Cookie("", name="repace_session", path="/", max_age=30 * 24 * 3600, same_site="strict")
 
     # Floating-logo chatbot popup (frontend.py::_floating_logo/_chat_widget)
     # — click the floating logo to open, click it again or click the popup's
@@ -1588,7 +1590,39 @@ class CoinState(rx.State):
         return rx.call_script("window.innerWidth", callback=CoinState.profile_pill_click_width)
 
     @rx.event
-    def logout(self):
+    async def restore_session(self):
+        """Runs first on every page load: if the browser sent a valid 'stay logged in'
+        cookie, log this browser session back in (name, account id and saved watchlist)."""
+        if self.is_logged_in or not self.session_token:
+            if self.is_logged_in and self.router.url.path.rstrip("/") in ("/login", "/signup"):
+                return rx.call_script("window.location.assign('/')")
+            return
+        if _ROOT_FOR_APP not in sys.path:
+            sys.path.insert(0, _ROOT_FOR_APP)
+        from app.services import auth_service, watchlist_service
+
+        result = await asyncio.to_thread(auth_service.resume_session, self.session_token)
+        if not result.ok:
+            self.session_token = ""  # expired or unknown: forget it
+            return
+        self.is_logged_in = True
+        self.user_id = result.user_id
+        self.user_name = result.user_name
+        self.user_email = result.user_email
+        self.watchlist_ids = await asyncio.to_thread(watchlist_service.get_watchlist_ids, result.user_id)
+        if self.router.url.path.rstrip("/") in ("/login", "/signup"):
+            return rx.call_script("window.location.assign('/')")
+
+    @rx.event
+    async def logout(self):
+        token = self.session_token
+        if token:
+            if _ROOT_FOR_APP not in sys.path:
+                sys.path.insert(0, _ROOT_FOR_APP)
+            from app.services import auth_service
+
+            await asyncio.to_thread(auth_service.delete_session, token)
+        self.session_token = ""
         self.is_logged_in = False
         self.user_name = ""
         self.user_email = ""

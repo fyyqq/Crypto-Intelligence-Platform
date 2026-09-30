@@ -1,8 +1,10 @@
 """Sign-up / log-in logic: strict server-side validation, Argon2id password hashing,
 account lockout, and reCAPTCHA verification. The UI validation is only a convenience;
 everything is re-checked here, so a forged request can't skip it."""
+import hashlib
 import logging
 import re
+import secrets
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -16,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.user import User
+from app.models.user_session import UserSession
 
 logger = logging.getLogger(__name__)
 
@@ -220,5 +223,54 @@ def login_user(email: str, password: str) -> AuthResult:
         user.last_login_at = now
         db.commit()
         return AuthResult(True, user_id=user.id, user_name=user.full_name, user_email=user.email)
+    finally:
+        db.close()
+
+
+SESSION_DAYS = 30
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def create_session(user_id: int) -> str:
+    """Creates a 'stay logged in' session and returns the random token for the browser cookie."""
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    db = SessionLocal()
+    try:
+        db.query(UserSession).filter(UserSession.expires_at < now).delete()  # tidy expired sessions
+        db.add(UserSession(user_id=user_id, token_hash=_hash_token(token), expires_at=now + timedelta(days=SESSION_DAYS)))
+        db.commit()
+        return token
+    finally:
+        db.close()
+
+
+def resume_session(token: str) -> AuthResult:
+    """Returns the account for a valid, unexpired session token (from the cookie)."""
+    if not token or len(token) > 200:
+        return AuthResult(False)
+    db = SessionLocal()
+    try:
+        row = db.query(UserSession).filter(UserSession.token_hash == _hash_token(token)).first()
+        if row is None or row.expires_at < datetime.now(timezone.utc):
+            return AuthResult(False)
+        user = db.get(User, row.user_id)
+        if user is None:
+            return AuthResult(False)
+        return AuthResult(True, user_id=user.id, user_name=user.full_name, user_email=user.email)
+    finally:
+        db.close()
+
+
+def delete_session(token: str) -> None:
+    if not token:
+        return
+    db = SessionLocal()
+    try:
+        db.query(UserSession).filter(UserSession.token_hash == _hash_token(token)).delete()
+        db.commit()
     finally:
         db.close()

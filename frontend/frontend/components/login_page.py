@@ -108,6 +108,8 @@ class AuthState(CoinState):
         from app.services import watchlist_service
 
         self.watchlist_ids = await asyncio.to_thread(watchlist_service.get_watchlist_ids, result.user_id)
+        # Remember this browser: the cookie lets a later visit (even a new tab) restore the login.
+        self.session_token = await self._run("create_session", result.user_id)
         return rx.call_script("window.location.assign('/')")
 
     @rx.event

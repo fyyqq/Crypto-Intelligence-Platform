@@ -811,7 +811,7 @@ app.add_page(
     # to a generic title before all_coins has loaded.
     title=CoinState.page_title,
     on_load=[
-        CoinState.load_coins,
+        CoinState.restore_session, CoinState.load_coins,
         CoinState.detail_sync_loop,
         CoinState.refresh_coin_description,
         CoinState.refresh_business_summary,
@@ -824,15 +824,15 @@ app.add_page(
     news_category_page,
     route="/news/[news_category]",
     title=NewsState.view_all_title,
-    on_load=[CoinState.load_coins, NewsState.load_news, NewsState.reset_view_all_page, NewsState.watch_new_articles],
+    on_load=[CoinState.restore_session, CoinState.load_coins, NewsState.load_news, NewsState.reset_view_all_page, NewsState.watch_new_articles],
 )
-app.add_page(login_page, route="/login", title="Repace — Log in", on_load=[AuthState.clear_auth_error, LoginState.reset_visibility])
-app.add_page(signup_page, route="/signup", title="Repace — Sign up", on_load=[AuthState.clear_auth_error, LoginState.reset_visibility])
+app.add_page(login_page, route="/login", title="Repace — Log in", on_load=[CoinState.restore_session, AuthState.clear_auth_error, LoginState.reset_visibility])
+app.add_page(signup_page, route="/signup", title="Repace — Sign up", on_load=[CoinState.restore_session, AuthState.clear_auth_error, LoginState.reset_visibility])
 app.add_page(
     news_detail_page,
     route="/news/[news_category]/[article_slug]",
     title=NewsDetailState.page_title,
-    on_load=[CoinState.load_coins, NewsDetailState.load_article],
+    on_load=[CoinState.restore_session, CoinState.load_coins, NewsDetailState.load_article],
 )
 app.add_page(
     index,
@@ -842,7 +842,7 @@ app.add_page(
     # `image=` above only sets the og:image social-preview meta tag — the
     # actual browser-tab favicon needs its own <link rel="icon"> tag.
     meta=[rx.el.link(rel="icon", href="/favicon_logo.png", type="image/png")],
-    on_load=[CoinState.load_coins, CoinState.live_sync_loop, NewsState.load_news, NewsState.watch_new_articles],
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.live_sync_loop, NewsState.load_news, NewsState.watch_new_articles],
 )
 # /news has real content (news_page_content(), NewsState) — registered on
 # its own so it can add NewsState.load_news to the shared on_load list below
@@ -851,7 +851,7 @@ app.add_page(
     news_page,
     route="/news",
     title="Repace — News",
-    on_load=[CoinState.load_coins, NewsState.load_news, NewsState.watch_new_articles],
+    on_load=[CoinState.restore_session, CoinState.load_coins, NewsState.load_news, NewsState.watch_new_articles],
 )
 # Remaining header nav-link destinations (_NAV_LINKS above) — blank/
 # placeholder pages today. Each still loads the coin universe so the shared
@@ -863,4 +863,4 @@ for _route, _page_fn in [
     ("/tools", tools_page),
     ("/watchlist", watchlist_page),
 ]:
-    app.add_page(_page_fn, route=_route, title=f"Repace — {_page_fn.__name__.replace('_page', '').title()}", on_load=[CoinState.load_coins])
+    app.add_page(_page_fn, route=_route, title=f"Repace — {_page_fn.__name__.replace('_page', '').title()}", on_load=[CoinState.restore_session, CoinState.load_coins])
