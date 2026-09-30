@@ -28,7 +28,7 @@ from frontend.state.coin_state import _format_model_badge
 _TELEGRAM_MEDIA_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "telegram_media"
 
 _PAGE_SIZE = 12  # 4 columns x 3 rows per page, per explicit request
-_HOME_NEWS_LIMIT = 15  # cards per homepage news slider
+_HOME_NEWS_LIMIT = 50  # cards per homepage news slider
 _TOP_SOURCE_PILLS = 10  # publishers shown as pills; the rest go in the "Other" dropdown
 
 _SLUG_STRIP_RE = re.compile(r"[^a-z0-9]+")

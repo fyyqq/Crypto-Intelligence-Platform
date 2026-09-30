@@ -22,7 +22,7 @@ def _news_slider(articles: rx.Var) -> rx.Component:
             rx.foreach(
                 articles.to(list[dict]),
                 lambda article: rx.box(
-                    _real_news_card(article),
+                    _real_news_card(article, compact=True),
                     width=["240px", "260px", "280px", "300px", "300px"],
                     flex_shrink="0",
                 ),

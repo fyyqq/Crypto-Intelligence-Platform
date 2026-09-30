@@ -13,10 +13,12 @@ from frontend.state import NewsState
 _GRID_COLUMNS = rx.breakpoints(initial="1", sm="2", md="3", lg="4")
 
 
-def _news_card(article: dict) -> rx.Component:
+def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
+    """compact=True (homepage strips): no image, and only the Telegram/time row —
+    the source and category badges are hidden."""
     return rx.link(
         rx.vstack(
-            rx.cond(
+            rx.fragment() if compact else rx.cond(
                 article["has_image"],
                 rx.box(
                     rx.image(
@@ -39,12 +41,12 @@ def _news_card(article: dict) -> rx.Component:
             rx.vstack(
                 rx.hstack(
                     rx.hstack(
-                        rx.badge(article["source_name"], color_scheme=article["badge_color"], variant="surface", size="1"),
+                        rx.fragment() if compact else rx.badge(article["source_name"], color_scheme=article["badge_color"], variant="surface", size="1"),
                         rx.cond(
                             article["is_telegram"],
                             rx.badge("Telegram News", color_scheme="blue", variant="solid", size="1"),
                         ),
-                        rx.badge(
+                        rx.fragment() if compact else rx.badge(
                             article["news_type"],
                             color_scheme=article["news_type_color"],
                             variant="soft",

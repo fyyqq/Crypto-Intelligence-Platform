@@ -76,3 +76,9 @@ The header/navbar, footer, and the header's own global search also render on thi
 The homepage shows two sliders, "Cryptocurrency" and "Markets & Finance", each with the 15 newest real `/news` cards for that category (same card component, same rows, same 60s live refresh via `NewsState`). "More News" links to the matching `/news` section. Skeleton cards show while the news list loads.
 
 </details>
+
+<details><summary>News strip cards, autoplay</summary>
+
+The homepage news strips show 50 compact cards each (no image; the source-group and category badges hidden, only the Telegram badge, time, title and snippet). Both autoplay one card every 3.5s, looping at the end, and pause while hovered (cards or arrows), while dragging, or when the tab is hidden. The "More Impact" link on the Targeted Narrative section was removed.
+
+</details>

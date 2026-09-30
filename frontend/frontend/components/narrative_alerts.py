@@ -262,24 +262,6 @@ def _alerts_slider() -> rx.Component:
     )
 
 
-def _more_impact_link() -> rx.Component:
-    # No feature wired up yet — will surface which coins/narratives a news
-    # item affects once that correlation feature is built (see
-    # news_feed.py's matching link for the same upcoming feature).
-    return rx.link(
-        rx.hstack(
-            rx.text("More Impact", size="2", weight="bold"),
-            rx.icon("arrow-right", size=14),
-            spacing="1",
-            align="center",
-        ),
-        href="#view-news-impact",
-        underline="none",
-        color_scheme="indigo",
-        margin_left="1.5em",
-    )
-
-
 def narrative_alerts() -> rx.Component:
     return rx.vstack(
         rx.text("TARGETED NARRATIVE ALERTS", size="1", color_scheme="gray", weight="bold"),
@@ -287,7 +269,6 @@ def narrative_alerts() -> rx.Component:
             # named "sm" = 768px (matches the 768px used elsewhere via
             # plain-list position 2) — named "md" is 992px.
             rx.heading("Targeted Narrative + Coin", size=rx.breakpoints(initial="4", sm="5")),
-            _more_impact_link(),
             display="flex",
             flex_wrap="wrap",
             justify_content="space-between",

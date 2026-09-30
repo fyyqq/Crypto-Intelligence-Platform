@@ -343,3 +343,29 @@
     true
   );
 })();
+
+// Autoplay for the homepage news sliders (.news-slider-wrap): every few
+// seconds the track advances by one card, looping back to the start at the
+// end. Paused while the pointer is anywhere over the slider (cards or its
+// arrow buttons, which sit inside the wrap), while dragging, and while the tab
+// is hidden.
+(function () {
+  if (window.__newsAutoplayInit) return;
+  window.__newsAutoplayInit = true;
+  const INTERVAL_MS = 3500;
+
+  setInterval(function () {
+    if (document.hidden) return;
+    document.querySelectorAll(".news-slider-wrap").forEach(function (wrap) {
+      if (wrap.matches(":hover")) return;
+      const track = wrap.querySelector(".news-slider-track");
+      if (!track || track.classList.contains("grabbing")) return;
+      const first = track.firstElementChild;
+      if (!first) return;
+      const step = first.getBoundingClientRect().width + 12;
+      const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 2;
+      if (atEnd) track.scrollTo({ left: 0, behavior: "smooth" });
+      else track.scrollBy({ left: step, behavior: "smooth" });
+    });
+  }, INTERVAL_MS);
+})();
