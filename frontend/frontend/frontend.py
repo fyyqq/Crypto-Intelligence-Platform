@@ -174,6 +174,35 @@ _NAV_LINKS = [
 ]
 
 
+# News dropdown entries (label, /news/<slug>) — same slugs as the /news sections.
+_NEWS_CATEGORIES = [
+    ("Cryptocurrency", "cryptocurrency"),
+    ("Artificial Intelligence", "artificial-intelligence"),
+    ("Markets & Finance", "markets-finance"),
+    ("Technology", "technology"),
+    ("Memecoins", "memecoins"),
+]
+
+
+def _news_nav_item(label: str, href: str) -> rx.Component:
+    """The "News" nav link with a hover dropdown listing the news categories."""
+    return rx.box(
+        rx.hstack(_nav_link(label, href), rx.icon("chevron-down", size=14, color="var(--gray-10)"), spacing="1", align="center"),
+        rx.box(
+            rx.box(
+                *[
+                    rx.link(name, href=f"/news/{slug}", underline="none", class_name="nav-dropdown-item")
+                    for name, slug in _NEWS_CATEGORIES
+                ],
+                class_name="nav-dropdown-inner",
+            ),
+            class_name="nav-dropdown",
+        ),
+        class_name="nav-menu",
+        flex_shrink="0",
+    )
+
+
 def _nav_link(label: str, href: str) -> rx.Component:
     # Active on the page itself and on any sub-page (e.g. /news/<category>
     # and /news/<category>/<article> keep "News" highlighted).
@@ -190,7 +219,7 @@ def _nav_link(label: str, href: str) -> rx.Component:
 
 def _nav_links() -> rx.Component:
     return rx.hstack(
-        *[_nav_link(label, href) for label, href in _NAV_LINKS],
+        *[_news_nav_item(label, href) if href == "/news" else _nav_link(label, href) for label, href in _NAV_LINKS],
         align="center",
         justify="center",
         # Tighter gap at phone/small-tablet widths, where the grid column
@@ -205,7 +234,8 @@ def _nav_links() -> rx.Component:
         # links genuinely don't fit into into a horizontal swipe/scroll
         # instead of clipping or wrapping.
         min_width="0",
-        overflow_x="auto",
+        # Visible at lg+ so the News dropdown isn't clipped (no swipe strip is needed there).
+        overflow_x=["auto", "auto", "auto", "auto", "visible"],
         flex_wrap="nowrap",
         # Below lg (tablet/mobile) the links live in the profile dropdown
         # instead, and the search box takes the centre of the header.

@@ -78,3 +78,9 @@ The footer's two blocks (logo/description/social and the link columns) are space
 A header nav link is active when the current path equals its route or starts with it plus "/" — e.g. "News" is highlighted on `/news`, `/news/<category>` and `/news/<category>/<article>`.
 
 </details>
+
+<details><summary>News hover dropdown in the header</summary>
+
+At desktop width the header's "News" link has a hover dropdown listing Cryptocurrency, Artificial Intelligence, Markets & Finance, Technology and Memecoins, each linking to its `/news/<category>` page.
+
+</details>

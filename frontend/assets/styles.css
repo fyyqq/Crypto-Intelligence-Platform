@@ -930,3 +930,45 @@
 .narrative-pills-track .rt-SelectTrigger:hover {
   background-color: #3f5fd6 !important;
 }
+
+/* Header "News" hover dropdown listing the news categories. */
+.nav-menu {
+  position: relative;
+}
+
+.nav-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding-top: 10px; /* invisible bridge so the pointer can travel from the link into the menu */
+  z-index: 60;
+}
+
+.nav-menu:hover .nav-dropdown,
+.nav-menu:focus-within .nav-dropdown {
+  display: block;
+}
+
+.nav-dropdown-inner {
+  min-width: 210px;
+  padding: 6px;
+  border: 1px solid var(--gray-a6);
+  border-radius: 10px;
+  background: var(--gray-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.nav-dropdown-item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  color: var(--gray-12);
+  white-space: nowrap;
+}
+
+.nav-dropdown-item:hover {
+  background: var(--gray-a4);
+}

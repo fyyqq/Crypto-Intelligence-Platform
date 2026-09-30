@@ -258,3 +258,15 @@ On `/news/<category>` the title and count are centred with extra space above the
 Each `/news/<category>` page has a placeholder "Summarize What Happened Today" button (sparkles icon) at the right of the "Showing … articles" line; it does nothing yet. The "Telegram News" badge is no longer shown on any card or reader page. In the article reader, the category badge links to that category's page.
 
 </details>
+
+<details><summary>"Summarize What Happened Today" popup</summary>
+
+On each `/news/<category>` page the button opens a centred popup with that category's last-24-hour summary: an overview plus themed bullet sections, a model badge and the article count; it closes with the X. While it loads, the button shows a spinner and then returns to the sparkles icon. Summaries are stored per category and Kuala Lumpur day in `news_daily_summaries`. Today's (1 Oct 2026) were written by Claude Code (no OpenRouter call); from the next day, the first click of a day generates that day's summary with OpenRouter (hourly-capped) and later clicks reuse it. A category with no news in the last 24 hours says so.
+
+</details>
+
+<details><summary>Sections show 2 rows; News dropdown</summary>
+
+Each `/news` section shows 10 cards per page (2 rows of 5 on desktop). The header's News link has a hover dropdown listing the five categories.
+
+</details>

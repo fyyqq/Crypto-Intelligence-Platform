@@ -27,7 +27,7 @@ from frontend.state.coin_state import _format_model_badge
 
 _TELEGRAM_MEDIA_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "telegram_media"
 
-_PAGE_SIZE = 15  # 5 columns x 3 rows per page (desktop), per explicit request
+_PAGE_SIZE = 10  # 5 columns x 2 rows per page (desktop), per explicit request
 _VIEW_ALL_LIMIT = 100  # articles per page on a /news/<category> "View All" page
 _HOME_NEWS_LIMIT = 50  # cards per homepage news slider
 _TOP_SOURCE_PILLS = 10  # publishers shown as pills; the rest go in the "Other" dropdown
@@ -408,6 +408,7 @@ def _build_article_row(row: dict) -> dict:
         image_url = card_media_image
     return {
         "id": row.get("id"),
+        "published_iso": published.isoformat() if published else "",
         "detail_url": "/news",
         "source_name": source_name,
         "badge_color": _BADGE_COLORS[hash(source_name) % len(_BADGE_COLORS)],
@@ -604,6 +605,21 @@ def _parse_summary_sections(raw: str) -> list[dict]:
     return sections
 
 
+def _fetch_daily_summary(category_slug: str, news_type: str, headlines: list[tuple[str, str, str]]) -> dict:
+    import sys
+
+    root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from app.services.news_daily_summary_service import get_daily_summary
+
+    try:
+        return get_daily_summary(category_slug, news_type, headlines)
+    except Exception:
+        return {"available": False, "overview": "", "sections": [], "model_label": "", "article_count": 0,
+                "day": "", "message": "The summary isn't available right now — please try again in a few minutes."}
+
+
 def _build_article_detail(row: dict | None, related_articles: list[dict]) -> dict:
     if row is None:
         return {}
@@ -749,6 +765,11 @@ class NewsState(rx.State):
     category_search: dict[str, str] = {}
     # Current page of the /news/<category> "View All" list (100 per page).
     view_all_page: int = 1
+    # "Summarize What Happened Today" popup on /news/<category>.
+    summary_open: bool = False
+    summary_loading: bool = False
+    summary_category: str = ""
+    summary_data: dict = {}
 
     @rx.event(background=True)
     async def load_news(self):
@@ -835,6 +856,43 @@ class NewsState(rx.State):
         async with self:
             page = self._total_pages_for(news_type)
         await self._show_page_with_images(news_type, page)
+
+    @rx.event
+    def set_summary_open(self, is_open: bool):
+        self.summary_open = is_open
+
+    @rx.event
+    def close_summary(self):
+        self.summary_open = False
+
+    @rx.event(background=True)
+    async def open_summary(self):
+        """Button click: show a spinner on the button, get (or generate) the
+        category's last-24h summary, then open the popup."""
+        async with self:
+            if self.summary_loading:
+                return
+            news_type = self.view_all.get("news_type") or ""
+            if not news_type:
+                return
+            self.summary_loading = True
+            cutoff = (datetime.datetime.utcnow() - datetime.timedelta(hours=24)).isoformat()
+            klt = datetime.timezone(datetime.timedelta(hours=8))
+            headlines = []
+            for a in self._all_articles:
+                if a["news_type"] == news_type and a.get("published_iso", "") >= cutoff:
+                    when = datetime.datetime.fromisoformat(a["published_iso"]).replace(tzinfo=datetime.timezone.utc).astimezone(klt)
+                    headlines.append((when.strftime("%H:%M"), a["source_name"], a["title"]))
+        started = asyncio.get_event_loop().time()
+        result = await asyncio.to_thread(_fetch_daily_summary, _slugify(news_type), news_type, headlines)
+        # A stored summary returns instantly; keep the spinner up briefly so the
+        # loading state is actually visible before the popup opens.
+        await asyncio.sleep(max(0.0, 0.7 - (asyncio.get_event_loop().time() - started)))
+        async with self:
+            self.summary_category = news_type
+            self.summary_data = result
+            self.summary_open = True
+            self.summary_loading = False
 
     @rx.event
     def reset_view_all_page(self):
