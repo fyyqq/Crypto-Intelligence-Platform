@@ -48,7 +48,7 @@ def _source_link(article: dict) -> rx.Component:
 def _article_sidebar(article: dict) -> rx.Component:
     return rx.vstack(
         rx.vstack(
-            rx.text("Article source", size="1", weight="bold", color_scheme="gray"),
+            rx.text("Article source", size="1", weight="bold", color_scheme="gray", margin_bottom="5px"),
             rx.text(article["source_name"], size="4", weight="bold", line_height="1.2"),
             spacing="0",
             align="start",

@@ -17,6 +17,9 @@ Per explicit request (with `.claude-ctx/sel/el-13..18`):
 
 **Verified live**: Cryptocurrency shows All + 10 pills + Other; an AI Post reader shows a real, grounded summary (with related-outlet context) above the body; zero console errors. **A test mishap worth knowing**: my first test held an open read transaction while the service ran `ALTER TABLE`, which blocked every other query on `news_articles` (listener included) until I terminated those two backends; the service now adds columns in its own short session.
 
+### 🔧 Follow-up: source pills reduced to top 5 and moved to the section heading's right; "Article source" margin (2026-09-30 session)
+Per explicit request (`el-19..21`): each `/news` section's source pill slider now shows All + the top **5** publishers (`_TOP_SOURCE_PILLS = 5`, rest still in the "Other" dropdown) and sits on the right of the section heading row (between-aligned with "Cryptocurrency / N articles"), instead of on its own row. "Article source" in the reader gets `margin-bottom: 5px`. Verified live (Cryptocurrency: All + 5 pills + Other; margin computed 5px; zero console errors).
+
 ### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
 * **Why:** This ensures that if the terminal session suddenly runs out of API limits, the current progress state is perfectly preserved right here, allowing a seamless handoff to GitHub Copilot inside VS Code without losing data.
 

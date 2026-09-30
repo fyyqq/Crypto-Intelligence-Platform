@@ -183,6 +183,6 @@ Every reader page shows an "AI Summarizations" card above the body, generated on
 
 <details><summary>Source pills per section</summary>
 
-Each section's source filter is a horizontal pill slider: All + the 10 biggest publishers of that category, ending with an "Other" dropdown for the rest. Selecting resets that section to page 1; sections stay independent.
+Each section's source filter is a horizontal pill slider: All + the 5 biggest publishers of that category, on the right of the section heading, ending with an "Other" dropdown for the rest. Selecting resets that section to page 1; sections stay independent.
 
 </details>

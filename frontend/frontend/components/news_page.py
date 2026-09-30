@@ -138,7 +138,7 @@ def _source_pill(section: dict, source: rx.Var[str]) -> rx.Component:
 
 
 def _section_source_filter(section: dict) -> rx.Component:
-    """Horizontal slider of the top-10 publishers (plus All), ending with an
+    """Horizontal slider of the top-5 publishers (plus All), ending with an
     "Other" dropdown holding the remaining publishers."""
     return rx.hstack(
         _source_pill(section, "All"),
@@ -157,7 +157,7 @@ def _section_source_filter(section: dict) -> rx.Component:
         ),
         spacing="2",
         align="center",
-        width="100%",
+        min_width="0",
         overflow_x="auto",
         padding_y="2px",
         class_name="hide-scrollbar",
@@ -173,11 +173,12 @@ def _news_section(section: dict) -> rx.Component:
                 spacing="2",
                 align="center",
             ),
+            _section_source_filter(section),
             justify="between",
             align="center",
             width="100%",
+            gap="3",
         ),
-        _section_source_filter(section),
         rx.grid(
             rx.foreach(section["articles"].to(list[dict]), _news_card),
             columns=_GRID_COLUMNS,
