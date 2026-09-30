@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.coin import Coin
+from app.services import ai_budget
 from app.services.coingecko_service import is_boilerplate_description
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,9 @@ def _fetch_from_openrouter(coin: Coin, website_text: str, tweet_texts: list[str]
         return None
 
     for attempt in range(1, _MAX_ATTEMPTS + 1):
+        if not ai_budget.allow_call():
+            logger.warning("OpenRouter hourly call budget reached — skipping AI description for %s", coin.symbol)
+            return None
         try:
             response = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions",

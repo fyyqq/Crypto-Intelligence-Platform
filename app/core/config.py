@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     # changes.
     openrouter_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     business_summary_ttl_days: int = 60
+    # Cost guards for every OpenRouter call (see app/services/ai_budget.py).
+    openrouter_max_calls_per_hour: int = 60
+    openrouter_failure_cooldown_minutes: int = 30
 
     # On-demand CEX/DEX market-pair listing (see
     # app/services/market_pairs_service.py) — refreshed far more often than

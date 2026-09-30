@@ -186,3 +186,15 @@ Every reader page shows an "AI Summarizations" card above the body, generated on
 Each section's source filter is a horizontal pill slider: All + the 10 biggest publishers of that category, filling the space to the right of the section heading, with left/right arrow buttons (same slider as the narrative filter) and ending with a royalblue pill-shaped "Other" dropdown for the rest. Selecting resets that section to page 1; sections stay independent.
 
 </details>
+
+<details><summary>Per-section title search and section header layout</summary>
+
+Each section's header is heading + count on the left, the source pill slider (shortened, centred) in the middle, and a title search box on the right. The search filters that section by title (case-insensitive, 300ms debounce), combines with the source filter, resets to page 1 and updates the count; other sections are independent.
+
+</details>
+
+<details><summary>OpenRouter usage and cost guards</summary>
+
+OpenRouter is only called when someone opens a page: the news reader (article summary, cached forever), the coin page (AI business summary, refreshed at most every 60 days; AI description fallback, once per coin). No scheduler or list page calls it. `app/services/ai_budget.py` adds a global cap per rolling hour (`openrouter_max_calls_per_hour`, default 60) and a per-item failure cooldown (`openrouter_failure_cooldown_minutes`, default 30). In-process only.
+
+</details>

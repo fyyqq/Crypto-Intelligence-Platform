@@ -21,6 +21,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.services import ai_budget
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,9 @@ def _call_model(prompt: str, model: str) -> tuple[str, str] | None:
         logger.info("OPENROUTER_API_KEY not configured — skipping news summary")
         return None
     for attempt in range(1, _MAX_ATTEMPTS + 1):
+        if not ai_budget.allow_call():
+            logger.warning("OpenRouter hourly call budget reached — skipping news summary")
+            return None
         try:
             response = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -140,6 +144,7 @@ def get_news_summary(article_id: int) -> tuple[str, str] | None:
     """Returns (summary_text, model) for this article — cached if present,
     otherwise generated and stored. None if it can't be produced."""
     _ensure_columns()
+    cooldown_key = f"news:{article_id}"
     db = SessionLocal()
     try:
         row = db.execute(
@@ -153,6 +158,8 @@ def get_news_summary(article_id: int) -> tuple[str, str] | None:
             return None
         if row["ai_summary"]:
             return row["ai_summary"], row["ai_summary_model"] or ""
+        if ai_budget.in_cooldown(cooldown_key):
+            return None  # failed recently — don't spend more calls on it yet
 
         body = (row["full_body_text"] or "").strip()[:_MAX_BODY_CHARS]
         related = _related_headlines(row["title"] or "", row["url"] or "")
@@ -164,6 +171,7 @@ def get_news_summary(article_id: int) -> tuple[str, str] | None:
         )
         result = _call_openrouter(prompt)
         if result is None:
+            ai_budget.mark_failed(cooldown_key)
             return None
         summary, model = result
         db.execute(

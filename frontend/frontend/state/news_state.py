@@ -733,6 +733,8 @@ class NewsState(rx.State):
     category_pages: dict[str, int] = {}
     # news type -> selected real source name, or "All" (default, no filter).
     category_source_filter: dict[str, str] = {}
+    # Per-section title search text (case-insensitive substring).
+    category_search: dict[str, str] = {}
 
     @rx.event(background=True)
     async def load_news(self):
@@ -821,6 +823,18 @@ class NewsState(rx.State):
         await self._show_page_with_images(news_type, page)
 
     @rx.event(background=True)
+    async def set_category_search(self, news_type: str, query: str):
+        async with self:
+            self.category_search = {**self.category_search, news_type: query}
+        await self._show_page_with_images(news_type, 1)
+
+    def _search_filter(self, news_type: str, articles: list[dict]) -> list[dict]:
+        query = self.category_search.get(news_type, "").strip().lower()
+        if not query:
+            return articles
+        return [a for a in articles if query in (a.get("title") or "").lower()]
+
+    @rx.event(background=True)
     async def set_category_source(self, news_type: str, source: str):
         async with self:
             self.category_source_filter = {**self.category_source_filter, news_type: source}
@@ -849,9 +863,9 @@ class NewsState(rx.State):
         category_articles = self._category_articles(news_type)
         sources = self._category_sources(category_articles)
         selected_source = self._selected_source(news_type, sources)
-        if selected_source == "All":
-            return category_articles
-        return [a for a in category_articles if a["source_name"] == selected_source]
+        if selected_source != "All":
+            category_articles = [a for a in category_articles if a["source_name"] == selected_source]
+        return self._search_filter(news_type, category_articles)
 
     def _total_pages_for(self, news_type: str) -> int:
         count = len(self._filtered_category_articles(news_type))
@@ -885,10 +899,11 @@ class NewsState(rx.State):
             category_articles = grouped[news_type]
             sources = self._category_sources(category_articles)
             selected_source = self._selected_source(news_type, sources)
-            articles = (
+            articles = self._search_filter(
+                news_type,
                 category_articles
                 if selected_source == "All"
-                else [a for a in category_articles if a["source_name"] == selected_source]
+                else [a for a in category_articles if a["source_name"] == selected_source],
             )
 
             total_pages = max(1, -(-len(articles) // _PAGE_SIZE))
@@ -915,6 +930,7 @@ class NewsState(rx.State):
                     "articles": articles[start : start + _PAGE_SIZE],
                     "sources": sources,
                     "selected_source": selected_source,
+                    "search_text": self.category_search.get(news_type, ""),
                     # Top publishers become pills; the rest go in an "Other" dropdown.
                     "top_sources": sources[1 : 1 + _TOP_SOURCE_PILLS],
                     "other_sources": sources[1 + _TOP_SOURCE_PILLS :],

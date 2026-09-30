@@ -167,20 +167,38 @@ def _section_source_filter(section: dict) -> rx.Component:
     )
 
 
+def _section_search(section: dict) -> rx.Component:
+    return rx.debounce_input(
+        rx.input(
+            rx.input.slot(rx.icon("search", size=14)),
+            value=section["search_text"],
+            placeholder="Search title",
+            size="1",
+            radius="full",
+            width="100%",
+            on_change=lambda value: NewsState.set_category_search(section["news_type"], value),
+        ),
+        debounce_timeout=300,
+        width="100%",
+    )
+
+
 def _news_section(section: dict) -> rx.Component:
     return rx.vstack(
-        rx.hstack(
+        # heading left, shortened source slider centred, title search right
+        rx.grid(
             rx.hstack(
                 rx.heading(section["news_type"], size="4"),
                 rx.badge(section["article_count"], " articles", color_scheme="gray", variant="soft", size="1"),
                 spacing="2",
                 align="center",
             ),
-            _section_source_filter(section),
-            justify="between",
-            align="center",
+            rx.box(_section_source_filter(section), width="100%", min_width="0"),
+            rx.box(_section_search(section), justify_self="end", width="100%", max_width="240px"),
+            columns=rx.breakpoints(initial="1", lg="minmax(0, 1fr) minmax(0, 560px) minmax(0, 1fr)"),
+            gap="4",
+            align_items="center",
             width="100%",
-            gap="5",
         ),
         rx.grid(
             rx.foreach(section["articles"].to(list[dict]), _news_card),
