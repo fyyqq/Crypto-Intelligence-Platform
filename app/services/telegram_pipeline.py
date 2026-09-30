@@ -50,6 +50,7 @@ import datetime
 import logging
 import os
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -310,6 +311,33 @@ async def _download_message_image(client: TelegramClient, message, username: str
         return None
 
 
+_AVATAR_MAX_AGE_SECONDS = 7 * 24 * 3600
+
+
+def group_avatar_path(username: str) -> Path:
+    """Where a group's profile picture is stored. NewsState uses this same
+    name to show it, at /telegram_media/_avatar_<username>.jpg, on any
+    Telegram post that has no photo of its own.
+    """
+    return _TELEGRAM_MEDIA_DIR / f"_avatar_{username}.jpg"
+
+
+async def ensure_group_avatar(client: TelegramClient, entity, username: str) -> None:
+    """Downloads the group's current profile picture if we have none yet or
+    ours is over a week old (they rarely change). A group with no picture,
+    or a failed download, just leaves the file absent: posts then keep the
+    category fallback image.
+    """
+    dest = group_avatar_path(username)
+    try:
+        if dest.exists() and time.time() - dest.stat().st_mtime < _AVATAR_MAX_AGE_SECONDS:
+            return
+        _TELEGRAM_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+        await client.download_profile_photo(entity, file=str(dest), download_big=True)
+    except Exception as exc:  # noqa: BLE001 — an avatar is a bonus, never fatal to ingestion
+        logger.warning("SKIP avatar download for @%s: %s", username, exc)
+
+
 def _group_display_title(entity) -> str:
     """The group/channel's real display name (what /news shows as
     `source_name`), not the @username slug — matches how every other
@@ -365,6 +393,7 @@ async def _ingest_group(client: TelegramClient, db: TelegramNewsDB, username: st
         return stats
 
     display_title = _group_display_title(entity)
+    await ensure_group_avatar(client, entity, username)
     min_id = db.last_message_id(username)
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=_HISTORICAL_WINDOW_DAYS)
 

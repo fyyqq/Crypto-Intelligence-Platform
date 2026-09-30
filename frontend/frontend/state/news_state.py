@@ -18,8 +18,11 @@ import asyncio
 import datetime
 import hashlib
 import re
+from pathlib import Path
 
 import reflex as rx
+
+_TELEGRAM_MEDIA_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "telegram_media"
 
 _PAGE_SIZE = 12  # 4 columns x 3 rows per page, per explicit request
 
@@ -269,6 +272,22 @@ def _fallback_image_for(url: str, news_type: str) -> str:
     return image_pool[image_index]
 
 
+_TELEGRAM_URL_RE = re.compile(r"^https://t\.me/([^/]+)/\d+$")
+
+
+def _telegram_group_avatar(url: str) -> str:
+    """URL of the Telegram group's downloaded profile picture (see
+    telegram_pipeline.ensure_group_avatar), or "" if we have none. Shown on
+    any Telegram post without a photo of its own, in place of the generic
+    category fallback image.
+    """
+    match = _TELEGRAM_URL_RE.match(url)
+    if not match:
+        return ""
+    name = f"_avatar_{match.group(1)}.jpg"
+    return f"/telegram_media/{name}" if (_TELEGRAM_MEDIA_DIR / name).exists() else ""
+
+
 def _normalize_news_type(category_or_query: str | None, source_name: str) -> str:
     label = (category_or_query or "").strip()
     if label.startswith("Telegram "):
@@ -316,6 +335,11 @@ def _build_article_row(row: dict) -> dict:
     news_type = _normalize_news_type(row.get("category_or_query"), source_name)
     article_url = row.get("url") or ""
     fallback_image_url = _fallback_image_for(article_url, news_type)
+    if row.get("source_type") == "telegram":
+        # A Telegram post shows its group's profile picture instead of the
+        # generic category fallback whenever it has no photo of its own (and
+        # if its own photo ever fails to load).
+        fallback_image_url = _telegram_group_avatar(article_url) or fallback_image_url
     image_url = row.get("image_url") or fallback_image_url
     return {
         "id": row.get("id"),
