@@ -314,15 +314,24 @@ _TELEGRAM_URL_RE = re.compile(r"^https://t\.me/([^/]+)/(\d+)$")
 _GET_MESSAGES_BATCH_SIZE = 100
 
 
+_HAS_TEXT_RE = re.compile(r"[^\W_]")  # any letter/digit (any script)
+
+
 def _title_from_text(text: str) -> str:
-    """First non-empty line of the message, truncated — same "first line
-    as the headline" convention this session settled on, since a Telegram
-    post has no separate headline/body split the way an RSS article does.
+    """First line of the message that has real text, truncated — same "first
+    line as the headline" convention this session settled on, since a
+    Telegram post has no separate headline/body split the way an RSS article
+    does. Lines made only of emoji/symbols (a decorative "💎💎💎💎💎" header,
+    a sticker's emoji) are skipped in favour of the first real line; a post
+    with nothing but emoji keeps its emoji as the title.
     """
-    for line in text.splitlines():
-        cleaned = _WHITESPACE_RE.sub(" ", line).strip()
-        if cleaned:
-            return cleaned[:200].rstrip() + ("…" if len(cleaned) > 200 else "")
+    lines = [_WHITESPACE_RE.sub(" ", line).strip() for line in text.splitlines()]
+    lines = [line for line in lines if line]
+    for line in lines:
+        if _HAS_TEXT_RE.search(line):
+            return line[:200].rstrip() + ("…" if len(line) > 200 else "")
+    if lines:  # emoji/sticker-only post
+        return lines[0][:200].rstrip() + ("…" if len(lines[0]) > 200 else "")
     # No real line-break structure (single long paragraph) — fall back to
     # the first 200 chars of the whole message.
     cleaned = _WHITESPACE_RE.sub(" ", text).strip()

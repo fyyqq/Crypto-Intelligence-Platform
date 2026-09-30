@@ -222,3 +222,9 @@ Six Telegram groups (CRYPTO NEWS, Crypto News, Crypto | Bitcoin | Ethereum | Alt
 Sarjana Crypto posts with a photo are always shown, whatever their text: a photo without a caption is stored as "📷 Photo" (default category Crypto, no AI), and a photo post the AI would have excluded as chat/opinion/signal is kept in the closest category. Photo-only members of an album already covered by a captioned post are skipped. Text-only chat/opinion/signal posts from this group are still excluded; videos without text are not stored.
 
 </details>
+
+<details><summary>Telegram titles skip emoji-only lines</summary>
+
+A Telegram post's title is the first line that has real text (letters or digits); decorative emoji-only header lines and sticker emoji are skipped, and the card excerpt skips them too. A post with only an emoji/sticker keeps its emoji as the title.
+
+</details>

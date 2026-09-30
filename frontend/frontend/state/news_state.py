@@ -378,6 +378,9 @@ def _article_excerpt(body: str, title: str) -> str:
     lines = [re.sub(r"\s+", " ", line).strip() for line in body.splitlines()]
     lines = [line for line in lines if line]
     normalized_title = re.sub(r"\s+", " ", title).strip().casefold()
+    # Leading emoji-only lines (a decorative "💎💎💎" header) carry no text.
+    while lines and not re.search(r"[^\W_]", lines[0]) and any(re.search(r"[^\W_]", l) for l in lines):
+        lines.pop(0)
     if lines and lines[0].casefold() == normalized_title:
         lines.pop(0)
     excerpt = " ".join(lines)[:220].strip()
