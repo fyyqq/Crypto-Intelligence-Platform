@@ -54,3 +54,9 @@ A small (56×56px) circular brand mark, fixed to the bottom-right corner of ever
 ## Notes
 
 This file is the local counterpart to `CLAUDE.md`'s own `### 🌐 Global Components` section and the matching Notion page — kept in sync per the Documentation Sync Rule any time the header, footer, search, or profile menu changes.
+
+<details><summary>Page switches are full reloads</summary>
+
+Navigating between pages (nav links, logo, table row, search result, news cards) is a real browser navigation, done by a capture-phase click listener in `assets/chain_pills.js` plus `window.location.assign` in the two coin-navigation handlers. Filters, sorting, pagination, search and source pills stay reload-free (Reflex state events). Ctrl/Cmd/middle-clicks, new-tab and external links behave normally. Trade-offs: each switch reloads the app data (slower), and dynamic routes log a 404 status on hard load (page still renders).
+
+</details>

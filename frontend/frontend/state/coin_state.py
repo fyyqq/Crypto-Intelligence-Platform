@@ -3,6 +3,7 @@ exposes a narrative filter, backed by the SQLModel tables in frontend/models.
 """
 
 import asyncio
+import json
 import re
 from collections import Counter
 from urllib.parse import urlencode
@@ -1523,7 +1524,7 @@ class CoinState(rx.State):
 
     @rx.event
     def go_to_coin(self, symbol: str):
-        return rx.redirect(f"/coin/{symbol.lower()}")
+        return rx.call_script(f"window.location.assign({json.dumps('/coin/' + symbol.lower())})")
 
     @rx.event
     def set_global_search_query(self, value: str):
@@ -1538,7 +1539,7 @@ class CoinState(rx.State):
     def go_to_coin_from_search(self, symbol: str):
         self.global_search_query = ""
         self.global_search_limit = 5
-        return rx.redirect(f"/coin/{symbol.lower()}")
+        return rx.call_script(f"window.location.assign({json.dumps('/coin/' + symbol.lower())})")
 
     @rx.event
     def reset_global_search(self):

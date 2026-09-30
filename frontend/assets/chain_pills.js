@@ -316,3 +316,30 @@
   watchForNewsHash();
 })();
 
+
+// Moving to another page is a full browser reload (not the SPA's client-side
+// route change), per explicit request; in-page features (filters, sorting,
+// pagination, search) are Reflex state events and stay reload-free. A
+// capture-phase listener turns every plain same-origin link click into a real
+// navigation. Ctrl/Cmd/Shift/middle-clicks, target=_blank, downloads, and
+// same-page #hash links keep their normal behavior.
+(function () {
+  if (window.__fullReloadNavInstalled) return;
+  window.__fullReloadNavInstalled = true;
+  document.addEventListener(
+    "click",
+    function (e) {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.target.closest && e.target.closest("a[href]");
+      if (!a || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+      const url = new URL(a.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      const samePath = url.pathname.replace(/\/$/, "") === window.location.pathname.replace(/\/$/, "");
+      if (samePath && url.search === window.location.search) return; // hash-only / same page
+      e.preventDefault();
+      e.stopPropagation();
+      window.location.assign(url.href);
+    },
+    true
+  );
+})();

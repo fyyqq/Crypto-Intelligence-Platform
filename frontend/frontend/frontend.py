@@ -582,6 +582,7 @@ def _placeholder_page(heading: str) -> rx.Component:
         footer(),
         _floating_logo(),
         _chat_widget(),
+        rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
     )
@@ -650,6 +651,7 @@ def watchlist_page() -> rx.Component:
         footer(),
         _floating_logo(),
         _chat_widget(),
+        rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
     )
