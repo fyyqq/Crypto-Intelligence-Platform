@@ -60,3 +60,9 @@ This file is the local counterpart to `CLAUDE.md`'s own `### 🌐 Global Compone
 Navigating between pages (nav links, logo, table row, search result, news cards) is a real browser navigation, done by a capture-phase click listener in `assets/chain_pills.js` plus `window.location.assign` in the two coin-navigation handlers. Filters, sorting, pagination, search and source pills stay reload-free (Reflex state events). Ctrl/Cmd/middle-clicks, new-tab and external links behave normally. Trade-offs: each switch reloads the app data (slower), and dynamic routes log a 404 status on hard load (page still renders).
 
 </details>
+
+<details><summary>Tablet/mobile header and tablet footer</summary>
+
+Below the lg breakpoint (1280px) the header's nav links move into the top of the profile dropdown and the search box is centred in the header (the right-side wrapper becomes `display: contents`, so search and profile are direct grid items). At lg+ the header is unchanged. The footer is left-aligned at tablet width only; mobile stays centred.
+
+</details>

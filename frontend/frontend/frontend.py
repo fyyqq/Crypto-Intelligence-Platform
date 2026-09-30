@@ -77,8 +77,29 @@ def _color_mode_menu_item() -> rx.Component:
     )
 
 
+def _nav_menu_items() -> rx.Component:
+    """The header's nav links, shown inside the profile dropdown below lg
+    (where the centre of the header is taken by the search box instead)."""
+    return rx.box(
+        *[
+            rx.link(
+                rx.hstack(rx.text(label, size="2"), align="center", class_name="profile-menu-item"),
+                href=href,
+                underline="none",
+                display="block",
+                width="100%",
+                color="var(--gray-12)",
+            )
+            for label, href in _NAV_LINKS
+        ],
+        rx.divider(margin_y="0.25em"),
+        display=["block", "block", "block", "block", "none"],
+    )
+
+
 def _profile_dropdown() -> rx.Component:
     return rx.box(
+        _nav_menu_items(),
         _watchlist_menu_item(),
         _color_mode_menu_item(),
         class_name="profile-dropdown",
@@ -183,6 +204,9 @@ def _nav_links() -> rx.Component:
         min_width="0",
         overflow_x="auto",
         flex_wrap="nowrap",
+        # Below lg (tablet/mobile) the links live in the profile dropdown
+        # instead, and the search box takes the centre of the header.
+        display=["none", "none", "none", "none", "flex"],
         class_name="hide-scrollbar",
     )
 
@@ -242,6 +266,10 @@ def _header_bar() -> rx.Component:
                 align="center",
                 justify="end",
                 flex_shrink="0",
+                # Below lg this wrapper disappears from layout so the search
+                # box and profile pill become direct grid items: search in
+                # the centre column, profile on the right.
+                display=["contents", "contents", "contents", "contents", "flex"],
             ),
             # A 3-column grid (not hstack + justify="between") so the nav
             # links land at the header's true horizontal center regardless
@@ -264,8 +292,8 @@ def _header_bar() -> rx.Component:
             grid_template_columns=[
                 "auto minmax(0, 1fr) auto",
                 "auto minmax(0, 1fr) auto",
-                "1fr auto 1fr",
-                "1fr auto 1fr",
+                "auto minmax(0, 1fr) auto",
+                "auto minmax(0, 1fr) auto",
                 "1fr auto 1fr",
             ],
             align_items="center",

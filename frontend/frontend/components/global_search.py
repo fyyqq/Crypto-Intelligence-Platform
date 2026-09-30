@@ -159,7 +159,11 @@ def global_search() -> rx.Component:
         # the logo-text hiding above so the header's fixed-content columns
         # leave the nav-links column a real, usable width on a phone
         # instead of squeezing it to ~0.
-        width=["70px", "110px", "170px", "210px", "240px"],
-        flex_shrink="0",
+        # Below lg the search sits in the centre of the header (see
+        # frontend.py::_header_bar), so it can be wider and centred there.
+        width=["100%", "100%", "100%", "100%", "240px"],
+        max_width=["260px", "320px", "360px", "360px", "240px"],
+        justify_self="center",
+        min_width="0",
         position="relative",
     )
