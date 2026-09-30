@@ -138,7 +138,7 @@ def _source_pill(section: dict, source: rx.Var[str]) -> rx.Component:
 
 
 def _section_source_filter(section: dict) -> rx.Component:
-    """Horizontal slider of the top-5 publishers (plus All), ending with an
+    """Horizontal slider of the top-10 publishers (plus All), ending with an
     "Other" dropdown holding the remaining publishers."""
     return rx.hstack(
         _source_pill(section, "All"),
@@ -157,6 +157,8 @@ def _section_source_filter(section: dict) -> rx.Component:
         ),
         spacing="2",
         align="center",
+        # Fills the space beside the heading so the slider starts right next to it.
+        flex="1 1 0",
         min_width="0",
         overflow_x="auto",
         padding_y="2px",

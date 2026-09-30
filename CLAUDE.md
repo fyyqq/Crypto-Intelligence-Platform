@@ -27,6 +27,9 @@ Per explicit request. Moving to another page (nav links, logo, coin-table row cl
 
 **Verified live**: clicking a narrative pill and starring a coin caused 0 navigations; the News link, a news card, and a coin-table row each did a real navigation. A starred coin was still on `/watchlist` after a hard load (session state survives a reload). **Side effects to know**: every page switch re-downloads/re-parses the app and re-loads the ~8k-coin list (slower than SPA navigation; the earlier performance analysis still applies), and dynamic routes (`/coin/[symbol]`, `/news/<cat>/<slug>`) return an HTTP 404 status on a hard load under `--single-port` (the page still renders; the browser console logs one "404" line). To undo: remove the last IIFE in `chain_pills.js` and restore `rx.redirect` in the two handlers.
 
+### 🔧 Follow-up: source pills back to top 10, slider fills the space beside the heading (2026-09-30 session)
+Per explicit request (`el-22/23`): `_TOP_SOURCE_PILLS = 10` again, and each section's pill slider now takes all remaining width in the heading row (`flex: 1 1 0`, `min-width: 0`), so it starts right beside the heading block (12px gap) instead of shrink-wrapping at the far right. Overflow still scrolls horizontally. Verified live in all four sections (slider left edge 12px from the heading; Technology has only 5 publishers, so no "Other"); zero console errors.
+
 ### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
 * **Why:** This ensures that if the terminal session suddenly runs out of API limits, the current progress state is perfectly preserved right here, allowing a seamless handoff to GitHub Copilot inside VS Code without losing data.
 
