@@ -5,6 +5,8 @@ exposes a narrative filter, backed by the SQLModel tables in frontend/models.
 import asyncio
 import json
 import re
+import sys
+from pathlib import Path
 from collections import Counter
 from urllib.parse import urlencode
 
@@ -13,6 +15,9 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from frontend.models.coin import Coin
+
+# Repo root, so handlers can import the Postgres-side `app` package (Reflex only has frontend/ on sys.path).
+_ROOT_FOR_APP = str(Path(__file__).resolve().parent.parent.parent.parent)
 
 # Eye-catching, mutually distinct colors for the About/AI-summary keyword
 # underline highlight — picked for contrast against both light and dark
@@ -1094,6 +1099,8 @@ class CoinState(rx.State):
     is_logged_in: bool = False
     user_name: str = ""
     user_email: str = ""
+    # DB id of the logged-in account; set server-side at login, never from the browser.
+    user_id: int = 0
 
     # Floating-logo chatbot popup (frontend.py::_floating_logo/_chat_widget)
     # — click the floating logo to open, click it again or click the popup's
@@ -1450,18 +1457,29 @@ class CoinState(rx.State):
         return {**row, **override} if override else row
 
     @rx.event
-    def toggle_watchlist(self, cmc_id: int) -> None:
+    async def toggle_watchlist(self, cmc_id: int):
         """Star icon handler, called from both the coin-detail page (add/
         remove the currently viewed coin) and the /watchlist page's own
         table rows (always a remove there, since every row shown is
         already-watchlisted). Reassigns the whole list rather than
         mutating in place, matching this class's existing
-        coin_overrides convention.
+        coin_overrides convention. When logged in the change is also saved
+        to the database under this account (user_watchlist); logged out it
+        only lives in this browser session.
         """
         if cmc_id in self.watchlist_ids:
             self.watchlist_ids = [i for i in self.watchlist_ids if i != cmc_id]
+            watched = False
         else:
             self.watchlist_ids = [*self.watchlist_ids, cmc_id]
+            watched = True
+        if self.user_id:
+            uid = self.user_id
+            if _ROOT_FOR_APP not in sys.path:
+                sys.path.insert(0, _ROOT_FOR_APP)
+            from app.services import watchlist_service
+
+            await asyncio.to_thread(watchlist_service.set_watched, uid, int(cmc_id), watched)
 
     @rx.var(cache=True)
     def watchlist_count(self) -> int:
@@ -1574,6 +1592,8 @@ class CoinState(rx.State):
         self.is_logged_in = False
         self.user_name = ""
         self.user_email = ""
+        self.user_id = 0
+        self.watchlist_ids = []
         self.profile_menu_open = False
         return rx.call_script("window.location.assign('/')")
 

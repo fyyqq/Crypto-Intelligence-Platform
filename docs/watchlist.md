@@ -38,3 +38,7 @@ The header profile-menu's "★ Watchlist" row and the coin-detail star icon were
 ## Persistence, honestly
 
 `watchlist_ids` is a plain in-memory Reflex state var, not a database column — this app has no real user/auth system (see `global-components.md`'s profile-pill notes), so there's no account to scope a per-user watchlist to. It lives on the server, keyed to the browser's session cookie, so it survives normal page navigation and a real full-page reload of the same browser session, but is lost if the Reflex server process restarts. If a real account system is ever added, this is the piece that would move to a database table keyed by user id.
+
+
+### Per-account storage (2026-10-01)
+When logged in, stars are saved in the `user_watchlist` table under that account and reloaded at login, so every account has its own watchlist. Logged out, stars stay in the browser session only. Login replaces any logged-out stars with the account's saved list.

@@ -89,12 +89,19 @@ class AuthState(CoinState):
         # reCAPTCHA tokens are single-use: recaptcha_init.js fetches a fresh one after every submit.
         return None
 
-    def _succeed(self, result):
+    async def _succeed(self, result):
         self.is_logged_in = True
+        self.user_id = result.user_id
         self.user_name = result.user_name
         self.user_email = result.user_email
         self.auth_error = ""
         self.auth_loading = False
+        # Load this account's saved watchlist (replaces anything starred while logged out).
+        if str(_REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(_REPO_ROOT))
+        from app.services import watchlist_service
+
+        self.watchlist_ids = await asyncio.to_thread(watchlist_service.get_watchlist_ids, result.user_id)
         return rx.call_script("window.location.assign('/')")
 
     @rx.event
@@ -115,7 +122,7 @@ class AuthState(CoinState):
                 yield self._fail("Security check failed. Please try again.")
                 return
         result = await self._run("login_user", email, password)
-        yield self._succeed(result) if result.ok else self._fail(result.error)
+        yield (await self._succeed(result)) if result.ok else self._fail(result.error)
 
     @rx.event
     async def submit_signup(self, form_data: dict):
@@ -142,7 +149,7 @@ class AuthState(CoinState):
             str(form_data.get("password", "")),
             str(form_data.get("repeat_password", "")),
         )
-        yield self._succeed(result) if result.ok else self._fail(result.error)
+        yield (await self._succeed(result)) if result.ok else self._fail(result.error)
 
 
 def _left_panel() -> rx.Component:

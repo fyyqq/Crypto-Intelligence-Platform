@@ -41,6 +41,7 @@ GENERIC_SIGNUP_ERROR = "We couldn't create that account. If you already have one
 class AuthResult:
     ok: bool
     error: str = ""
+    user_id: int = 0
     user_name: str = ""
     user_email: str = ""
 
@@ -141,7 +142,7 @@ def register_user(full_name: str, email: str, password: str, repeat_password: st
         except IntegrityError:  # lost a race with another sign-up for the same email
             db.rollback()
             return AuthResult(False, GENERIC_SIGNUP_ERROR)
-        return AuthResult(True, user_name=user.full_name, user_email=user.email)
+        return AuthResult(True, user_id=user.id, user_name=user.full_name, user_email=user.email)
     finally:
         db.close()
 
@@ -183,6 +184,6 @@ def login_user(email: str, password: str) -> AuthResult:
         user.locked_until = None
         user.last_login_at = now
         db.commit()
-        return AuthResult(True, user_name=user.full_name, user_email=user.email)
+        return AuthResult(True, user_id=user.id, user_name=user.full_name, user_email=user.email)
     finally:
         db.close()
