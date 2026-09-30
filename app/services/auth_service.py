@@ -87,8 +87,13 @@ def validate_password(raw: str) -> str:
     return ""
 
 
-def verify_recaptcha(token: str) -> bool:
-    """Server-side check of the reCAPTCHA token. Fails closed on any problem."""
+RECAPTCHA_MIN_SCORE = 0.5
+
+
+def verify_recaptcha(token: str, action: str) -> bool:
+    """Server-side check of a reCAPTCHA v3 token: Google must accept it, the token must
+    have been issued for this exact action, and the bot-likelihood score must be high
+    enough. Fails closed on any problem."""
     if not token or len(token) > 4096:
         return False
     try:
@@ -97,10 +102,16 @@ def verify_recaptcha(token: str) -> bool:
             data={"secret": settings.recaptcha_secret_key, "response": token},
             timeout=8,
         )
-        return bool(resp.json().get("success"))
+        data = resp.json()
     except Exception:
         logger.warning("reCAPTCHA verification request failed", exc_info=True)
         return False
+    if not data.get("success"):
+        logger.info("reCAPTCHA rejected: %s", data.get("error-codes"))
+        return False
+    if data.get("action") != action:
+        return False
+    return float(data.get("score", 0)) >= RECAPTCHA_MIN_SCORE
 
 
 def register_user(full_name: str, email: str, password: str, repeat_password: str) -> AuthResult:

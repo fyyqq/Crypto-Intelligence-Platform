@@ -10,15 +10,14 @@ from frontend.state import CoinState
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
-# Public reCAPTCHA site key (safe to expose). Defaults to Google's always-passing test key;
-# set RECAPTCHA_SITE_KEY (and RECAPTCHA_SECRET_KEY for the backend) in .env for real use.
+# Public reCAPTCHA v3 site key (safe to expose); the secret key stays backend-only.
 try:
     from dotenv import load_dotenv
 
     load_dotenv(_REPO_ROOT / ".env")
 except Exception:
     pass
-_RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI")
+_RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")
 
 _GOOGLE_SVG = (
     '<svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">'
@@ -86,8 +85,8 @@ class AuthState(CoinState):
     def _fail(self, message: str):
         self.auth_error = message
         self.auth_loading = False
-        # A reCAPTCHA token is single-use: give the user a fresh checkbox after any failure.
-        return rx.call_script("if (window.grecaptcha) { grecaptcha.reset(); }")
+        # reCAPTCHA tokens are single-use: recaptcha_init.js fetches a fresh one after every submit.
+        return None
 
     def _succeed(self, result):
         self.is_logged_in = True
@@ -108,10 +107,10 @@ class AuthState(CoinState):
         password = str(form_data.get("password", ""))
         token = str(form_data.get("g-recaptcha-response", ""))
         if not token:
-            yield self._fail("Please confirm you are not a robot.")
+            yield self._fail("Security check not ready yet. Please try again in a moment.")
             return
-        if not await self._run("verify_recaptcha", token):
-            yield self._fail("reCAPTCHA verification failed. Please try again.")
+        if not await self._run("verify_recaptcha", token, "login"):
+            yield self._fail("Security check failed. Please try again.")
             return
         result = await self._run("login_user", email, password)
         yield self._succeed(result) if result.ok else self._fail(result.error)
@@ -128,10 +127,10 @@ class AuthState(CoinState):
             yield self._fail("You must agree to the Terms & Conditions.")
             return
         if not token:
-            yield self._fail("Please confirm you are not a robot.")
+            yield self._fail("Security check not ready yet. Please try again in a moment.")
             return
-        if not await self._run("verify_recaptcha", token):
-            yield self._fail("reCAPTCHA verification failed. Please try again.")
+        if not await self._run("verify_recaptcha", token, "signup"):
+            yield self._fail("Security check failed. Please try again.")
             return
         result = await self._run(
             "register_user",
@@ -264,13 +263,15 @@ def _google_button() -> rx.Component:
     )
 
 
-def _recaptcha() -> rx.Component:
+def _recaptcha(action: str) -> rx.Component:
+    """reCAPTCHA v3 is invisible: a hidden field holds the token, which recaptcha_init.js
+    keeps fresh (and refreshes after every submit). The server checks score and action."""
     return rx.box(
-        rx.el.div(class_name="g-recaptcha", custom_attrs={"data-sitekey": _RECAPTCHA_SITE_KEY}),
-        rx.script(src="https://www.google.com/recaptcha/api.js?render=explicit"),
+        rx.el.input(type="hidden", name="g-recaptcha-response", custom_attrs={"data-action": action, "data-sitekey": _RECAPTCHA_SITE_KEY}),
+        rx.script(src=f"https://www.google.com/recaptcha/api.js?render={_RECAPTCHA_SITE_KEY}"),
         rx.script(src="/recaptcha_init.js"),
+        rx.text("Protected by reCAPTCHA", size="1", color="rgba(255,255,255,0.4)"),
         width="100%",
-        min_height="78px",
     )
 
 
@@ -310,7 +311,7 @@ def _form_panel(mode: str) -> rx.Component:
                         align="center",
                     ),
                 ),
-                _recaptcha(),
+                _recaptcha("login" if login else "signup"),
                 rx.cond(
                     AuthState.auth_error != "",
                     rx.callout(AuthState.auth_error, icon="triangle-alert", color_scheme="red", size="1", width="100%"),

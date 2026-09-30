@@ -76,11 +76,10 @@ class Settings(BaseSettings):
     openrouter_max_calls_per_hour: int = 60
     openrouter_failure_cooldown_minutes: int = 30
 
-    # Google reCAPTCHA v2 ("I'm not a robot") on the login/signup forms. The defaults
-    # are Google's public TEST keys (always pass, show a "testing only" banner):
-    # set RECAPTCHA_SITE_KEY / RECAPTCHA_SECRET_KEY in .env with real keys for production.
-    recaptcha_site_key: str = "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
-    recaptcha_secret_key: str = "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe"
+    # Google reCAPTCHA v3 (invisible, score based) on the login/signup forms. Set
+    # RECAPTCHA_SITE_KEY / RECAPTCHA_SECRET_KEY in .env (v3 keys; v2 keys will not work).
+    recaptcha_site_key: str = ""
+    recaptcha_secret_key: str = ""
 
     # On-demand CEX/DEX market-pair listing (see
     # app/services/market_pairs_service.py) — refreshed far more often than

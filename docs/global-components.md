@@ -100,3 +100,7 @@ Below lg the avatar opens the profile dropdown with Log in and Sign up first; at
 
 ### Login/signup backend (2026-10-01)
 `users` table (Argon2id hashes), `app/services/auth_service.py` (server-side validation, generic login errors, 5-failure/15-minute lockout), reCAPTCHA v2 on both forms (Google test keys by default; set RECAPTCHA_SITE_KEY/RECAPTCHA_SECRET_KEY in .env), `AuthState` handlers, header shows the user name and a Log out row. Session is in-memory per browser session. Forgot password and Google login are not built yet.
+
+
+### reCAPTCHA v3 (2026-10-01)
+Login/signup use invisible reCAPTCHA v3 (hidden token field refreshed by `assets/recaptcha_init.js`, server check of success + action + score >= 0.5). Keys come from `.env` (`RECAPTCHA_SITE_KEY`, `RECAPTCHA_SECRET_KEY`); the site key must list the domain (e.g. localhost) in the reCAPTCHA admin console.
