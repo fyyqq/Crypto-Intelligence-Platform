@@ -522,10 +522,6 @@ def index() -> rx.Component:
                 id="news-feed-section",
                 width="100%",
             ),
-            rx.box(
-                news_feed("Markets & Finance", NewsState.home_markets_news, "/news#markets-finance", eyebrow=False),
-                width="100%",
-            ),
             narrative_alerts(),
             rx.hstack(
                 rx.box(

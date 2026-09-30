@@ -879,11 +879,6 @@ class NewsState(rx.State):
         return [a for a in self._all_articles if a["news_type"] == "Cryptocurrency"][:_HOME_NEWS_LIMIT]
 
     @rx.var(cache=True)
-    def home_markets_news(self) -> list[dict]:
-        """Newest Markets & Finance articles for the homepage slider."""
-        return [a for a in self._all_articles if a["news_type"] == "Markets & Finance"][:_HOME_NEWS_LIMIT]
-
-    @rx.var(cache=True)
     def has_articles(self) -> bool:
         return len(self._all_articles) > 0
 

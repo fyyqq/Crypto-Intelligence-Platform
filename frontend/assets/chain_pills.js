@@ -344,28 +344,40 @@
   );
 })();
 
-// Autoplay for the homepage news sliders (.news-slider-wrap): every few
-// seconds the track advances by one card, looping back to the start at the
-// end. Paused while the pointer is anywhere over the slider (cards or its
-// arrow buttons, which sit inside the wrap), while dragging, and while the tab
-// is hidden.
+// Autoplay for the homepage news slider (.news-slider-wrap): scrolls
+// continuously (a steady drift, not card-by-card), looping back to the start
+// at the end. Paused while the pointer is anywhere over the slider (cards or
+// its arrow buttons, which sit inside the wrap), while dragging, and while the
+// tab is hidden.
 (function () {
   if (window.__newsAutoplayInit) return;
   window.__newsAutoplayInit = true;
-  const INTERVAL_MS = 3500;
+  const SPEED_PX_PER_SEC = 45;
+  const positions = new WeakMap();
+  let last = performance.now();
 
-  setInterval(function () {
-    if (document.hidden) return;
-    document.querySelectorAll(".news-slider-wrap").forEach(function (wrap) {
-      if (wrap.matches(":hover")) return;
-      const track = wrap.querySelector(".news-slider-track");
-      if (!track || track.classList.contains("grabbing")) return;
-      const first = track.firstElementChild;
-      if (!first) return;
-      const step = first.getBoundingClientRect().width + 12;
-      const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 2;
-      if (atEnd) track.scrollTo({ left: 0, behavior: "smooth" });
-      else track.scrollBy({ left: step, behavior: "smooth" });
-    });
-  }, INTERVAL_MS);
+  function frame(now) {
+    const dt = Math.min(now - last, 100) / 1000;
+    last = now;
+    if (!document.hidden) {
+      document.querySelectorAll(".news-slider-wrap").forEach(function (wrap) {
+        const track = wrap.querySelector(".news-slider-track");
+        if (!track || wrap.matches(":hover") || track.classList.contains("grabbing")) {
+          if (track) positions.delete(track);
+          return;
+        }
+        let pos = positions.get(track);
+        // The user scrolled (arrows/drag) since the last frame: continue from there.
+        if (pos === undefined || Math.abs(track.scrollLeft - pos) > 2) pos = track.scrollLeft;
+        pos += SPEED_PX_PER_SEC * dt;
+        const max = track.scrollWidth - track.clientWidth;
+        if (pos >= max - 1) pos = 0;
+        track.style.scrollBehavior = "auto"; // instant steps; smooth-scroll would fight the drift
+        track.scrollLeft = pos;
+        positions.set(track, pos);
+      });
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 })();

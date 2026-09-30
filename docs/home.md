@@ -82,3 +82,9 @@ The homepage shows two sliders, "Cryptocurrency" and "Markets & Finance", each w
 The homepage news strips show 50 compact cards each (no image; the source-group and category badges hidden, only the Telegram badge, time, title and snippet). Both autoplay one card every 3.5s, looping at the end, and pause while hovered (cards or arrows), while dragging, or when the tab is hidden. The "More Impact" link on the Targeted Narrative section was removed.
 
 </details>
+
+<details><summary>News strip update: single strip, continuous autoplay</summary>
+
+The homepage now has a single news strip (Cryptocurrency, 50 compact cards); the Markets & Finance strip was removed. Autoplay is a continuous drift (about 45px/s), not card-by-card, looping at the end, and pausing on hover, drag or a hidden tab.
+
+</details>
