@@ -10,7 +10,7 @@ import reflex as rx
 
 from frontend.state import NewsState
 
-_GRID_COLUMNS = rx.breakpoints(initial="1", sm="2", md="3", lg="4")
+_GRID_COLUMNS = rx.breakpoints(initial="1", sm="2", md="3", lg="5")
 
 
 def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
@@ -301,7 +301,7 @@ def _empty_state() -> rx.Component:
 def _loading_skeleton() -> rx.Component:
     return rx.vstack(
         rx.grid(
-            *[rx.skeleton(height="320px", width="100%", border_radius="12px") for _ in range(12)],
+            *[rx.skeleton(height="320px", width="100%", border_radius="12px") for _ in range(15)],
             columns=_GRID_COLUMNS,
             spacing="4",
             width="100%",

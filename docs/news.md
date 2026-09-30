@@ -234,3 +234,9 @@ A Telegram post's title is the first line that has real text (letters or digits)
 Each `/news` section ends with its centred pagination and a "View All" button on the right. It opens `/news/<category>` (cryptocurrency, artificial-intelligence, markets-finance, technology, memecoins): the category's newest 100 articles in the same 4-column grid, under the same header as a section (title + count, source pills with "Other", title search). No pagination on that page. Filters chosen there are shared with the `/news` section of the same category.
 
 </details>
+
+<details><summary>Grid is 5 columns, 15 per page</summary>
+
+News cards are laid out 5 across at desktop width (3 on tablet, 2 small tablet, 1 phone), on the section grids and the View All page. Each section page holds 15 cards (5 x 3), and View All shows the newest 100.
+
+</details>

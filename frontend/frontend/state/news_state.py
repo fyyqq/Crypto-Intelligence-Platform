@@ -27,7 +27,7 @@ from frontend.state.coin_state import _format_model_badge
 
 _TELEGRAM_MEDIA_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "telegram_media"
 
-_PAGE_SIZE = 12  # 4 columns x 3 rows per page, per explicit request
+_PAGE_SIZE = 15  # 5 columns x 3 rows per page (desktop), per explicit request
 _VIEW_ALL_LIMIT = 100  # newest articles on a /news/<category> page
 _HOME_NEWS_LIMIT = 50  # cards per homepage news slider
 _TOP_SOURCE_PILLS = 10  # publishers shown as pills; the rest go in the "Other" dropdown
