@@ -1089,6 +1089,9 @@ class CoinState(rx.State):
     # pill to open, click it again (or click outside — same
     # click-outside-close pattern global search already uses) to close.
     profile_menu_open: bool = False
+    # No real auth yet (login form is a dummy): everyone is logged out, so the
+    # header pill hides the name/plan text and leads to /login.
+    is_logged_in: bool = False
 
     # Floating-logo chatbot popup (frontend.py::_floating_logo/_chat_widget)
     # — click the floating logo to open, click it again or click the popup's
@@ -1554,6 +1557,12 @@ class CoinState(rx.State):
         """
         self.global_search_query = ""
         self.global_search_limit = 5
+
+    @rx.event
+    def profile_pill_click(self):
+        if not self.is_logged_in:
+            return rx.call_script("window.location.assign('/login')")
+        self.profile_menu_open = not self.profile_menu_open
 
     @rx.event
     def toggle_profile_menu(self):

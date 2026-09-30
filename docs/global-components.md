@@ -84,3 +84,7 @@ A header nav link is active when the current path equals its route or starts wit
 At desktop width the header's "News" link has a hover dropdown listing Cryptocurrency, Artificial Intelligence, Markets & Finance, Technology and Memecoins, each linking to its `/news/<category>` page.
 
 </details>
+
+
+### Login page and logged-out header pill (2026-10-01)
+No auth yet: `CoinState.is_logged_in` is False, so the header pill shows only the avatar and click goes to `/login`. `/login` is a dummy design-only page (`components/login_page.py`): email/password form, Google option (no Apple), no backend. `/signup` is not built yet. Below lg the nav links live in the profile dropdown, so logged-out small-screen users cannot reach them from the header until this is revisited.

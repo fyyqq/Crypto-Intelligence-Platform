@@ -20,6 +20,7 @@ from frontend.components import (
     news_page_content,
     watchlist_table,
 )
+from frontend.components.login_page import login_page
 from frontend.state import CoinState, NewsDetailState, NewsState
 
 
@@ -129,7 +130,11 @@ def _profile_pill() -> rx.Component:
                 # Hidden below the iPad-portrait breakpoint (md, 768px) — on
                 # a phone-width header there isn't room for this text column
                 # too, so the pill collapses to just the avatar there.
-                display=["none", "none", "flex", "flex", "flex"],
+                display=rx.cond(
+                    CoinState.is_logged_in,
+                    rx.breakpoints(initial="none", sm="none", md="flex", lg="flex", xl="flex"),
+                    "none",
+                ),
             ),
             rx.box(
                 rx.icon("user", size=22, color="var(--gray-9)"),
@@ -150,13 +155,18 @@ def _profile_pill() -> rx.Component:
             align="center",
             # Symmetric padding once the text column above is hidden (avatar
             # only), back to the wider left padding once it reappears at md+.
-            padding=["0.35em", "0.35em", "0.35em 0.35em 0.35em 1em", "0.35em 0.35em 0.35em 1em", "0.35em 0.35em 0.35em 1em"],
+            padding=rx.cond(
+                CoinState.is_logged_in,
+                rx.breakpoints(initial="0.35em", sm="0.35em", md="0.35em 0.35em 0.35em 1em", lg="0.35em 0.35em 0.35em 1em", xl="0.35em 0.35em 0.35em 1em"),
+                "0.35em",
+            ),
             border="1px solid var(--gray-a6)",
             border_radius="9999px",
             background="var(--gray-a2)",
         ),
-        rx.cond(CoinState.profile_menu_open, _profile_dropdown(), rx.fragment()),
-        on_click=CoinState.toggle_profile_menu,
+        rx.cond(CoinState.profile_menu_open & CoinState.is_logged_in, _profile_dropdown(), rx.fragment()),
+        # Logged out: the avatar leads to the login page instead of opening the menu.
+        on_click=CoinState.profile_pill_click,
         cursor="pointer",
         position="relative",
         class_name="profile-pill-trigger",
@@ -785,6 +795,7 @@ app.add_page(
     title=NewsState.view_all_title,
     on_load=[CoinState.load_coins, NewsState.load_news, NewsState.reset_view_all_page, NewsState.watch_new_articles],
 )
+app.add_page(login_page, route="/login", title="Repace — Log in")
 app.add_page(
     news_detail_page,
     route="/news/[news_category]/[article_slug]",
