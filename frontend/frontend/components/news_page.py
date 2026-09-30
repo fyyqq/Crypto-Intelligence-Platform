@@ -10,7 +10,8 @@ import reflex as rx
 
 from frontend.state import NewsState
 
-_GRID_COLUMNS = rx.breakpoints(initial="1", sm="2", md="3", lg="5")
+# Phone 2 columns, tablet 3, desktop (lg+) 5.
+_GRID_COLUMNS = rx.breakpoints(initial="2", sm="3", lg="5")
 
 
 def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
@@ -41,7 +42,14 @@ def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
             rx.vstack(
                 rx.hstack(
                     rx.hstack(
-                        rx.fragment() if compact else rx.badge(article["source_name"], color_scheme=article["badge_color"], variant="surface", size="1"),
+                        rx.fragment() if compact else rx.badge(
+                            article["source_name"],
+                            color_scheme=article["badge_color"],
+                            variant="surface",
+                            size="1",
+                            # A long publisher/group name is cut with an ellipsis instead of overflowing the card.
+                            style={"max_width": "100%", "display": "inline-block", "overflow": "hidden", "text_overflow": "ellipsis", "white_space": "nowrap"},
+                        ),
                         rx.cond(
                             article["is_telegram"],
                             rx.badge("Telegram News", color_scheme="blue", variant="solid", size="1"),
@@ -55,11 +63,12 @@ def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
                         spacing="2",
                         align="center",
                         min_width="0",
+                        flex="1 1 0",
                         flex_wrap="wrap",
                     ),
-                    rx.text(article["time_display"], size="1", color_scheme="gray", white_space="nowrap"),
+                    rx.text(article["time_display"], size="1", color_scheme="gray", white_space="nowrap", flex_shrink="0"),
                     spacing="2",
-                    align="center",
+                    align="start",
                     justify="between",
                     width="100%",
                 ),
@@ -350,7 +359,7 @@ def _category_filter_row(view: dict) -> rx.Component:
         ),
         rx.box(
             _section_search(view),
-            justify_self=rx.breakpoints(initial="stretch", lg="end"),
+            justify_self=rx.breakpoints(initial="center", lg="end"),
             width=rx.breakpoints(initial="100%", sm="280px"),
             max_width="280px",
             grid_column=rx.breakpoints(initial="1", lg="2"),
@@ -360,6 +369,7 @@ def _category_filter_row(view: dict) -> rx.Component:
         spacing="4",
         align_items="center",
         width="100%",
+        margin_top="1.25em",  # space between the centred title and the filter row
     )
 
 
@@ -382,6 +392,7 @@ def news_category_content() -> rx.Component:
                         spacing="3",
                         align="center",
                         justify="center",
+                        text_align="center",
                         width="100%",
                     ),
                     _category_filter_row(view),

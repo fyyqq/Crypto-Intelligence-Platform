@@ -237,12 +237,18 @@ Each `/news` section ends with its centred pagination and a "View All" button on
 
 <details><summary>Grid is 5 columns, 15 per page</summary>
 
-News cards are laid out 5 across at desktop width (3 on tablet, 2 small tablet, 1 phone), on the section grids and the View All page. Each section page holds 15 cards (5 x 3), and View All shows the newest 100.
+News cards are laid out 5 across at desktop width (3 on tablet, 2 on phones), on the section grids and the View All page. Each section page holds 15 cards (5 x 3), and View All shows the newest 100.
 
 </details>
 
 <details><summary>View All pagination and nav highlight</summary>
 
 `/news/<category>` pages through every article of the category, 100 per page, with a centred pagination row below the grid ("Showing 101–200 of 2228 articles"); changing the source pill or search returns to page 1. The category title and count are centred at the top (no back link). The header's News link stays highlighted on any `/news/...` page.
+
+</details>
+
+<details><summary>Category page layout and card badge fit</summary>
+
+On `/news/<category>` the title and count are centred with extra space above the filter row, and the search box is centred below the desktop breakpoint. A long source name in a card's badge row is cut with an ellipsis so it never overlaps the time.
 
 </details>
