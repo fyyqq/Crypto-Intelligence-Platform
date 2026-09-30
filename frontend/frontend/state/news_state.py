@@ -28,6 +28,7 @@ from frontend.state.coin_state import _format_model_badge
 _TELEGRAM_MEDIA_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "telegram_media"
 
 _PAGE_SIZE = 12  # 4 columns x 3 rows per page, per explicit request
+_HOME_NEWS_LIMIT = 15  # cards per homepage news slider
 _TOP_SOURCE_PILLS = 10  # publishers shown as pills; the rest go in the "Other" dropdown
 
 _SLUG_STRIP_RE = re.compile(r"[^a-z0-9]+")
@@ -870,6 +871,17 @@ class NewsState(rx.State):
     def _total_pages_for(self, news_type: str) -> int:
         count = len(self._filtered_category_articles(news_type))
         return max(1, -(-count // _PAGE_SIZE))
+
+    @rx.var(cache=True)
+    def home_crypto_news(self) -> list[dict]:
+        """Newest Cryptocurrency articles for the homepage slider (same rows
+        and same live refresh as the /news Cryptocurrency section)."""
+        return [a for a in self._all_articles if a["news_type"] == "Cryptocurrency"][:_HOME_NEWS_LIMIT]
+
+    @rx.var(cache=True)
+    def home_markets_news(self) -> list[dict]:
+        """Newest Markets & Finance articles for the homepage slider."""
+        return [a for a in self._all_articles if a["news_type"] == "Markets & Finance"][:_HOME_NEWS_LIMIT]
 
     @rx.var(cache=True)
     def has_articles(self) -> bool:

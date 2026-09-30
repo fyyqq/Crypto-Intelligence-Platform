@@ -70,3 +70,9 @@ If a coin's canonical CMC price is exactly zero (a real, if uncommon, CMC data g
 `CoinState.load_coins` fetches the full coin universe **once per browser session** — skipped on every subsequent navigation back to this page, confirmed live this was previously costing around 2 seconds of blocking server time per visit. Live updates from the sync tiers above land in a small per-coin override dict holding only the fields that actually changed, merged into the full row set at render time, rather than ever re-sending the entire roughly 32MB serialized coin list over the websocket again after the first load — confirmed live this was the dominant fix behind "every click on this page feels slow."
 
 The header/navbar, footer, and the header's own global search also render on this page, but are documented in [Global Components](./global-components.md) since they're shared by every page in the app, not specific to Home.
+
+<details><summary>Live news strips (replaces the dummy news feed)</summary>
+
+The homepage shows two sliders, "Cryptocurrency" and "Markets & Finance", each with the 15 newest real `/news` cards for that category (same card component, same rows, same 60s live refresh via `NewsState`). "More News" links to the matching `/news` section. Skeleton cards show while the news list loads.
+
+</details>

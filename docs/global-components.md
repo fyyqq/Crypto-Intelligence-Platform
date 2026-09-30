@@ -66,3 +66,9 @@ Navigating between pages (nav links, logo, table row, search result, news cards)
 Below the lg breakpoint (1280px) the header's nav links move into the top of the profile dropdown and the search box is centred in the header (the right-side wrapper becomes `display: contents`, so search and profile are direct grid items). At lg+ the header is unchanged. The footer is left-aligned at tablet width only; mobile stays centred.
 
 </details>
+
+<details><summary>Footer layout breakpoints</summary>
+
+The footer's two blocks (logo/description/social and the link columns) are space-between from 1024px up; 768-1023px is left-aligned; mobile stays centred.
+
+</details>

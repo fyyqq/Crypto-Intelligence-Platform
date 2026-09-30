@@ -517,7 +517,15 @@ def index() -> rx.Component:
     return rx.box(
         _header_bar(),
         rx.vstack(
-            rx.box(news_feed(), id="news-feed-section", width="100%"),
+            rx.box(
+                news_feed("Cryptocurrency", NewsState.home_crypto_news, "/news#cryptocurrency"),
+                id="news-feed-section",
+                width="100%",
+            ),
+            rx.box(
+                news_feed("Markets & Finance", NewsState.home_markets_news, "/news#markets-finance", eyebrow=False),
+                width="100%",
+            ),
             narrative_alerts(),
             rx.hstack(
                 rx.box(
@@ -742,7 +750,7 @@ app.add_page(
     # `image=` above only sets the og:image social-preview meta tag — the
     # actual browser-tab favicon needs its own <link rel="icon"> tag.
     meta=[rx.el.link(rel="icon", href="/favicon_logo.png", type="image/png")],
-    on_load=[CoinState.load_coins, CoinState.live_sync_loop],
+    on_load=[CoinState.load_coins, CoinState.live_sync_loop, NewsState.load_news, NewsState.watch_new_articles],
 )
 # /news has real content (news_page_content(), NewsState) — registered on
 # its own so it can add NewsState.load_news to the shared on_load list below
