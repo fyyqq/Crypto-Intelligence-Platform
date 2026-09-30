@@ -1,7 +1,14 @@
 # Claude Code Project Rules
 
 ## 🤖 Handoff & Session Limit Rule
-* **Mandatory Action:** AFTER completing any significant change, sub-task, or bug fix, you MUST immediately rewrite and update the sections below (`### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
+* **Mandatory Action:** AFTER completing any significant change, sub-task, or bug fix, you MUST immediately rewrite and update the sections below (`### 🔧 Follow-up: Telegram videos and multi-media grid in the article reader (2026-09-30 session)
+Per explicit request: posts that contain a video now play it in the reader (`/news/<category>/<slug>`), and posts with more than one photo/video show a media grid. Grid cards only show a photo if the post has one; a video-only post uses the video's own thumbnail.
+
+**Implementation**: new `news_articles.media` JSONB column (NULL = not yet processed, `[]` = no media, else a list of `{type: image|video, src, poster}`). `telegram_pipeline.py::collect_post_media` downloads every photo, and every video up to `_MAX_VIDEO_BYTES` (100 MB), into the gitignored `frontend/assets/telegram_media/` (served live by the existing StaticFiles mount, which supports Range requests for seeking); an over-cap video keeps only its thumbnail plus a "Watch on Telegram" link. Albums (`grouped_id`) are gathered from neighbouring message ids. `backfill_media` fills existing rows (last 30 days) and is part of `sync_all_groups` and the listener's catch-up. `news_state.py::_media_grid`: no grid for none/single photo; with a video the video is the featured full-row cell (16:9) and photos are small square cells; photos only, 2 columns with an odd first cell spanning the row. `_card_media_image` picks the card image (first photo, else first video poster).
+
+**Verified live**: lookonchain multi-photo post renders a large first photo plus two-column cells; aipost video post plays inline (controls, 0:42), zero console errors. **The media backfill was still running when this was committed** — older posts get media as it completes (roughly 50 posts/min). Disk growth is significant (~1 GB/day of video); no pruning yet.
+
+### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
 * **Why:** This ensures that if the terminal session suddenly runs out of API limits, the current progress state is perfectly preserved right here, allowing a seamless handoff to GitHub Copilot inside VS Code without losing data.
 
 

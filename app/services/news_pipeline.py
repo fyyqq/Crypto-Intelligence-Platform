@@ -262,6 +262,13 @@ class NewsDB:
             self._conn.commit()
         except (psycopg2.errors.DuplicateColumn, sqlite3.OperationalError):
             self._conn.rollback()
+        # Per-post photo/video list written by telegram_pipeline.py (NULL =
+        # not processed yet, [] = the post has no photo/video).
+        try:
+            cur.execute("ALTER TABLE news_articles ADD COLUMN media " + ("JSONB" if self.backend == "postgres" else "TEXT"))
+            self._conn.commit()
+        except (psycopg2.errors.DuplicateColumn, sqlite3.OperationalError):
+            self._conn.rollback()
         cur.close()
 
     def article_exists(self, url: str) -> bool:

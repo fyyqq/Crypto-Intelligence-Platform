@@ -56,6 +56,7 @@ from pathlib import Path
 
 import psycopg2
 import psycopg2.errors
+import psycopg2.extras
 from dotenv import load_dotenv
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
@@ -152,6 +153,10 @@ REQUEST_DELAY_SECONDS = 1.0
 class TelegramNewsDB:
     def __init__(self, dsn: str = POSTGRES_DSN):
         self._conn = psycopg2.connect(dsn)
+        cur = self._conn.cursor()
+        cur.execute("ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS media JSONB")
+        self._conn.commit()
+        cur.close()
 
     def last_message_id(self, username: str) -> int:
         """Highest Telegram message id already stored for this group,
@@ -187,6 +192,7 @@ class TelegramNewsDB:
         published_date: datetime.datetime | None,
         full_body_text: str,
         image_url: str | None,
+        media: list[dict] | None = None,
     ) -> bool:
         """Same insert-and-catch-UniqueViolation idempotency pattern as
         news_pipeline.py's own insert_article — returns True only for a
@@ -197,10 +203,13 @@ class TelegramNewsDB:
             cur.execute(
                 """
                 INSERT INTO news_articles
-                    (source_type, source_name, category_or_query, title, url, published_date, full_body_text, image_url)
-                VALUES ('telegram', %s, %s, %s, %s, %s, %s, %s)
+                    (source_type, source_name, category_or_query, title, url, published_date, full_body_text, image_url, media)
+                VALUES ('telegram', %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (source_name, category_label, title, url, published_date, full_body_text, image_url),
+                (
+                    source_name, category_label, title, url, published_date, full_body_text, image_url,
+                    psycopg2.extras.Json(media) if media is not None else None,
+                ),
             )
             self._conn.commit()
             cur.close()
@@ -235,6 +244,31 @@ class TelegramNewsDB:
             username, msg_id = match.group(1), int(match.group(2))
             by_group.setdefault(username, []).append(msg_id)
         return by_group
+
+    def missing_media_ids_by_group(self) -> dict[str, list[int]]:
+        """Telegram rows inside the /news display window whose media hasn't
+        been collected yet (media IS NULL), by group. media is set to a list
+        (possibly empty) once processed, so each row is handled once.
+        """
+        cur = self._conn.cursor()
+        cur.execute(
+            "SELECT url FROM news_articles WHERE source_type = 'telegram' AND media IS NULL "
+            "AND published_date >= NOW() - INTERVAL '30 days' ORDER BY published_date DESC"
+        )
+        rows = cur.fetchall()
+        cur.close()
+        by_group: dict[str, list[int]] = {}
+        for (url,) in rows:
+            match = _TELEGRAM_URL_RE.match(url)
+            if match:
+                by_group.setdefault(match.group(1), []).append(int(match.group(2)))
+        return by_group
+
+    def update_media(self, url: str, media: list[dict]) -> None:
+        cur = self._conn.cursor()
+        cur.execute("UPDATE news_articles SET media = %s WHERE url = %s", (psycopg2.extras.Json(media), url))
+        self._conn.commit()
+        cur.close()
 
     def update_image(self, url: str, image_url: str) -> None:
         cur = self._conn.cursor()
@@ -280,6 +314,7 @@ class IngestStats:
     inserted: int = 0
     skipped: int = 0
     images_backfilled: int = 0
+    media_backfilled: int = 0
 
     def __add__(self, other: "IngestStats") -> "IngestStats":
         return IngestStats(self.inserted + other.inserted, self.skipped + other.skipped)
@@ -400,6 +435,76 @@ def _group_display_title(entity, username: str | None = None) -> str:
     return getattr(entity, "title", None) or getattr(entity, "username", None) or "Telegram"
 
 
+# Videos larger than this aren't downloaded (296 of 305 videos in the busiest
+# 30 days were under it); such a video shows its thumbnail with a link to the
+# post on Telegram instead.
+_MAX_VIDEO_BYTES = 100 * 1024 * 1024
+
+
+def _is_video(message) -> bool:
+    return bool(message.video or message.video_note or message.gif)
+
+
+async def _album_messages(client: TelegramClient, message) -> list:
+    """The post's own message plus, for an album, its sibling messages (same
+    grouped_id, consecutive ids — albums hold at most 10 items), in order."""
+    if not message.grouped_id:
+        return [message]
+    # A live album arrives as separate messages a moment apart: let the rest land.
+    if (datetime.datetime.now(datetime.timezone.utc) - message.date).total_seconds() < 20:
+        await asyncio.sleep(3)
+    neighbours = await client.get_messages(message.chat_id, ids=list(range(message.id - 9, message.id + 10)))
+    siblings = [m for m in neighbours if m is not None and m.grouped_id == message.grouped_id]
+    return sorted(siblings, key=lambda m: m.id) or [message]
+
+
+async def collect_post_media(client: TelegramClient, message, username: str) -> tuple[list[dict], bool]:
+    """Downloads every photo/video of the post (all items of an album) into
+    telegram_media/ and returns ([{type, src, poster}], complete). `complete`
+    is False if any download failed, so the caller can retry later instead of
+    recording an incomplete list. Photos reuse the file _download_message_image
+    already keeps as <username>_<id>.<ext>; a video is <username>_<id>_video.<ext>
+    with its thumbnail as the poster.
+    """
+    items: list[dict] = []
+    complete = True
+    try:
+        messages = await _album_messages(client, message)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("SKIP album lookup for @%s/%s: %s", username, message.id, exc)
+        return [], False
+    for item in messages:
+        try:
+            if item.photo:
+                src = await _download_message_image(client, item, username)
+                if src:
+                    items.append({"type": "image", "src": src, "poster": ""})
+                else:
+                    complete = False
+            elif _is_video(item):
+                poster = await _download_message_image(client, item, username) or ""
+                size = item.document.size if item.document else 0
+                src = ""
+                if 0 < size <= _MAX_VIDEO_BYTES:
+                    _TELEGRAM_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+                    existing = list(_TELEGRAM_MEDIA_DIR.glob(f"{username}_{item.id}_video.*"))
+                    if existing:
+                        src = f"/telegram_media/{existing[0].name}"
+                    else:
+                        saved = await client.download_media(item, file=str(_TELEGRAM_MEDIA_DIR / f"{username}_{item.id}_video"))
+                        if saved:
+                            src = f"/telegram_media/{Path(saved).name}"
+                        else:
+                            complete = False
+                items.append({"type": "video", "src": src, "poster": poster})
+        except FloodWaitError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — one bad item must not lose the rest
+            logger.warning("SKIP media item @%s/%s: %s", username, item.id, exc)
+            complete = False
+    return items, complete
+
+
 async def store_message(
     client: TelegramClient,
     db: TelegramNewsDB,
@@ -426,6 +531,7 @@ async def store_message(
     image_url = await _download_message_image(client, message, username)
     title = _title_from_text(text)
     body = await expand_linked_article(username, text)
+    media, media_complete = await collect_post_media(client, message, username)
     return db.insert_article(
         source_name=display_title,
         category_label=f"Telegram {category}",
@@ -434,6 +540,7 @@ async def store_message(
         published_date=message.date.astimezone(datetime.timezone.utc).replace(tzinfo=None),
         full_body_text=body,
         image_url=image_url,
+        media=media if media_complete else None,
     )
 
 
@@ -503,6 +610,50 @@ async def backfill_missing_images(client: TelegramClient, db: TelegramNewsDB) ->
     return updated
 
 
+async def backfill_media(client: TelegramClient, db: TelegramNewsDB) -> int:
+    """Collects photos/videos (and album siblings) for stored posts inside the
+    30-day display window that have never been processed (media IS NULL),
+    including everything ingested before this feature existed. Each row is
+    handled once: it ends up with a list (empty if the post has no photo or
+    video). A row whose download failed stays NULL and is retried next pass.
+    Returns the number of rows that ended up with at least one item.
+    """
+    with_media = done = 0
+    for username, msg_ids in db.missing_media_ids_by_group().items():
+        try:
+            entity = await client.get_entity(username)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("SKIP media backfill (could not resolve @%s: %s)", username, exc)
+            continue
+        for i in range(0, len(msg_ids), _GET_MESSAGES_BATCH_SIZE):
+            batch = msg_ids[i : i + _GET_MESSAGES_BATCH_SIZE]
+            try:
+                messages = await client.get_messages(entity, ids=batch)
+            except FloodWaitError as exc:
+                logger.warning("SKIP rest of @%s media backfill (flood-wait, %ss)", username, exc.seconds)
+                break
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("SKIP @%s media backfill batch (error: %s)", username, exc)
+                continue
+            for msg_id, message in zip(batch, messages):
+                url = f"https://t.me/{username}/{msg_id}"
+                if message is None:  # deleted since it was ingested
+                    db.update_media(url, [])
+                    continue
+                if not (message.photo or _is_video(message) or message.grouped_id):
+                    db.update_media(url, [])
+                    continue
+                items, complete = await collect_post_media(client, message, username)
+                if complete:
+                    db.update_media(url, items)
+                    with_media += bool(items)
+                done += 1
+                if done % 50 == 0:
+                    logger.info("Media backfill: %d posts processed, %d with media", done, with_media)
+        await asyncio.sleep(REQUEST_DELAY_SECONDS)
+    return with_media
+
+
 async def connect_client() -> TelegramClient:
     """Connected, authorized client on the shared session file. Only one
     process may hold telegram_session.session at a time (it's SQLite —
@@ -543,6 +694,7 @@ async def sync_all_groups(client: TelegramClient) -> IngestStats:
             logger.info("Telegram @%s (%s): inserted=%d skipped=%d", username, category, stats.inserted, stats.skipped)
             await asyncio.sleep(REQUEST_DELAY_SECONDS)
         total.images_backfilled = await backfill_missing_images(client, db)
+        total.media_backfilled = await backfill_media(client, db)
         if total.images_backfilled:
             logger.info("Image backfill: %d rows updated with a real image", total.images_backfilled)
     finally:

@@ -168,3 +168,9 @@ Every URL in a post's body — Telegram posts and web articles alike — is show
 - **The same story often appears from several sources** (e.g. several Telegram groups posting the same "JUST IN", or a Telegram post plus a web article), now side by side since Telegram is merged into the main sections. Hiding duplicates is planned but not built yet: the user hasn't decided which copy should stay visible.
 - **The Telegram listener must be started by hand** after a restart and stops when its terminal/session ends.
 - **Telegram media-only posts (a photo/sticker with no caption) are dropped, not stored** — this pipeline only stores text and a permalink, it never re-hosts Telegram's own media itself.
+
+<details><summary>Telegram videos and multi-media grid (reader)</summary>
+
+Posts store a `media` JSONB list (`{type, src, poster}`; NULL = unprocessed, `[]` = none). Photos and videos up to 100 MB are downloaded into the gitignored `frontend/assets/telegram_media/` (served live with Range support); larger videos show their thumbnail with a "Watch on Telegram" link. Albums are collected from neighbouring message ids. In the reader: a single video plays inline; a video plus photos shows the video in a large full-row cell with small square photo cells; photos only show a 2-column grid (odd first cell spans the row). Grid cards show a photo only if the post has one, otherwise the video's thumbnail. Existing posts are filled by `backfill_media` (part of the listener's catch-up). Disk use grows about 1 GB/day; no pruning yet.
+
+</details>

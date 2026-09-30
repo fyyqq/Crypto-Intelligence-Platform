@@ -184,6 +184,82 @@ def _article_body(article: dict) -> rx.Component:
     )
 
 
+def _media_cell(item: dict, article: dict) -> rx.Component:
+    """One cell of the media grid: a playable video, a video too large to
+    download (its thumbnail linking to the post on Telegram), or a photo."""
+    frame = {
+        "grid_column": item["col"],
+        "aspect_ratio": item["ratio"],
+        "overflow": "hidden",
+        "border_radius": "6px",
+        "background": "var(--gray-a3)",
+        "position": "relative",
+        "min_width": "0",
+    }
+    thumbnail = rx.image(
+        src=item["poster"],
+        width="100%",
+        height="100%",
+        object_fit="cover",
+        display="block",
+    )
+    return rx.cond(
+        item["is_video"],
+        rx.cond(
+            item["playable"],
+            rx.box(
+                rx.el.video(
+                    src=item["src"],
+                    poster=item["poster"],
+                    controls=True,
+                    preload="metadata",
+                    plays_inline=True,
+                    style={"width": "100%", "height": "100%", "object_fit": "contain", "background": "#000", "display": "block"},
+                ),
+                **frame,
+            ),
+            rx.link(
+                rx.box(
+                    thumbnail,
+                    rx.hstack(
+                        rx.icon("play", size=14),
+                        rx.text("Watch on Telegram", size="1"),
+                        rx.icon("external-link", size=12),
+                        spacing="1",
+                        align="center",
+                        position="absolute",
+                        bottom="8px",
+                        left="8px",
+                        padding="4px 8px",
+                        border_radius="4px",
+                        background="rgba(0, 0, 0, 0.65)",
+                        color="white",
+                    ),
+                    **frame,
+                ),
+                href=article["url"],
+                is_external=True,
+                underline="none",
+                display="block",
+                grid_column=item["col"],
+            ),
+        ),
+        rx.box(
+            rx.image(src=item["src"], width="100%", height="100%", object_fit="cover", display="block"),
+            **frame,
+        ),
+    )
+
+
+def _media_grid(article: dict) -> rx.Component:
+    return rx.grid(
+        rx.foreach(article["media_grid_items"].to(list[dict]), lambda item: _media_cell(item, article)),
+        columns=article["media_grid_columns"],
+        gap="8px",
+        width="100%",
+    )
+
+
 def _reader(article: dict) -> rx.Component:
     return rx.vstack(
         rx.link(
@@ -201,21 +277,25 @@ def _reader(article: dict) -> rx.Component:
                     line_height="1.08",
                     letter_spacing="0",
                 ),
-                rx.box(
-                    rx.image(
-                        src=article["image_url"],
+                rx.cond(
+                    article["has_media_grid"],
+                    _media_grid(article),
+                    rx.box(
+                        rx.image(
+                            src=article["image_url"],
+                            width="100%",
+                            height="100%",
+                            object_fit="cover",
+                            display="block",
+                            class_name="news-reader-image",
+                            custom_attrs={"data-fallback-src": article["fallback_image_url"]},
+                        ),
                         width="100%",
-                        height="100%",
-                        object_fit="cover",
-                        display="block",
-                        class_name="news-reader-image",
-                        custom_attrs={"data-fallback-src": article["fallback_image_url"]},
+                        aspect_ratio="16 / 9",
+                        overflow="hidden",
+                        border_radius="6px",
+                        background="var(--gray-a3)",
                     ),
-                    width="100%",
-                    aspect_ratio="16 / 9",
-                    overflow="hidden",
-                    border_radius="6px",
-                    background="var(--gray-a3)",
                 ),
                 _article_body(article),
                 spacing="5",

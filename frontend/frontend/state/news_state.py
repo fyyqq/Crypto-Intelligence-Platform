@@ -98,7 +98,7 @@ def _fetch_articles() -> list[dict]:
         rows = db.execute(
             text(
                 """
-                SELECT id, source_name, category_or_query, title, url, published_date, full_body_text, image_url, source_type
+                SELECT id, source_name, category_or_query, title, url, published_date, full_body_text, image_url, source_type, media
                 FROM news_articles
                 WHERE published_date >= NOW() - INTERVAL '90 days'
                   AND (source_type <> 'telegram' OR published_date >= NOW() - INTERVAL '30 days')
@@ -160,7 +160,7 @@ def _fetch_article_by_path(news_category: str, article_slug: str) -> tuple[dict 
             text(
                 """
                 SELECT id, source_name, category_or_query, title, url, published_date,
-                       full_body_text, image_url, source_type
+                       full_body_text, image_url, source_type, media
                 FROM news_articles
                 ORDER BY published_date DESC NULLS LAST, id DESC
                 """
@@ -289,6 +289,53 @@ def _telegram_group_avatar(url: str) -> str:
     return f"/telegram_media/{name}" if (_TELEGRAM_MEDIA_DIR / name).exists() else ""
 
 
+def _card_media_image(media: list[dict] | None) -> str:
+    """Image for a Telegram post's grid card: the first photo if the post has
+    one (a post with a photo and a video shows the photo), otherwise the
+    video's own thumbnail; "" when the post has no media."""
+    items = media or []
+    for item in items:
+        if item.get("type") == "image" and item.get("src"):
+            return item["src"]
+    for item in items:
+        if item.get("type") == "video" and item.get("poster"):
+            return item["poster"]
+    return ""
+
+
+def _media_grid(media: list[dict] | None) -> dict:
+    """Layout for the reader's media area when a post has more than one item
+    or a video. With a video: the (first) video fills the full row as the
+    large cell and every other item is a small square cell below it. Images
+    only (2+): equal cells in two columns, the first spanning the row when
+    the count is odd. A single photo isn't a grid (the normal hero image)."""
+    items = [item for item in (media or []) if item.get("type") in ("image", "video") and (item.get("src") or item.get("poster"))]
+    has_video = any(item["type"] == "video" for item in items)
+    if not items or (len(items) == 1 and not has_video):
+        return {"has_media_grid": False, "media_grid_items": [], "media_grid_columns": ""}
+    if has_video:
+        first_video = next(i for i, item in enumerate(items) if item["type"] == "video")
+        items = [items[first_video]] + items[:first_video] + items[first_video + 1 :]
+        featured = 0
+    else:
+        featured = 0 if len(items) % 2 else -1
+    cells = []
+    for index, item in enumerate(items):
+        large = index == featured or len(items) == 1
+        cells.append(
+            {
+                "src": item.get("src") or "",
+                "poster": item.get("poster") or "",
+                "is_video": item["type"] == "video",
+                "playable": bool(item.get("src")) and item["type"] == "video",
+                "col": "1 / -1" if large else "span 1",
+                "ratio": "16 / 9" if large else ("1 / 1" if has_video else "4 / 3"),
+            }
+        )
+    columns = "repeat(auto-fill, minmax(120px, 1fr))" if has_video else "repeat(2, minmax(0, 1fr))"
+    return {"has_media_grid": True, "media_grid_items": cells, "media_grid_columns": columns}
+
+
 def _normalize_news_type(category_or_query: str | None, source_name: str) -> str:
     label = (category_or_query or "").strip()
     if label.startswith("Telegram "):
@@ -342,6 +389,9 @@ def _build_article_row(row: dict) -> dict:
         # if its own photo ever fails to load).
         fallback_image_url = _telegram_group_avatar(article_url) or fallback_image_url
     image_url = row.get("image_url") or fallback_image_url
+    card_media_image = _card_media_image(row.get("media"))
+    if card_media_image:
+        image_url = card_media_image
     return {
         "id": row.get("id"),
         "detail_url": "/news",
@@ -520,6 +570,7 @@ def _build_article_detail(row: dict | None, related_articles: list[dict]) -> dic
     return {
         **article,
         "published_display": _published_date_display(row.get("published_date")),
+        **_media_grid(row.get("media")),
         "body_blocks": blocks,
         "has_body": bool(blocks),
         "related_articles": related_articles,
