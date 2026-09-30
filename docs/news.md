@@ -198,3 +198,9 @@ Each section's header is heading + count on the left, the source pill slider (sh
 OpenRouter is only called when someone opens a page: the news reader (article summary, cached forever), the coin page (AI business summary, refreshed at most every 60 days; AI description fallback, once per coin). No scheduler or list page calls it. `app/services/ai_budget.py` adds a global cap per rolling hour (`openrouter_max_calls_per_hour`, default 60) and a per-item failure cooldown (`openrouter_failure_cooldown_minutes`, default 30). In-process only.
 
 </details>
+
+<details><summary>Responsive header details</summary>
+
+The title search is small on desktop and mobile (180px) and larger on tablet (280px, 40px tall, 16px text). On mobile the category title and its article-count badge stack vertically.
+
+</details>

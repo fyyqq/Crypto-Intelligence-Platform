@@ -43,6 +43,9 @@ Per explicit request (`el-28..30`).
 ### 🔧 Follow-up: search box size, "Other" text colour, responsive section header (2026-09-30 session)
 Per explicit request (`el-31/36/37`): the title search is smaller (180px wide, 12px text, 13px icon). The "Other" trigger's label now measures pure white (Radix's soft select variant painted its own text colours and a tinted `::before` overlay, so `styles.css` forces `#fff !important` on the trigger, inner span and chevron and clears the overlay). Below `lg` (tablet → mobile) the section header is two rows: heading + count on the left with the search on the right, then the source slider full width below with the same 16px above and below it (grid `spacing="4"`; `gap` had no effect on `rx.grid`, which showed as a measured 0px row gap until fixed). At `lg`+ it stays heading | centred slider | search. Verified live at 1440/834/375px (gaps 16/16, Other white/royalblue, zero console errors).
 
+### 🔧 Follow-up: bigger search on tablet, stacked title/count on mobile (2026-09-30 session)
+Per explicit request (`el-38..40`), all `/news` sections: the title search is larger only on tablet width (sm..<lg: Radix size 3, 280px wide, 40px tall, 16px text; mobile and desktop keep the small 180px/24px box), and on mobile (<768px) the category title and its "N articles" badge stack vertically (title above count) instead of sitting side by side. Verified live at 1440/834/375px (search 180x24 / 280x40 / 180x24; heading flex-direction row / row / column), zero console errors.
+
 ### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
 * **Why:** This ensures that if the terminal session suddenly runs out of API limits, the current progress state is perfectly preserved right here, allowing a seamless handoff to GitHub Copilot inside VS Code without losing data.
 
