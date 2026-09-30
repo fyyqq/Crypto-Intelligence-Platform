@@ -228,3 +228,9 @@ Sarjana Crypto posts with a photo are always shown, whatever their text: a photo
 A Telegram post's title is the first line that has real text (letters or digits); decorative emoji-only header lines and sticker emoji are skipped, and the card excerpt skips them too. A post with only an emoji/sticker keeps its emoji as the title.
 
 </details>
+
+<details><summary>View All and per-category pages</summary>
+
+Each `/news` section ends with its centred pagination and a "View All" button on the right. It opens `/news/<category>` (cryptocurrency, artificial-intelligence, markets-finance, technology, memecoins): the category's newest 100 articles in the same 4-column grid, under the same header as a section (title + count, source pills with "Other", title search). No pagination on that page. Filters chosen there are shared with the `/news` section of the same category.
+
+</details>

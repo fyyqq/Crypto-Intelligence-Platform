@@ -16,6 +16,7 @@ from frontend.components import (
     narrative_alerts,
     news_detail_content,
     news_feed,
+    news_category_content,
     news_page_content,
     watchlist_table,
 )
@@ -641,6 +642,20 @@ def news_page() -> rx.Component:
     )
 
 
+def news_category_page() -> rx.Component:
+    # /news/[news_category] — every category's newest 100 articles ("View All").
+    return rx.box(
+        _header_bar(),
+        news_category_content(),
+        footer(),
+        _floating_logo(),
+        _chat_widget(),
+        rx.script(src="/chain_pills.js"),
+        min_height="100vh",
+        width="100%",
+    )
+
+
 def news_detail_page() -> rx.Component:
     return rx.box(
         _header_bar(),
@@ -731,6 +746,12 @@ app.add_page(
         CoinState.refresh_tradingview_dex_symbol,
         CoinState.refresh_defillama_unlocks_slug,
     ],
+)
+app.add_page(
+    news_category_page,
+    route="/news/[news_category]",
+    title=NewsState.view_all_title,
+    on_load=[CoinState.load_coins, NewsState.load_news, NewsState.watch_new_articles],
 )
 app.add_page(
     news_detail_page,

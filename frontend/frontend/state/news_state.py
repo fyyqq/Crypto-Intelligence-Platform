@@ -28,6 +28,7 @@ from frontend.state.coin_state import _format_model_badge
 _TELEGRAM_MEDIA_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "telegram_media"
 
 _PAGE_SIZE = 12  # 4 columns x 3 rows per page, per explicit request
+_VIEW_ALL_LIMIT = 100  # newest articles on a /news/<category> page
 _HOME_NEWS_LIMIT = 50  # cards per homepage news slider
 _TOP_SOURCE_PILLS = 10  # publishers shown as pills; the rest go in the "Other" dropdown
 
@@ -882,6 +883,46 @@ class NewsState(rx.State):
         return max(1, -(-count // _PAGE_SIZE))
 
     @rx.var(cache=True)
+    def view_all(self) -> dict:
+        """Data for /news/[news_category]: one category's newest
+        _VIEW_ALL_LIMIT articles, with the same source-pill / search fields a
+        /news section header uses (and the same per-category filter state)."""
+        slug = (self.news_category or "").strip()
+        news_type = next((t for t in _NEWS_TYPE_ORDER if _slugify(t) == slug), "")
+        if not news_type:
+            return {"found": False, "news_type": "", "article_count": 0, "shown_count": 0, "articles": [],
+                    "top_sources": [], "other_sources": [], "has_other_sources": False, "other_selected": "",
+                    "selected_source": "All", "search_text": ""}
+        category_articles = self._category_articles(news_type)
+        sources = self._category_sources(category_articles)
+        selected_source = self._selected_source(news_type, sources)
+        articles = self._search_filter(
+            news_type,
+            category_articles
+            if selected_source == "All"
+            else [a for a in category_articles if a["source_name"] == selected_source],
+        )
+        others = sources[1 + _TOP_SOURCE_PILLS :]
+        return {
+            "found": True,
+            "news_type": news_type,
+            "article_count": len(articles),
+            "shown_count": min(len(articles), _VIEW_ALL_LIMIT),
+            "articles": articles[:_VIEW_ALL_LIMIT],
+            "selected_source": selected_source,
+            "search_text": self.category_search.get(news_type, ""),
+            "top_sources": sources[1 : 1 + _TOP_SOURCE_PILLS],
+            "other_sources": others,
+            "has_other_sources": bool(others),
+            "other_selected": selected_source if selected_source in others else "",
+        }
+
+    @rx.var(cache=True)
+    def view_all_title(self) -> str:
+        news_type = self.view_all.get("news_type")
+        return f"Repace - {news_type}" if news_type else "Repace - News"
+
+    @rx.var(cache=True)
     def home_crypto_news(self) -> list[dict]:
         """Newest Cryptocurrency articles for the homepage slider (same rows
         and same live refresh as the /news Cryptocurrency section)."""
@@ -939,6 +980,7 @@ class NewsState(rx.State):
                 {
                     "news_type": news_type,
                     "anchor_id": slug,
+                    "view_all_url": f"/news/{_slugify(news_type)}",
                     "article_count": len(articles),
                     "page": page,
                     "total_pages": total_pages,

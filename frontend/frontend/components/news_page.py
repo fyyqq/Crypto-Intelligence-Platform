@@ -186,53 +186,91 @@ def _section_search(section: dict) -> rx.Component:
     )
 
 
+def _section_header(section: dict) -> rx.Component:
+    """Heading + count | source pill slider | title search — shared by the
+    /news sections and the /news/<category> page. Lg+: one row; below lg the
+    slider gets its own full-width row 2 with the same gap above and below."""
+    return rx.grid(
+        # Title and count sit side by side from tablet up, stacked on mobile.
+        rx.flex(
+            rx.heading(section["news_type"], size="4"),
+            rx.badge(section["article_count"], " articles", color_scheme="gray", variant="soft", size="1"),
+            direction=rx.breakpoints(initial="column", sm="row"),
+            spacing="2",
+            align=rx.breakpoints(initial="start", sm="center"),
+            grid_column="1",
+            grid_row="1",
+        ),
+        rx.box(
+            _section_source_filter(section),
+            width="100%",
+            min_width="0",
+            grid_column=rx.breakpoints(initial="1 / -1", lg="2"),
+            grid_row=rx.breakpoints(initial="2", lg="1"),
+        ),
+        rx.box(
+            _section_search(section),
+            justify_self="end",
+            width=rx.breakpoints(initial="100%", sm="280px"),
+            max_width="280px",
+            grid_column=rx.breakpoints(initial="2", lg="3"),
+            grid_row="1",
+        ),
+        columns=rx.breakpoints(initial="auto minmax(0, 1fr)", lg="auto minmax(0, 1fr) auto"),
+        spacing="4",
+        align_items="center",
+        width="100%",
+    )
+
+
+def _view_all_button(section: dict) -> rx.Component:
+    return rx.link(
+        rx.button(
+            "View All",
+            rx.icon("arrow-right", size=14),
+            size="2",
+            variant="soft",
+            cursor="pointer",
+        ),
+        href=section["view_all_url"],
+        underline="none",
+    )
+
+
+def _section_footer(section: dict) -> rx.Component:
+    """Pagination centred, with the "View All" button at the right edge (below
+    sm the button drops under the pagination)."""
+    return rx.grid(
+        rx.box(display=rx.breakpoints(initial="none", sm="block")),
+        rx.box(
+            rx.cond(
+                section["has_pagination"],
+                _section_pagination(section["news_type"], section["page"], section["total_pages"]),
+            ),
+            justify_self="center",
+        ),
+        rx.box(_view_all_button(section), justify_self=rx.breakpoints(initial="center", sm="end")),
+        columns=rx.breakpoints(initial="1", sm="1fr auto 1fr"),
+        spacing="3",
+        align_items="center",
+        width="100%",
+    )
+
+
 def _news_section(section: dict) -> rx.Component:
     return rx.vstack(
         # lg+: heading | source slider (fills the space between) | title search on one row.
         # Below lg (tablet/mobile): heading + search share row 1 (search on the
         # right), the slider gets its own full-width row 2 with the same gap
         # above and below it.
-        rx.grid(
-            # Title and count sit side by side from tablet up, stacked on mobile.
-            rx.flex(
-                rx.heading(section["news_type"], size="4"),
-                rx.badge(section["article_count"], " articles", color_scheme="gray", variant="soft", size="1"),
-                direction=rx.breakpoints(initial="column", sm="row"),
-                spacing="2",
-                align=rx.breakpoints(initial="start", sm="center"),
-                grid_column="1",
-                grid_row="1",
-            ),
-            rx.box(
-                _section_source_filter(section),
-                width="100%",
-                min_width="0",
-                grid_column=rx.breakpoints(initial="1 / -1", lg="2"),
-                grid_row=rx.breakpoints(initial="2", lg="1"),
-            ),
-            rx.box(
-                _section_search(section),
-                justify_self="end",
-                width=rx.breakpoints(initial="100%", sm="280px"),
-                max_width="280px",
-                grid_column=rx.breakpoints(initial="2", lg="3"),
-                grid_row="1",
-            ),
-            columns=rx.breakpoints(initial="auto minmax(0, 1fr)", lg="auto minmax(0, 1fr) auto"),
-            spacing="4",
-            align_items="center",
-            width="100%",
-        ),
+        _section_header(section),
         rx.grid(
             rx.foreach(section["articles"].to(list[dict]), _news_card),
             columns=_GRID_COLUMNS,
             spacing="4",
             width="100%",
         ),
-        rx.cond(
-            section["has_pagination"],
-            _section_pagination(section["news_type"], section["page"], section["total_pages"]),
-        ),
+        _section_footer(section),
         id=section["anchor_id"],
         spacing="4",
         align="start",
@@ -285,6 +323,74 @@ def news_page_content() -> rx.Component:
             ),
         ),
         spacing="5",
+        width="100%",
+        padding=["1em", "1em", "1.5em", "2em", "2em"],
+    )
+
+
+def _category_not_found() -> rx.Component:
+    return rx.center(
+        rx.vstack(
+            rx.icon("file-question", size=32, color="var(--gray-8)"),
+            rx.heading("Category not found", size="5"),
+            rx.link("Back to news", href="/news", color="var(--accent-11)", underline="none"),
+            spacing="3",
+            align="center",
+        ),
+        min_height="40vh",
+        width="100%",
+    )
+
+
+def news_category_content() -> rx.Component:
+    """/news/[news_category]: the category's newest 100 articles in the same
+    4-column grid, under the same header (source pills + title search)."""
+    view = NewsState.view_all
+    return rx.vstack(
+        rx.link(
+            rx.hstack(rx.icon("arrow-left", size=16), rx.text("All news", size="2"), spacing="1", align="center"),
+            href="/news",
+            underline="none",
+            color="var(--gray-11)",
+        ),
+        rx.cond(
+            NewsState.is_loading,
+            _loading_skeleton(),
+            rx.cond(
+                view["found"],
+                rx.vstack(
+                    _section_header(view),
+                    rx.text(
+                        "Showing the ",
+                        view["shown_count"],
+                        " newest of ",
+                        view["article_count"],
+                        " articles",
+                        size="2",
+                        color_scheme="gray",
+                    ),
+                    rx.cond(
+                        view["article_count"].to(int) > 0,
+                        rx.grid(
+                            rx.foreach(view["articles"].to(list[dict]), _news_card),
+                            columns=_GRID_COLUMNS,
+                            spacing="4",
+                            width="100%",
+                        ),
+                        rx.center(
+                            rx.text("No news matches this filter.", size="3", color_scheme="gray"),
+                            min_height="30vh",
+                            width="100%",
+                        ),
+                    ),
+                    spacing="4",
+                    align="start",
+                    width="100%",
+                ),
+                _category_not_found(),
+            ),
+        ),
+        spacing="4",
         width="100%",
         padding=["1em", "1em", "1.5em", "2em", "2em"],
     )

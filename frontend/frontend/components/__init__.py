@@ -6,7 +6,7 @@ from frontend.components.global_search import global_search
 from frontend.components.narrative_alerts import narrative_alerts
 from frontend.components.news_feed import news_feed
 from frontend.components.news_detail import news_detail_content
-from frontend.components.news_page import news_page_content
+from frontend.components.news_page import news_category_content, news_page_content
 from frontend.components.watchlist_table import watchlist_table
 
 __all__ = [
@@ -18,6 +18,7 @@ __all__ = [
     "narrative_alerts",
     "news_feed",
     "news_detail_content",
+    "news_category_content",
     "news_page_content",
     "watchlist_table",
 ]
