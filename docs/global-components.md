@@ -72,3 +72,9 @@ Below the lg breakpoint (1280px) the header's nav links move into the top of the
 The footer's two blocks (logo/description/social and the link columns) are space-between from 1024px up; 768-1023px is left-aligned; mobile stays centred.
 
 </details>
+
+<details><summary>Nav link stays active on sub-pages</summary>
+
+A header nav link is active when the current path equals its route or starts with it plus "/" — e.g. "News" is highlighted on `/news`, `/news/<category>` and `/news/<category>/<article>`.
+
+</details>

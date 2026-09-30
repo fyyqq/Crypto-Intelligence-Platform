@@ -175,7 +175,9 @@ _NAV_LINKS = [
 
 
 def _nav_link(label: str, href: str) -> rx.Component:
-    is_active = CoinState.current_nav_path == href
+    # Active on the page itself and on any sub-page (e.g. /news/<category>
+    # and /news/<category>/<article> keep "News" highlighted).
+    is_active = (CoinState.current_nav_path == href) | CoinState.current_nav_path.startswith(href + "/")
     return rx.link(
         rx.text(label, size="2", weight="medium"),
         href=href,
@@ -751,7 +753,7 @@ app.add_page(
     news_category_page,
     route="/news/[news_category]",
     title=NewsState.view_all_title,
-    on_load=[CoinState.load_coins, NewsState.load_news, NewsState.watch_new_articles],
+    on_load=[CoinState.load_coins, NewsState.load_news, NewsState.reset_view_all_page, NewsState.watch_new_articles],
 )
 app.add_page(
     news_detail_page,

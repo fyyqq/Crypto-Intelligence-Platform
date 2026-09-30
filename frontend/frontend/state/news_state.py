@@ -28,7 +28,7 @@ from frontend.state.coin_state import _format_model_badge
 _TELEGRAM_MEDIA_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "telegram_media"
 
 _PAGE_SIZE = 15  # 5 columns x 3 rows per page (desktop), per explicit request
-_VIEW_ALL_LIMIT = 100  # newest articles on a /news/<category> page
+_VIEW_ALL_LIMIT = 100  # articles per page on a /news/<category> "View All" page
 _HOME_NEWS_LIMIT = 50  # cards per homepage news slider
 _TOP_SOURCE_PILLS = 10  # publishers shown as pills; the rest go in the "Other" dropdown
 
@@ -746,6 +746,8 @@ class NewsState(rx.State):
     category_source_filter: dict[str, str] = {}
     # Per-section title search text (case-insensitive substring).
     category_search: dict[str, str] = {}
+    # Current page of the /news/<category> "View All" list (100 per page).
+    view_all_page: int = 1
 
     @rx.event(background=True)
     async def load_news(self):
@@ -833,10 +835,31 @@ class NewsState(rx.State):
             page = self._total_pages_for(news_type)
         await self._show_page_with_images(news_type, page)
 
+    @rx.event
+    def reset_view_all_page(self):
+        self.view_all_page = 1
+
+    @rx.event
+    def view_all_first(self):
+        self.view_all_page = 1
+
+    @rx.event
+    def view_all_prev(self):
+        self.view_all_page = max(1, self.view_all["page"] - 1)
+
+    @rx.event
+    def view_all_next(self):
+        self.view_all_page = min(self.view_all["total_pages"], self.view_all["page"] + 1)
+
+    @rx.event
+    def view_all_last(self):
+        self.view_all_page = self.view_all["total_pages"]
+
     @rx.event(background=True)
     async def set_category_search(self, news_type: str, query: str):
         async with self:
             self.category_search = {**self.category_search, news_type: query}
+            self.view_all_page = 1
         await self._show_page_with_images(news_type, 1)
 
     def _search_filter(self, news_type: str, articles: list[dict]) -> list[dict]:
@@ -849,6 +872,7 @@ class NewsState(rx.State):
     async def set_category_source(self, news_type: str, source: str):
         async with self:
             self.category_source_filter = {**self.category_source_filter, news_type: source}
+            self.view_all_page = 1
         await self._show_page_with_images(news_type, 1)
 
     def _category_articles(self, news_type: str) -> list[dict]:
@@ -890,7 +914,8 @@ class NewsState(rx.State):
         slug = (self.news_category or "").strip()
         news_type = next((t for t in _NEWS_TYPE_ORDER if _slugify(t) == slug), "")
         if not news_type:
-            return {"found": False, "news_type": "", "article_count": 0, "shown_count": 0, "articles": [],
+            return {"found": False, "news_type": "", "article_count": 0, "range_start": 0, "range_end": 0,
+                    "page": 1, "total_pages": 1, "has_pagination": False, "articles": [],
                     "top_sources": [], "other_sources": [], "has_other_sources": False, "other_selected": "",
                     "selected_source": "All", "search_text": ""}
         category_articles = self._category_articles(news_type)
@@ -903,12 +928,19 @@ class NewsState(rx.State):
             else [a for a in category_articles if a["source_name"] == selected_source],
         )
         others = sources[1 + _TOP_SOURCE_PILLS :]
+        total_pages = max(1, -(-len(articles) // _VIEW_ALL_LIMIT))
+        page = max(1, min(self.view_all_page, total_pages))
+        start = (page - 1) * _VIEW_ALL_LIMIT
         return {
             "found": True,
             "news_type": news_type,
             "article_count": len(articles),
-            "shown_count": min(len(articles), _VIEW_ALL_LIMIT),
-            "articles": articles[:_VIEW_ALL_LIMIT],
+            "range_start": start + 1 if articles else 0,
+            "range_end": min(start + _VIEW_ALL_LIMIT, len(articles)),
+            "page": page,
+            "total_pages": total_pages,
+            "has_pagination": total_pages > 1,
+            "articles": articles[start : start + _VIEW_ALL_LIMIT],
             "selected_source": selected_source,
             "search_text": self.category_search.get(news_type, ""),
             "top_sources": sources[1 : 1 + _TOP_SOURCE_PILLS],

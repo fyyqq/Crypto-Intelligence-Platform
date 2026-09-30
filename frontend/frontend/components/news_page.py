@@ -97,33 +97,28 @@ def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
     )
 
 
-def _section_pagination(news_type: str, page: rx.Var, total_pages: rx.Var) -> rx.Component:
+def _pagination_row(first, prev, next_, last, page: rx.Var, total_pages: rx.Var) -> rx.Component:
     return rx.hstack(
-        rx.box(
-            rx.icon("chevrons-left", size=16),
-            on_click=NewsState.first_page(news_type),
-            class_name="page-arrow-btn",
-        ),
-        rx.box(
-            rx.icon("chevron-left", size=16),
-            on_click=NewsState.prev_page(news_type),
-            class_name="page-arrow-btn",
-        ),
+        rx.box(rx.icon("chevrons-left", size=16), on_click=first, class_name="page-arrow-btn"),
+        rx.box(rx.icon("chevron-left", size=16), on_click=prev, class_name="page-arrow-btn"),
         rx.text("Page ", page, " of ", total_pages, size="2", color_scheme="gray", white_space="nowrap"),
-        rx.box(
-            rx.icon("chevron-right", size=16),
-            on_click=NewsState.next_page(news_type),
-            class_name="page-arrow-btn",
-        ),
-        rx.box(
-            rx.icon("chevrons-right", size=16),
-            on_click=NewsState.last_page(news_type),
-            class_name="page-arrow-btn",
-        ),
+        rx.box(rx.icon("chevron-right", size=16), on_click=next_, class_name="page-arrow-btn"),
+        rx.box(rx.icon("chevrons-right", size=16), on_click=last, class_name="page-arrow-btn"),
         spacing="2",
         align="center",
         justify="center",
         width="100%",
+    )
+
+
+def _section_pagination(news_type: str, page: rx.Var, total_pages: rx.Var) -> rx.Component:
+    return _pagination_row(
+        NewsState.first_page(news_type),
+        NewsState.prev_page(news_type),
+        NewsState.next_page(news_type),
+        NewsState.last_page(news_type),
+        page,
+        total_pages,
     )
 
 
@@ -342,28 +337,60 @@ def _category_not_found() -> rx.Component:
     )
 
 
+def _category_filter_row(view: dict) -> rx.Component:
+    """Source pill slider + title search (the section header without its
+    title, which the category page shows centred above)."""
+    return rx.grid(
+        rx.box(
+            _section_source_filter(view),
+            width="100%",
+            min_width="0",
+            grid_column=rx.breakpoints(initial="1", lg="1"),
+            grid_row=rx.breakpoints(initial="2", lg="1"),
+        ),
+        rx.box(
+            _section_search(view),
+            justify_self=rx.breakpoints(initial="stretch", lg="end"),
+            width=rx.breakpoints(initial="100%", sm="280px"),
+            max_width="280px",
+            grid_column=rx.breakpoints(initial="1", lg="2"),
+            grid_row="1",
+        ),
+        columns=rx.breakpoints(initial="minmax(0, 1fr)", lg="minmax(0, 1fr) auto"),
+        spacing="4",
+        align_items="center",
+        width="100%",
+    )
+
+
 def news_category_content() -> rx.Component:
-    """/news/[news_category]: the category's newest 100 articles in the same
-    4-column grid, under the same header (source pills + title search)."""
+    """/news/[news_category]: every article of one category, 100 per page, in
+    the same card grid — centred title + count on top, then the source pills
+    and title search, the grid, and pagination below."""
     view = NewsState.view_all
     return rx.vstack(
-        rx.link(
-            rx.hstack(rx.icon("arrow-left", size=16), rx.text("All news", size="2"), spacing="1", align="center"),
-            href="/news",
-            underline="none",
-            color="var(--gray-11)",
-        ),
         rx.cond(
             NewsState.is_loading,
             _loading_skeleton(),
             rx.cond(
                 view["found"],
                 rx.vstack(
-                    _section_header(view),
+                    rx.flex(
+                        rx.heading(view["news_type"], size="6"),
+                        rx.badge(view["article_count"], " articles", color_scheme="gray", variant="soft", size="2"),
+                        direction=rx.breakpoints(initial="column", sm="row"),
+                        spacing="3",
+                        align="center",
+                        justify="center",
+                        width="100%",
+                    ),
+                    _category_filter_row(view),
                     rx.text(
-                        "Showing the ",
-                        view["shown_count"],
-                        " newest of ",
+                        "Showing ",
+                        view["range_start"],
+                        "–",
+                        view["range_end"],
+                        " of ",
                         view["article_count"],
                         " articles",
                         size="2",
@@ -383,9 +410,21 @@ def news_category_content() -> rx.Component:
                             width="100%",
                         ),
                     ),
+                    rx.cond(
+                        view["has_pagination"],
+                        _pagination_row(
+                            NewsState.view_all_first,
+                            NewsState.view_all_prev,
+                            NewsState.view_all_next,
+                            NewsState.view_all_last,
+                            view["page"],
+                            view["total_pages"],
+                        ),
+                    ),
                     spacing="4",
                     align="start",
                     width="100%",
+                    padding_bottom="1em",
                 ),
                 _category_not_found(),
             ),

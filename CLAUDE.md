@@ -95,6 +95,13 @@ Per explicit request (`el-73/74`). **Section footer** (`news_page.py::_section_f
 ### 🔧 Follow-up: 5-column news grid, 15 per page (2026-10-01 session)
 Per explicit request (`el-75`): every news grid is 5 columns at desktop (`news_page._GRID_COLUMNS` `lg="5"`; 1 / 2 / 3 columns below), on the `/news` category sections and the `/news/<category>` "View All" page. The section page size is 15 (`NewsState._PAGE_SIZE`, was 12) so a desktop page is exactly 5 columns x 3 rows, and the loading skeleton shows 15 cards; the View All page's 100 cards are 20 full rows. Verified live: 1440px section = 5 columns / 15 cards / "Page 1 of 149"; 1100px = 3 columns; View All = 5 columns / 100 cards; only the known dynamic-route 404 status in the console.
 
+### 🔧 Follow-up: View All pagination, centred title, News nav stays active on sub-pages (2026-10-01 session)
+Per explicit request (`el-76..79`; `el-77` didn't exist on disk, so the nav change follows the written description).
+**1. Pagination on `/news/<category>`**: the page no longer stops at the newest 100 — it pages through every article of the category, 100 per page (`NewsState.view_all_page`, `view_all_first/prev/next/last`, `reset_view_all_page` on the page's `on_load`; `view_all` returns page / total_pages / range fields). A pagination row (same first/prev/"Page X of Y"/next/last look as the sections, extracted as `news_page._pagination_row`) sits centred below the grid, the note reads "Showing 101–200 of 2228 articles", and changing the source pill or search resets to page 1.
+**2. Title**: the "← All news" back link on the category page is gone; the category heading and its article-count badge are now centred at the top of the page, above the source pills and search (`_category_filter_row`). The article reader's own "All news" link is unchanged.
+**3. Navbar**: the "News" link stays highlighted on any sub-page (`/news/<category>`, `/news/<category>/<article>`): `frontend.py::_nav_link` marks a link active when the path equals its href or starts with `href + "/"`.
+**Verified live**: Cryptocurrency = 2,228 articles / 23 pages; page 1 = 1–100, next = 101–200, last = 2201–2228 (28 cards), first back to 1–100; selecting a source pill resets to "Page 1 of 4" with 312 articles; title centred; "News" is the only active nav link; no back link. Only the known dynamic-route 404 status and one third-party image blocked by the browser appeared in the console.
+
 ### 🔧 Current State` and `### ➡️ Next Steps`) inside this file.
 * **Why:** This ensures that if the terminal session suddenly runs out of API limits, the current progress state is perfectly preserved right here, allowing a seamless handoff to GitHub Copilot inside VS Code without losing data.
 
