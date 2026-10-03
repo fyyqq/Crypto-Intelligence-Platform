@@ -346,7 +346,7 @@
 
 // Autoplay for the homepage news slider (.news-slider-wrap): scrolls
 // continuously (a steady drift, not card-by-card), looping back to the start
-// at the end. Paused while the pointer is anywhere over the slider (cards or
+// at the end (right-to-left for .news-slider-rtl, see below). Paused while the pointer is anywhere over the slider (cards or
 // its arrow buttons, which sit inside the wrap), while dragging, and while the
 // tab is hidden.
 (function () {
@@ -366,12 +366,28 @@
           if (track) positions.delete(track);
           return;
         }
+        const max = track.scrollWidth - track.clientWidth;
+        // .news-slider-rtl: cards are rendered oldest -> newest, the slider
+        // starts at the right end (newest card visible) and drifts toward the
+        // older cards on the left, looping back to the right end. Re-anchors
+        // to the right whenever the card count changes (data loaded/refreshed).
+        const rtl = wrap.classList.contains("news-slider-rtl");
+        if (rtl && max > 0 && track.dataset.rtlCount !== String(track.children.length)) {
+          track.dataset.rtlCount = String(track.children.length);
+          track.style.scrollBehavior = "auto";
+          track.scrollLeft = max;
+          positions.set(track, max);
+        }
         let pos = positions.get(track);
         // The user scrolled (arrows/drag) since the last frame: continue from there.
         if (pos === undefined || Math.abs(track.scrollLeft - pos) > 2) pos = track.scrollLeft;
-        pos += SPEED_PX_PER_SEC * dt;
-        const max = track.scrollWidth - track.clientWidth;
-        if (pos >= max - 1) pos = 0;
+        if (rtl) {
+          pos -= SPEED_PX_PER_SEC * dt;
+          if (pos <= 1) pos = max;
+        } else {
+          pos += SPEED_PX_PER_SEC * dt;
+          if (pos >= max - 1) pos = 0;
+        }
         track.style.scrollBehavior = "auto"; // instant steps; smooth-scroll would fight the drift
         track.scrollLeft = pos;
         positions.set(track, pos);

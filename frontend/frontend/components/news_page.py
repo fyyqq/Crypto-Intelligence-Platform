@@ -15,11 +15,11 @@ _GRID_COLUMNS = rx.breakpoints(initial="2", sm="3", lg="5")
 
 
 def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
-    """compact=True (homepage strip): keeps the post image but hides the source and
-    category badges (only the Telegram badge and time remain)."""
+    """compact=True (homepage strip): text only — no image and no category badge,
+    just the source badge (Telegram group / website name), title, time and excerpt."""
     return rx.link(
         rx.vstack(
-            rx.cond(
+            rx.fragment() if compact else rx.cond(
                 article["has_image"],
                 rx.box(
                     rx.image(
@@ -73,6 +73,19 @@ def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
                             width="100%",
                         )
                     ]
+                ),
+                *(
+                    [
+                        rx.badge(
+                            article["source_name"],
+                            color_scheme=article["badge_color"],
+                            variant="surface",
+                            size="1",
+                            style={"max_width": "100%", "display": "inline-block", "overflow": "hidden", "text_overflow": "ellipsis", "white_space": "nowrap"},
+                        )
+                    ]
+                    if compact
+                    else []
                 ),
                 (
                     # Compact (homepage strip): title and time share one row, time at the right.

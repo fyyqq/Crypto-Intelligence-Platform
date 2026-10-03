@@ -33,7 +33,7 @@ def _news_slider(articles: rx.Var) -> rx.Component:
             rx.icon("chevron-right", size=14),
             class_name="news-scroll-btn news-scroll-right",
         ),
-        class_name="news-slider-wrap",
+        class_name="news-slider-wrap news-slider-rtl",
     )
 
 

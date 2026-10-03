@@ -803,7 +803,7 @@ def index() -> rx.Component:
         _header_bar(),
         rx.vstack(
             rx.box(
-                news_feed("Cryptocurrency", NewsState.home_crypto_news, "/news#cryptocurrency"),
+                news_feed("Cryptocurrency", NewsState.home_crypto_news_rtl, "/news#cryptocurrency"),
                 id="news-feed-section",
                 width="100%",
             ),

@@ -1067,6 +1067,16 @@ class NewsState(rx.State):
         return [a for a in self._all_articles if a["news_type"] == "Cryptocurrency"][:_HOME_NEWS_LIMIT]
 
     @rx.var(cache=True)
+    def home_crypto_news_rtl(self) -> list[dict]:
+        """Oldest -> newest, so the newest card sits at the right end of the
+        right-to-left homepage slider (assets/chain_pills.js, news-slider-rtl)."""
+        return list(reversed(self.home_crypto_news))
+
+    @rx.var(cache=True)
+    def home_targeted_news_rtl(self) -> list[dict]:
+        return list(reversed(self.home_targeted_news))
+
+    @rx.var(cache=True)
     def home_targeted_news(self) -> list[dict]:
         """Newest Cryptocurrency articles the AI tied to a coin, for the
         homepage "Targeted Narrative + Coin" slider."""

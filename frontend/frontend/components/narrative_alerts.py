@@ -12,19 +12,12 @@ def _alert_card(article: rx.Var) -> rx.Component:
     return rx.link(
         rx.box(
             rx.hstack(
-                rx.badge(article["source_name"], color_scheme=article["badge_color"], size="1", max_width="70%", overflow="hidden", text_overflow="ellipsis", white_space="nowrap"),
+                rx.badge(article["target_symbol"], color_scheme="indigo", size="1"),
+                rx.badge(article["target_narrative"], color_scheme="orange", size="1"),
                 rx.spacer(),
                 rx.text(article["time_display"], size="1", color_scheme="gray", flex_shrink="0"),
                 width="100%",
                 align="center",
-            ),
-            rx.hstack(
-                rx.badge(article["target_symbol"], color_scheme="indigo", size="1"),
-                rx.badge(article["target_narrative"], color_scheme="orange", size="1"),
-                margin_top="0.5em",
-                width="100%",
-                direction="row-reverse",
-                justify="end",
                 # A long narrative name plus the coin badge doesn't fit on one
                 # line at the card's narrowest width; let it wrap.
                 wrap="wrap",
@@ -52,11 +45,11 @@ def _alerts_slider() -> rx.Component:
     return rx.box(
         rx.box(rx.icon("chevron-left", size=14), class_name="news-scroll-btn news-scroll-left"),
         rx.box(
-            rx.foreach(NewsState.home_targeted_news, _alert_card),
+            rx.foreach(NewsState.home_targeted_news_rtl, _alert_card),
             class_name="news-slider-track",
         ),
         rx.box(rx.icon("chevron-right", size=14), class_name="news-scroll-btn news-scroll-right"),
-        class_name="news-slider-wrap",
+        class_name="news-slider-wrap news-slider-rtl",
     )
 
 
