@@ -362,6 +362,16 @@ def _resolve_chart_symbol(symbol: str, coin: dict | None) -> str | None:
     return dex_symbol or None
 
 
+def _fmt_alert_time(moment) -> str:
+    """Kuala Lumpur wall-clock time (the app's display timezone) for alert history rows."""
+    import datetime as _dt
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Asia/Kuala_Lumpur")
+    moment = moment.astimezone(tz) if moment else _dt.datetime.now(tz)
+    return moment.strftime("%d %b %Y, %H:%M")
+
+
 def _fmt_pct(value: float) -> str:
     return f"{value:+.2f}%"
 
@@ -1184,6 +1194,13 @@ class CoinState(rx.State):
     alert_dialog_open: bool = False
     alert_price_input: str = ""
     alert_error: str = ""
+    # Triggered alerts: floating popups (stacked, shown ~1 min, slide in from
+    # the top) and the history list shown on /alerts.
+    alert_popups: list[dict] = []
+    alert_popup_visible: bool = False
+    alert_history: list[dict] = []
+    _alert_popup_deadline: float = 0.0
+    _alert_watch_running: bool = False
 
     # In-page sort only: reorders the current page's rows, never re-ranks
     # across the full coin list. sort_key is one of the raw numeric fields
@@ -1685,6 +1702,7 @@ class CoinState(rx.State):
         self.user_name = result.user_name
         self.user_email = result.user_email
         self.watchlist_ids = await asyncio.to_thread(watchlist_service.get_watchlist_ids, result.user_id)
+        await self._load_user_alerts()
         if self.router.url.path.rstrip("/") in ("/login", "/signup"):
             return rx.call_script("window.location.assign('/')")
 
@@ -1703,6 +1721,10 @@ class CoinState(rx.State):
         self.user_email = ""
         self.user_id = 0
         self.watchlist_ids = []
+        self.price_alerts = {}
+        self.alert_history = []
+        self.alert_popups = []
+        self.alert_popup_visible = False
         self.profile_menu_open = False
         return rx.call_script("window.location.assign('/')")
 
@@ -1747,7 +1769,7 @@ class CoinState(rx.State):
         self.alert_error = ""
 
     @rx.event
-    def create_alert(self):
+    async def create_alert(self):
         coin = self.selected_coin
         if not coin:
             return
@@ -1770,17 +1792,21 @@ class CoinState(rx.State):
         if any(a["price"] == target for a in existing):
             self.alert_error = "You already have an alert at this price."
             return
-        alert = {
-            "id": int(time.time() * 1000),
-            "price": target,
-            "direction": direction,
-            "display": _fmt_usd(target),
-        }
-        self.price_alerts = {**self.price_alerts, key: [*existing, alert]}
+        alert_id = int(time.time() * 1000)
+        if self.user_id:
+            if _ROOT_FOR_APP not in sys.path:
+                sys.path.insert(0, _ROOT_FOR_APP)
+            from app.services import alert_service
+
+            alert_id = await asyncio.to_thread(
+                alert_service.add_alert, self.user_id, int(coin["cmc_id"]), coin["name"], coin["symbol"], direction, target
+            )
+        alert = {"id": alert_id, "price": target, "direction": direction, "display": _fmt_usd(target)}
+        self.price_alerts = {**self.price_alerts, key: [*self.price_alerts.get(key, []), alert]}
         self.alert_dialog_open = False
 
     @rx.event
-    def delete_alert(self, alert_id: int):
+    async def delete_alert(self, alert_id: int):
         coin = self.selected_coin
         if not coin:
             return
@@ -1789,6 +1815,140 @@ class CoinState(rx.State):
             **self.price_alerts,
             key: [a for a in self.price_alerts.get(key, []) if a["id"] != alert_id],
         }
+        if self.user_id:
+            if _ROOT_FOR_APP not in sys.path:
+                sys.path.insert(0, _ROOT_FOR_APP)
+            from app.services import alert_service
+
+            await asyncio.to_thread(alert_service.delete_alert, self.user_id, alert_id)
+
+    async def _load_user_alerts(self) -> None:
+        """Logged-in only: replaces the session's alerts with this account's saved active ones."""
+        if _ROOT_FOR_APP not in sys.path:
+            sys.path.insert(0, _ROOT_FOR_APP)
+        from app.services import alert_service
+
+        rows = await asyncio.to_thread(alert_service.list_active, self.user_id)
+        grouped: dict[str, list[dict]] = {}
+        for r in rows:
+            grouped.setdefault(str(r["cmc_id"]), []).append(
+                {"id": r["id"], "price": r["price"], "direction": r["direction"], "display": _fmt_usd(r["price"])}
+            )
+        self.price_alerts = grouped
+
+    @rx.event
+    async def load_alert_history(self):
+        """/alerts on_load: logged-in accounts read their saved history; guests keep the in-memory one."""
+        if not self.user_id:
+            return
+        if _ROOT_FOR_APP not in sys.path:
+            sys.path.insert(0, _ROOT_FOR_APP)
+        from app.services import alert_service
+
+        rows = await asyncio.to_thread(alert_service.list_history, self.user_id)
+        self.alert_history = [
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "symbol": r["symbol"],
+                "icon_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{r['cmc_id']}.png",
+                "direction": r["direction"],
+                "target_display": _fmt_usd(r["target"]),
+                "price_display": _fmt_usd(r["price"]),
+                "time_display": _fmt_alert_time(r["at"]),
+            }
+            for r in rows
+        ]
+
+    @rx.event
+    def dismiss_alert_popup(self, alert_id: int):
+        self.alert_popups = [p for p in self.alert_popups if p["id"] != alert_id]
+        if not self.alert_popups:
+            self.alert_popup_visible = False
+
+    @rx.event(background=True)
+    async def start_alert_watch(self):
+        """Every 4s checks this session's active alerts against live exchange prices
+        (frontend/live_prices.py; falls back to the synced price) and, when one is hit,
+        stacks a popup, records it in the history (and in the database when logged in) and
+        shows the popup for a minute. Runs for as long as the tab stays open."""
+        async with self:
+            if self._alert_watch_running:
+                return
+            self._alert_watch_running = True
+
+        from frontend.frontend import app as reflex_app
+        from frontend.live_prices import fetch_live_prices
+
+        try:
+            while True:
+                items: list[dict] = []
+                async with self:
+                    for key, alerts in self.price_alerts.items():
+                        row = self._merged_row(int(key)) if alerts else None
+                        if row:
+                            items.append({
+                                "cmc_id": row["cmc_id"], "symbol": row["symbol"],
+                                "chart_symbol": _resolve_chart_symbol(row["symbol"], row) or "",
+                                "ref_price": row.get("price_raw", 0),
+                            })
+                live: dict[int, float] = {}
+                if items:
+                    live = await asyncio.to_thread(fetch_live_prices, items)
+                triggered: list[tuple[int, int, float]] = []
+                async with self:
+                    now_ts = time.time()
+                    new_alerts = dict(self.price_alerts)
+                    popups = list(self.alert_popups)
+                    history = list(self.alert_history)
+                    for key, alerts in self.price_alerts.items():
+                        row = self._merged_row(int(key)) if alerts else None
+                        if not row:
+                            continue
+                        price = live.get(row["cmc_id"]) or float(row.get("price_raw") or 0)
+                        if price <= 0:
+                            continue
+                        remaining = []
+                        for a in alerts:
+                            hit = price >= a["price"] if a["direction"] == "above" else price <= a["price"]
+                            if not hit:
+                                remaining.append(a)
+                                continue
+                            entry = {
+                                "id": a["id"], "name": row["name"], "symbol": row["symbol"],
+                                "icon_url": row["icon_url"], "direction": a["direction"],
+                                "target_display": a["display"], "price_display": _fmt_usd(price),
+                                "time_display": _fmt_alert_time(None),
+                            }
+                            popups.append(entry)
+                            history.insert(0, entry)
+                            triggered.append((self.user_id, a["id"], price))
+                        new_alerts[key] = remaining
+                    if triggered:
+                        self.price_alerts = new_alerts
+                        self.alert_popups = popups[-5:]
+                        self.alert_history = history[:200]
+                        self.alert_popup_visible = True
+                        self._alert_popup_deadline = now_ts + 60
+                    elif self.alert_popup_visible and now_ts > self._alert_popup_deadline:
+                        self.alert_popup_visible = False
+                if triggered and triggered[0][0]:
+                    if _ROOT_FOR_APP not in sys.path:
+                        sys.path.insert(0, _ROOT_FOR_APP)
+                    from app.services import alert_service
+
+                    for uid, alert_id, price in triggered:
+                        await asyncio.to_thread(alert_service.mark_triggered, uid, alert_id, price)
+                await asyncio.sleep(4)
+                async with self:
+                    # after the slide-out transition, drop the finished popups
+                    if not self.alert_popup_visible and self.alert_popups:
+                        self.alert_popups = []
+                if self.router.session.client_token not in reflex_app.event_namespace.token_to_sid:
+                    break
+        finally:
+            async with self:
+                self._alert_watch_running = False
 
     @rx.var(cache=True)
     def coin_alerts(self) -> list[dict]:

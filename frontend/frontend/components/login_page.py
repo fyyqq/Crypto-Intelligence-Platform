@@ -108,6 +108,7 @@ class AuthState(CoinState):
         from app.services import watchlist_service
 
         self.watchlist_ids = await asyncio.to_thread(watchlist_service.get_watchlist_ids, result.user_id)
+        await self._load_user_alerts()
         # Only when "Remember me" was ticked: the cookie lets a later visit (even a new tab)
         # restore the login. Otherwise the login lives only in this tab's session.
         self.session_token = await self._run("create_session", result.user_id) if remember else ""

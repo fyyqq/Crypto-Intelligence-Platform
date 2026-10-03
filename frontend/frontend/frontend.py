@@ -20,8 +20,30 @@ from frontend.components import (
     news_page_content,
     watchlist_table,
 )
+from frontend.components.alerts_page import alerts_content
 from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
 from frontend.state import CoinState, NewsDetailState, NewsState
+
+
+def _alerts_menu_item() -> rx.Component:
+    # Only once logged in (alerts are saved per account).
+    return rx.cond(
+        CoinState.is_logged_in,
+        rx.link(
+            rx.hstack(
+                rx.icon("bell", size=16),
+                rx.text("Alerts", size="2"),
+                spacing="2",
+                align="center",
+                class_name="profile-menu-item",
+            ),
+            href="/alerts",
+            underline="none",
+            display="block",
+            width="100%",
+            color="var(--gray-12)",
+        ),
+    )
 
 
 def _watchlist_menu_item() -> rx.Component:
@@ -127,6 +149,7 @@ def _profile_dropdown() -> rx.Component:
         _auth_menu_items(),
         _nav_menu_items(),
         _watchlist_menu_item(),
+        _alerts_menu_item(),
         _color_mode_menu_item(),
         rx.cond(
             CoinState.is_logged_in,
@@ -414,12 +437,77 @@ def _floating_logo() -> rx.Component:
     )
 
 
+def _alert_popup_card(alert: rx.Var[dict]) -> rx.Component:
+    return rx.hstack(
+        rx.image(src=alert["icon_url"], width="34px", height="34px", border_radius="50%", flex_shrink="0"),
+        rx.vstack(
+            rx.hstack(
+                rx.icon("bell-ring", size=14, color="var(--amber-9)"),
+                rx.text("Price alert", size="1", weight="bold", color="var(--amber-9)"),
+                spacing="1",
+                align="center",
+            ),
+            rx.text(
+                rx.text.strong(alert["name"]),
+                rx.cond(alert["direction"] == "above", " rose above ", " fell below "),
+                rx.text.strong(alert["target_display"]),
+                size="2",
+            ),
+            rx.text("Now ", alert["price_display"], size="1", color_scheme="gray"),
+            spacing="0",
+            align="start",
+            min_width="0",
+            flex="1",
+        ),
+        rx.icon(
+            "x",
+            size=18,
+            color="var(--gray-11)",
+            cursor="pointer",
+            flex_shrink="0",
+            on_click=CoinState.dismiss_alert_popup(alert["id"]),
+        ),
+        spacing="3",
+        align="start",
+        width="100%",
+        padding="0.85em 1em",
+        border_radius="14px",
+        background="var(--gray-2)",
+        border="1px solid var(--gray-a6)",
+        border_left=rx.cond(alert["direction"] == "above", "4px solid var(--green-9)", "4px solid var(--red-9)"),
+        box_shadow="0 12px 32px rgba(0, 0, 0, 0.35)",
+        pointer_events="auto",
+    )
+
+
+def _alert_popups() -> rx.Component:
+    # Triggered price alerts, stacked, centred just under the header. Always
+    # rendered so the CSS transition can run: parked at top:-1000px, it slides
+    # down to 104px when an alert triggers and back up after ~1 minute
+    # (CoinState.start_alert_watch flips alert_popup_visible).
+    return rx.box(
+        rx.vstack(
+            rx.foreach(CoinState.alert_popups, _alert_popup_card),
+            spacing="2",
+            width="100%",
+        ),
+        position="fixed",
+        top=rx.cond(CoinState.alert_popup_visible, "104px", "-1000px"),
+        left="50%",
+        transform="translateX(-50%)",
+        width="min(380px, calc(100vw - 32px))",
+        z_index="10000",
+        pointer_events="none",
+        transition="top 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
+    )
+
+
 def _watchlist_button() -> rx.Component:
     # Circle with a star, stacked directly above the floating logo (logo is
     # 56px at bottom/right 16px; this is 44px, centred over it 12px higher).
-    # Opens _watchlist_widget; the circle turns white while it is open.
+    # Opens _watchlist_widget; the circle turns white while it is open, the star stays amber.
     return rx.box(
-        rx.image(src="/watchlist_stars.svg", alt="Watchlist", width="24px", height="24px"),
+        rx.icon("star", size=20, color="var(--amber-9)", fill="var(--amber-9)"),
         width="44px",
         height="44px",
         border_radius="9999px",
@@ -757,6 +845,7 @@ def index() -> rx.Component:
         _chat_widget(),
         _watchlist_button(),
         _watchlist_widget(),
+        _alert_popups(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
@@ -779,6 +868,7 @@ def coin_detail() -> rx.Component:
         _chat_widget(),
         _watchlist_button(),
         _watchlist_widget(),
+        _alert_popups(),
         # Needed for the X-posts slider's arrow/drag mechanics
         # (coin_detail.py::_x_posts_slider, assets/chain_pills.js) — was
         # previously only loaded on index()'s page, which happened not to
@@ -817,6 +907,7 @@ def _placeholder_page(heading: str) -> rx.Component:
         _chat_widget(),
         _watchlist_button(),
         _watchlist_widget(),
+        _alert_popups(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
@@ -836,6 +927,7 @@ def news_page() -> rx.Component:
         _chat_widget(),
         _watchlist_button(),
         _watchlist_widget(),
+        _alert_popups(),
         # Needed for the header search/profile dropdowns' click-outside
         # handlers (this page has the same header as every other page) and
         # this page's own #<source> anchor-scroll fix — see chain_pills.js's
@@ -856,6 +948,7 @@ def news_category_page() -> rx.Component:
         _chat_widget(),
         _watchlist_button(),
         _watchlist_widget(),
+        _alert_popups(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
@@ -871,6 +964,7 @@ def news_detail_page() -> rx.Component:
         _chat_widget(),
         _watchlist_button(),
         _watchlist_widget(),
+        _alert_popups(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
@@ -887,6 +981,27 @@ def chains_page() -> rx.Component:
 
 def tools_page() -> rx.Component:
     return _placeholder_page("Tools")
+
+
+def alerts_page() -> rx.Component:
+    return rx.box(
+        _header_bar(),
+        rx.box(
+            alerts_content(),
+            padding=["1em", "1em", "1.5em", "2em", "2em"],
+            width="100%",
+            min_height="60vh",
+        ),
+        footer(),
+        _floating_logo(),
+        _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
+        _alert_popups(),
+        rx.script(src="/chain_pills.js"),
+        min_height="100vh",
+        width="100%",
+    )
 
 
 def watchlist_page() -> rx.Component:
@@ -908,6 +1023,7 @@ def watchlist_page() -> rx.Component:
         _chat_widget(),
         _watchlist_button(),
         _watchlist_widget(),
+        _alert_popups(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
@@ -948,7 +1064,7 @@ app.add_page(
     # to a generic title before all_coins has loaded.
     title=CoinState.page_title,
     on_load=[
-        CoinState.restore_session, CoinState.load_coins,
+        CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch,
         CoinState.detail_sync_loop,
         CoinState.refresh_coin_description,
         CoinState.refresh_business_summary,
@@ -961,7 +1077,13 @@ app.add_page(
     news_category_page,
     route="/news/[news_category]",
     title=NewsState.view_all_title,
-    on_load=[CoinState.restore_session, CoinState.load_coins, NewsState.load_news, NewsState.reset_view_all_page, NewsState.watch_new_articles],
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_view_all_page, NewsState.watch_new_articles],
+)
+app.add_page(
+    alerts_page,
+    route="/alerts",
+    title="Repace — Alerts",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CoinState.load_alert_history],
 )
 app.add_page(login_page, route="/login", title="Repace — Log in", on_load=[CoinState.restore_session, AuthState.clear_auth_error, LoginState.reset_visibility])
 app.add_page(signup_page, route="/signup", title="Repace — Sign up", on_load=[CoinState.restore_session, AuthState.clear_auth_error, LoginState.reset_visibility])
@@ -969,7 +1091,7 @@ app.add_page(
     news_detail_page,
     route="/news/[news_category]/[article_slug]",
     title=NewsDetailState.page_title,
-    on_load=[CoinState.restore_session, CoinState.load_coins, NewsDetailState.load_article],
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsDetailState.load_article],
 )
 app.add_page(
     index,
@@ -979,7 +1101,7 @@ app.add_page(
     # `image=` above only sets the og:image social-preview meta tag — the
     # actual browser-tab favicon needs its own <link rel="icon"> tag.
     meta=[rx.el.link(rel="icon", href="/favicon_logo.png", type="image/png")],
-    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.live_sync_loop, NewsState.load_news, NewsState.watch_new_articles],
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CoinState.live_sync_loop, NewsState.load_news, NewsState.watch_new_articles],
 )
 # /news has real content (news_page_content(), NewsState) — registered on
 # its own so it can add NewsState.load_news to the shared on_load list below
@@ -988,7 +1110,7 @@ app.add_page(
     news_page,
     route="/news",
     title="Repace — News",
-    on_load=[CoinState.restore_session, CoinState.load_coins, NewsState.load_news, NewsState.watch_new_articles],
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.watch_new_articles],
 )
 # Remaining header nav-link destinations (_NAV_LINKS above) — blank/
 # placeholder pages today. Each still loads the coin universe so the shared
@@ -1000,4 +1122,4 @@ for _route, _page_fn in [
     ("/tools", tools_page),
     ("/watchlist", watchlist_page),
 ]:
-    app.add_page(_page_fn, route=_route, title=f"Repace — {_page_fn.__name__.replace('_page', '').title()}", on_load=[CoinState.restore_session, CoinState.load_coins])
+    app.add_page(_page_fn, route=_route, title=f"Repace — {_page_fn.__name__.replace('_page', '').title()}", on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch])
