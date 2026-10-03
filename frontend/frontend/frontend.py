@@ -14,6 +14,7 @@ from frontend.components import (
     footer,
     global_search,
     narrative_alerts,
+    narrative_page_content,
     news_detail_content,
     news_feed,
     news_category_content,
@@ -803,7 +804,7 @@ def index() -> rx.Component:
         _header_bar(),
         rx.vstack(
             rx.box(
-                news_feed("Cryptocurrency", NewsState.home_crypto_news_rtl, "/news#cryptocurrency"),
+                news_feed("Cryptocurrency", NewsState.home_crypto_news, "/news/cryptocurrency"),
                 id="news-feed-section",
                 width="100%",
             ),
@@ -972,7 +973,20 @@ def news_detail_page() -> rx.Component:
 
 
 def narrative_page() -> rx.Component:
-    return _placeholder_page("Narrative")
+    # /narrative — every AI-targeted Cryptocurrency article (Narrative Radar), 100 per page.
+    return rx.box(
+        _header_bar(),
+        narrative_page_content(),
+        footer(),
+        _floating_logo(),
+        _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
+        _alert_popups(),
+        rx.script(src="/chain_pills.js"),
+        min_height="100vh",
+        width="100%",
+    )
 
 
 def chains_page() -> rx.Component:
@@ -1116,8 +1130,13 @@ app.add_page(
 # placeholder pages today. Each still loads the coin universe so the shared
 # header's own search bar works even when one of these is the very first
 # page a session visits (a direct/bookmarked link, not navigated to from "/").
+app.add_page(
+    narrative_page,
+    route="/narrative",
+    title="Repace — Narrative Radar",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, NewsState.watch_new_articles],
+)
 for _route, _page_fn in [
-    ("/narrative", narrative_page),
     ("/chains", chains_page),
     ("/tools", tools_page),
     ("/watchlist", watchlist_page),

@@ -800,6 +800,8 @@ class NewsState(rx.State):
     category_search: dict[str, str] = {}
     # Current page of the /news/<category> "View All" list (100 per page).
     view_all_page: int = 1
+    # Current page of /narrative (Narrative Radar, 100 per page).
+    narrative_page: int = 1
     # "Summarize What Happened Today" popup on /news/<category>.
     summary_open: bool = False
     summary_loading: bool = False
@@ -1067,10 +1069,42 @@ class NewsState(rx.State):
         return [a for a in self._all_articles if a["news_type"] == "Cryptocurrency"][:_HOME_NEWS_LIMIT]
 
     @rx.var(cache=True)
-    def home_crypto_news_rtl(self) -> list[dict]:
-        """Oldest -> newest, so the newest card sits at the right end of the
-        right-to-left homepage slider (assets/chain_pills.js, news-slider-rtl)."""
-        return list(reversed(self.home_crypto_news))
+    def narrative_view(self) -> dict:
+        """/narrative: every AI-targeted Cryptocurrency article, newest first,
+        _VIEW_ALL_LIMIT (100) per page."""
+        articles = [a for a in self._all_articles if a["news_type"] == "Cryptocurrency" and a["has_target"]]
+        total_pages = max(1, -(-len(articles) // _VIEW_ALL_LIMIT))
+        page = max(1, min(self.narrative_page, total_pages))
+        start = (page - 1) * _VIEW_ALL_LIMIT
+        return {
+            "article_count": len(articles),
+            "range_start": start + 1 if articles else 0,
+            "range_end": min(start + _VIEW_ALL_LIMIT, len(articles)),
+            "page": page,
+            "total_pages": total_pages,
+            "has_pagination": total_pages > 1,
+            "articles": articles[start : start + _VIEW_ALL_LIMIT],
+        }
+
+    @rx.event
+    def reset_narrative_page(self):
+        self.narrative_page = 1
+
+    @rx.event
+    def narrative_first(self):
+        self.narrative_page = 1
+
+    @rx.event
+    def narrative_prev(self):
+        self.narrative_page = max(1, self.narrative_view["page"] - 1)
+
+    @rx.event
+    def narrative_next(self):
+        self.narrative_page = min(self.narrative_view["total_pages"], self.narrative_view["page"] + 1)
+
+    @rx.event
+    def narrative_last(self):
+        self.narrative_page = self.narrative_view["total_pages"]
 
     @rx.var(cache=True)
     def home_targeted_news(self) -> list[dict]:

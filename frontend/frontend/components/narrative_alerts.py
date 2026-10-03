@@ -8,7 +8,7 @@ import reflex as rx
 from frontend.state import NewsState
 
 
-def _alert_card(article: rx.Var) -> rx.Component:
+def _alert_card(article: rx.Var, *, in_grid: bool = False) -> rx.Component:
     return rx.link(
         rx.box(
             rx.hstack(
@@ -36,7 +36,7 @@ def _alert_card(article: rx.Var) -> rx.Component:
         href=article["detail_url"],
         underline="none",
         display="block",
-        width=["270px", "290px", "310px", "340px", "340px"],
+        width="100%" if in_grid else ["270px", "290px", "310px", "340px", "340px"],
         flex_shrink="0",
     )
 
@@ -57,7 +57,18 @@ def narrative_alerts() -> rx.Component:
     return rx.vstack(
         rx.text("TARGETED NARRATIVE ALERTS", size="1", color_scheme="gray", weight="bold"),
         rx.box(
-            rx.heading("Targeted Narrative + Coin", size=rx.breakpoints(initial="4", sm="5")),
+            rx.heading("Narrative Radar", size=rx.breakpoints(initial="4", sm="5")),
+            rx.link(
+                rx.hstack(
+                    rx.text("More Narratives", size="2", weight="bold"),
+                    rx.icon("arrow-right", size=14),
+                    spacing="1",
+                    align="center",
+                ),
+                href="/narrative",
+                underline="none",
+                color_scheme="indigo",
+            ),
             display="flex",
             flex_wrap="wrap",
             justify_content="space-between",
@@ -92,4 +103,66 @@ def narrative_alerts() -> rx.Component:
         spacing="3",
         width="100%",
         align_items="stretch",
+    )
+
+
+def narrative_page_content() -> rx.Component:
+    """/narrative: every AI-targeted Cryptocurrency article as cards, 100 per
+    page, in the same grid and pagination as a /news/<category> page."""
+    from frontend.components.news_page import _GRID_COLUMNS, _pagination_row
+
+    view = NewsState.narrative_view
+    return rx.vstack(
+        rx.flex(
+            rx.heading("Narrative Radar", size="6"),
+            rx.text(
+                "Crypto news with the coin and narrative each story moves, picked by AI.",
+                size="2",
+                color_scheme="gray",
+            ),
+            rx.badge(view["article_count"], " articles", color_scheme="gray", variant="soft", size="2"),
+            direction="column",
+            spacing="3",
+            align="center",
+            text_align="center",
+            width="100%",
+        ),
+        rx.cond(
+            NewsState.is_loading,
+            rx.grid(
+                *[rx.skeleton(height="150px", border_radius="8px") for _ in range(15)],
+                columns=_GRID_COLUMNS,
+                spacing="4",
+                width="100%",
+            ),
+            rx.vstack(
+                rx.text(
+                    "Showing ", view["range_start"], "–", view["range_end"], " of ", view["article_count"], " articles",
+                    size="2",
+                    color_scheme="gray",
+                ),
+                rx.grid(
+                    rx.foreach(view["articles"].to(list[dict]), lambda a: _alert_card(a, in_grid=True)),
+                    columns=_GRID_COLUMNS,
+                    spacing="4",
+                    width="100%",
+                ),
+                rx.cond(
+                    view["has_pagination"],
+                    _pagination_row(
+                        NewsState.narrative_first,
+                        NewsState.narrative_prev,
+                        NewsState.narrative_next,
+                        NewsState.narrative_last,
+                        view["page"],
+                        view["total_pages"],
+                    ),
+                ),
+                spacing="4",
+                width="100%",
+            ),
+        ),
+        spacing="5",
+        width="100%",
+        padding=["1em", "1em", "1.5em", "2em", "2em"],
     )
