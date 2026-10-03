@@ -417,14 +417,9 @@ def _floating_logo() -> rx.Component:
 def _watchlist_button() -> rx.Component:
     # Circle with a star, stacked directly above the floating logo (logo is
     # 56px at bottom/right 16px; this is 44px, centred over it 12px higher).
-    # Opens _watchlist_widget; the star fills amber while the popup is open.
+    # Opens _watchlist_widget; the circle turns white while it is open.
     return rx.box(
-        rx.icon(
-            "star",
-            size=20,
-            color=rx.cond(CoinState.watchlist_popup_open, "var(--amber-9)", "var(--gray-12)"),
-            fill=rx.cond(CoinState.watchlist_popup_open, "var(--amber-9)", "none"),
-        ),
+        rx.image(src="/watchlist_stars.svg", alt="Watchlist", width="24px", height="24px"),
         width="44px",
         height="44px",
         border_radius="9999px",
@@ -436,7 +431,8 @@ def _watchlist_button() -> rx.Component:
         display="flex",
         align_items="center",
         justify_content="center",
-        background="var(--gray-2)",
+        # Turns white while the popup is open; the stars stay yellow.
+        background=rx.cond(CoinState.watchlist_popup_open, "white", "var(--gray-2)"),
         border="1px solid var(--gray-a6)",
         box_shadow="0 4px 12px rgba(0, 0, 0, 0.3)",
         on_click=CoinState.toggle_watchlist_popup,
