@@ -126,3 +126,11 @@ Per explicit request: the slider was empty (OpenRouter's free daily quota was us
 Per explicit request (`el-20/21`). **Cryptocurrency strip**: compact cards (`news_page._news_card(compact=True)`) no longer show an image; they show the source badge again (Telegram group / website name), then title + time and the excerpt (no category badge). **Targeted Narrative + Coin**: the source badge is removed from every card; the ticker + narrative badges now share the top row with the time. **Autoplay** (`assets/chain_pills.js`, new `news-slider-rtl` class on both sliders): cards render oldest -> newest (`NewsState.home_crypto_news_rtl` / `home_targeted_news_rtl`), the slider opens at the right end with the newest card visible and drifts toward older cards, looping back to the right end; it re-anchors to the right whenever the card count changes (data loaded or refreshed). Pause on hover/drag/hidden tab unchanged. Verified live: both sliders 50 cards, 0 images, rightmost card newest, scrollLeft 13881 -> 13745 in 3s (moving toward older cards), zero console errors.
 
 </details>
+
+
+<details><summary>Right-to-left autoplay only on the Cryptocurrency strip</summary>
+
+### 🔧 Follow-up: right-to-left autoplay only on the Cryptocurrency strip (2026-10-04 session)
+Per explicit request (`el-22/23`): the `news-slider-rtl` mode stays on the homepage Cryptocurrency news strip only; the Targeted Narrative + Coin slider is reverted to newest-first order with the original left-to-right drift (`NewsState.home_targeted_news`, plain `news-slider-wrap`; `home_targeted_news_rtl` removed). Its card changes (no source badge, ticker/narrative + time row) stay. Verified live: strip opens at the right end with the newest card (40m ago) and drifts left (14205 -> 14066); targeted slider starts at the left with the newest card (1h ago) and drifts right (9 -> 149); zero console errors. Note: one server start failed with the known transient `Prerender: Request failed for /: ... timeout` build error; a retry succeeded.
+
+</details>

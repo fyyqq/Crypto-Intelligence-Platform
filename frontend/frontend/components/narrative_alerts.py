@@ -45,11 +45,11 @@ def _alerts_slider() -> rx.Component:
     return rx.box(
         rx.box(rx.icon("chevron-left", size=14), class_name="news-scroll-btn news-scroll-left"),
         rx.box(
-            rx.foreach(NewsState.home_targeted_news_rtl, _alert_card),
+            rx.foreach(NewsState.home_targeted_news, _alert_card),
             class_name="news-slider-track",
         ),
         rx.box(rx.icon("chevron-right", size=14), class_name="news-scroll-btn news-scroll-right"),
-        class_name="news-slider-wrap news-slider-rtl",
+        class_name="news-slider-wrap",
     )
 
 
