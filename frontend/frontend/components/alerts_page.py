@@ -57,19 +57,6 @@ def alerts_content() -> rx.Component:
         ),
         rx.text("History of the price alerts that have triggered.", size="2", color_scheme="gray"),
         rx.cond(
-            CoinState.is_logged_in,
-            rx.fragment(),
-            rx.callout.root(
-                rx.callout.icon(rx.icon("info", size=16)),
-                rx.callout.text(
-                    "Log in to keep your alerts and this history across devices and restarts. ",
-                    rx.link("Log in", href="/login", weight="medium"),
-                ),
-                size="1",
-                width="100%",
-            ),
-        ),
-        rx.cond(
             CoinState.alert_history.length() > 0,
             rx.vstack(rx.foreach(CoinState.alert_history, _history_row), spacing="2", width="100%"),
             rx.center(

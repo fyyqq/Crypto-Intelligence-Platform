@@ -79,3 +79,15 @@ def mark_triggered(user_id: int, alert_id: int, price: float) -> None:
         db.commit()
     finally:
         db.close()
+
+
+def update_alert(user_id: int, alert_id: int, price: float, direction: str) -> None:
+    """Changes an active alert's target price (and its above/below side)."""
+    db = SessionLocal()
+    try:
+        db.query(PriceAlert).filter(
+            PriceAlert.user_id == user_id, PriceAlert.id == alert_id, PriceAlert.triggered_at.is_(None)
+        ).update({"target_price": price, "direction": direction})
+        db.commit()
+    finally:
+        db.close()

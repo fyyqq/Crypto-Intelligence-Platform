@@ -1083,7 +1083,7 @@ app.add_page(
     alerts_page,
     route="/alerts",
     title="Repace — Alerts",
-    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CoinState.load_alert_history],
+    on_load=[CoinState.restore_session, CoinState.require_login, CoinState.load_coins, CoinState.start_alert_watch, CoinState.load_alert_history],
 )
 app.add_page(login_page, route="/login", title="Repace — Log in", on_load=[CoinState.restore_session, AuthState.clear_auth_error, LoginState.reset_visibility])
 app.add_page(signup_page, route="/signup", title="Repace — Sign up", on_load=[CoinState.restore_session, AuthState.clear_auth_error, LoginState.reset_visibility])

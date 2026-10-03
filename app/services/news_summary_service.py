@@ -56,8 +56,15 @@ def _ensure_columns() -> None:
         return
     db = SessionLocal()
     try:
-        db.execute(text("ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS ai_summary TEXT"))
-        db.execute(text("ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS ai_summary_model TEXT"))
+        # Only ALTER when missing (ALTER locks the table even if the column exists).
+        have = db.execute(text(
+            "SELECT count(*) FROM information_schema.columns WHERE table_name = 'news_articles' "
+            "AND column_name IN ('ai_summary', 'ai_summary_model')"
+        )).scalar()
+        if have < 2:
+            db.execute(text("SET lock_timeout = '3s'"))
+            db.execute(text("ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS ai_summary TEXT"))
+            db.execute(text("ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS ai_summary_model TEXT"))
         db.commit()
         _columns_ready = True
     finally:

@@ -13,6 +13,9 @@ which starts (once per process) a daemon thread that:
     On start it catches up every missed post since each group's last stored
     one, so the offline gap (up to the 30-day window) is filled.
 
+  * asks the AI to pick a target coin for a batch of recent Cryptocurrency
+    articles (app/services/news_targeting_service.py).
+
 NewsState.watch_new_articles then shows the new rows without a reload.
 """
 
@@ -70,6 +73,14 @@ def _loop() -> None:
             run_news_pipeline_sync()
         except Exception:  # noqa: BLE001
             logger.exception("news pipeline catch-up failed")
+        try:
+            # AI coin pick for the homepage "Targeted Narrative + Coin" slider:
+            # one batched OpenRouter call (10 articles) per pass.
+            from app.services.news_targeting_service import target_recent_articles
+
+            target_recent_articles()
+        except Exception:  # noqa: BLE001
+            logger.exception("news targeting failed")
         time.sleep(_CHECK_INTERVAL_SECONDS)
 
 

@@ -974,3 +974,11 @@
 .nav-dropdown-item:hover {
   background: var(--gray-a4);
 }
+
+/* Targeted Narrative + Coin cards: keep long titles/excerpts to 3 lines. */
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

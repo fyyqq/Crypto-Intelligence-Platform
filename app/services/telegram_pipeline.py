@@ -174,7 +174,17 @@ class TelegramNewsDB:
     def __init__(self, dsn: str = POSTGRES_DSN):
         self._conn = psycopg2.connect(dsn)
         cur = self._conn.cursor()
-        cur.execute("ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS media JSONB")
+        # ALTER TABLE takes an exclusive lock even when the column already
+        # exists, and while it waits for a long reader every other query on
+        # news_articles queues behind it (froze /news once). So only ALTER
+        # when the column is really missing, and never wait more than 3s.
+        cur.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_name = 'news_articles' AND column_name = 'media'"
+        )
+        if cur.fetchone() is None:
+            cur.execute("SET lock_timeout = '3s'")
+            cur.execute("ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS media JSONB")
+            cur.execute("SET lock_timeout = 0")
         self._conn.commit()
         cur.close()
 

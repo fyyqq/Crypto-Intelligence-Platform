@@ -244,6 +244,11 @@ class NewsDB:
             self._param = "?"
         elif backend == "postgres":
             self._conn = psycopg2.connect(POSTGRES_DSN)
+            # Autocommit: a pipeline run spends minutes fetching pages between
+            # statements; without it the first SELECT left the connection "idle
+            # in transaction" for the whole run, holding a lock that made any
+            # ALTER TABLE (and every query queued behind it) wait — /news froze.
+            self._conn.autocommit = True
             self._param = "%s"
         else:
             raise ValueError(f"Unknown NEWS_DB_BACKEND {backend!r} — must be 'postgres' or 'sqlite'")
@@ -257,19 +262,33 @@ class NewsDB:
         # existing table from an earlier pipeline version — this ALTER
         # covers that upgrade path for image_url specifically, since this
         # column was added after the table already existed in real usage.
-        try:
-            cur.execute("ALTER TABLE news_articles ADD COLUMN image_url TEXT")
-            self._conn.commit()
-        except (psycopg2.errors.DuplicateColumn, sqlite3.OperationalError):
-            self._conn.rollback()
+        if not self._has_column(cur, "image_url"):
+            try:
+                cur.execute("ALTER TABLE news_articles ADD COLUMN image_url TEXT")
+                self._conn.commit()
+            except (psycopg2.errors.DuplicateColumn, sqlite3.OperationalError):
+                self._conn.rollback()
         # Per-post photo/video list written by telegram_pipeline.py (NULL =
         # not processed yet, [] = the post has no photo/video).
-        try:
-            cur.execute("ALTER TABLE news_articles ADD COLUMN media " + ("JSONB" if self.backend == "postgres" else "TEXT"))
-            self._conn.commit()
-        except (psycopg2.errors.DuplicateColumn, sqlite3.OperationalError):
-            self._conn.rollback()
+        if not self._has_column(cur, "media"):
+            try:
+                cur.execute("ALTER TABLE news_articles ADD COLUMN media " + ("JSONB" if self.backend == "postgres" else "TEXT"))
+                self._conn.commit()
+            except (psycopg2.errors.DuplicateColumn, sqlite3.OperationalError):
+                self._conn.rollback()
         cur.close()
+
+    def _has_column(self, cur, column: str) -> bool:
+        """ALTER TABLE locks the table even when the column already exists, so
+        check first and only ALTER on a real upgrade."""
+        if self.backend == "sqlite":
+            cur.execute("PRAGMA table_info(news_articles)")
+            return any(row[1] == column for row in cur.fetchall())
+        cur.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_name = 'news_articles' AND column_name = %s",
+            (column,),
+        )
+        return cur.fetchone() is not None
 
     def article_exists(self, url: str) -> bool:
         """Checked BEFORE scraping/extracting a candidate article — the

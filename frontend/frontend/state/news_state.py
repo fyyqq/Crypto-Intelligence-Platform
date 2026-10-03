@@ -98,12 +98,19 @@ def _fetch_articles() -> list[dict]:
 
     from app.core.database import SessionLocal as OldSessionLocal
 
+    try:
+        from app.services.news_targeting_service import ensure_columns
+
+        ensure_columns()  # target_* columns selected below
+    except Exception:
+        pass
     db = OldSessionLocal()
     try:
         rows = db.execute(
             text(
                 """
-                SELECT id, source_name, category_or_query, title, url, published_date, full_body_text, image_url, source_type, media
+                SELECT id, source_name, category_or_query, title, url, published_date, full_body_text, image_url, source_type, media,
+                       target_symbol, target_narrative
                 FROM news_articles
                 WHERE published_date >= NOW() - INTERVAL '90 days'
                   AND (source_type <> 'telegram' OR published_date >= NOW() - INTERVAL '30 days')
@@ -136,6 +143,29 @@ def _fetch_max_article_id() -> int:
     db = OldSessionLocal()
     try:
         return db.execute(text("SELECT COALESCE(MAX(id), 0) FROM news_articles")).scalar() or 0
+    except Exception:
+        return 0
+    finally:
+        db.close()
+
+
+def _fetch_target_count() -> int:
+    """How many articles the AI has analysed — when it grows, the targeted
+    slider needs a refresh even though no new row was inserted."""
+    import sys
+    from pathlib import Path
+
+    from sqlalchemy import text
+
+    root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+
+    db = OldSessionLocal()
+    try:
+        return db.execute(text("SELECT COUNT(*) FROM news_articles WHERE targeted_at IS NOT NULL")).scalar() or 0
     except Exception:
         return 0
     finally:
@@ -426,6 +456,10 @@ def _build_article_row(row: dict) -> dict:
         # Telegram group post, not a web article) so the card can show a
         # distinguishing "Telegram News" badge, per explicit request.
         "is_telegram": row.get("source_type") == "telegram",
+        # AI-picked coin + narrative (app/services/news_targeting_service.py).
+        "target_symbol": row.get("target_symbol") or "",
+        "target_narrative": (row.get("target_narrative") or "").upper(),
+        "has_target": bool(row.get("target_symbol")),
     }
 
 
@@ -753,6 +787,7 @@ class NewsState(rx.State):
     # Highest news_articles.id as of the last load — watch_new_articles
     # reloads only when the table's max id moves past it.
     _last_seen_id: int = 0
+    _last_target_count: int = 0
     _is_watching: bool = False
     is_loading: bool = True
     # news type -> current page (1-indexed) — each section's own
@@ -786,9 +821,11 @@ class NewsState(rx.State):
         # the way every other on-demand DB refresh in this codebase already
         # avoids (see coin_state.py's own asyncio.to_thread(...) calls).
         articles, max_id = await asyncio.to_thread(_load_display_articles, 0)
+        target_count = await asyncio.to_thread(_fetch_target_count)
         async with self:
             self._all_articles = articles
             self._last_seen_id = max_id
+            self._last_target_count = target_count
             self.is_loading = False
 
     @rx.event(background=True)
@@ -812,13 +849,18 @@ class NewsState(rx.State):
                     break
                 async with self:
                     last_seen = self._last_seen_id
+                    last_targets = self._last_target_count
                     loaded = not self.is_loading
-                if not loaded or await asyncio.to_thread(_fetch_max_article_id) <= last_seen:
+                if not loaded:
+                    continue
+                target_count = await asyncio.to_thread(_fetch_target_count)
+                if await asyncio.to_thread(_fetch_max_article_id) <= last_seen and target_count == last_targets:
                     continue
                 articles, max_id = await asyncio.to_thread(_load_display_articles, last_seen)
                 async with self:
                     self._all_articles = articles
                     self._last_seen_id = max_id
+                    self._last_target_count = target_count
         finally:
             async with self:
                 self._is_watching = False
@@ -1023,6 +1065,14 @@ class NewsState(rx.State):
         """Newest Cryptocurrency articles for the homepage slider (same rows
         and same live refresh as the /news Cryptocurrency section)."""
         return [a for a in self._all_articles if a["news_type"] == "Cryptocurrency"][:_HOME_NEWS_LIMIT]
+
+    @rx.var(cache=True)
+    def home_targeted_news(self) -> list[dict]:
+        """Newest Cryptocurrency articles the AI tied to a coin, for the
+        homepage "Targeted Narrative + Coin" slider."""
+        return [
+            a for a in self._all_articles if a["news_type"] == "Cryptocurrency" and a["has_target"]
+        ][:_HOME_NEWS_LIMIT]
 
     @rx.var(cache=True)
     def has_articles(self) -> bool:

@@ -757,6 +757,14 @@ def _alert_row(alert: rx.Var[dict]) -> rx.Component:
         ),
         rx.spacer(),
         rx.icon(
+            "pencil",
+            size=15,
+            color="var(--gray-9)",
+            cursor="pointer",
+            flex_shrink="0",
+            on_click=CoinState.open_edit_alert(alert["id"]),
+        ),
+        rx.icon(
             "x",
             size=16,
             color="var(--gray-9)",
@@ -775,7 +783,7 @@ def _alert_row(alert: rx.Var[dict]) -> rx.Component:
 def _alert_dialog() -> rx.Component:
     return rx.dialog.root(
         rx.dialog.content(
-            rx.dialog.title("New price alert", margin="0"),
+            rx.dialog.title(rx.cond(CoinState.is_editing_alert, "Edit price alert", "New price alert"), margin="0"),
             rx.dialog.description(
                 "Get an alert for ",
                 CoinState.selected_coin["name"],
@@ -804,7 +812,7 @@ def _alert_dialog() -> rx.Component:
                     ),
                     rx.hstack(
                         rx.dialog.close(rx.button("Cancel", variant="soft", color_scheme="gray", type="button")),
-                        rx.button("Create alert", type="submit"),
+                        rx.button(rx.cond(CoinState.is_editing_alert, "Save alert", "Create alert"), type="submit"),
                         justify="end",
                         spacing="3",
                         width="100%",
@@ -834,17 +842,30 @@ def _alerts_section() -> rx.Component:
             align="center",
         ),
         rx.cond(
-            CoinState.has_coin_alerts,
-            rx.vstack(rx.foreach(CoinState.coin_alerts, _alert_row), spacing="2", width="100%"),
-            rx.text("No price alerts yet.", size="1", color_scheme="gray"),
-        ),
-        rx.button(
-            rx.icon("plus", size=16),
-            "Add New Alert",
-            variant="soft",
-            width="100%",
-            cursor="pointer",
-            on_click=CoinState.open_alert_dialog,
+            CoinState.is_logged_in,
+            rx.fragment(
+                rx.cond(
+                    CoinState.has_coin_alerts,
+                    rx.vstack(rx.foreach(CoinState.coin_alerts, _alert_row), spacing="2", width="100%"),
+                    rx.text("No price alerts yet.", size="1", color_scheme="gray"),
+                ),
+                rx.button(
+                    rx.icon("plus", size=16),
+                    "Add New Alert",
+                    variant="soft",
+                    width="100%",
+                    cursor="pointer",
+                    on_click=CoinState.open_alert_dialog,
+                ),
+            ),
+            rx.fragment(
+                rx.text("Log in to set price alerts for this coin.", size="1", color_scheme="gray"),
+                rx.link(
+                    rx.button(rx.icon("log-in", size=16), "Log in to add alerts", variant="soft", width="100%", cursor="pointer"),
+                    href="/login",
+                    width="100%",
+                ),
+            ),
         ),
         _alert_dialog(),
         spacing="2",

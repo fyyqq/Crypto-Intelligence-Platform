@@ -3,6 +3,7 @@ exposes a narrative filter, backed by the SQLModel tables in frontend/models.
 """
 
 import asyncio
+import functools
 import json
 import math
 import time
@@ -360,6 +361,26 @@ def _resolve_chart_symbol(symbol: str, coin: dict | None) -> str | None:
         return f"{prefix}:{base}{quote}"
     dex_symbol = coin.get("tradingview_dex_symbol", "") if coin else ""
     return dex_symbol or None
+
+
+def _login_required(handler):
+    """Guard for event handlers that need an account (price alerts): a
+    logged-out caller is sent to /login and the handler never runs. Checked on
+    the server for every event, so it can't be bypassed from the browser."""
+
+    @functools.wraps(handler)
+    async def wrapper(self, *args, **kwargs):
+        if not (self.is_logged_in and self.user_id):
+            self.alert_dialog_open = False
+            return rx.call_script("window.location.assign('/login')")
+        return await handler(self, *args, **kwargs)
+
+    return wrapper
+
+
+def _plain_price(value: float) -> str:
+    """A price for an input field: _fmt_usd's precision without "$" and commas."""
+    return _fmt_usd(value).lstrip("$").replace(",", "")
 
 
 def _fmt_alert_time(moment) -> str:
@@ -1187,13 +1208,15 @@ class CoinState(rx.State):
     watchlist_live_prices: dict[int, float] = {}
     _watchlist_live_running: bool = False
 
-    # Price alerts on the coin page ("Alerts" section). Per browser session
-    # for now (like the logged-out watchlist) and not yet evaluated against
-    # live prices — {str(cmc_id): [{"id", "price", "direction", "display"}]}.
+    # Price alerts (coin page "Alerts" section) — logged-in accounts only
+    # (_login_required); saved in price_alerts (DB) and loaded at login.
+    # {str(cmc_id): [{"id", "price", "direction", "display"}]}; checked by
+    # start_alert_watch.
     price_alerts: dict[str, list[dict]] = {}
     alert_dialog_open: bool = False
     alert_price_input: str = ""
     alert_error: str = ""
+    editing_alert_id: int = 0  # 0 = the dialog creates a new alert
     # Triggered alerts: floating popups (stacked, shown ~1 min, slide in from
     # the top) and the history list shown on /alerts.
     alert_popups: list[dict] = []
@@ -1754,10 +1777,29 @@ class CoinState(rx.State):
             self.watchlist_popup_open = False  # the two popups share a spot
 
     @rx.event
-    def open_alert_dialog(self):
-        self.alert_price_input = ""
+    @_login_required
+    async def open_alert_dialog(self):
+        # Prefilled with the coin's current price.
+        price = float((self.selected_coin or {}).get("price_raw") or 0)
+        self.alert_price_input = _plain_price(price) if price > 0 else ""
+        self.editing_alert_id = 0
         self.alert_error = ""
         self.alert_dialog_open = True
+
+    @rx.event
+    @_login_required
+    async def open_edit_alert(self, alert_id: int):
+        alert = next((a for a in self.coin_alerts if a["id"] == alert_id), None)
+        if alert is None:
+            return
+        self.alert_price_input = _plain_price(alert["price"])
+        self.editing_alert_id = alert_id
+        self.alert_error = ""
+        self.alert_dialog_open = True
+
+    @rx.var
+    def is_editing_alert(self) -> bool:
+        return self.editing_alert_id != 0
 
     @rx.event
     def set_alert_dialog_open(self, is_open: bool):
@@ -1769,6 +1811,7 @@ class CoinState(rx.State):
         self.alert_error = ""
 
     @rx.event
+    @_login_required
     async def create_alert(self):
         coin = self.selected_coin
         if not coin:
@@ -1783,8 +1826,9 @@ class CoinState(rx.State):
             self.alert_error = "Price must be greater than 0."
             return
         key = str(coin["cmc_id"])
-        existing = self.price_alerts.get(key, [])
-        if len(existing) >= 10:
+        editing = self.editing_alert_id
+        existing = [a for a in self.price_alerts.get(key, []) if a["id"] != editing]
+        if not editing and len(existing) >= 10:
             self.alert_error = "You can have up to 10 alerts per coin."
             return
         current = float(coin.get("price_raw") or 0)
@@ -1792,20 +1836,29 @@ class CoinState(rx.State):
         if any(a["price"] == target for a in existing):
             self.alert_error = "You already have an alert at this price."
             return
-        alert_id = int(time.time() * 1000)
-        if self.user_id:
-            if _ROOT_FOR_APP not in sys.path:
-                sys.path.insert(0, _ROOT_FOR_APP)
-            from app.services import alert_service
+        if _ROOT_FOR_APP not in sys.path:
+            sys.path.insert(0, _ROOT_FOR_APP)
+        from app.services import alert_service
 
+        if editing:
+            await asyncio.to_thread(alert_service.update_alert, self.user_id, editing, target, direction)
+            alert_id = editing
+        else:
             alert_id = await asyncio.to_thread(
                 alert_service.add_alert, self.user_id, int(coin["cmc_id"]), coin["name"], coin["symbol"], direction, target
             )
         alert = {"id": alert_id, "price": target, "direction": direction, "display": _fmt_usd(target)}
-        self.price_alerts = {**self.price_alerts, key: [*self.price_alerts.get(key, []), alert]}
+        current_list = self.price_alerts.get(key, [])
+        if editing:
+            new_list = [alert if a["id"] == editing else a for a in current_list]
+        else:
+            new_list = [*current_list, alert]
+        self.price_alerts = {**self.price_alerts, key: new_list}
+        self.editing_alert_id = 0
         self.alert_dialog_open = False
 
     @rx.event
+    @_login_required
     async def delete_alert(self, alert_id: int):
         coin = self.selected_coin
         if not coin:
@@ -1815,12 +1868,11 @@ class CoinState(rx.State):
             **self.price_alerts,
             key: [a for a in self.price_alerts.get(key, []) if a["id"] != alert_id],
         }
-        if self.user_id:
-            if _ROOT_FOR_APP not in sys.path:
-                sys.path.insert(0, _ROOT_FOR_APP)
-            from app.services import alert_service
+        if _ROOT_FOR_APP not in sys.path:
+            sys.path.insert(0, _ROOT_FOR_APP)
+        from app.services import alert_service
 
-            await asyncio.to_thread(alert_service.delete_alert, self.user_id, alert_id)
+        await asyncio.to_thread(alert_service.delete_alert, self.user_id, alert_id)
 
     async def _load_user_alerts(self) -> None:
         """Logged-in only: replaces the session's alerts with this account's saved active ones."""
@@ -1837,10 +1889,15 @@ class CoinState(rx.State):
         self.price_alerts = grouped
 
     @rx.event
+    async def require_login(self):
+        """Page guard (on_load, after restore_session): logged-out visitors go to /login."""
+        if not (self.is_logged_in and self.user_id):
+            return rx.call_script("window.location.assign('/login')")
+
+    @rx.event
+    @_login_required
     async def load_alert_history(self):
-        """/alerts on_load: logged-in accounts read their saved history; guests keep the in-memory one."""
-        if not self.user_id:
-            return
+        """/alerts on_load: this account's saved history of triggered alerts."""
         if _ROOT_FOR_APP not in sys.path:
             sys.path.insert(0, _ROOT_FOR_APP)
         from app.services import alert_service
@@ -1873,8 +1930,8 @@ class CoinState(rx.State):
         stacks a popup, records it in the history (and in the database when logged in) and
         shows the popup for a minute. Runs for as long as the tab stays open."""
         async with self:
-            if self._alert_watch_running:
-                return
+            if self._alert_watch_running or not self.user_id:
+                return  # alerts are for logged-in accounts only
             self._alert_watch_running = True
 
         from frontend.frontend import app as reflex_app
@@ -1884,6 +1941,8 @@ class CoinState(rx.State):
             while True:
                 items: list[dict] = []
                 async with self:
+                    if not self.user_id:
+                        break  # logged out
                     for key, alerts in self.price_alerts.items():
                         row = self._merged_row(int(key)) if alerts else None
                         if row:
@@ -1932,7 +1991,7 @@ class CoinState(rx.State):
                         self._alert_popup_deadline = now_ts + 60
                     elif self.alert_popup_visible and now_ts > self._alert_popup_deadline:
                         self.alert_popup_visible = False
-                if triggered and triggered[0][0]:
+                if triggered:
                     if _ROOT_FOR_APP not in sys.path:
                         sys.path.insert(0, _ROOT_FOR_APP)
                     from app.services import alert_service
