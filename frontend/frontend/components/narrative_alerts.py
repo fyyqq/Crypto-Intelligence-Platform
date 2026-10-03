@@ -18,6 +18,7 @@ def _alert_card(article: rx.Var, *, in_grid: bool = False) -> rx.Component:
                 rx.text(article["time_display"], size="1", color_scheme="gray", flex_shrink="0"),
                 width="100%",
                 align="center",
+                direction="row-reverse",
                 # A long narrative name plus the coin badge doesn't fit on one
                 # line at the card's narrowest width; let it wrap.
                 wrap="wrap",

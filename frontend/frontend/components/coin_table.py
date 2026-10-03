@@ -165,7 +165,12 @@ def _chain_badge(row: dict) -> rx.Component:
     )
     return rx.cond(
         row["has_other_chains"],
-        rx.popover.root(
+        # The wrapper stops clicks on the badge and on its dropdown (Radix
+        # portals the content, but React events still bubble through the
+        # component tree) from reaching the row's on_click, which opens the
+        # coin page — so the dropdown can be opened and read in place.
+        rx.box(
+          rx.popover.root(
             rx.popover.trigger(
                 rx.badge(
                     chain_label,
@@ -184,6 +189,9 @@ def _chain_badge(row: dict) -> rx.Component:
                 ),
                 size="1",
             ),
+          ),
+          on_click=rx.stop_propagation,
+          display="inline-flex",
         ),
         rx.badge(chain_label, variant="surface", size="1", color_scheme="gray"),
     )

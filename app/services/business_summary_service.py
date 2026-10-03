@@ -49,11 +49,15 @@ _SYSTEM_PROMPT = (
     "\"Perpetuals DEX Aggregator\"). Prefix that label, with no exceptions, "
     "with a line reading exactly `CATEGORY: <label>` as the very first line "
     "of your entire response, before anything else.\n\n"
-    "Then write a short, plain-language explainer in 2-3 short paragraphs, "
-    "each covering one distinct topic — typically what the project actually "
-    "does, then its business model, then how it makes money or captures "
-    "value (if it's a pure meme/community coin with no real business model, "
-    "say so plainly in that last paragraph instead of inventing one). "
+    "Then write a short, plain-language explainer in 3-4 short paragraphs, "
+    "each covering one distinct topic. The FIRST paragraph, always titled "
+    "exactly `Problem It Solves`, explains what problem or gap existed and "
+    "why the project was created to address it (for a pure meme/community "
+    "coin, say plainly that it was created for fun/community rather than to "
+    "solve a problem). Then, typically, what the project actually does, its "
+    "business model, and how it makes money or captures value (if it's a "
+    "pure meme/community coin with no real business model, say so plainly "
+    "in that last paragraph instead of inventing one). "
     "Prefix EVERY paragraph, with no exceptions, with a line reading exactly "
     "`TITLE: <a 2-4 word heading for that paragraph>` on its own line, then "
     "the paragraph's plain prose on the next line(s) — no bullet points, no "
@@ -61,6 +65,8 @@ _SYSTEM_PROMPT = (
     "briefly explain any technical term you do need to use. Example shape "
     "(do not copy the content, only the structure):\n"
     "CATEGORY: Tokenized Treasury Issuer\n"
+    "TITLE: Problem It Solves\n"
+    "<paragraph>\n"
     "TITLE: What It Does\n"
     "<paragraph>\n"
     "TITLE: Business Model\n"
@@ -68,8 +74,22 @@ _SYSTEM_PROMPT = (
 )
 
 
+# When the "Problem It Solves" section was added to _SYSTEM_PROMPT (UTC).
+_PROBLEM_SECTION_SINCE = datetime(2026, 10, 3, 18, 30)
+
+
 def needs_refresh(coin: Coin) -> bool:
     if not coin.business_summary:
+        return True
+    # Summaries written before the "Problem It Solves" section was added are
+    # regenerated once on the next page visit (only those older than the
+    # prompt change, so a model that skips the section can't trigger a
+    # regeneration on every visit).
+    if (
+        "TITLE: Problem It Solves" not in coin.business_summary
+        and coin.business_summary_updated_at is not None
+        and coin.business_summary_updated_at < _PROBLEM_SECTION_SINCE
+    ):
         return True
     if coin.business_summary_updated_at is None:
         return True
