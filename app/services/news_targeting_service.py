@@ -176,6 +176,16 @@ def _lookup_coin(db, symbol: str) -> tuple[int, str] | None:
     return (row[0], row[1]) if row else None
 
 
+def _coin_narratives(db, cmc_id: int) -> list[str]:
+    """The coin's own CMC tags minus noise, biggest category first — the
+    narrative badge for a directly-mentioned coin outside the curated list."""
+    rows = db.execute(text(
+        "SELECT c.name FROM categories c JOIN coin_category cc ON cc.category_id = c.id "
+        "JOIN coins co ON co.id = cc.coin_id WHERE co.cmc_id = :c"
+    ), {"c": cmc_id}).fetchall()
+    return [r[0] for r in rows if not _NOISE_RE.search(r[0])]
+
+
 def _mentions(text_blob: str, symbol: str, name: str) -> bool:
     blob = text_blob.lower()
     if re.search(rf"(?<![a-z0-9])\$?{re.escape(symbol.lower())}(?![a-z0-9])", blob):
@@ -199,7 +209,7 @@ def _validate(answer: tuple[str, str, str], article: dict, nmap: dict, db) -> di
     found = _lookup_coin(db, symbol)
     if not found or not _mentions(blob, symbol, found[1]):
         return None
-    coin_narratives = nmap["coins"].get(symbol, {}).get("narratives", [])
+    coin_narratives = nmap["coins"].get(symbol, {}).get("narratives", []) or _coin_narratives(db, found[0])
     return {
         "symbol": symbol,
         "cmc_id": found[0],
