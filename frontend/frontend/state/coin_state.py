@@ -2015,6 +2015,39 @@ class CoinState(rx.State):
         return self.price_alerts.get(str(coin["cmc_id"]), []) if coin else []
 
     @rx.var(cache=True)
+    def active_alerts_all(self) -> list[dict]:
+        """Every active alert of this account across all coins (for /alerts),
+        with the coin's name/icon and current price."""
+        out: list[dict] = []
+        for key, alerts in self.price_alerts.items():
+            row = next((r for r in self.all_coins if str(r["cmc_id"]) == key), None)
+            if row is None:
+                continue
+            row = self._row_with_overrides(row)
+            for a in alerts:
+                out.append({
+                    "id": a["id"], "cmc_id": row["cmc_id"], "name": row["name"], "symbol": row["symbol"],
+                    "icon_url": row["icon_url"], "direction": a["direction"], "display": a["display"],
+                    "current_display": row["price_display"], "coin_url": f"/coin/{row['symbol'].lower()}",
+                })
+        return sorted(out, key=lambda x: (x["symbol"], x["id"]))
+
+    @rx.event
+    @_login_required
+    async def delete_alert_by_id(self, cmc_id: int, alert_id: int):
+        """Delete from the /alerts page (not tied to the selected coin)."""
+        key = str(cmc_id)
+        self.price_alerts = {
+            **self.price_alerts,
+            key: [a for a in self.price_alerts.get(key, []) if a["id"] != alert_id],
+        }
+        if _ROOT_FOR_APP not in sys.path:
+            sys.path.insert(0, _ROOT_FOR_APP)
+        from app.services import alert_service
+
+        await asyncio.to_thread(alert_service.delete_alert, self.user_id, alert_id)
+
+    @rx.var(cache=True)
     def has_coin_alerts(self) -> bool:
         return len(self.coin_alerts) > 0
 
