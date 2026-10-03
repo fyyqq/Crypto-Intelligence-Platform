@@ -4,6 +4,8 @@ exposes a narrative filter, backed by the SQLModel tables in frontend/models.
 
 import asyncio
 import json
+import math
+import time
 import re
 import sys
 from pathlib import Path
@@ -1175,6 +1177,14 @@ class CoinState(rx.State):
     watchlist_live_prices: dict[int, float] = {}
     _watchlist_live_running: bool = False
 
+    # Price alerts on the coin page ("Alerts" section). Per browser session
+    # for now (like the logged-out watchlist) and not yet evaluated against
+    # live prices — {str(cmc_id): [{"id", "price", "direction", "display"}]}.
+    price_alerts: dict[str, list[dict]] = {}
+    alert_dialog_open: bool = False
+    alert_price_input: str = ""
+    alert_error: str = ""
+
     # In-page sort only: reorders the current page's rows, never re-ranks
     # across the full coin list. sort_key is one of the raw numeric fields
     # in each row dict (e.g. "pct_1h_raw"), or "" for the default (market-cap)
@@ -1720,6 +1730,74 @@ class CoinState(rx.State):
         self.chat_widget_open = not self.chat_widget_open
         if self.chat_widget_open:
             self.watchlist_popup_open = False  # the two popups share a spot
+
+    @rx.event
+    def open_alert_dialog(self):
+        self.alert_price_input = ""
+        self.alert_error = ""
+        self.alert_dialog_open = True
+
+    @rx.event
+    def set_alert_dialog_open(self, is_open: bool):
+        self.alert_dialog_open = is_open
+
+    @rx.event
+    def set_alert_price_input(self, value: str):
+        self.alert_price_input = value
+        self.alert_error = ""
+
+    @rx.event
+    def create_alert(self):
+        coin = self.selected_coin
+        if not coin:
+            return
+        raw = self.alert_price_input.strip().replace("$", "").replace(",", "")
+        try:
+            target = float(raw)
+        except ValueError:
+            self.alert_error = "Enter a valid price, e.g. 0.25"
+            return
+        if not math.isfinite(target) or target <= 0 or target >= 1e12:
+            self.alert_error = "Price must be greater than 0."
+            return
+        key = str(coin["cmc_id"])
+        existing = self.price_alerts.get(key, [])
+        if len(existing) >= 10:
+            self.alert_error = "You can have up to 10 alerts per coin."
+            return
+        current = float(coin.get("price_raw") or 0)
+        direction = "below" if current > 0 and target < current else "above"
+        if any(a["price"] == target for a in existing):
+            self.alert_error = "You already have an alert at this price."
+            return
+        alert = {
+            "id": int(time.time() * 1000),
+            "price": target,
+            "direction": direction,
+            "display": _fmt_usd(target),
+        }
+        self.price_alerts = {**self.price_alerts, key: [*existing, alert]}
+        self.alert_dialog_open = False
+
+    @rx.event
+    def delete_alert(self, alert_id: int):
+        coin = self.selected_coin
+        if not coin:
+            return
+        key = str(coin["cmc_id"])
+        self.price_alerts = {
+            **self.price_alerts,
+            key: [a for a in self.price_alerts.get(key, []) if a["id"] != alert_id],
+        }
+
+    @rx.var(cache=True)
+    def coin_alerts(self) -> list[dict]:
+        coin = self.selected_coin
+        return self.price_alerts.get(str(coin["cmc_id"]), []) if coin else []
+
+    @rx.var(cache=True)
+    def has_coin_alerts(self) -> bool:
+        return len(self.coin_alerts) > 0
 
     @rx.event
     def toggle_watchlist_popup(self):

@@ -742,11 +742,122 @@ def _stat_row(label: str, value: rx.Var | str) -> rx.Component:
     )
 
 
+def _alert_row(alert: rx.Var[dict]) -> rx.Component:
+    return rx.hstack(
+        rx.icon(
+            rx.cond(alert["direction"] == "above", "trending-up", "trending-down"),
+            size=16,
+            color=rx.cond(alert["direction"] == "above", "var(--green-9)", "var(--red-9)"),
+            flex_shrink="0",
+        ),
+        rx.text(
+            rx.cond(alert["direction"] == "above", "Price above ", "Price below "),
+            rx.text.strong(alert["display"]),
+            size="2",
+        ),
+        rx.spacer(),
+        rx.icon(
+            "x",
+            size=16,
+            color="var(--gray-9)",
+            cursor="pointer",
+            flex_shrink="0",
+            on_click=CoinState.delete_alert(alert["id"]),
+        ),
+        align="center",
+        width="100%",
+        padding="0.5em 0.75em",
+        border_radius="8px",
+        background="var(--gray-a3)",
+    )
+
+
+def _alert_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("New price alert", margin="0"),
+            rx.dialog.description(
+                "Get an alert for ",
+                CoinState.selected_coin["name"],
+                " when its price reaches the value below. Now: ",
+                CoinState.selected_coin["price_display"],
+                size="2",
+                color_scheme="gray",
+                margin_top="0.25em",
+            ),
+            rx.form(
+                rx.vstack(
+                    rx.text("Alert price (USD)", size="2", weight="medium"),
+                    rx.input(
+                        rx.input.slot("$"),
+                        value=CoinState.alert_price_input,
+                        on_change=CoinState.set_alert_price_input,
+                        placeholder="0.00",
+                        input_mode="decimal",
+                        auto_focus=True,
+                        size="3",
+                        width="100%",
+                    ),
+                    rx.cond(
+                        CoinState.alert_error != "",
+                        rx.text(CoinState.alert_error, size="1", color="var(--red-9)"),
+                    ),
+                    rx.hstack(
+                        rx.dialog.close(rx.button("Cancel", variant="soft", color_scheme="gray", type="button")),
+                        rx.button("Create alert", type="submit"),
+                        justify="end",
+                        spacing="3",
+                        width="100%",
+                        margin_top="0.5em",
+                    ),
+                    spacing="2",
+                    align="start",
+                    width="100%",
+                ),
+                on_submit=lambda _: CoinState.create_alert(),
+                width="100%",
+                margin_top="1em",
+            ),
+            max_width="380px",
+        ),
+        open=CoinState.alert_dialog_open,
+        on_open_change=CoinState.set_alert_dialog_open,
+    )
+
+
+def _alerts_section() -> rx.Component:
+    return rx.vstack(
+        rx.hstack(
+            rx.icon("bell", size=16, color="var(--gray-11)"),
+            rx.text("Alerts", size="2", weight="bold"),
+            spacing="2",
+            align="center",
+        ),
+        rx.cond(
+            CoinState.has_coin_alerts,
+            rx.vstack(rx.foreach(CoinState.coin_alerts, _alert_row), spacing="2", width="100%"),
+            rx.text("No price alerts yet.", size="1", color_scheme="gray"),
+        ),
+        rx.button(
+            rx.icon("plus", size=16),
+            "Add New Alert",
+            variant="soft",
+            width="100%",
+            cursor="pointer",
+            on_click=CoinState.open_alert_dialog,
+        ),
+        _alert_dialog(),
+        spacing="2",
+        width="100%",
+        align="start",
+    )
+
+
 def _info_column() -> rx.Component:
     coin = CoinState.selected_coin
     return rx.vstack(
         rx.hstack(
-            rx.image(src=coin["icon_url"], width="40px", height="40px", border_radius="50%"),
+            rx.image(src=coin["icon_url"], width="40px", height="40px", border_radius="50%", flex_shrink="0"),
             rx.vstack(
                 # Smaller than the default size="5" — long names (e.g.
                 # "Artificial Superintelligence Alliance") otherwise wrap
@@ -760,11 +871,13 @@ def _info_column() -> rx.Component:
                 ),
                 spacing="1",
                 align="start",
+                min_width="0",  # a long name wraps here instead of squeezing the icons
             ),
             rx.spacer(),
             rx.icon(
                 "star",
                 size=18,
+                flex_shrink="0",
                 color=rx.cond(
                     CoinState.watchlist_ids.contains(coin["cmc_id"]),
                     "var(--amber-9)",
@@ -778,7 +891,7 @@ def _info_column() -> rx.Component:
                 cursor="pointer",
                 on_click=CoinState.toggle_watchlist(coin["cmc_id"]),
             ),
-            rx.icon("share-2", size=18, color="var(--gray-9)"),
+            rx.icon("share-2", size=18, color="var(--gray-9)", flex_shrink="0"),
             spacing="3",
             align="center",
             width="100%",
@@ -818,23 +931,7 @@ def _info_column() -> rx.Component:
             background="var(--gray-a2)",
             width="100%",
         ),
-        rx.vstack(
-            rx.hstack(
-                rx.text("Profile Score", size="1", color_scheme="gray"),
-                rx.spacer(),
-                rx.text("57%", size="1", weight="medium"),
-                width="100%",
-            ),
-            rx.box(
-                rx.box(width="57%", height="100%", background="var(--amber-9)", border_radius="9999px"),
-                width="100%",
-                height="6px",
-                background="var(--gray-a4)",
-                border_radius="9999px",
-            ),
-            spacing="1",
-            width="100%",
-        ),
+        _alerts_section(),
         rx.divider(),
         _links_section(coin),
         rx.cond(

@@ -88,3 +88,11 @@ Next to the coin's name — gray outline when this coin isn't watched, filled am
 
 ### TradingView base/price guard (2026-10-01)
 Chart symbols use the exchange pair's own base ticker when it is a plain ticker (e.g. Beam is `BEAMX` on MEXC/Binance), and pairs whose USD price is outside 0.5x-2x of the coin's price are ignored, so a same-ticker different coin can no longer be charted. Exchange priority (MEXC > KuCoin > HTX > Bybit) and USD-quote preference are unchanged.
+
+
+<details><summary>Price Alerts section; fixed-size header icons</summary>
+
+### 🔧 Follow-up: coin-page header icons fixed-size; Profile Score replaced by a price Alerts section (2026-10-04 session)
+Per explicit request (`el-04..07`), **Feature 2 (coin page)**. **Icons**: the star and share icons next to the coin name shrank on long names (e.g. Artificial Superintelligence Alliance); they, and the coin image, now have `flex_shrink=0` and the name block `min_width=0`, so the name wraps instead (icons measured 18x18 on `/coin/fet`). **Alerts**: the dummy "Profile Score 57%" bar in `coin_detail.py::_info_column` is replaced by `_alerts_section` (bell + "Alerts", the list of this coin's price alerts, each "Price above/below $X" with an x to delete, and an "Add New Alert" button below). The button opens a centred dialog (`_alert_dialog`) with a USD price field; `CoinState.create_alert` validates server-side (number, > 0, < 1e12, max 10 per coin, no duplicate price), derives above/below from the coin's current price, and formats through `_fmt_usd`. Applies to every `/coin/[symbol]` page. **Limits**: alerts live in the browser session only (`CoinState.price_alerts`, lost on server restart, not saved per account) and are **not yet evaluated against live prices**, so nothing fires yet. **Verified live** on `/coin/fet`: dialog centred, invalid input shows the error, a valid price adds "Price above $0.3", Profile Score gone. Docs: `docs/single-coin-page.md`; Notion pending.
+
+</details>
