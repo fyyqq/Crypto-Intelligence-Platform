@@ -414,6 +414,131 @@ def _floating_logo() -> rx.Component:
     )
 
 
+def _watchlist_button() -> rx.Component:
+    # Circle with a star, stacked directly above the floating logo (logo is
+    # 56px at bottom/right 16px; this is 44px, centred over it 12px higher).
+    # Opens _watchlist_widget; the star fills amber while the popup is open.
+    return rx.box(
+        rx.icon(
+            "star",
+            size=20,
+            color=rx.cond(CoinState.watchlist_popup_open, "var(--amber-9)", "var(--gray-12)"),
+            fill=rx.cond(CoinState.watchlist_popup_open, "var(--amber-9)", "none"),
+        ),
+        width="44px",
+        height="44px",
+        border_radius="9999px",
+        position="fixed",
+        bottom="84px",
+        right="22px",
+        z_index="9997",
+        cursor="pointer",
+        display="flex",
+        align_items="center",
+        justify_content="center",
+        background="var(--gray-2)",
+        border="1px solid var(--gray-a6)",
+        box_shadow="0 4px 12px rgba(0, 0, 0, 0.3)",
+        on_click=CoinState.toggle_watchlist_popup,
+    )
+
+
+def _watchlist_popup_row(row: rx.Var[dict]) -> rx.Component:
+    # Same layout as the header search results (global_search.py): icon,
+    # name + ticker, price over 24h change. The price here is live — see
+    # CoinState.watchlist_live_loop.
+    return rx.hstack(
+        rx.image(src=row["icon_url"], width="22px", height="22px", border_radius="50%", flex_shrink="0"),
+        rx.hstack(
+            rx.text(row["name"], size="2", weight="bold", class_name="global-search-result-name"),
+            rx.text(row["symbol"], size="2", color_scheme="gray", flex_shrink="0"),
+            spacing="1",
+            align="center",
+            min_width="0",
+            flex="1",
+        ),
+        rx.vstack(
+            rx.text(row["price_display"], size="2", weight="medium"),
+            rx.text(row["change_24h_display"], size="1", color=row["change_24h_color"]),
+            spacing="0",
+            align="end",
+            flex_shrink="0",
+        ),
+        spacing="2",
+        align="center",
+        width="100%",
+        on_click=CoinState.go_to_coin_from_search(row["symbol"]),
+        class_name="global-search-result-row",
+    )
+
+
+def _watchlist_widget() -> rx.Component:
+    return rx.cond(
+        CoinState.watchlist_popup_open,
+        rx.box(
+            rx.hstack(
+                rx.hstack(
+                    rx.icon("star", size=16, color="var(--amber-9)", fill="var(--amber-9)"),
+                    rx.text("Watchlist", size="3", weight="bold"),
+                    rx.badge(CoinState.watchlist_count, variant="soft", radius="full"),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.icon("x", size=18, color="var(--gray-12)", cursor="pointer", on_click=CoinState.close_watchlist_popup),
+                align="center",
+                justify="between",
+                width="100%",
+                padding="0.85em 1em",
+                background=rx.color_mode_cond(light="white", dark="var(--gray-3)"),
+                border_bottom="1px solid var(--gray-a5)",
+            ),
+            rx.box(
+                rx.cond(
+                    CoinState.has_watchlist_coins,
+                    rx.foreach(CoinState.watchlist_popup_rows, _watchlist_popup_row),
+                    rx.center(
+                        rx.text(
+                            "Your watchlist is empty — click the star on any coin to add it.",
+                            size="2",
+                            color_scheme="gray",
+                            text_align="center",
+                        ),
+                        padding="2em 1em",
+                    ),
+                ),
+                overflow_y="auto",
+                flex="1",
+                padding_y="0.25em",
+            ),
+            rx.link(
+                rx.text("View full watchlist", size="2", weight="medium"),
+                href="/watchlist",
+                underline="none",
+                text_align="center",
+                padding="0.7em",
+                border_top="1px solid var(--gray-a5)",
+                background="var(--gray-2)",
+                display="block",
+            ),
+            position="fixed",
+            bottom="144px",
+            right="16px",
+            width=["calc(100vw - 32px)", "320px", "320px", "320px", "320px"],
+            max_width="320px",
+            max_height=["calc(100vh - 160px)", "420px", "420px", "420px", "420px"],
+            display="flex",
+            flex_direction="column",
+            border_radius="16px",
+            border="1px solid var(--gray-a5)",
+            background="var(--gray-2)",
+            box_shadow="0 12px 32px rgba(0, 0, 0, 0.3)",
+            overflow="hidden",
+            z_index="9998",
+        ),
+        rx.fragment(),
+    )
+
+
 def _chat_widget_message(text: str, *, from_user: bool = False) -> rx.Component:
     # Bot avatar/bubble on the left, user bubble/avatar on the right — same
     # two-side layout as the reference screenshot, just recolored (see
@@ -570,11 +695,12 @@ def _chat_widget() -> rx.Component:
                 background="var(--gray-2)",
             ),
             position="fixed",
-            bottom="84px",
+            bottom="144px",  # above the floating logo and the watchlist star
             right="16px",
             width=["calc(100vw - 32px)", "320px", "320px", "320px", "320px"],
             max_width="320px",
             height="420px",
+            max_height="calc(100vh - 160px)",
             display="flex",
             flex_direction="column",
             border_radius="16px",
@@ -633,6 +759,8 @@ def index() -> rx.Component:
         footer(),
         _floating_logo(),
         _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
@@ -653,6 +781,8 @@ def coin_detail() -> rx.Component:
         footer(),
         _floating_logo(),
         _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
         # Needed for the X-posts slider's arrow/drag mechanics
         # (coin_detail.py::_x_posts_slider, assets/chain_pills.js) — was
         # previously only loaded on index()'s page, which happened not to
@@ -689,6 +819,8 @@ def _placeholder_page(heading: str) -> rx.Component:
         footer(),
         _floating_logo(),
         _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
@@ -706,6 +838,8 @@ def news_page() -> rx.Component:
         footer(),
         _floating_logo(),
         _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
         # Needed for the header search/profile dropdowns' click-outside
         # handlers (this page has the same header as every other page) and
         # this page's own #<source> anchor-scroll fix — see chain_pills.js's
@@ -724,6 +858,8 @@ def news_category_page() -> rx.Component:
         footer(),
         _floating_logo(),
         _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
@@ -737,6 +873,8 @@ def news_detail_page() -> rx.Component:
         footer(),
         _floating_logo(),
         _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",
@@ -772,6 +910,8 @@ def watchlist_page() -> rx.Component:
         footer(),
         _floating_logo(),
         _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
         rx.script(src="/chain_pills.js"),
         min_height="100vh",
         width="100%",

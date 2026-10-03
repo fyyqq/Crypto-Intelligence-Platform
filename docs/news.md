@@ -270,3 +270,11 @@ On each `/news/<category>` page the button opens a centred popup with that categ
 Each `/news` section shows 10 cards per page (2 rows of 5 on desktop). The header's News link has a hover dropdown listing the five categories.
 
 </details>
+
+
+<details><summary>Offline catch-up on page load</summary>
+
+### 🔧 Follow-up: /news catches up after being offline (2026-10-04 session)
+Per explicit request: after the server (or machine) was off, reloading `/news` showed stale posts (newest was 2026-09-30, none in the last 24h). Nothing ingested while the app ran: the RSS/Google News job lives in the FastAPI scheduler and the Telegram listener is started by hand. New `frontend/frontend/news_catchup.py::ensure_running` is called from `NewsState.load_news` (first `/news` or homepage load per server process) and starts a daemon thread that immediately, then every 5 min, runs `run_news_pipeline_sync` (its own interval gate still applies) and starts `app.services.telegram_listener` as a detached subprocess if none is running (case-insensitive `pgrep`); the listener's startup catch-up fills every missed post. `watch_new_articles` then shows new rows without a reload. **Verified**: after a restart + one `/news` load the listener started and RSS/Telegram rows from the last 24h appeared; the Telegram backfill was still running when checked. **Limits**: the hourly OpenRouter cap (60) means backfilled posts beyond it keep their group's default category; the listener now outlives the Reflex server (kill it manually to stop it). Notion pending (no Notion tool this session).
+
+</details>

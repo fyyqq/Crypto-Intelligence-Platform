@@ -124,3 +124,11 @@ Login survives closing the tab: a random token cookie (`repace_session`, 30 days
 
 ### Remember me (2026-10-01)
 Persistent login is opt-in via a "Remember me" checkbox on the login form (unchecked by default). Signup logs in for the tab only.
+
+
+<details><summary>Floating watchlist star + popup (live prices)</summary>
+
+### 🔧 Feature: floating watchlist star + popup with live prices (2026-10-04 session)
+Per explicit request (`el-02/03`), **Global Components**. A 44px circle with a star icon sits directly above the floating logo on every page (`frontend.py::_watchlist_button`); clicking it opens a popup (`_watchlist_widget`, same card style as the chat popup, "View full watchlist" link to `/watchlist`) listing the starred coins in the header-search row design (icon, name + ticker, price over 24h change; click opens the coin). It's mutually exclusive with the chat popup, and the chat popup moved up (bottom 144px) so neither covers the star. **Live prices**: while the popup is open `CoinState.watchlist_live_loop` polls each coin's chart exchange every 3s (`frontend/live_prices.py`: public ticker of the pair `_resolve_chart_symbol` picks — extracted from `_resolve_tradingview_symbol` so the chart and the popup share one resolver; coins without a known pair try MEXC/KuCoin/HTX/Bybit/Binance `{TICKER}USDT`, with a 0.5x–2x sanity check against the synced price; an exchange that errors is skipped for 60s; no match keeps the synced price). Prices go through `_fmt_usd`. TradingView has no price API, so this reads the exchange the chart streams from, a few seconds behind at most. The 24h % change stays the 60s-synced CMC value. **Verified live**: 3 starred coins listed, BTC moved $84,810.18 → $84,806.84 over 7s, star centred over the logo (x=1426), chat/watchlist popups exclusive, zero console errors. In this environment MEXC/KuCoin/Bybit/Binance timed out, so prices came from HTX. Docs: `docs/global-components.md`; Notion pending.
+
+</details>

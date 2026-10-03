@@ -302,6 +302,64 @@ _USD_EQUIVALENT_QUOTES = {
 _EXCHANGE_PRIORITY = ["MEXC", "KUCOIN", "HTX", "BYBIT"]
 
 
+def _resolve_chart_symbol(symbol: str, coin: dict | None) -> str | None:
+    """Shared by CoinState._resolve_tradingview_symbol (the viewed coin's chart)
+    and the floating watchlist popup's live prices (one call per watched
+    coin) — see that method's docstring for the full ranking rules."""
+    base = re.sub(r"[^A-Z0-9]", "", (symbol or "").strip().upper())
+    if not base:
+        return None
+    pairs = coin.get("market_pairs", []) if coin else []
+    coin_price = float((coin or {}).get("price_raw") or 0)
+    candidates = []
+    for p in pairs:
+        if p.get("is_dex"):
+            continue
+        prefix = _TRADINGVIEW_EXCHANGE_PREFIXES.get(p.get("exchange_name", "").strip().lower())
+        if not prefix:
+            continue
+        pair_base, _, quote = p.get("market_pair", "").partition("/")
+        quote = quote.strip().upper()
+        if not re.fullmatch(r"[A-Z0-9]{2,10}", quote):
+            continue
+        # Price sanity: a pair whose USD price is far from this coin's own
+        # price is a different asset that merely shares the ticker.
+        pair_price = float(p.get("price") or 0)
+        if coin_price > 0 and pair_price > 0 and not (0.5 <= pair_price / coin_price <= 2.0):
+            continue
+        # Use the exchange's own base when it is a plain ticker (Beam is
+        # listed as BEAMX on Binance/MEXC/HTX/Gate; "BEAMUSDT" there is
+        # the unrelated privacy coin). A full-name base such as
+        # "SHIBA INU" is not a ticker, so those keep this coin's ticker.
+        pair_base = pair_base.strip().upper()
+        pbase = pair_base if re.fullmatch(r"[A-Z0-9]{2,15}", pair_base) else base
+        candidates.append((prefix, quote, p.get("volume_24h", 0), pbase))
+    if candidates:
+        priority_rank = {p: i for i, p in enumerate(_EXCHANGE_PRIORITY)}
+        priority_candidates = [c for c in candidates if c[0] in priority_rank]
+        if priority_candidates:
+            # Ascending sort: priority rank first (MEXC < KuCoin < HTX <
+            # Bybit), then a USD-equivalent quote before a foreign-fiat
+            # one, then higher volume first — same tiebreakers as the
+            # else branch below, just applied within the priority tier.
+            priority_candidates.sort(
+                key=lambda c: (priority_rank[c[0]], c[1] not in _USD_EQUIVALENT_QUOTES, -c[2])
+            )
+            prefix, quote, _volume, base = priority_candidates[0]
+        else:
+            # None of MEXC/KuCoin/HTX/Bybit exist for this coin — rank
+            # whatever's left (Binance, Coinbase, or any other real
+            # exchange) by USD-equivalent quote first, then volume; a
+            # USD-equivalent-quoted pair always outranks a foreign-fiat
+            # one, whatever the raw volume gap — see this function's
+            # own docstring.
+            candidates.sort(key=lambda c: (c[1] in _USD_EQUIVALENT_QUOTES, c[2]), reverse=True)
+            prefix, quote, _volume, base = candidates[0]
+        return f"{prefix}:{base}{quote}"
+    dex_symbol = coin.get("tradingview_dex_symbol", "") if coin else ""
+    return dex_symbol or None
+
+
 def _fmt_pct(value: float) -> str:
     return f"{value:+.2f}%"
 
@@ -1110,6 +1168,13 @@ class CoinState(rx.State):
     # chatbot backend wired up yet.
     chat_widget_open: bool = False
 
+    # Floating star button's watchlist popup (frontend.py::_watchlist_widget).
+    # While open, watchlist_live_loop polls each watched coin's chart
+    # exchange every few seconds into watchlist_live_prices ({cmc_id: price}).
+    watchlist_popup_open: bool = False
+    watchlist_live_prices: dict[int, float] = {}
+    _watchlist_live_running: bool = False
+
     # In-page sort only: reorders the current page's rows, never re-ranks
     # across the full coin list. sort_key is one of the raw numeric fields
     # in each row dict (e.g. "pct_1h_raw"), or "" for the default (market-cap)
@@ -1653,6 +1718,67 @@ class CoinState(rx.State):
         # Bound to the floating logo's own on_click — a 2nd click on the
         # logo closes it again, per explicit request.
         self.chat_widget_open = not self.chat_widget_open
+        if self.chat_widget_open:
+            self.watchlist_popup_open = False  # the two popups share a spot
+
+    @rx.event
+    def toggle_watchlist_popup(self):
+        self.watchlist_popup_open = not self.watchlist_popup_open
+        if self.watchlist_popup_open:
+            self.chat_widget_open = False
+            return CoinState.watchlist_live_loop
+
+    @rx.event
+    def close_watchlist_popup(self):
+        self.watchlist_popup_open = False
+
+    @rx.event(background=True)
+    async def watchlist_live_loop(self):
+        """While the watchlist popup is open, refreshes each watched coin's
+        price from its chart exchange every 3s (frontend/live_prices.py)."""
+        async with self:
+            if self._watchlist_live_running:
+                return
+            self._watchlist_live_running = True
+
+        from frontend.frontend import app as reflex_app
+        from frontend.live_prices import fetch_live_prices
+
+        try:
+            while True:
+                async with self:
+                    if not self.watchlist_popup_open:
+                        break
+                    items = [
+                        {
+                            "cmc_id": r["cmc_id"],
+                            "symbol": r["symbol"],
+                            "chart_symbol": _resolve_chart_symbol(r["symbol"], r) or "",
+                            "ref_price": r.get("price_raw", 0),
+                        }
+                        for r in self.watchlist_coins[:30]
+                    ]
+                if items:
+                    prices = await asyncio.to_thread(fetch_live_prices, items)
+                    if prices:
+                        async with self:
+                            self.watchlist_live_prices = {**self.watchlist_live_prices, **prices}
+                await asyncio.sleep(3)
+                if self.router.session.client_token not in reflex_app.event_namespace.token_to_sid:
+                    break
+        finally:
+            async with self:
+                self._watchlist_live_running = False
+
+    @rx.var(cache=True)
+    def watchlist_popup_rows(self) -> list[dict]:
+        """watchlist_coins with price_display replaced by the live exchange
+        price once one has arrived (formatted through _fmt_usd)."""
+        live = self.watchlist_live_prices
+        return [
+            {**r, "price_display": _fmt_usd(live[r["cmc_id"]])} if r["cmc_id"] in live else r
+            for r in self.watchlist_coins
+        ]
 
     @rx.event
     def close_chat_widget(self):
@@ -2064,58 +2190,7 @@ class CoinState(rx.State):
         so this stays a fast, purely-local lookup either way — no network
         call inside a cached var.
         """
-        base = re.sub(r"[^A-Z0-9]", "", (self.symbol or "").strip().upper())
-        if not base:
-            return None
-        pairs = self.selected_coin.get("market_pairs", []) if self.selected_coin else []
-        coin_price = float((self.selected_coin or {}).get("price_raw") or 0)
-        candidates = []
-        for p in pairs:
-            if p.get("is_dex"):
-                continue
-            prefix = _TRADINGVIEW_EXCHANGE_PREFIXES.get(p.get("exchange_name", "").strip().lower())
-            if not prefix:
-                continue
-            pair_base, _, quote = p.get("market_pair", "").partition("/")
-            quote = quote.strip().upper()
-            if not re.fullmatch(r"[A-Z0-9]{2,10}", quote):
-                continue
-            # Price sanity: a pair whose USD price is far from this coin's own
-            # price is a different asset that merely shares the ticker.
-            pair_price = float(p.get("price") or 0)
-            if coin_price > 0 and pair_price > 0 and not (0.5 <= pair_price / coin_price <= 2.0):
-                continue
-            # Use the exchange's own base when it is a plain ticker (Beam is
-            # listed as BEAMX on Binance/MEXC/HTX/Gate; "BEAMUSDT" there is
-            # the unrelated privacy coin). A full-name base such as
-            # "SHIBA INU" is not a ticker, so those keep this coin's ticker.
-            pair_base = pair_base.strip().upper()
-            pbase = pair_base if re.fullmatch(r"[A-Z0-9]{2,15}", pair_base) else base
-            candidates.append((prefix, quote, p.get("volume_24h", 0), pbase))
-        if candidates:
-            priority_rank = {p: i for i, p in enumerate(_EXCHANGE_PRIORITY)}
-            priority_candidates = [c for c in candidates if c[0] in priority_rank]
-            if priority_candidates:
-                # Ascending sort: priority rank first (MEXC < KuCoin < HTX <
-                # Bybit), then a USD-equivalent quote before a foreign-fiat
-                # one, then higher volume first — same tiebreakers as the
-                # else branch below, just applied within the priority tier.
-                priority_candidates.sort(
-                    key=lambda c: (priority_rank[c[0]], c[1] not in _USD_EQUIVALENT_QUOTES, -c[2])
-                )
-                prefix, quote, _volume, base = priority_candidates[0]
-            else:
-                # None of MEXC/KuCoin/HTX/Bybit exist for this coin — rank
-                # whatever's left (Binance, Coinbase, or any other real
-                # exchange) by USD-equivalent quote first, then volume; a
-                # USD-equivalent-quoted pair always outranks a foreign-fiat
-                # one, whatever the raw volume gap — see this function's
-                # own docstring.
-                candidates.sort(key=lambda c: (c[1] in _USD_EQUIVALENT_QUOTES, c[2]), reverse=True)
-                prefix, quote, _volume, base = candidates[0]
-            return f"{prefix}:{base}{quote}"
-        dex_symbol = self.selected_coin.get("tradingview_dex_symbol", "") if self.selected_coin else ""
-        return dex_symbol or None
+        return _resolve_chart_symbol(self.symbol, self.selected_coin)
 
     @rx.var(cache=True)
     def has_tradingview_chart(self) -> bool:

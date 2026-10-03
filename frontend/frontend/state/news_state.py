@@ -773,6 +773,11 @@ class NewsState(rx.State):
 
     @rx.event(background=True)
     async def load_news(self):
+        # Start the offline catch-up (RSS/Google News + Telegram listener)
+        # once per server process; idempotent.
+        from frontend.news_catchup import ensure_running
+
+        ensure_running()
         async with self:
             if self._all_articles or not self.is_loading:
                 return  # already loaded this session — on_load can re-fire on nav
