@@ -244,6 +244,14 @@ When asked to run, write, or execute Playwright tests against web pages loaded i
 
 ---
 
+## Light/Dark Theme Text & Surface Rule
+* **Mandatory Action:** Text and surfaces on themed pages must adapt to light and dark mode. Never hardcode `color="white"`, `"#fff"`, `"black"` or a fixed hex/rgb for text that sits on a themed surface (cards, page body, popups) — use the Radix theme colors (`var(--gray-12)` for main text, `var(--gray-11)` / `color_scheme="gray"` for secondary), or `rx.color_mode_cond(light=..., dark=...)`. This applies above all to **AI-generated text** (AI Summarizations, news-reader AI summary, About/description text). A fixed white is only allowed on surfaces that stay dark/coloured in both modes (royalblue badges, active accent pills, dark image overlays, toasts, the `/login` and `/signup` pages).
+* **Surfaces:** in light mode the page is `#f5f5f7` and cards/sections are white. This is done once in `assets/styles.css` by overriding `--gray-a2` and `--gray-2` under `html.light .radix-themes`; build cards with `var(--gray-a2)` / `var(--gray-2)` rather than a hardcoded colour so they follow it.
+* **Why:** AI summary paragraphs were `color="white"`, so they were invisible on the white light-mode cards.
+* **How to apply:** after any UI change, view the page in light mode (set `localStorage.theme = "light"` and reload) and run a contrast check (flag text under 3:1 against its real background); the 2026-10-05 audit of `/`, `/coin/eth`, `/narrative` and a news reader found none left.
+
+---
+
 ## Documentation Sync Rule
 * **Mandatory Action:** Immediately after updating this file (CLAUDE.md) for any change — same trigger as the Handoff rule above — also update **both** the matching Notion page **and** the matching local file under `docs/` with the same information, mirrored, not just referenced by a link back to this file. Applies equally to Claude Code and GitHub Copilot. Neither destination is optional or a substitute for the other — updating Notion but not `docs/` (or vice versa) does not satisfy this rule.
 * **Why:** CLAUDE.md is the fast, git-tracked source of truth for a coding session; Notion is the durable, human-browsable reference the user actually reads day-to-day outside of a coding session; `docs/` is a git-tracked local mirror of that same Notion content — readable by any session (including GitHub Copilot) without needing Notion access at all. All three are expected to agree at all times, not just eventually catch up.
@@ -927,6 +935,9 @@ Per explicit request (`el-25`): the coin-page UTC clock now reads e.g. "4 Oct 20
 
 ### 🔧 Follow-up: light-mode page background #f5f5f7 (2026-10-05 session)
 Per explicit request, **Global Components**: in light mode the page background is `#f5f5f7` instead of Radix's plain white (`assets/styles.css`, end of file: overrides `--color-background`/`--color-page-background` and the background of `html.light .radix-themes` and `body`). Dark mode is unchanged. Verified live: body and the Radix root both compute `rgb(245, 245, 247)` with `html.light`. Note: the stylesheet is a build-time copy, so a Reflex restart is needed after editing it. Docs: `docs/global-components.md`; Notion pending.
+
+### 🔧 Follow-up: white cards and dark AI text in light mode (2026-10-05 session)
+Per explicit request. **Cards/sections**: in light mode Radix's `--gray-a2` (`#06065d06`, the card surface) and `--gray-2` (popups, header, table surface) are overridden to `#fff` (`assets/styles.css`, `html.light .radix-themes`), so every card/section on every page is white on the `#f5f5f7` body. **Text**: the AI-generated paragraphs were hardcoded `color="white"` (coin page "AI Summarizations" via `_highlighted_paragraph(..., color=...)`, and the news-reader AI summary) and were unreadable in light mode; both now use `var(--gray-12)`. An automated contrast audit (flag text under 3:1 against its real composited background) of `/`, `/coin/eth`, `/narrative` and a news reader found no other problem; the AI text measures `rgb(28, 32, 36)`. `el-26.md` did not exist on disk, so the fix follows the written description. Remaining fixed whites are intentional (royalblue/accent badges and active pills, dark image overlays, the copy toast, the dark `/login` and `/signup` pages). New project rule: "Light/Dark Theme Text & Surface Rule" at the top of this file. Docs: `docs/global-components.md`; Notion pending.
 
 ### 🔧 Current State
 - **Telegram posts without their own photo show the group's profile picture** (2026-09-30, latest) instead of the generic category image. See the dated entry above. Avatars are downloaded by the listener's catch-up passes.

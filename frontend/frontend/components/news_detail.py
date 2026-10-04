@@ -211,7 +211,7 @@ def _ai_summary() -> rx.Component:
                             NewsDetailState.summary_sections,
                             lambda section: rx.vstack(
                                 rx.cond(section["title"] != "", rx.text(section["title"], size="2", weight="bold")),
-                                rx.text(section["text"], size="2", line_height="1.6", color="white"),
+                                rx.text(section["text"], size="2", line_height="1.6", color="var(--gray-12)"),
                                 spacing="1",
                                 width="100%",
                                 align="start",

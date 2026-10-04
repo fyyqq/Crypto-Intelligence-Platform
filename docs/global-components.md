@@ -176,3 +176,9 @@ Focusing the empty header search box shows a **Recent** list of the last 5 coins
 
 In light mode the page background is `#f5f5f7` instead of Radix's plain white. `assets/styles.css` overrides `--color-background` / `--color-page-background` and the background of `html.light .radix-themes` and `body`. Dark mode is unchanged. The stylesheet is copied at build time, so restart Reflex after editing it.
 </details>
+
+<details>
+<summary><strong>🌗 Light/dark theme rule (white cards, readable AI text)</strong></summary>
+
+In light mode the page is `#f5f5f7` and every card/section is white: `assets/styles.css` overrides Radix's `--gray-a2` (the near-transparent card surface) and `--gray-2` (popups, header, tables) to `#fff` under `html.light .radix-themes`. Build cards with those variables, not a fixed colour. Text on themed surfaces must never be hardcoded white/black — use `var(--gray-12)` (main) or `var(--gray-11)`/`color_scheme="gray"` (secondary). AI-generated text (coin AI Summarizations, news-reader AI summary) used `color="white"` and was invisible in light mode; it now uses `var(--gray-12)`. Fixed whites remain only on surfaces that are dark/coloured in both modes (royalblue badges, active accent pills, image overlays, toasts, the login/signup pages).
+</details>

@@ -1331,7 +1331,7 @@ def _business_summary_section_block(section: dict) -> rx.Component:
             section["title"] != "",
             rx.text(section["title"], size="2", weight="bold"),
         ),
-        _highlighted_paragraph(section["tokens"], color="white"),
+        _highlighted_paragraph(section["tokens"], color="var(--gray-12)"),
         spacing="1",
         width="100%",
         align="start",

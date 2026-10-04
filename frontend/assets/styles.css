@@ -1013,4 +1013,9 @@ html.light .radix-themes:where([data-is-root-theme="true"]) {
   --color-background: #f5f5f7;
   --color-page-background: #f5f5f7;
   background-color: #f5f5f7;
+  /* Cards / sections are white on the #f5f5f7 page in light mode: Radix's
+     --gray-a2 (#06065d06, near-transparent) and --gray-2 (off-white) are the
+     card, popup and table surfaces used across the app. */
+  --gray-a2: #ffffff;
+  --gray-2: #ffffff;
 }
