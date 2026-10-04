@@ -1106,7 +1106,12 @@ _api_transformer = Starlette(
     routes=[Mount("/telegram_media", app=StaticFiles(directory=str(_telegram_media_dir)), name="telegram_media")]
 )
 
-app = rx.App(stylesheets=["/styles.css"], api_transformer=_api_transformer)
+app = rx.App(
+    stylesheets=["/styles.css"],
+    api_transformer=_api_transformer,
+    # Raw <script>: rx.script wraps it in Helmet, which never runs inside the document head.
+    head_components=[rx.el.script(src="/alert_voice.js")],
+)
 # Dynamic routes must be registered before static ones (Reflex route-matching
 # order), so /coin/[symbol] is added ahead of the "/" index page below.
 # Ticker-based (not cmc_id-based) per explicit request — CoinState.

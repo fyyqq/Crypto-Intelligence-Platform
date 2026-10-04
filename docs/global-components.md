@@ -142,6 +142,13 @@ Per explicit request. **Triggering**: `CoinState.start_alert_watch` (a backgroun
 </details>
 
 
+<details><summary>Spoken price alerts (Gemini voice)</summary>
+
+### 🔧 Feature: triggered alerts are spoken aloud by a Gemini voice (2026-10-05)
+When `start_alert_watch` marks an alert triggered in the DB (`alert_service.mark_triggered` returns True only for the first tab that marks it, so other open tabs stay silent), it yields `CoinState.speak_alert("<Coin> (<SYM>) crossed above/below $X, now at $Y")`. That background event calls `app/services/alert_voice_service.py::generate_alert_voice`: `gemini-2.5-flash` writes a witty line under 15 words using the fixed system instruction, then `gemini-2.5-flash-preview-tts` voices it (`gemini-2.5-flash` itself has no audio output). The voice defaults to `Puck` (`GEMINI_VOICE_NAME`), and the models are set by `GEMINI_TEXT_MODEL` / `GEMINI_TTS_MODEL` in `.env`. The key is `GEMINI_API_KEY`, read through `app/core/config.py`. The raw 24 kHz 16-bit PCM is pushed as base64 through `rx.call_script` to `window.repacePlayAlertVoice` (`frontend/assets/alert_voice.js`, loaded on every page via `rx.App(head_components=[rx.el.script(...)])`; `rx.script` wraps it in Helmet, where it never runs). The Web Audio API plays it, with back-to-back queueing so simultaneous alerts don't overlap. The browser autoplay rule means the shared AudioContext unlocks on the first click or keypress on the site; clips that arrive before that are queued and play on the first interaction. Once unlocked, speech keeps playing while the tab is in the background (the server-side watch loop runs as long as the tab's websocket is open). If Gemini fails, the alert still pops up silently, and the error is logged.
+
+</details>
+
 <details><summary>/alerts shows active alerts</summary>
 
 ### 🔧 Bug fix: /alerts only showed triggered history, so new alerts looked unsaved (2026-10-04 session)

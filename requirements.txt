@@ -25,3 +25,6 @@ googlenewsdecoder>=0.2.1
 telethon>=1.36
 argon2-cffi>=23.1
 email-validator>=2.1
+
+# Spoken price alerts (app/services/alert_voice_service.py)
+google-genai>=1.0

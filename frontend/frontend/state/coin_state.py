@@ -2039,6 +2039,7 @@ class CoinState(rx.State):
                 if items:
                     live = await asyncio.to_thread(fetch_live_prices, items)
                 triggered: list[tuple[int, int, float]] = []
+                spoken: dict[int, str] = {}
                 async with self:
                     now_ts = time.time()
                     new_alerts = dict(self.price_alerts)
@@ -2066,6 +2067,10 @@ class CoinState(rx.State):
                             popups.append(entry)
                             history.insert(0, entry)
                             triggered.append((self.user_id, a["id"], price))
+                            spoken[a["id"]] = (
+                                f"{row['name']} ({row['symbol']}) crossed {a['direction']} {a['display']}, "
+                                f"now at {_fmt_usd(price)}"
+                            )
                         new_alerts[key] = remaining
                     if triggered:
                         self.price_alerts = new_alerts
@@ -2081,7 +2086,8 @@ class CoinState(rx.State):
                     from app.services import alert_service
 
                     for uid, alert_id, price in triggered:
-                        await asyncio.to_thread(alert_service.mark_triggered, uid, alert_id, price)
+                        if await asyncio.to_thread(alert_service.mark_triggered, uid, alert_id, price):
+                            yield CoinState.speak_alert(spoken[alert_id])
                 await asyncio.sleep(4)
                 async with self:
                     # after the slide-out transition, drop the finished popups
@@ -2092,6 +2098,19 @@ class CoinState(rx.State):
         finally:
             async with self:
                 self._alert_watch_running = False
+
+    @rx.event(background=True)
+    async def speak_alert(self, event: str):
+        """Gemini quip + voice for a triggered alert, played by assets/alert_voice.js."""
+        if _ROOT_FOR_APP not in sys.path:
+            sys.path.insert(0, _ROOT_FOR_APP)
+        from app.services.alert_voice_service import generate_alert_voice
+
+        voice = await asyncio.to_thread(generate_alert_voice, event)
+        if voice:
+            yield rx.call_script(
+                f"window.repacePlayAlertVoice?.({json.dumps(voice['audio_b64'])}, {int(voice['sample_rate'])})"
+            )
 
     @rx.var(cache=True)
     def coin_alerts(self) -> list[dict]:

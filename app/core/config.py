@@ -108,5 +108,12 @@ class Settings(BaseSettings):
     # reasoning as tradingview_symbol_ttl_hours above.
     defillama_unlocks_ttl_hours: int = 24
 
+    # Spoken price alerts (app/services/alert_voice_service.py).
+    gemini_api_key: str = ""
+    gemini_text_model: str = "gemini-2.5-flash"
+    # gemini-2.5-flash has no audio output; speech comes from the TTS variant.
+    gemini_tts_model: str = "gemini-2.5-flash-preview-tts"
+    gemini_voice_name: str = "Puck"
+
 
 settings = Settings()

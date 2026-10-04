@@ -70,13 +70,15 @@ def delete_alert(user_id: int, alert_id: int) -> None:
         db.close()
 
 
-def mark_triggered(user_id: int, alert_id: int, price: float) -> None:
+def mark_triggered(user_id: int, alert_id: int, price: float) -> bool:
+    """False when another open tab already marked it."""
     db = SessionLocal()
     try:
-        db.query(PriceAlert).filter(
+        n = db.query(PriceAlert).filter(
             PriceAlert.user_id == user_id, PriceAlert.id == alert_id, PriceAlert.triggered_at.is_(None)
         ).update({"triggered_at": datetime.now(timezone.utc), "triggered_price": price})
         db.commit()
+        return n > 0
     finally:
         db.close()
 
