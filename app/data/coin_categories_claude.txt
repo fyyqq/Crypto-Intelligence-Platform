@@ -1,0 +1,1500 @@
+1|Proof-of-Work Store of Value
+1027|Smart Contract Platform
+825|Fiat-Backed USD Stablecoin
+1839|Exchange Chain Utility Token
+52|Cross-Border Payment Network
+3408|Regulated USD Stablecoin
+5426|High-Speed Smart Contract Platform
+1958|Stablecoin Settlement Blockchain
+8085|Liquid Staked ETH
+32196|On-Chain Perpetuals Exchange
+1437|Shielded Privacy Payments
+74|Original Meme Currency
+12409|Wrapped Liquid Staked ETH
+1975|Decentralized Oracle Network
+328|Private Digital Cash
+24760|Exchange Liquid Staked ETH
+33039|Decentralized USD Stablecoin
+3717|Custodial Wrapped Bitcoin
+2010|Research-Driven Smart Contract Platform
+2396|Wrapped Ether
+38341|Permissionless Options Markets
+3957|Exchange Utility Token
+32994|Custodial Wrapped Bitcoin
+512|Payments & Asset Tokenization Network
+1831|Peer-to-Peer Electronic Cash
+6535|Sharded Chain for AI Agents
+28695|Wrapped Restaked ETH
+36458|Aave Interest-Bearing ETH
+7083|Decentralized Exchange (AMM)
+2|Peer-to-Peer Payment Currency
+4023|Bridged Bitcoin on BNB Chain
+20947|Object-Based Smart Contract Platform
+37263|Institutional Privacy Blockchain
+5805|Subnet Smart Contract Platform
+29470|Synthetic Dollar Stablecoin
+4943|Crypto-Backed Decentralized Stablecoin
+4642|Enterprise Hashgraph Network
+36148|Fiat-Backed USD Stablecoin
+12400|Staking-Focused Layer 1
+11419|Telegram-Integrated Layer 1
+38517|Omnichain USDT Stablecoin
+22974|Decentralized Machine Learning
+39158|Bitcoin DeFi Lending
+3635|Exchange-Backed Smart Contract Chain
+5994|Community Meme Ecosystem
+33793|Regulated USD Stablecoin
+3155|Enterprise Blockchain Interoperability
+36507|Memecoin Launchpad
+5176|Tokenized Gold
+27772|PayPal USD Stablecoin
+36457|Aave Interest-Bearing USDT
+7278|Decentralized Lending Protocol
+3897|Exchange Layer 2 Token
+34387|Ripple USD Stablecoin
+21159|Tokenized Treasuries & Stocks
+30171|Synthetic Dollar Protocol
+35491|Meme-Focused Layer 1
+29256|Tokenized Treasury Yield Note
+13502|AI-Era Identity Verification
+33038|Decentralized Stablecoin Lending
+27075|Modular Ethereum Layer 2
+6636|Multichain Interoperability Network
+36341|Perpetuals DEX
+8916|Decentralized Cloud Computing
+37760|Exchange Yield-Bearing Stablecoin
+4705|Tokenized Gold
+24478|Frog Meme Coin
+33251|DeFi & Stablecoin Platform
+35721|Overcollateralized Synthetic Dollar
+38779|Institutional Lending Yield Vault
+39120|Multi-Backed Stablecoin
+29160|Exchange Utility Token
+19891|Overcollateralized Stablecoin
+9486|Bridged Bitcoin on TRON
+34104|Decentralized Lending Network
+1321|Original Ethereum Proof-of-Work Chain
+11092|Exchange Utility Token
+18579|Wrapped TRX
+11841|Optimistic Rollup Layer 2
+35509|Private Uncensored AI Platform
+22533|Liquid Staked SOL (MEV)
+32882|Exchange Liquid Staked SOL
+7192|Wrapped BNB
+29471|Staked Synthetic Dollar Yield
+4030|Pure Proof-of-Stake Layer 1
+39683|USD Stablecoin
+4269|Exchange Utility Token
+20396|BlockDAG Proof-of-Work Currency
+28321|Ethereum Scaling Network
+5488|TRON DeFi Lending Platform
+29242|Liquid Restaked ETH
+18852|Bridged USDC
+29210|DEX Aggregator & Perpetuals
+2087|Exchange Utility Token
+5690|Decentralized GPU Rendering
+37745|Ecosystem Utility Token
+33652|Liquid Staked Bitcoin
+15060|Decentralized Liquid Staked ETH
+39072|Liquid Staked HYPE
+35697|Mobile-Mined Social Currency
+3794|Interchain Hub Network
+28853|Perpetuals Liquidity Pool Token
+2280|Decentralized Storage Network
+39125|ZK Perpetuals DEX
+29270|Base DEX Liquidity Hub
+27568|Liquid Staked BNB
+7186|Multichain DEX (AMM)
+39064|Data-Protection Privacy Chain
+26997|Omnichain Messaging Protocol
+38127|AI Game Creation Platform
+131|Instant Payments Digital Cash
+7226|DeFi-Optimized Layer 1
+3077|Supply Chain Enterprise Blockchain
+29814|Liquid Restaking & Crypto Neobank
+23782|Institutional Liquid Staked ETH
+38892|Stablecoin Payments Chain
+21794|Move Smart Contract Platform
+4847|Bitcoin Smart Contract Layer
+32306|Wrapped Bitcoin Yield Token
+23508|Aave Native Stablecoin
+2634|Trade Finance Blockchain
+33055|Liquid Staked BNB Derivative
+29035|Liquid Staked ETH
+38192|Liquid Staked SOL
+7950|Data-Oracle Layer 1
+28183|Wrapped FLR
+28177|High-Frequency Price Oracle
+38786|Institutional Lending Yield Vault
+34466|NFT Brand Community Token
+26133|Decentralized Bitcoin Bridge
+6538|Stablecoin DEX & Liquidity
+35336|Political Celebrity Meme Coin
+3773|Autonomous AI Agents
+3987|Private Payments Network
+23149|Trading-Optimized Parallel EVM
+8526|Solana DEX (AMM)
+2694|Crypto Lending & Wealth Platform
+32307|RWA-Backed Stablecoin
+29420|AI Agent Launchpad
+33312|Bitcoin Yield Reserve Token
+39829|Custodial Wrapped Bitcoin
+33981|Bonded Stablecoin Yield Token
+21535|Exchange Liquid Staked ETH
+38562|AI Infrastructure-Backed Stablecoin
+38590|Chinese Community Meme Coin
+2563|Fiat-Backed USD Stablecoin
+34691|Treasury-Backed Stablecoin
+39925|Prediction Market Stablecoin
+7962|Venus Interest-Bearing BTC
+20641|Euro Stablecoin
+36246|Staked AAVE Safety Module
+7961|Venus Interest-Bearing BNB
+36645|Stablecoin Payments Chain
+22861|Modular Data Availability
+22691|ZK Rollup Layer 2
+28476|Liquid Staked ETH
+9481|Yield Tokenization Protocol
+28081|Stock-Market Meme Coin
+3602|Big-Block Bitcoin Fork
+38849|AI Agent Payments Protocol
+30495|Parallel EVM Layer 1
+38482|Universal Collateral Synthetic Dollar
+38828|AI Agent Payments Layer 1
+8000|Liquid Staking Governance
+10603|Web3 Gaming Network
+16086|Decentralized File Sharing
+2011|Self-Amending Smart Contract Platform
+35930|Wrapped XTZ
+23095|Solana Dog Meme Coin
+38339|AI Agent Memory Layer
+10529|TRON DeFi & Meme Platform
+36175|Wrapped Bitcoin Yield Token
+26081|Fiat-Backed USD Stablecoin
+1168|Self-Governing Digital Currency
+39686|Exchange & Wallet Token
+35881|Wrapped HYPE
+1659|Prediction Markets & Infrastructure
+6719|Blockchain Data Indexing
+11840|Optimistic Rollup Superchain
+35014|On-Chain Options & Perpetuals
+37574|Fixed-Income ETH Yield
+33824|Institutional On-Chain Lending
+28541|Solana MEV & Liquid Staking
+39090|Exchange Wrapped Bitcoin
+4172|Legacy Terra Chain
+5632|Permanent Data Storage
+13855|Web3 Domain Names
+1720|IoT Data & Trade Ledger
+7334|Regulatory-Compliant Layer 1
+23177|Liquid Staked ETH
+27048|Animal Meme Coin
+11461|Liquid Staked SOL
+8353|Exchange Staked ETH
+8425|IoT Data Platform
+40938|Robinhood Chain Launchpad Token
+10804|Dog Meme Ecosystem
+18523|Liquid Staked AVAX
+5692|Decentralized Lending Protocol
+30636|Real-Time Payments Infrastructure
+28752|Solana Dog Meme Coin
+30494|Restaking & Verifiable Cloud
+5964|Wallet Utility Token
+4157|Cross-Chain Native Swaps
+36743|AI Agent Meme Coin
+9816|AI-Generated NFT Marketplace
+3626|Bitcoin Sidechain Asset
+32880|Asian Super-App Layer 1
+12760|Liquid Staking Token Pool
+2467|Decentralized Knowledge Graph
+30986|Solana Lending & Liquidity
+9903|Curve Yield Booster
+24927|Curve Native Stablecoin
+2416|Decentralized Video & Edge Compute
+27566|Liquid Staked ETH
+36828|Satirical Meme Coin
+7184|BNB Chain Validator Club
+36542|SVM Rollup Network
+6210|User-Generated Metaverse Game
+32864|Fiat-Backed USD Stablecoin
+24875|Liquid Staked TRX
+16116|Wrapped SOL
+6952|Fractional-Algorithmic Stablecoin
+28568|Liquid Restaked ETH
+38948|Yield-Bearing Synthetic Dollar
+6783|Play-to-Earn Monster Battler
+8646|Succinct ZK Blockchain
+29960|Crypto Casino Platform
+1966|Virtual World Metaverse
+39332|Confidential Smart Contracts (FHE)
+36707|Custodial Wrapped XRP
+9462|Wrapped AVAX
+7431|Decentralized Cloud Compute Marketplace
+42022|Asset-Paired Coin Launchpad
+18679|Payments Layer 1
+32796|Bank-Issued Euro Stablecoin
+2394|Mobile Remittance Network
+38386|Regulated USD Stablecoin
+36063|Multi-Asset Liquid Restaking
+4066|Sports & Fan Token Chain
+32956|AI Web-Data Bandwidth Network
+7957|Venus Interest-Bearing USDT
+1376|Smart Economy Platform
+33597|AI-Inspired Meme Coin
+34261|Decentralized Bank (Deobank)
+4041|Exchange Utility Token
+36532|BNB Chain Meme Coin
+20721|Bridged Bitcoin
+2499|Crypto Wealth App
+39720|Perpetuals DEX
+18876|NFT Ecosystem Token
+38353|Dynamic Liquidity DEX
+38515|High-Performance Validator Network
+8290|Web3 Gaming Launchpad
+10180|Tokenized Bitcoin Mining Rewards
+10791|Fast Bitcoin-Fork Payments
+37322|Ecosystem Utility Token
+27960|Meme Coin & NFT Hybrid
+33834|Exchange Liquid Staked SOL
+38868|Open-Source AGI Platform
+7326|DAO Governance & Asset Management
+33469|Wrapped CHZ
+36462|Web3 Banking Network
+40809|Cat Meme Coin
+39711|Tokenized Strategy Preferred Stock
+38330|Yield-Bearing USD Stablecoin
+14926|Liquid Staked SOL
+41912|Decentralized AI Inference Network
+8119|Hardware & Software Wallet
+36922|Palm-Scan Proof of Personhood
+8104|DEX Aggregator
+30083|Decentralized GPU Cloud
+1697|Privacy Browser Ad Rewards
+33391|Sui On-Chain Order Book
+30605|Ecosystem Utility Token
+9104|AI & Video Edge Compute Network
+40925|Dog Meme Coin
+25194|Korean Heritage Token
+6892|Sharded Smart Contract Platform
+40213|Tokenized Circle Stock
+10508|Lending & DEX Liquidity Layer
+28298|Web3 Gaming Network
+24091|ZK Rollup Layer 2
+4006|AI Agent Worlds Platform
+20969|Precise GNSS Positioning Network
+1455|Decentralized Compute Marketplace
+7080|Web3 Games & Entertainment
+1698|Privacy Sidechain Network
+28324|Perpetuals DEX Chain
+15271|Crypto Casino Platform
+3661|Payments Infrastructure Token
+29520|Liquid Restaked ETH
+35364|RWA Tokenization Chain
+36576|PayFi Credit Network
+28656|Ecosystem Utility Token
+37003|Tokenized MicroStrategy Stock
+38283|Tokenized Trading Card Marketplace
+4120|Cross-Chain NFT Marketplace
+40944|Stock-Market Meme Coin
+40531|Stablecoin Credit Protocol
+39841|Perpetuals Trading Terminal
+32684|High-Speed EVM Layer 1
+28862|Liquid Staked SOL
+39369|Wrapped PEAQ
+11165|Concentrated Liquidity DEX
+14588|DePIN & Robotics Layer 1
+23635|BNB Chain Meme Launchpad
+36039|Fiat-Backed USD Stablecoin
+1896|DEX Liquidity Infrastructure
+1684|UTXO Smart Contract Platform
+3964|Asset-Backed Stablecoin Platform
+36902|Bittensor GPU Rental Subnet
+35818|AI Crypto Research & Indexes
+35347|Celebrity Meme Coin
+38236|AI Governance Agents
+39070|HYPE Liquid Staking Protocol
+38056|Tokenized Circle Stock
+39682|RWA Payments Layer 1
+33280|Dog Meme Coin
+7548|Blockchain Gaming Platform
+5034|Polkadot Canary Network
+7127|Cross-Border Settlement Network
+25028|BRC-20 Inscription Token
+30933|Bitcoin Runes Meme Coin
+5864|DeFi Yield Aggregator
+34332|Hyperliquid Cat Meme Coin
+19269|Intent-Based MEV-Protected DEX
+1785|Neo Network Gas Fees
+5665|Decentralized Wireless Network
+1757|iGaming Utility Token
+36119|Decentralized Data Storage
+40536|Tokenized Strategy Stock
+21707|Modular Price Oracle
+38151|Celebrity Meme Coin
+2586|Perpetuals & Derivatives Liquidity
+3640|Decentralized Video Transcoding
+29587|Cross-Chain Messaging Bridge
+39870|AI Infrastructure Lending
+1732|Crowdsourced AI Hedge Fund
+34958|AI Data Labeling Platform
+19075|Digital Collectibles Platform
+39377|Solana Phone Ecosystem Token
+21585|Smart Account Multisig Wallet
+6748|RWA Tokenization Protocol
+40558|AI Entertainment Platform
+40217|Tokenized SpaceX Shares
+37005|Tokenized Circle Stock
+11857|Perpetuals DEX
+4691|Privacy Coin & Assets Platform
+4195|Bankrupt Exchange Token
+10240|Wrapped FTM
+40092|Cross-Chain DEX Aggregator
+41861|Chinese Community Meme Coin
+3701|Bitcoin Sidechain Infrastructure
+36769|BNB Chain Meme Coin
+21259|Universal Omnichain Layer 1
+38273|Tokenized US Dollar
+35763|AI Crypto Attention Platform
+38947|Yield-Bearing Synthetic Dollar
+37654|Yield-Bearing Stablecoin Vault
+39614|Bridged Wrapped Bitcoin
+9260|RWA Yield Chain
+2682|Peer-to-Peer Hosting Network
+38942|Sui Native USD Stablecoin
+20964|AI Legal Contracts Platform
+109|UTXO Proof-of-Work Blockchain
+36569|Sky Lending & Yield Hub
+40224|Reinsurance On-Chain Yield
+34812|Decentralized Science Funding
+3822|Theta Network Gas Token
+24647|Proof-of-Liquidity Layer 1
+38185|Middle East Institutional Chain
+38186|Venice AI Compute Credit
+35626|AI Data Layer 1
+21330|Crypto-Backed Stablecoin
+37166|Web3 Gaming Ecosystem
+40643|Tokenized SpaceX Pre-IPO
+35293|Liquid Staked BNB
+4846|Cosmos-EVM DeFi Chain
+34118|BNB Chain Meme Coin
+36044|MapleStory Web3 Gaming
+10407|Dog Meme Coin
+6758|Multichain DEX (AMM)
+5350|Payments & Identity Chain
+24911|AI-Generated Frog Meme Coin
+37004|Tokenized Tesla Stock
+38051|Tokenized S&P 500 ETF
+34926|AI Agent Framework
+2469|Sharded Smart Contract Platform
+29870|Solana Meme Coin
+29402|Liquid Staked SUI
+38841|AI Agent DeFi Automation
+7653|Confidential Computing Layer 1
+3012|VeChain Gas Token
+2130|NFT & Gaming Blockchain
+40593|Tokenized Nasdaq-100 ETF
+36912|Bittensor AI Inference Subnet
+36302|AI Trading DAO
+32198|Bitcoin Staking Protocol
+17799|Cross-Chain Interoperability Network
+29835|Decentralized GPU Cloud
+12885|Polkadot Smart Contract Hub
+1042|Decentralized Cloud Storage
+4948|Proof-of-Work Layer 1 & L2 Platform
+33881|Banana Art Meme Coin
+41878|Cat Meme Coin
+32120|Omnichain Layer 1
+6958|Crypto-Fiat Payment Gateway
+37006|Tokenized S&P 500 ETF
+1214|Ethereum Layer 2 for Emerging Markets
+5198|Credit History Blockchain
+39549|Fidelity USD Stablecoin
+35537|Startup Meme Coin
+29169|Useful-Work AI Layer 1
+27657|ZK Rollup Layer 2
+36195|AI Governance Token
+2566|Decentralized Identity Chain
+37637|Real-Time Gaming & Social Layer 1
+21846|Web3 Domain Names
+38489|AI Agent Platform
+23121|NFT Marketplace
+37387|On-Chain Attestation Service
+7959|Venus Interest-Bearing BUSD
+40588|Influencer Meme Coin
+5567|Mobile-First Payments L2
+3871|Data Storage & Compute Chain
+17751|Threshold Cryptography Network
+35268|Web3 Security Network
+6841|AI Agent Execution Layer
+20362|Regulated Securities Blockchain
+29073|Restaked Rollup Infrastructure
+3951|Private Digital Cash
+38908|Decentralized AI Model Network
+42031|Cat Meme Coin
+33983|Crypto Insurance Platform
+29743|Base Meme Coin
+28782|Cat Meme Coin
+27793|Staked USDT Yield
+4944|Decentralized Oracle
+33788|Political Animal Meme Coin
+7288|BNB Chain Lending Protocol
+33903|Exchange Liquid Staked SOL
+28688|AI Crypto Analytics
+36762|Yield-Bearing Synthetic Dollar
+27750|Base Cat Meme Coin
+4558|Consumer NFT & Gaming Chain
+38767|ZK Proof-of-Work Chain
+38309|AI Character Creation Platform
+38967|Music Events DAO
+36492|Phone-Based Decentralized Compute
+14803|EVM Chain on NEAR
+24877|Ecosystem Utility Token
+36041|BNB Chain Meme Coin
+39121|Sui Concentrated Liquidity DEX
+35702|Encrypted Data Network
+39548|Shared Rollup Sequencer
+2299|AI-Powered Layer 1
+2765|Location Data Oracle Network
+693|Privacy Payments Coin
+12999|Distributed Validator Network
+42038|Robinhood Chain Meme Coin
+38770|Real-Time Ethereum Layer 2
+14101|Gaming Blockchain (Axie)
+1567|Feeless Instant Payments
+36066|High-Throughput Payments Layer 1
+28850|Telegram Tap-to-Earn Game
+39970|Encrypted Computation Network
+38337|AI Data Availability Chain
+39965|ZK Verifiable Exchange Layer 1
+27659|Cat Meme Coin
+36313|Troll Face Meme Coin
+18031|Identity-Compliant Layer 1
+33093|Hippo Meme Coin
+3783|Web3 Node Infrastructure
+38408|Bitcoin Liquid Staking Protocol
+7963|Venus Interest-Bearing ETH
+8536|Web3 Social Network Bridge
+39521|Privacy ZK Rollup
+39172|Ecosystem Utility Token
+5899|Enterprise Smart Contract Platform
+14806|DAO Meme Coin
+40218|Tokenized SpaceX Shares
+30140|Decentralized AI Inference
+37593|Decentralized ZK Prover Network
+14519|Cronos DEX (AMM)
+34212|Tokenized Gold
+36901|Bittensor Sports Analytics Subnet
+37614|BNB Chain Meme Launchpad
+25264|Cardano Meme Coin
+35954|NFT Meme Gaming Coin
+14532|Wrapped CRO
+32197|Multichain NFT Marketplace
+4206|TRON Price Oracle
+37545|AI Trading Agent
+38067|Tokenized S&P 500 ETF
+6945|Payment Collateral Token
+36300|AI Meme Coin
+30126|Cat Meme Coin
+37456|AI Data Attribution Chain
+38869|AI Agent Network on Sui
+4092|Privacy Securities Blockchain
+10312|Ecosystem Utility Token
+38417|Cross-Chain Stablecoin Yield
+38299|Perpetuals DEX
+36310|Payments Utility Token
+40980|Intent-Based Web3 Operating System
+10894|Decentralized Cloud Storage
+31526|Web3 Identity & Reputation Network
+39671|Chinese Community Meme Coin
+7958|Venus Interest-Bearing USDC
+2943|Decentralized ETH Liquid Staking
+36992|Tokenized NVIDIA Stock
+40212|Tokenized Micron Stock
+32941|Bitcoin-Merged-Mined Sidechain
+3217|Ontology Gas Token
+38864|Cross-Chain Lending Protocol
+2071|Crypto Invoicing & Payments
+12147|Cross-Chain Bridge
+24613|Web3 Education Network
+33978|Restaked ETH
+41911|Collateralized Lending Protocol
+38978|Programmable Data Chain
+39665|Yield-Bearing Stablecoin Protocol
+29401|Liquid Staked SUI
+39856|Solana Meme Coin
+28735|Web3 Board Game Platform
+16093|Bitkub Chain Gas Token
+40215|Tokenized NVIDIA Stock
+1759|Private Messenger & Wallet Layer 2
+28301|NFT Community Meme Coin
+7055|DeFi Index Fund
+10854|On-Chain Privacy System
+5275|Payments Utility Token
+38838|AI Sentiment Analytics
+31379|Swiss Franc Stablecoin
+34880|No-Code AI App Builder
+32372|Fiat-Backed USD Stablecoin
+32452|Move-Based Network
+1274|Smart Contract Platform
+38014|Tokenized Micron Stock
+3992|Privacy Layer 2 Network
+35976|Delta-Neutral USD Stablecoin
+4679|Cross-Chain Data Oracle
+39177|TRON DeFi Utility Token
+30712|Bitcoin Layer 2
+35931|Creator Coin Social Network
+2577|Asset-Transfer Proof-of-Work Chain
+2132|Peer-to-Peer Energy Trading
+35701|Political Meme Coin
+38470|Charity Meme Coin
+38093|Tokenized NVIDIA Stock
+37057|Tokenized Nasdaq-100 ETF
+8049|Ethereum Privacy Mixer
+32521|Dog Meme Coin
+21533|BNB Liquid Staking & CDP Stablecoin
+3306|Fiat-Backed USD Stablecoin
+37013|Tokenized Alphabet Stock
+4056|Elastic-Supply Rebase Token
+32193|Zero-Knowledge Privacy Layer 1
+38569|Liquid Staking Protocol
+7817|Cross-Chain Bridge Network
+38231|Sui Concentrated Liquidity DEX
+20314|Cosmos-Based Layer 1
+11171|Solana Trading & Lending DEX
+32644|Euro Stablecoin
+36896|Bittensor Trading Signals Subnet
+35429|Solana Restaking Network
+35386|Hyper-Parallel Compute Network
+30843|Liquid Restaking Protocol
+37298|On-Chain Fund Management
+39379|Ethereum Gas Futures Market
+5617|Optimistic Oracle & Synthetics
+36038|Staked Frax USD Yield
+36238|IoT DePIN Network
+37340|AI Data Network
+20700|Cat Meme Coin
+31528|Cross-Chain Intent Bridge
+3855|Payments Blockchain
+5947|Multichain Crypto Wallet
+38554|Gamer Reputation Network
+2137|Mobile Payments Layer 1
+36893|Bittensor Distributed Training Subnet
+19843|Perpetuals DEX
+3893|Instant Exchange Service Token
+33223|Trading Terminal Platform
+39922|RWA Bridge Network
+38407|Decentralized USD Stablecoin
+34987|Federated AI Training
+12573|Institutional Credit Marketplace
+7236|Mobile-First USD Stablecoin
+3945|Sharded Proof-of-Stake Layer 1
+36671|AI Data & Agent Platform
+35637|Bitcoin DCA Savings Platform
+38757|AI-Enhanced Data Oracle
+1974|Real Estate Tokenization
+1727|Automated Liquidity Protocol
+32966|Telegram Cat Game
+14280|Modular Lending Protocol
+23254|Bitcoin-Secured EVM Layer 1
+22620|Intent-Based Cross-Chain Bridge
+34619|User-Owned AI Data Network
+4687|Fiat-Backed USD Stablecoin
+1586|Interoperable Blockchain Platform
+1230|Social Blogging Blockchain
+38094|Tokenized Nasdaq-100 ETF
+32782|Solana Proof-of-Work Mining Token
+35837|Solana Meme Coin
+36080|Multi-Asset Trading Platform Token
+21296|Ethereum Proof-of-Work Fork
+7129|Legacy Terra Algorithmic Stablecoin
+36352|Bitcoin Layer 2
+38679|Chinese Community Meme Coin
+34083|AI Agent Meme Coin
+9436|Dog Meme Coin
+5370|Social Content Blockchain
+12894|Decentralized Data Lake
+13631|ZK Modular Layer 2
+23528|Wrapped TAO
+33849|Exchange Utility Token
+16612|Decentralized GPU Compute
+30923|Exchange Liquid Staked ETH
+2545|Decentralized App Platform
+28340|Smart Contract Platform
+38481|Intent-Centric Infrastructure
+4950|Regulated Exchange Token
+3835|Decentralized Trading Infrastructure
+25147|Liquid Staked ETH
+2777|DePIN Layer 1
+37529|NEAR DEX & Lending Platform
+2982|Mobility Ecosystem Network
+2405|High-Throughput Layer 1
+20435|Optimism DEX Liquidity Hub
+35690|Gaming Layer 3
+29974|Liquid Restaked ETH
+28480|Native-Yield Layer 2
+1637|Confidential Computing Marketplace
+3801|Blockchain Gaming Platform
+2341|Cross-Chain Swap Service
+39545|Human & AI Identity Verification
+38837|Music Dance Game
+3029|Decentralized Cloud Infrastructure
+38136|Satellite Internet Network
+29325|Liquid Restaked ETH
+37534|Web3 Mini-Games Platform
+41899|Robinhood Chain Meme Coin
+36552|Asset-Backed USD Stablecoin
+38034|Tokenized Hims & Hers Stock
+38092|Tokenized MicroStrategy Stock
+1788|Payments & Banking Layer 2
+42290|Tokenized CEA Industries Stock
+36281|Cross-Chain Messaging Protocol
+36904|Bittensor Model Training Subnet
+9040|Crypto Payments Infrastructure
+39800|Verifiable AI Inference Network
+39611|RWA Tokenization Layer 1
+1816|Digital Identity Verification
+35600|Credential Attestation Protocol
+8719|Open-World Monster RPG
+27565|On-Chain Intelligence Platform
+40793|Tokenized Alphabet Stock
+34434|Community Meme Coin
+9444|DEX Liquidity Aggregator
+1320|Multi-Chain Blockchain Platform
+32037|Decentralized Privacy Network
+42007|Robinhood Chain Meme Coin
+39071|ZK Hardware Acceleration
+2300|NFT & Gaming Blockchain
+5429|Play-to-Earn Gaming Platform
+39769|Tokenized Bitcoin ETF
+4064|Fiat-Backed USD Stablecoin
+36319|AI Robotics Data Network
+5691|Gas-Free Gaming Chain Network
+36056|Payments & DeFi Layer 1
+35749|Dog Meme Coin
+12220|Cosmos DEX Chain
+38178|AI Fact-Checking Network
+3330|Fiat-Backed USD Stablecoin
+39883|Decentralized ML Compute Network
+33372|Gaming & AI Data Identity
+24781|Social Layer 2
+40216|Tokenized SanDisk Stock
+36511|Ecosystem Utility Token
+36410|Perpetuals DEX
+38427|ZK Proof Infrastructure
+23773|Liquid Restaked ETH
+22933|Asset-Backed USD Stablecoin
+6953|Frax Ecosystem Governance
+18069|Move-to-Earn Fitness App
+5444|Linux-Powered Rollups
+5939|Wrapped Crypto Insurance
+40008|Bitcoin Lending Protocol
+39394|Ecosystem Utility Token
+2273|Crypto Shopping Marketplace
+38545|Crypto Lending & Yield Platform
+25114|Sui Concentrated Liquidity DEX
+42011|Blockchain Launch Framework
+9640|Ethereum Layer 2
+38935|British Pound Stablecoin
+30096|Farcaster Community Meme Coin
+7501|Liquidity Network & Exchange
+30460|Deflationary DeFi Token
+28230|Action RPG Game
+9566|Decentralized USD Stablecoin
+16690|Ecosystem Layer 1
+1762|Proof-of-Work Smart Contract Platform
+10688|Web3 Gaming Guild
+38889|Tokenized Stocks Trading
+32702|Wrapped Rootstock Bitcoin
+8602|Token Auction Launchpad
+42044|Political Meme Coin
+36933|AI Data Annotation Protocol
+40859|Robinhood Chain Index Token
+38057|Tokenized Silver ETF
+37070|Decentralized Cloud Storage
+32698|Telegram Dog Meme Coin
+40659|Tokenized OpenAI Pre-IPO
+5824|Axie Game Reward Token
+30168|Enterprise Blockchain Platform
+41773|Emerging-Markets Payments Layer 1
+39094|Solana Meme Launchpad
+33979|RWA Stablecoin Governance
+14822|VR Metaverse Game
+2930|Blockchain Encyclopedia
+7737|First-Party Data Oracle
+29676|Perpetuals & Options DEX
+36133|DeFi Super App
+36255|Ecosystem Utility Token
+42337|BNB Chain Meme Coin
+5266|Loyalty Points Exchange
+8083|DEX Aggregator
+28194|BRC-20 Inscription Token
+38371|Universal ZK Compute Protocol
+40814|Hybrid Perpetuals Exchange
+21870|Solana NFT Protocol
+38433|Web3 Ecosystem Platform
+3814|Layer 2 Scaling & Interoperability
+34103|AI Crypto Analyst Agent
+35269|AI Social Platform
+38356|SVM Trading Layer 1
+38513|Tokenized Treasury Platform
+40939|Robinhood Chain Meme Coin
+12165|Bitcoin Staking & Yield
+1414|Privacy Payments Coin
+38175|Freelance Gig Marketplace
+28654|Payments Layer 1
+34143|RWA Ecosystem Token
+38557|BNB Chain Meme Coin
+9220|Crypto Trading Wallet
+5468|Ecosystem Utility Token
+36296|Bitcoin Liquidity Finance Layer
+8107|Crypto Community App Token
+9258|Proof-of-Space Green Blockchain
+32968|AI Companion Meme Coin
+41010|Tokenized Pop Mart Stock
+3978|Relational Blockchain for Games
+8100|Liquid Staked ETH
+40694|Tokenized S&P 500 ETF
+9543|Account Abstraction Infrastructure
+39689|Web3 Casual Gaming Platform
+39151|Collectible Toy Game Token
+7429|Decentralized Borrowing Protocol
+39159|ZK Coprocessor
+11823|Decentralized RPC Network
+22264|Ecosystem Layer 1
+38466|Shared Edge Compute Network
+37430|AI Identity & Reputation
+20561|DeFi Meme Token
+33696|Liquid Staked Bitcoin
+17591|Privacy Mixnet Network
+30063|Solana Meme Coin
+13769|Decentralized Mobile Network
+29318|Asset-Backed USD Stablecoin
+39595|Robotics Coordination Protocol
+5858|Quantum-Resistant Layer 1
+2840|Sharded Blockchain Platform
+29335|Farming Social Game
+41909|AI Agent Meme Coin
+36288|On-Chain Trading Platform
+38668|DeFi Intent Infrastructure
+4807|Blockchain Security Chain
+28909|ICP Native Bitcoin
+7978|Solana Name Service
+34330|AI Agent Game
+39918|Ecosystem Utility Token
+35892|BNB Chain Meme Coin
+7455|Decentralized Music Streaming
+39797|AI Training Data Platform
+33152|Wallet Connectivity Network
+17520|Ecosystem Utility Token
+23756|AI Tools for Crypto
+28674|Web3 Gaming Platform
+38909|Decentralized GPU Compute
+35051|Gaming SVM Extension
+5908|Logistics Data Blockchain
+38035|Tokenized Intel Stock
+41892|Privacy Computation Network
+33120|Interwoven Rollup Layer 1
+40685|Tokenized NVIDIA Stock
+31525|Based Rollup Layer 2
+38001|Tokenized Alphabet Stock
+28933|Gaming Layer 3
+8677|Enterprise Smart Asset Blockchain
+38966|Tokenized Stock Lending
+31246|Web3 Game Development Platform
+36892|Bittensor AI Training Subnet
+11289|Abracadabra Lending Token
+40798|Tokenized Memory ETF
+35114|Decentralized Cybersecurity Mesh
+5|Proof-of-Stake Pioneer Currency
+11568|Loot Gaming Currency
+2630|Threat Intelligence Marketplace
+2303|Medical Data Blockchain
+38117|Human-Verified AI Data
+38750|Verifiable Data Infrastructure
+13524|Solana Lending Protocol
+40214|Tokenized Tesla Stock
+8925|Wrapped POL
+19765|NFT Brand Meme Coin
+30449|Solana NFT Marketplace
+33440|AI Agent Meme Coin
+35053|AI Agent Meme Coin
+33964|AI Agent Builder Platform
+35319|Anime Culture Token
+38307|Ecosystem Utility Token
+20245|Tokenized Gold
+14783|Gaming Ecosystem Network
+2776|Crypto Travel Booking
+6138|Cross-Chain Data Oracle
+23054|Watch-to-Earn Social App
+38359|RWA Stablecoin Protocol
+39421|Wrapped ETH on X Layer
+11223|Digital Identity Blockchain
+40540|Tokenized Intel Stock
+30651|TRON DeFi Token
+32232|Art Ownership Token
+38031|Tokenized Treasury Bond ETF
+1883|Decentralized Ad Network
+7224|Proactive Market Maker DEX
+34297|Perpetuals DEX
+18934|Cross-Chain Liquidity Bridge
+39916|Bitcoin ZK Rollup
+40175|Tokenized Micron Stock
+30372|Chainlet Layer 1
+39042|Gaming Rewards Network
+41874|Decentralized AI Compute
+35608|Wrapped BERA
+24399|Wrapped HBAR
+5067|Exchange Utility Token
+34269|RWA Tokenization Chain
+42308|DeFi Protocol Token
+39910|THORChain DeFi Hub
+36102|Chain Abstraction Layer 1
+8766|Multiplayer Farming Game
+37082|Tokenized Gold
+35647|BNB Chain Meme Coin
+32724|Cat Meme Coin
+36861|Verifiable AI Agent Automation
+21763|Bridged USDT
+8615|RWA Tokenization Chain
+35766|AI Agent Meme Coin
+4039|Threshold Randomness Network
+38495|AI Output Verification
+2868|DAG Data Network
+40789|Tokenized Coinbase Stock
+6731|Ethereum Layer 2 Platform
+41902|Base Cat Meme Coin
+38029|Tokenized Tesla Stock
+40037|Tokenized SanDisk Stock
+38021|Tokenized International Stocks ETF
+25220|Ethereum Meme Coin
+35426|Solana Meme Coin
+40047|Solana Yield Stablecoin
+24190|Cronos Perpetuals DEX
+38769|DeFi-Focused Layer 2
+33439|RWA Modular Layer 2
+32809|Omnichain Order Book
+38651|Impermanent-Loss-Free BTC Yield
+41925|Venture Crowdfunding Platform
+28066|Telegram Trading Bot
+36277|Bitcoin Layer 2
+33854|Dog Meme Coin
+10903|Multichain Wallet & DeFi
+36215|EVM Layer 1
+36354|Tokenized Gold
+36068|Yield-Bearing USD Stablecoin
+34024|Staked crvUSD Yield
+11396|Avalanche DEX
+38219|Animal Meme Coin
+38089|Tokenized Marvell Stock
+36180|Restaking Infrastructure
+39459|Ethereum Meme Coin
+7424|ZK Rollup Layer 2
+11620|RWA Tokenization Platform
+4038|Film Streaming Platform
+4166|RWA Issuance Platform
+39035|ZK Private Data Verification
+37393|Ecosystem Utility Token
+29555|Cross-Chain Gaming Hub
+38159|Bitcoin-Ethereum Supernetwork
+24835|Frog Meme Coin
+21988|DeFi Layer 1
+2083|ASIC-Resistant Bitcoin Fork
+38167|Wallet USD Stablecoin
+39812|Hyperliquid Trading Terminal
+3418|Digital Identity Blockchain
+20490|AI Face Recognition
+32325|Native Restaking Protocol
+2099|Interoperable Blockchain Network
+39552|Yield Neobank
+8771|Japanese Yen Stablecoin
+39923|Tokenized Strategy Preferred Stock
+3|Decentralized Domain Name Blockchain
+30963|Gaming Superlayer
+34792|AI Agent DeFi Assistant
+35747|NFT Brand Entertainment
+35214|On-Chain Visual Analytics
+40635|Tokenized Circle Stock
+36962|Omnichain Settlement Layer
+32027|Liquid Staked APT
+40632|Tokenized MicroStrategy Stock
+42025|Creator Token Launchpad
+39387|AI Crypto Copilot
+11584|Decentralized Talent Network
+40790|Tokenized S&P 500 ETF
+8534|RWA Tokenization Platform
+33116|Web3 Social Messaging
+38072|Tokenized Bond ETF
+6843|Decentralized Code Collaboration
+27054|Science Research Rewards
+40813|Tokenized SK Hynix Stock
+36510|ZK Prover Network
+39448|Solana Meme Coin
+25241|Social Trading Platform
+7878|Private Mobile Payments
+39666|Blended Execution Layer 2
+34125|Solana Meme Coin
+29933|Zombie Shooter Game
+29150|Solana Meme Coin
+36874|Bittensor Data Indexing Subnet
+5309|Esports Fan Token
+39355|Perpetuals DEX
+37028|Tokenized Intel Stock
+36164|Bitcoin-Powered Layer 2
+38717|AI DeFi Agent Network
+22059|Asynchronous Layer 1
+1772|Decentralized Cloud Storage
+38187|Ecosystem Layer 1
+36903|Bittensor AI Coding Subnet
+21914|Hedera DEX
+39192|Cardano USD Stablecoin
+27533|Dog Meme Coin
+18386|Fashion Design Platform
+24007|AI Agent Platform
+18037|Dynamic Liquidity AMM
+40872|Crypto Payments Network
+1934|ZK Rollup DEX
+35929|Margin Lending DEX
+34285|AI Token Launcher
+36556|Ecosystem Layer 1
+8670|Value Voucher Payments
+36994|Tokenized Apple Stock
+5117|Yield-Bearing Stablecoin Protocol
+38102|AI Gaming Platform
+30746|Bitcoin Restaking Chain
+39322|Chinese Community Meme Coin
+7497|Decentralized Serverless Compute
+29879|Frog Meme Coin
+38430|AI Agent Network
+36864|Wrapped ADA
+36989|Tokenized Coinbase Stock
+40978|Robinhood Chain NFT Token
+36405|ZK Data Warehouse
+8489|Singapore Dollar Stablecoin
+5380|Creator Token Bonding Platform
+16807|NFT Collection Token
+38003|Tokenized Total US Stock ETF
+36621|Bitcoin Runes Meme Coin
+36153|FHE Security Network
+38669|AI Agent Competition Arena
+37180|Euro-Convertible USD Stablecoin
+38376|TON Lending Protocol
+35728|Ecosystem Utility Token
+12749|Play-to-Earn Gaming Hub
+8938|Stablecoin DEX
+16876|AI Character NFT Protocol
+39150|Yield Trading Protocol
+37320|Privacy USD Stablecoin
+37609|AI DeFi Strategy Platform
+3441|Masternode Staking Wallet
+37024|Tokenized Gold ETF
+32068|Ecosystem Utility Token
+29042|Euro Stablecoin
+39461|Self-Custody Trading Platform
+28846|AI Companion Games
+35710|AI Agent App Store
+28932|Modular Rollup Network
+37041|Tokenized Robinhood Stock
+7617|Risk Tranche Yield Protocol
+36775|AI Idol Entertainment
+29920|Solana Meme Coin
+32889|Spatial Computing Network
+38468|Web3 Social Network
+39049|Solana Prop AMM DEX
+39283|Tokenized SoFi Stock
+6929|On-Chain Options Trading
+11865|ShibaSwap DEX Governance
+36708|Wrapped DOGE
+35724|Cross-Chain Identity & Abstraction
+40845|Tokenized Broadcom Stock
+4953|Blockchain Contract Notarization
+36761|BNB Chain Meme Coin
+39105|Solana Yield Stablecoin
+36156|Gaming Layer 1 (Off The Grid)
+28458|Autonomous AI Agent Network
+39577|Wrapped BTC on X Layer
+132|Bitcoin Asset Protocol
+29599|Native-Yield USD Stablecoin
+10631|Trading Card Game
+38007|Tokenized International Stocks ETF
+2606|Cross-Chain Interoperability Network
+31278|Solana Perpetuals DEX
+9285|Kusama EVM Parachain
+9119|Sci-Fi Mining Metaverse Game
+38970|Bitcoin DeFi Hybrid Chain
+35793|Decentralized Data Network
+42259|Robinhood Chain Meme Coin
+32744|Proof-of-Work Currency
+36223|AI Agent DeFi Navigator
+40029|Solana Meme Coin
+30528|AI 3D Asset Generation
+32195|Telegram Tap-to-Earn Game
+23335|BNB Chain DEX
+38068|Tokenized TIPS Bond ETF
+39955|DePIN Sharing Economy
+7463|DeFi Lending Protocol
+38169|AI Agent Platform
+13663|Decentralized Leveraged Trading
+11078|Decentralized Storage & Compute
+5450|Brazilian Rewards Token
+41889|Robinhood Chain Meme Coin
+17960|Luxury Asset Authentication
+42309|Base Meme Coin
+38863|Decentralized Knowledge Graph
+40232|Tokenized SpaceX Shares
+9288|Avalanche Lending & Staking
+11294|Digital Art Marketplace
+5026|Decentralized VPN
+40613|Tokenized Alphabet Stock
+33566|AI Meme Coin
+37055|Tokenized Meta Stock
+28919|Crypto Casino Platform
+36369|Sui Liquid Staking
+42249|BNB Chain Meme Coin
+23780|AI-Powered Metaverse
+32089|Ecosystem Layer 1
+38041|Tokenized Gold ETF
+6928|DeFi Yield Aggregator
+36737|AI Perpetuals Trading
+20622|Web3 Threat Detection Network
+39247|Tokenized PDD Stock
+38099|Tokenized Emerging Markets ETF
+38561|AI Video Generation
+9020|Exchange Utility Token
+37414|Mobile Esports Gaming
+38585|Solana Streamer Meme Coin
+37374|Rollup-as-a-Service Platform
+40947|Robinhood Chain Meme Coin
+40668|Tokenized SpaceX Shares
+38027|Tokenized AMD Stock
+14556|Hybrid Compute Layer 2
+2222|Bitcoin Fork Currency
+38961|AI Art & Music RWA Platform
+2001|Masternode Privacy Coin
+31806|Proof-of-Work Meme Coin
+39170|Tokenized Collectibles Platform
+15736|Ecosystem Utility Token
+5227|Football Fan Token
+39855|Perpetuals DEX
+10442|Decentralized Social Blockchain
+28446|AI Trading Bot
+34116|AI Agent Meme Coin
+17722|Smart Account Wallet
+32591|Solana Restaked SOL
+32194|Omnichain Yield Infrastructure
+268|Cross-Chain Asset Platform
+31843|Solana Meme Coin
+40958|Cross-Chain Swap Router
+2927|Synthetic USD Stablecoin
+16334|Decentralized Perpetuals Exchange
+32376|Unified Data Availability Layer
+39162|Kyrgyz Som Stablecoin
+4160|Privacy Coin (Zcash Fork)
+39903|Tokenized Fund Platform
+38046|Tokenized Coinbase Stock
+38022|Tokenized Growth Stock ETF
+5435|Private Digital Cash
+26833|Real Estate Tokenization
+2915|Metaverse Land Platform
+5382|Real Estate Tokenization
+36935|Move Layer 1
+39564|Prediction Market Platform
+29296|Sui Lending Protocol
+18895|Korean Web3 Gaming Platform
+1104|Decentralized Prediction Markets
+31838|AI Agent Data Layer
+42316|Robinhood Chain Meme Coin
+28299|Token Creation Platform
+5268|Energy Transition Blockchain
+12623|Multichain Liquid Staking
+36227|AI Game Platform
+39306|Tokenized Treasury Bond ETF
+31342|Drive-to-Earn Camera Network
+38037|Tokenized Apple Stock
+39974|Ecosystem Utility Token
+21706|Walk-to-Earn Fitness App
+4090|Crypto Card Payments
+9386|Dog Meme Coin
+17072|Privacy MPC Blockchain
+37016|Web3 Financial Services
+37338|TON EVM Extension
+1768|AI Marketing Agent
+4956|Bitcoin Omnichain Layer
+34828|Solana Lending Protocol
+35597|Tokenized Uranium
+38789|AI Agent Payments Network
+5161|Exchange Utility Token
+37562|AI Trading Agent Platform
+23195|Creator Subscription Protocol
+6069|AI News Agent
+29724|Korean Payments Layer 1
+29884|Decentralized GPU Compute
+34853|Solana Meme Coin
+38788|AI Marketing Platform
+6641|Knowledge Q&A Platform
+11809|NEAR DEX
+33108|Telegram Tap-to-Earn Game
+12814|Sports Betting Platform
+28675|Avalanche Meme Coin
+36713|Delta-Neutral Stablecoin Protocol
+22850|Decentralized Mapping Network
+34993|Multi-Agent AI Framework
+39382|Self-Custody Crypto Neobank
+15248|Football Fan Token
+258|ASIC-Resistant Proof-of-Work Coin
+14878|Sharded Proof-of-Work Layer 1
+2320|Crypto Payment Gateway
+23711|AI Card Game Universe
+41976|Robinhood Chain Meme Coin
+39415|Tokenized Emeralds
+20672|Strategy War Game
+5956|Perpetuals Aggregator
+21134|Ethereum Meme Coin
+23351|Metaverse Platform
+5728|Programmable Liquidity AMM
+20456|Group Buying Commerce App
+35421|Solana Meme Coin
+36599|Wrapped Bitcoin on Osmosis
+2492|Web3 Operating System
+28829|Mobile Strategy Game
+26220|Sharia-Compliant Blockchain
+38086|Tokenized Microsoft Stock
+37014|Tokenized Amazon Stock
+33405|Dog Meme Coin
+5226|Football Fan Token
+38963|Combat Sports Entertainment
+34422|BNB Chain Meme Coin
+26532|Ethereum Meme Coin
+6836|Polkadot EVM Parachain
+40957|AI Trading Platform
+34177|Euro-Regulated USD Stablecoin
+30902|Ethereum Meme Coin
+5225|Football Fan Token
+27622|Creative Economy Layer 1
+16360|Composable Leverage Protocol
+35670|Berachain USD Stablecoin
+40539|Tokenized South Korea ETF
+41989|BNB Chain Meme Coin
+1037|Decentralized AI Social Network
+7975|Venus Interest-Bearing LINK
+40964|Tokenized BitMine Stock
+38004|Tokenized Robinhood Stock
+28220|RWA Lending Protocol
+36539|RWA Tokenization Platform
+22354|Merged-Mining Sharded Layer 1
+34849|Regulated RWA Layer 1
+37693|Tokenized Anthropic Pre-IPO
+19055|AI Compute Marketplace
+38506|Bitcoin Lightning Asset Layer
+38634|Sei Lending Protocol
+39224|Tokenized BitMine Stock
+5229|Football Fan Token
+38033|Tokenized Emerging Markets ETF
+40895|AI Agent Fund Protocol
+40616|Tokenized Micron Stock
+6554|Gaming DePIN Network
+37372|Bitcoin Cross-Chain Swaps
+19590|DeFi Utility Token
+32087|Consumer Entertainment Layer 2
+39592|Clearing Network State Channels
+37056|Tokenized Microsoft Stock
+35753|Dog Meme Coin
+38331|Hyperliquid USD Stablecoin
+3581|Decentralized Arbitration Court
+29454|NFT Raffle Marketplace
+37571|Decentralized Group Chat
+9674|Open-World Metaverse Game
+24087|Parallel Execution Layer 2
+40618|Tokenized Intel Stock
+27178|AI Assistant Bots
+18112|Formula 1 Fan Token
+36770|AI Agent Launchpad
+25232|Quantum-Resistant Privacy Layer 1
+40848|Tokenized Marvell Stock
+10052|Open-Source Funding DAO
+1856|Decentralized Marketplace Platform
+32171|Solana Meme Coin
+37495|Fixed-Income Interest Rate Benchmark
+4660|High-Performance EVM Layer 1
+42256|Tokenized CEA Industries Stock
+2866|Bug Bounty Platform
+5228|Football Fan Token
+29711|Sequencer-Secured Layer 2
+37050|Tokenized Marvell Stock
+38065|Tokenized Meta Stock
+32866|Solana Meme Coin
+1681|Proof-of-Stake Payments Coin
+34240|Vertically Integrated Layer 1
+8214|Venus Interest-Bearing DAI
+37743|Energy DePIN Network
+8613|Self-Repaying Loans
+5200|Payments Ecosystem Coin
+23380|Scalable Proof-of-Work Layer 1
+34109|Solana Meme Coin
+40852|Tokenized Alibaba Stock
+29220|Ethereum Meme Coin
+36078|Luxury Car Brand Token
+8206|Polygon DEX (Legacy)
+40780|Tokenized Meta Stock
+21822|RWA Tokenization Platform
+38464|Perpetuals Aggregator
+5866|DEX Analytics Platform
+11035|Collectible Card Game
+3260|Car Data Marketplace
+22461|Cross-Chain RFQ DEX
+10372|Equity Crowdfunding Platform
+32374|Bitcoin-Themed BNB Token
+28504|Ethereum Meme Coin
+38671|Liquidity Distribution Protocol
+12041|Agriculture Tech Platform
+39788|Tokenized SanDisk Stock
+30637|Base Cat Meme Coin
+7859|Bitcoin DeFi Yield Vaults
+18774|Cardano Lending Protocol
+23046|Ecosystem Utility Token
+1886|Mobile Data Marketplace
+1808|Ethereum Scaling Network
+38075|Tokenized TSMC Stock
+7208|Token Launchpad
+40538|Tokenized AMD Stock
+8422|Avalanche DEX
+9177|Dog Meme Coin
+36649|BNB Chain Meme Coin
+8720|Fixed-Rate Lending & Stablecoin
+41077|Tokenized GameStop Stock
+40786|Tokenized SK Hynix Stock
+24600|Decentralized Mobile Carrier
+34835|AI Trading Bot
+11948|Asset-Oriented DeFi Layer 1
+35011|Ethereum Meme Coin
+29862|Agriculture Tokenization
+40797|Tokenized Nebius Stock
+38083|Tokenized Amazon Stock
+22071|Lending & Borrowing Protocol
+42248|BNB Chain Meme Coin
+12787|Cardano DEX
+37344|Aptos DEX
+22789|Football Fan Token
+40757|Tokenized Alphabet Stock
+37021|Tokenized Broadcom Stock
+35395|Space Metaverse Platform
+8724|Sui Perpetuals DEX
+38946|AI Compute Financing
+36166|Bitcoin Liquid Staking Protocol
+34830|Mobile Rewards Platform
+40238|Tokenized SpaceX Shares
+38995|AI Gaming Infrastructure
+40961|Robinhood Chain Meme Coin
+19966|Polygon DEX
+6724|Multichain Crypto Wallet
+40794|Tokenized Leveraged Semiconductor ETF
+7189|Yield-Bearing USD Stablecoin
+41774|Solana Meme Coin
+11079|Ecosystem Smart Chain
+42283|Tokenized Polymarket Pre-IPO
+38442|Crypto Index Fund
+30008|Ethereum Meme Coin
+33291|Frog Meme Coin
+14052|Football Fan Token
+32341|Virtual Property Metaverse
+40563|Institutional Credit Allocator
+14721|Ecosystem Utility Token
+34076|Wrapped QUIL
+27614|Wrapped MNT
+20305|Ecosystem Utility Token
+35458|Staked USD Yield Token
+11346|Metaverse Gaming Ecosystem
+38850|Fiat-Backed USD Stablecoin
+38756|Prediction Market Platform
+6715|Auto-Yield Stablecoin Protocol
+34914|XRP Ledger Meme Coin
+7311|Multichain Yield Optimizer
+30177|AI Productivity Tools
+27763|Bridged USDC
+39858|Community Marketing Collective
+34717|RWA Lottery Rewards
+40927|Tokenized Apple Stock
+22359|Gaming Layer 1
+36804|Health Data Platform
+7964|Venus Interest-Bearing LTC
+2758|Enterprise Blockchain Integration
+29175|Solana Meme Coin
+39140|Monad Leverage Trading DEX
+22492|Tokenized Gold
+35092|AI DeFi Agent Assistant
+1447|Privacy Coin (Zcash Fork)
+17235|BNB Chain Meme Coin
+19063|Korean Gaming Blockchain
+22052|Ecosystem Utility Token
+38435|Ecosystem Utility Token
+34753|Wrapped S
+11156|Perpetuals DEX
+37454|Parallel MPC Network
+31296|Tokenized Gold DAO
+7533|AI Oracle Layer 1
+31830|Celebrity Meme Coin
+36865|Wrapped LTC
+22837|Connected Vehicle Data Network
+2780|Decentralized Network Infrastructure
+24476|AI Content Creation Platform
+5777|Bridged Bitcoin (Legacy)
+40614|Tokenized Marvell Stock
+3829|Exchange & Wallet App
+39284|Tokenized Leveraged Nasdaq ETF
+24220|Real Estate Tokenization
+29779|ZK Interoperability Infrastructure
+2949|Automated Trading Strategies
+10897|Ecosystem Utility Token
+38996|AI Training Data Marketplace
+1312|Steem Platform Stablecoin
+40686|Tokenized Nasdaq-100 ETF
+40147|Tokenized Leveraged Semiconductor ETF
+40703|Tokenized Apple Stock
+30116|TON Dog Meme Coin
+16352|Move-to-Earn Reward Token
+25023|Ethereum Meme Coin
+30402|Cronos Meme Coin
+23015|EVM on Solana
+34034|Web3 Game Publishing Platform
+40648|Tokenized SanDisk Stock
+37998|Tokenized Small-Cap Value ETF
+2505|Decentralized Database Network
+33543|AI Agent Meme Coin
+9637|Gaming NFT Infrastructure
+4167|Exchange Utility Token
+39880|Dog Meme Coin
+2348|Data Exchange Marketplace
+37362|Wrapped FRAX
+30907|Wrapped OKB
+8420|Token Launchpad
+35068|ZK Proof Verification Layer
+39089|Music Rights RWA Platform
+30759|Base Dog Meme Coin
+37279|Stock-Market Meme Coin
+42279|Robinhood Chain Meme Coin
+19689|Cross-Chain DEX
+11202|Liquidity Direction Protocol
+12687|Football Fan Token
+17794|Gaming DAO
+39699|Tokenized AMD Stock
+6669|Automation Keeper Network
+10049|Football Fan Token
+12297|Liquid Staked SOL
+37767|Ecosystem Layer 1
+38043|Tokenized Eli Lilly Stock
+5224|Football Fan Token
+36632|Ethereum Meme Coin
+39203|DePIN eSIM Network
+37656|Tokenized SpaceX Shares
+1789|Invoice Financing Platform
+24130|Swiss Franc Stablecoin
+11038|Sports Betting Platform
+42294|Fashion Commerce Token
+16868|Decentralized Cloud Storage
+33708|SocialFi Platform
+31773|Wrapped SEI
+35934|Reactive Smart Contracts
+10368|Crypto Index Perpetuals
+28443|Fiat-Backed USD Stablecoin
+34017|Tokenized DePIN Assets
+873|Smart Asset Blockchain
+38062|Tokenized Broadcom Stock
+40850|Tokenized Robinhood Stock
+37453|Pre-Market Asset Trading
+40198|Bridged USDT
+3327|Digital Asset Services
+35372|Fiat-Backed USD Stablecoin
+1552|On-Chain Asset Management
+1492|DAG Ledger Platform
+9720|Privacy Computing Network
+40926|Solana Meme Coin
+23397|Web3 Gaming Platform
+33320|Bitcoin Runes Meme Coin
+39777|Tokenized Nebius Stock
+29349|Ethereum Meme Coin
+39660|Tokenized Asset Trading Layer 1
+32470|Web3 Quests Platform
+42034|Robinhood Chain Meme Coin
+40691|Tokenized Tesla Stock
+3637|Hybrid Enterprise Blockchain
+33537|Ethereum Meme Coin
+41932|Wrapped ZEC
+40844|Tokenized Applied Optoelectronics Stock
+39897|Solana Meme Coin
+9656|Cat Meme Coin
+10332|Stock-Market Meme Coin
+6520|Privacy Data Transport Network
+36418|BNB Chain Meme Coin
+32088|Decentralized WiFi Roaming
+6859|Yield Farming Aggregator
+5829|Smart DeFi Payments
+40708|Tokenized Circle Stock
+39422|Wrapped SOL on X Layer
+38926|Web3 Chess Platform
+32942|Sui Domain Names
+36957|Decentralized Storage Network
+1826|Private Decentralized Marketplace
+36838|Wrapped APTM
+38009|Tokenized Oracle Stock
+40817|Tokenized Micron Stock
+19214|Longevity Research DAO
+26998|ZK Rollup Layer 2
+28567|AI Telegram Bot
+22985|Carbon Credits Marketplace
+38984|Prediction Fortune Platform
+24261|Decentralized GPU Cloud
+28792|Liquid Staked TON
+5305|Exchange Utility Token
+40696|Tokenized Micron Stock
+213|Japanese Community Currency
+37114|Dog Meme Coin
+2916|Browser-Based Payments
+36601|AI Personal Finance Agent
+37059|Tokenized Oracle Stock
+38315|ZK Gaming Infrastructure
+24924|Liquid Restaking Protocol
+28289|Bridged USDT
+10841|Wolf Meme Coin
+9421|Ampleforth Governance
+372|Private Digital Cash
+28394|Elon AI Meme Coin
+7703|Travel Mileage Rewards
+24203|Impermanent-Loss-Resistant DEX
+463|Decentralized Exchange Ledger
+35396|Solana Meme Coin
+3698|Weather Data Mining
+26556|Pendle Yield Booster
+34611|Sui Lending Protocol
+1556|Crypto Payroll Platform
+38628|Australian Dollar Stablecoin
+40846|Tokenized TSMC Stock
+39539|Self-Custody Ethereum Wallet
+38829|Web3 Marketing Platform
+40604|Tokenized Broadcom Stock
+38588|Ecosystem Utility Token
+8200|Multichain Wallet DAO
+38059|Tokenized Arm Stock
+22331|AI Gaming Network
+17742|Decentralized Investment DAO
+35877|Bitcoin-Backed Stablecoin
+18662|Medical AI Platform
+77|Proof-of-Stake Layer 1
+12064|Ecosystem Utility Token
+38036|Tokenized Coca-Cola Stock
+40591|Tokenized Lumentum Stock
+40624|Tokenized Tesla Stock
+37062|Tokenized Palantir Stock
+11213|Space Strategy Game DAO
+36906|Bittensor Staking Subnet
+11212|Space Strategy Metaverse Game
+8538|Football Fan Token
+17450|K-Pop Fan Platform
+38701|Institutional Payments Blockchain
+40083|Tokenized TSMC Stock
+3709|Mimblewimble Privacy Coin
+38492|Solana Meme Coin
+40837|AI Agent Platform
+38017|Tokenized Lockheed Martin Stock
+37044|Tokenized Leveraged Nasdaq ETF
+34348|Earth-Mapped Metaverse
+33502|Multisig MPC Wallet
+40592|Tokenized Meta Stock

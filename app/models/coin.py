@@ -108,6 +108,12 @@ class Coin(Base):
     # business_summary_updated_at's TTL — regenerated together, never
     # independently, so no separate timestamp column for this one.
     business_model_category: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    # Who set business_model_category: 'claude-code' (hand-labelled top 1,500
+    # coins, 2026-10-04), 'openrouter' (app/services/coin_category_service.py,
+    # re-checked weekly against the coin's website/description) or 'summary'
+    # (the CATEGORY: line of the business summary, only for uncurated coins).
+    category_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    category_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # On-demand CEX/DEX market-pair listing cache (see
     # app/services/market_pairs_service.py) — real per-exchange price/volume

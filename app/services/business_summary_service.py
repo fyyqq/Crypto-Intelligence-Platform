@@ -204,8 +204,11 @@ def get_business_summary(db: Session, coin: Coin) -> str | None:
     coin.business_summary = fresh
     coin.business_summary_model = model
     coin.business_summary_updated_at = datetime.utcnow()
-    if category:
+    # Curated categories (hand-labelled or the weekly coin_category_service
+    # check) win; the summary's CATEGORY: line only fills uncurated coins.
+    if category and coin.category_source in (None, "summary"):
         coin.business_model_category = category
+        coin.category_source = "summary"
     db.add(coin)
     db.commit()
     return fresh

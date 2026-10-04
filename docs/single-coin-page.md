@@ -50,7 +50,18 @@ Neither defillama.com nor tokenomist.ai's page-existence can be live-checked fro
 <details>
 <summary><strong>🤖 AI business summary</strong></summary>
 
-On first visit, an on-demand call to OpenRouter (a free nemotron model — not Claude 3.5 Sonnet as originally planned, since that model is retired from OpenRouter and this project's OpenRouter account is free-tier) generates a category badge (e.g. "Tokenized Securities Lending Protocol") plus 2–3 titled paragraphs. Falls back to the coin's real CMC narrative tag (e.g. "Layer 1") when no AI category has been generated yet, so every coin's page shows some badge. Re-generated periodically (60-day cache), not one-time, since a project's real business model can drift.
+On first visit, an on-demand call to OpenRouter (a free nemotron model — not Claude 3.5 Sonnet as originally planned, since that model is retired from OpenRouter and this project's OpenRouter account is free-tier) generates 3–4 titled paragraphs (the first is "Problem It Solves"). Re-generated periodically (60-day cache), not one-time, since a project's real business model can drift. Its CATEGORY: line only fills the badge for coins with no curated category (see below).
+</details>
+
+<details>
+<summary><strong>🏷️ Business-model category badge</strong></summary>
+
+The blue badge next to "&lt;Coin&gt; Live Chart" says what the project actually does (e.g. TAO "Decentralized Machine Learning", FET "Autonomous AI Agents", RENDER "Decentralized GPU Rendering", WILD "Open-World Metaverse Game").
+
+- **Initial labels (Claude Code, 2026-10-04)**: the top 1,500 coins by market cap were labelled by hand from their name, CMC tags and description, stored in `app/data/coin_categories_claude.txt` (`cmc_id|Category`) and written by `scripts/apply_coin_categories.py` into `coins.business_model_category` (Postgres, `category_source = 'claude-code'`) and the Reflex SQLite mirror.
+- **Weekly re-check (OpenRouter)**: `app/services/coin_category_service.py` runs on its own thread from `frontend/news_catchup.py`, one batch of 8 coins per `settings.coin_category_interval_minutes` (default 120). It picks coins whose `category_checked_at` is missing or older than 7 days (largest market cap first), sends each coin's name, ticker, tags, current category, CMC description and its own website text, and stores a 2–6 word answer (`category_source = 'openrouter'`). Answers naming listings/investors/ecosystems ("Binance Alpha", "… Portfolio", "… Ecosystem") or with the wrong length are rejected and that coin keeps its category. It counts against `ai_budget`'s hourly cap and backs off on failure. On the free tier (~50 requests/day) a full weekly pass over 1,500 coins needs ~27 calls/day, so it lags until the model is paid.
+- **Fallback**: a coin with no category shows its first CMC tag that describes the project (e.g. "DeFi"); listing/investor/ecosystem tags (`_BADGE_NOISE_RE` in `coin_state.py`) are never shown, so with nothing suitable the badge is hidden.
+- The business summary's CATEGORY: line never overwrites a curated category.
 </details>
 
 <details>

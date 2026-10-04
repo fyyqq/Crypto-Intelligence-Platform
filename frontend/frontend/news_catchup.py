@@ -13,6 +13,10 @@ which starts (once per process) a daemon thread that:
     On start it catches up every missed post since each group's last stored
     one, so the offline gap (up to the 30-day window) is filled.
 
+  * (own thread) re-checks coin business-model categories with OpenRouter,
+    one batch per settings.coin_category_interval_minutes
+    (app/services/coin_category_service.py).
+
   * (own thread, kicked on every page load) picks a target coin for every
     untargeted recent Cryptocurrency article — AI in batches, plus a rule
     fallback when the AI is unavailable (app/services/news_targeting_service.py).
@@ -99,6 +103,23 @@ def _targeting_loop() -> None:
         _target_wake.clear()
 
 
+def _category_loop() -> None:
+    """Weekly coin-category re-check: one OpenRouter batch per interval."""
+    if str(_REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(_REPO_ROOT))
+    from app.core.config import settings
+
+    time.sleep(60)  # let start-up traffic (summaries, targeting) go first
+    while True:
+        try:
+            from app.services.coin_category_service import refresh_batch
+
+            refresh_batch()
+        except Exception:  # noqa: BLE001
+            logger.exception("coin category refresh failed")
+        time.sleep(max(settings.coin_category_interval_minutes, 5) * 60)
+
+
 def ensure_running() -> None:
     """Called on every /news and homepage load: starts the workers once per
     process, and on later calls re-triggers a targeting run (at most every 20s)
@@ -114,3 +135,4 @@ def ensure_running() -> None:
         _last_kick = time.monotonic()
     threading.Thread(target=_loop, name="news-catchup", daemon=True).start()
     threading.Thread(target=_targeting_loop, name="news-targeting", daemon=True).start()
+    threading.Thread(target=_category_loop, name="coin-categories", daemon=True).start()

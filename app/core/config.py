@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     # Cost guards for every OpenRouter call (see app/services/ai_budget.py).
     openrouter_max_calls_per_hour: int = 60
     openrouter_failure_cooldown_minutes: int = 30
+    # Weekly coin business-model category check (app/services/
+    # coin_category_service.py): one OpenRouter call (8 coins) per interval.
+    # 120 min = 12 calls/day, sized for the free tier's ~50 requests/day;
+    # lower it on a paid model to cover the whole weekly re-check faster.
+    coin_category_interval_minutes: int = 120
 
     # Google reCAPTCHA v3 (invisible, score based) on the login/signup forms. Set
     # RECAPTCHA_SITE_KEY / RECAPTCHA_SECRET_KEY in .env (v3 keys; v2 keys will not work).

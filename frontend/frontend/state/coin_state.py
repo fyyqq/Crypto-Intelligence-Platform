@@ -476,6 +476,29 @@ _NOISE_PATTERNS = (
 )
 
 
+# CMC tags that describe where a coin is listed / who backs it, not what the
+# project does ("Binance Alpha", "Coinbase Ventures Portfolio", "Solana
+# Ecosystem", "Polkastarter", ...). Never shown as the category badge.
+_BADGE_NOISE_RE = re.compile(
+    r"binance|coinbase|robinhood|okx|bybit|kucoin|portfolio|ecosystem|listing|launchpad|alpha|"
+    r"capital|ventures|labs|holdings|\bvc\b|fund|alliance|hackathon|yearbook|made in|presale|"
+    r"airdrop|polkastarter|seedify|oxbull|dao maker|spartan|jump crypto|\bmvb\b|\bpow\b|\bpos\b|"
+    r"mineable|sha 256|tron20|bep-?20|erc-?20|rehypothecated|cmc community",
+    re.I,
+)
+
+
+def _category_badge(category: str | None, primary_narrative: str) -> str:
+    """The badge next to the chart heading: the curated business-model
+    category, else the coin's first CMC tag that says what the project does,
+    else nothing (better than a listing tag like "Binance Alpha")."""
+    if category:
+        return category
+    if primary_narrative and not _BADGE_NOISE_RE.search(primary_narrative):
+        return primary_narrative
+    return ""
+
+
 def _pick_primary_narrative(names: list[str]) -> str:
     for name in names:
         lowered = name.lower()
@@ -771,8 +794,8 @@ def _build_row(coin: Coin) -> dict:
         # instead of the row next to the heading sometimes being empty.
         "business_model_category": coin.business_model_category or "",
         "has_business_model_category": bool(coin.business_model_category),
-        "category_badge_display": coin.business_model_category or primary_narrative,
-        "has_category_badge_display": bool(coin.business_model_category or primary_narrative),
+        "category_badge_display": _category_badge(coin.business_model_category, primary_narrative),
+        "has_category_badge_display": bool(_category_badge(coin.business_model_category, primary_narrative)),
         # Cached CEX/DEX market pairs (see
         # app/services/market_pairs_service.py), refreshed on-demand via
         # CoinState.refresh_market_pairs rather than by this row build.
@@ -2398,8 +2421,8 @@ class CoinState(rx.State):
                     # _build_row) — falls back again to that same
                     # already-computed narrative if this generation didn't
                     # produce one.
-                    "category_badge_display": category or primary_narrative,
-                    "has_category_badge_display": bool(category or primary_narrative),
+                    "category_badge_display": _category_badge(category, primary_narrative),
+                    "has_category_badge_display": bool(_category_badge(category, primary_narrative)),
                 },
             }
 
