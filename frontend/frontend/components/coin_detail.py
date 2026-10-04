@@ -16,7 +16,7 @@ Per explicit scope for this pass — only the middle chart is real:
 import reflex as rx
 
 from frontend.components.footer import _BRAND_ICON_PATHS
-from frontend.state import CoinState
+from frontend.state import CoinState, NewsState
 
 # Dummy placeholder tag groups — CMC's categories API (CoinState.
 # selected_coin's real narrative_list/platform_list) has no equivalent
@@ -1659,6 +1659,30 @@ def _chart_placeholder(icon: rx.Component, title: str, subtitle: str = "") -> rx
     )
 
 
+_CHART_TIMEFRAMES = [("1", "1m"), ("15", "15m"), ("30", "30m"), ("60", "1H"), ("240", "4H"), ("1D", "1D"), ("1W", "1W"), ("1M", "1M")]
+
+
+def _chart_timeframes() -> rx.Component:
+    """Quick timeframe bar (1m, 15m, 30m, 1H, 4H, 1D, 1W, 1M) for the chart
+    below. Sets CoinState.chart_interval, which the iframe's src follows."""
+    return rx.hstack(
+        *[
+            rx.button(
+                label,
+                variant=rx.cond(CoinState.chart_interval == code, "solid", "soft"),
+                color_scheme=rx.cond(CoinState.chart_interval == code, "indigo", "gray"),
+                size="1",
+                on_click=CoinState.set_chart_interval(code),
+                cursor="pointer",
+            )
+            for code, label in _CHART_TIMEFRAMES
+        ],
+        spacing="1",
+        wrap="wrap",
+        width="100%",
+    )
+
+
 def _chart_column() -> rx.Component:
     coin = CoinState.selected_coin
     return rx.vstack(
@@ -1694,6 +1718,7 @@ def _chart_column() -> rx.Component:
             # sit flush left.
             width="100%",
         ),
+        _chart_timeframes(),
         rx.box(
             # This box has a genuinely definite height at every breakpoint
             # (a plain fixed value, not flex-derived), so the iframe's own
@@ -1931,133 +1956,57 @@ def _sentiment_column() -> rx.Component:
     )
 
 
-_NEWS_SOURCE_COLORS = {
-    "Bloomberg": "blue",
-    "Cointelegraph": "green",
-    "Reuters": "orange",
-    "CoinDesk": "purple",
-}
-
-# Same "$<SYMBOL>"-style dynamic mention as _DUMMY_POSTS, but each item here
-# mentions either the coin's ticker OR its primary narrative (CMC's real,
-# dynamically-synced category — see CoinState._build_row's primary_narrative)
-# — "mention" picks which Var this item's headline is built around. 10 items,
-# no duplicates, same fixed dataset reused on every coin's page (only the
-# actual $<SYMBOL>/narrative text substituted per coin).
-_TARGETED_NEWS = [
-    {
-        "source": "Bloomberg",
-        "time": "20m ago",
-        "mention": "ticker",
-        "headline_before": "",
-        "headline_after": " gains fresh institutional coverage after its latest roadmap update",
-        "body": "Analysts note growing interest from allocators tracking the project's execution against its public milestones.",
-    },
-    {
-        "source": "Cointelegraph",
-        "time": "1h ago",
-        "mention": "narrative",
-        "headline_before": "",
-        "headline_after": " narrative broadens as new protocols enter the race",
-        "body": "Momentum in the space continues to build as builders ship competing implementations.",
-    },
-    {
-        "source": "Reuters",
-        "time": "2h ago",
-        "mention": "ticker",
-        "headline_before": "Exchange inflows for ",
-        "headline_after": " tick higher amid renewed trading activity",
-        "body": "Higher exchange balances often precede short-term volatility as traders reposition.",
-    },
-    {
-        "source": "CoinDesk",
-        "time": "3h ago",
-        "mention": "ticker",
-        "headline_before": "",
-        "headline_after": " developer activity climbs on fresh GitHub commit data",
-        "body": "Weekly commit counts suggest the core team is shipping at a faster cadence than last quarter.",
-    },
-    {
-        "source": "Bloomberg",
-        "time": "5h ago",
-        "mention": "narrative",
-        "headline_before": "Capital rotates back into ",
-        "headline_after": " tokens as risk appetite improves",
-        "body": "Traders point to the sector's recent underperformance as a reason for the renewed interest.",
-    },
-    {
-        "source": "Cointelegraph",
-        "time": "7h ago",
-        "mention": "ticker",
-        "headline_before": "",
-        "headline_after": " community proposal targets improved incentive design",
-        "body": "The governance forum discussion has drawn unusually high engagement from long-term holders.",
-    },
-    {
-        "source": "Reuters",
-        "time": "9h ago",
-        "mention": "ticker",
-        "headline_before": "Analysts flag ",
-        "headline_after": " as a name to watch heading into next quarter",
-        "body": "The commentary cites a mix of technical setup and upcoming catalysts as reasons for the call.",
-    },
-    {
-        "source": "CoinDesk",
-        "time": "12h ago",
-        "mention": "narrative",
-        "headline_before": "",
-        "headline_after": " projects see renewed venture funding interest",
-        "body": "Several early-stage rounds closed this week, signaling investor appetite hasn't cooled.",
-    },
-    {
-        "source": "Bloomberg",
-        "time": "16h ago",
-        "mention": "ticker",
-        "headline_before": "",
-        "headline_after": " liquidity deepens across major trading venues",
-        "body": "Tighter spreads and larger order-book depth typically make for smoother price discovery.",
-    },
-    {
-        "source": "Cointelegraph",
-        "time": "1d ago",
-        "mention": "narrative",
-        "headline_before": "Regulatory clarity could be a tailwind for ",
-        "headline_after": " tokens",
-        "body": "Industry participants say clearer rules would likely accelerate institutional participation.",
-    },
-]
-
-
-def _targeted_news_card(item: dict) -> rx.Component:
-    coin = CoinState.selected_coin
-    # coin["symbol"]/["primary_narrative"] come off a plain `dict`-typed
-    # selected_coin var, so Reflex sees them as Any — .to(str) is needed
-    # before "+" concatenation works (same issue _real_tag_group hit).
-    mention = (
-        "$" + coin["symbol"].to(str) if item["mention"] == "ticker" else coin["primary_narrative"].to(str)
+def _coin_news_card(article: rx.Var) -> rx.Component:
+    # Same text-only card as the Narrative Radar (ticker + narrative badges,
+    # time, title, excerpt), linking to the in-app article reader.
+    return rx.link(
+        rx.box(
+            rx.hstack(
+                rx.badge(article["target_symbol"], color_scheme="indigo", size="1"),
+                rx.badge(article["target_narrative"], color_scheme="orange", size="1"),
+                rx.spacer(),
+                rx.text(article["time_display"], size="1", color_scheme="gray", flex_shrink="0"),
+                width="100%",
+                align="center",
+                direction="row-reverse",
+                wrap="wrap",
+            ),
+            rx.text(article["title"], weight="bold", size="2", margin_top="0.4em", class_name="line-clamp-3"),
+            rx.cond(
+                article["has_snippet"],
+                rx.text(article["snippet"], size="1", color_scheme="gray", margin_top="0.3em", class_name="line-clamp-3"),
+            ),
+            padding="0.85em",
+            border_radius="8px",
+            background="var(--gray-a2)",
+            width="100%",
+            color="var(--gray-12)",
+        ),
+        href=article["detail_url"],
+        underline="none",
+        display="block",
+        width="100%",
     )
+
+
+def _coin_news_empty() -> rx.Component:
+    coin = CoinState.selected_coin
     return rx.box(
-        rx.hstack(
-            rx.badge(item["source"], color_scheme=_NEWS_SOURCE_COLORS.get(item["source"], "gray"), size="1"),
-            rx.spacer(),
-            rx.text(item["time"], size="1", color_scheme="gray"),
-            width="100%",
-            align="center",
+        rx.cond(
+            NewsState.is_loading,
+            rx.text("Loading news…", size="2", color_scheme="gray"),
+            rx.text(
+                "No recent news mentions ",
+                coin["name"],
+                " (",
+                coin["symbol"],
+                ") or its ",
+                coin["primary_narrative"],
+                " narrative yet.",
+                size="2",
+                color_scheme="gray",
+            ),
         ),
-        rx.hstack(
-            rx.badge(coin["symbol"], color_scheme="indigo", size="1"),
-            rx.badge(coin["primary_narrative"], color_scheme="orange", size="1"),
-            margin_top="0.5em",
-            width="100%",
-            direction="row-reverse",
-            justify="end",
-            wrap="wrap",
-        ),
-        rx.text(
-            item["headline_before"], mention, item["headline_after"],
-            weight="bold", size="2", margin_top="0.4em",
-        ),
-        rx.text(item["body"], size="1", color_scheme="gray", margin_top="0.3em"),
         padding="0.85em",
         border_radius="8px",
         background="var(--gray-a2)",
@@ -2073,7 +2022,7 @@ def _targeted_news_section() -> rx.Component:
             rx.heading(coin["name"], " News", size="5"),
             rx.link(
                 rx.hstack(rx.text("More News", size="2", weight="bold"), rx.icon("arrow-right", size=14), spacing="1", align="center"),
-                href="#",
+                href="/narrative",
                 underline="none",
                 # Same color_scheme="indigo" pattern as news_feed.py's own
                 # "More News" link on the homepage.
@@ -2084,15 +2033,19 @@ def _targeted_news_section() -> rx.Component:
             align="center",
             wrap="wrap",
         ),
-        # Same fixed-height, 3.5-card scrollable box as the sentiment
-        # column's _post_card list right above it (both now live in the same
-        # sidebar column) — hide-scrollbar keeps it genuinely scrollable
-        # without the scrollbar chrome (styles.css).
+        # Same fixed-height, scrollable box as the sentiment column's
+        # _post_card list right above it (both live in the same sidebar
+        # column) — hide-scrollbar keeps it scrollable without the
+        # scrollbar chrome (styles.css).
         rx.box(
-            rx.vstack(
-                *[_targeted_news_card(item) for item in _TARGETED_NEWS],
-                spacing="3",
-                width="100%",
+            rx.cond(
+                NewsState.has_coin_news,
+                rx.vstack(
+                    rx.foreach(NewsState.coin_news, _coin_news_card),
+                    spacing="3",
+                    width="100%",
+                ),
+                _coin_news_empty(),
             ),
             height="585px",
             overflow_y="auto",

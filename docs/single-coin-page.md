@@ -149,3 +149,15 @@ Above the Markets section, a slider of up to 10 coins with the same use case as 
 - **Kept current by OpenRouter**: the weekly category check (`coin_category_service`) also returns a peer group chosen from the fixed `PEER_GROUPS` list (rules used if it names an unknown group); new coins get one when first categorised.
 - **Fallback**: a coin without a group shows coins sharing its CMC narrative tag; with none, the section is hidden.
 </details>
+
+<details>
+<summary><strong>⏱️ Chart timeframe bar</strong></summary>
+
+A button bar (1m, 15m, 30m, 1H, 4H, 1D, 1W, 1M; default 1H) above the TradingView chart. It sets `CoinState.chart_interval`, which the iframe's `interval` param follows (the chart reloads). The free TradingView widget cannot be given favourite drawing tools or favourite intervals from outside: it ignores a `favorites` parameter and keeps favourites in its own origin's localStorage. A viewer can star tools (Date Range, Price Range, Horizontal Line, Long Position, …) once inside the chart and the browser remembers them; only TradingView's licensed Advanced Charts library can preset them.
+</details>
+
+<details>
+<summary><strong>📰 "&lt;Coin&gt; News" (real, targeted)</strong></summary>
+
+Real articles from `news_articles` using the AI/rule coin targeting also behind the Narrative Radar: articles tied to this exact coin first (`target_cmc_id`), then articles whose narrative is one of the coin's own categories, newest first, up to 10. Cards show the ticker and narrative badges, time, title and excerpt and open the in-app reader; "More News" opens /narrative. With no match the section says no recent news mentions the coin or its narrative. The page's `on_load` runs `NewsState.load_news`, `track_coin_news` and `watch_new_articles`.
+</details>

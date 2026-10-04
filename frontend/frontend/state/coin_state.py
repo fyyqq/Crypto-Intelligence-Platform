@@ -583,6 +583,10 @@ def _resolve_unlock_source_url(symbol: str, defillama_slug: str | None) -> str:
     return f"https://defillama.com/token/{symbol.upper()}"
 
 
+# Quick timeframes shown above the coin page chart: (TradingView code, label).
+_CHART_INTERVALS = {"1": "1m", "15": "15m", "30": "30m", "60": "1H", "240": "4H", "1D": "1D", "1W": "1W", "1M": "1M"}
+
+
 def _build_row(coin: Coin) -> dict:
     """Builds one table row dict from a Coin (with categories/contracts
     eager-loaded). Shared by load_coins (full load) and the view-driven
@@ -1252,6 +1256,14 @@ class CoinState(rx.State):
     global_search_history_raw: str = rx.LocalStorage("", name="repace_search_history")
     global_search_focused: bool = False
 
+    # Candle size of the coin page's TradingView chart, picked with the quick
+    # timeframe bar above it (components/coin_detail.py::_chart_timeframes).
+    # TradingView codes: "1"/"15"/"30"/"60"/"240" minutes, "1D", "1W", "1M"
+    # (month). The widget can't be given favourite intervals from outside (they
+    # live in its own origin's localStorage), so this bar sets the iframe's
+    # interval param instead; changing it reloads the chart.
+    chart_interval: str = "60"
+
     # Header profile-pill dropdown (frontend.py::_profile_pill) — holds the
     # dark/light mode toggle now that the header no longer has room for it
     # as a separate always-visible button on every screen size. Click the
@@ -1743,6 +1755,11 @@ class CoinState(rx.State):
     def set_global_search_query(self, value: str):
         self.global_search_query = value
         self.global_search_limit = 5
+
+    @rx.event
+    def set_chart_interval(self, value: str):
+        if value in _CHART_INTERVALS:
+            self.chart_interval = value
 
     @rx.event
     def focus_global_search(self):
@@ -2715,7 +2732,7 @@ class CoinState(rx.State):
         pane_color = "#000000" if theme == "dark" else "#ffffff"
         params = {
             "symbol": symbol,
-            "interval": "60",
+            "interval": self.chart_interval,
             "theme": theme,
             "style": "1",
             "locale": "en",
