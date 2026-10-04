@@ -21,11 +21,12 @@ from frontend.components import (
     news_feed,
     news_category_content,
     news_page_content,
+    tools_page_content,
     watchlist_table,
 )
 from frontend.components.alerts_page import alerts_content
 from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
-from frontend.state import CoinState, NewsDetailState, NewsState
+from frontend.state import CoinState, NewsDetailState, NewsState, ToolsState
 
 
 def _alerts_menu_item() -> rx.Component:
@@ -1021,7 +1022,20 @@ def chains_page() -> rx.Component:
 
 
 def tools_page() -> rx.Component:
-    return _placeholder_page("Tools")
+    # /tools — Fear & Greed, Altcoin Season, rainbow charts and TradingView embeds.
+    return rx.box(
+        _header_bar(),
+        tools_page_content(),
+        footer(),
+        _floating_logo(),
+        _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
+        _alert_popups(),
+        rx.script(src="/chain_pills.js"),
+        min_height="100vh",
+        width="100%",
+    )
 
 
 def alerts_page() -> rx.Component:
@@ -1174,9 +1188,14 @@ app.add_page(
     title="Repace — Narrative Radar",
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, NewsState.watch_new_articles],
 )
+app.add_page(
+    tools_page,
+    route="/tools",
+    title="Repace — Market Tools",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, ToolsState.refresh_fng, ToolsState.refresh_season, ToolsState.refresh_rainbow],
+)
 for _route, _page_fn in [
     ("/chains", chains_page),
-    ("/tools", tools_page),
     ("/watchlist", watchlist_page),
 ]:
     app.add_page(_page_fn, route=_route, title=f"Repace — {_page_fn.__name__.replace('_page', '').title()}", on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch])

@@ -15,7 +15,7 @@ This folder, the matching [Notion pages](https://app.notion.com/p/3e1143f8052780
 | [News](./news.md) | `/news`, `/news/[news_category]/[article_slug]` | Live |
 | [Narrative](./narrative.md) | `/narrative` | Live — Narrative Radar (AI-targeted crypto news, 100 per page) |
 | [Chains](./chains.md) | `/chains` | Placeholder |
-| [Tools](./tools.md) | `/tools` | Placeholder |
+| [Tools](./tools.md) | `/tools` | Live |
 | [Watchlist](./watchlist.md) | `/watchlist` | Live |
 
 ## Shared
