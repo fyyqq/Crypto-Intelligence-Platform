@@ -234,49 +234,6 @@ def altcoin_season_section() -> rx.Component:
     )
 
 
-_BLOCKCHAINCENTER_URL = "https://www.blockchaincenter.net/altcoin-season-index/"
-
-
-def altcoin_season_embed_section() -> rx.Component:
-    """Live embed of blockchaincenter.net's own Altcoin Season Index page
-    (index, Month/Year views, stats and the flip calendar). Not an official
-    widget: it is their whole page (with their header and ads) in an iframe
-    that scrolls inside the card; their site sends no frame-blocking headers
-    today. CoinMarketCap, Coinglass and Alternative.me all block embedding."""
-    return rx.box(
-        _section_header(
-            "Altcoin / Bitcoin Season: live chart",
-            "Blockchaincenter's own index with its Month and Year views and history. Scroll inside the frame.",
-            rx.link(
-                rx.badge("Open blockchaincenter.net", rx.icon("external-link", size=12), variant="soft", color_scheme="gray", size="1"),
-                href=_BLOCKCHAINCENTER_URL,
-                is_external=True,
-                underline="none",
-            ),
-        ),
-        # The frame is taller than the card and the card scrolls (not the
-        # frame): their page pins an ad banner to the bottom of its own
-        # viewport, which would otherwise sit on top of the gauge.
-        rx.box(
-            rx.el.iframe(
-                src=_BLOCKCHAINCENTER_URL,
-                title="Altcoin Season Index (blockchaincenter.net)",
-                custom_attrs={"frameborder": "0", "referrerpolicy": "no-referrer", "scrolling": "no"},
-                width="100%",
-                height="2000px",
-                style={"border": "0", "display": "block", "background": "#0b0c10"},
-            ),
-            margin_top="1em",
-            height=["560px", "620px", "680px", "720px", "720px"],
-            width="100%",
-            overflow_y="auto",
-            border_radius="8px",
-            background="#0b0c10",
-        ),
-        **_CARD,
-    )
-
-
 def _legend_chip(item: dict) -> rx.Component:
     return rx.hstack(
         rx.box(width="12px", height="12px", border_radius="3px", background=item["color"], flex_shrink="0"),
@@ -496,7 +453,6 @@ def tools_page_content() -> rx.Component:
             spacing="4",
             width="100%",
         ),
-        altcoin_season_embed_section(),
         rainbow_section(),
         rx.grid(
             _tv_section("US Dollar Index (DXY)", "Dollar strength against a basket of major currencies.", "CAPITALCOM:DXY"),

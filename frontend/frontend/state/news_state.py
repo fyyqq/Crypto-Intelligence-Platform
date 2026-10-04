@@ -1189,55 +1189,6 @@ class NewsState(rx.State):
         slug = _slugify(self.coin_news_group or self.coin_news_narrative) if (self.coin_news_group or self.coin_news_narrative) else ""
         return f"/narrative/{slug}" if slug else "/narrative"
 
-    def _coin_related_articles(self) -> list[dict]:
-        """Every targeted article tied to the open coin or to its category,
-        newest first (coin_news is the first 10 of these)."""
-        if not self.coin_news_cmc_id:
-            return []
-        group_slug = _slugify(self.coin_news_group) if self.coin_news_group else ""
-        return [
-            a for a in self._all_articles
-            if a["has_target"]
-            and (
-                a["target_cmc_id"] == self.coin_news_cmc_id
-                or (group_slug and (a["narrative_slug"] == group_slug or _slugify(a["target_group"]) == group_slug))
-            )
-        ]
-
-    @rx.var(cache=True)
-    def coin_related_categories(self) -> list[dict]:
-        """Slider 1 above the coin's news: the news categories this coin's
-        stories fall under (most stories first), each linking to its
-        /narrative/<slug> page. The coin's own category is always first."""
-        counts: dict[str, int] = {}
-        labels: dict[str, str] = {}
-        for article in self._coin_related_articles():
-            slug = article["narrative_slug"]
-            if not slug:
-                continue
-            counts[slug] = counts.get(slug, 0) + 1
-            labels.setdefault(slug, article["target_narrative_label"])
-        own = _slugify(self.coin_news_group) if self.coin_news_group else ""
-        order = sorted(counts, key=lambda k: (k != own, -counts[k], k))[:12]
-        return [{"label": labels[k], "url": f"/narrative/{k}"} for k in order]
-
-    @rx.var(cache=True)
-    def coin_related_coins(self) -> list[dict]:
-        """Slider 2: the coins those category stories were about (the coin
-        the radar tagged on each story), most mentioned first, each linking to
-        its coin page. The open coin itself is left out."""
-        counts: dict[str, int] = {}
-        for article in self._coin_related_articles():
-            symbol = article["target_symbol"]
-            if symbol and article["target_cmc_id"] != self.coin_news_cmc_id:
-                counts[symbol] = counts.get(symbol, 0) + 1
-        order = sorted(counts, key=lambda k: (-counts[k], k))[:15]
-        return [{"symbol": k, "url": f"/coin/{k.lower()}"} for k in order]
-
-    @rx.var(cache=True)
-    def has_coin_related_pills(self) -> bool:
-        return len(self.coin_related_categories) > 0 or len(self.coin_related_coins) > 0
-
     @rx.var(cache=True)
     def has_coin_news(self) -> bool:
         return len(self.coin_news) > 0

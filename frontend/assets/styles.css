@@ -194,28 +194,6 @@
   color: white;
 }
 
-/* Related-news pills on the coin page: same colours as a news card's
-   category (orange) and ticker (indigo) badges, theme-aware. */
-.narrative-pill.related-pill-category {
-  background: var(--orange-a3);
-  border-color: var(--orange-a6);
-  color: var(--orange-11);
-}
-
-.narrative-pill.related-pill-category:hover {
-  background: var(--orange-a5);
-}
-
-.narrative-pill.related-pill-ticker {
-  background: var(--indigo-a3);
-  border-color: var(--indigo-a6);
-  color: var(--indigo-11);
-}
-
-.narrative-pill.related-pill-ticker:hover {
-  background: var(--indigo-a5);
-}
-
 .narrative-pill-more {
   background: var(--accent-4);
   border: 1px solid var(--accent-7);

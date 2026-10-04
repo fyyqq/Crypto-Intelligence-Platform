@@ -22,8 +22,8 @@ Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symb
 
 ## Current State (2026-10-05)
 
-- Latest feature: coin pages have "Related News" -> `/narrative/<category>` plus category and coin pill sliders; `/narrative/[narrative_slug]` exists.
-- `/tools` is live (Fear & Greed, Altcoin Season + a Blockchaincenter embed, BTC/ETH rainbow on the standard BTC curve with CoinMetrics 2010+ history, TradingView embeds, API-key popup). Details: `docs/tools.md`.
+- Coin pages have a "Related News" link to `/narrative/<category>`; `/narrative/[narrative_slug]` exists. (The category/coin pill sliders above the coin news were removed on request.)
+- `/tools` is live (Fear & Greed, Altcoin Season (computed; the blockchaincenter embed was removed), BTC/ETH rainbow on the standard BTC curve with CoinMetrics 2010+ history, TradingView embeds, API-key popup). Details: `docs/tools.md`.
 - Telegram posts are merged into the main `/news` sections on purpose (see `telegram-news.md`).
 - The Telegram listener is not auto-started by a process manager (the `/news` catch-up starts it).
 - Local commits may be unpushed until git auth is switched to `fyyqq`.

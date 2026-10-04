@@ -153,7 +153,7 @@ Above the Markets section, a slider of up to 10 coins with the same use case as 
 <details>
 <summary><strong>📰 "&lt;Coin&gt; News" (real, targeted)</strong></summary>
 
-Real articles from `news_articles` using the AI/rule coin targeting also behind the Narrative Radar: articles tied to this exact coin first (`target_cmc_id`), then articles whose narrative is one of the coin's own categories, newest first, up to 10. Cards show the ticker and narrative badges, time, title and excerpt and open the in-app reader; "More News" opens /narrative. With no match the section says no recent news mentions the coin or its narrative. The page's `on_load` runs `NewsState.load_news`, `track_coin_news` and `watch_new_articles`.
+Real articles from `news_articles` using the AI/rule coin targeting also behind the Narrative Radar: articles tied to this exact coin first (`target_cmc_id`), then articles whose narrative is one of the coin's own categories, newest first, up to 10. Cards show the ticker and narrative badges, time, title and excerpt and open the in-app reader; "Related News" opens the coin's category page (`/narrative/<category>`). With no match the section says no recent news mentions the coin or its narrative. The page's `on_load` runs `NewsState.load_news`, `track_coin_news` and `watch_new_articles`.
 </details>
 
 <details>
@@ -175,7 +175,7 @@ Every AI-targeted article gets an accurate label and, when the story is about a 
 </details>
 
 <details>
-<summary><strong>🔗 Related News link and category/coin sliders (2026-10-05)</strong></summary>
+<summary><strong>🔗 Related News link (2026-10-05)</strong></summary>
 
-The coin news section's "More News" link is now **"Related News"** and opens the coin's own category page `/narrative/<category>` (its peer group, e.g. `/narrative/ai-agents` for FET; a coin with no peer group uses its main narrative). Two pill sliders (same arrows/drag as the /news source filter) sit above the news section: **News categories** (orange pills, the categories this coin's stories fall under, its own category first, each linking to `/narrative/<slug>`) and **Coins in these stories** (indigo pills, the coins the radar tagged on those stories, most mentioned first, linking to each coin page; the open coin is left out, so the slider is hidden when every story is about the coin itself, e.g. BTC). Pill colours match a news card's category and ticker badges (theme-aware `--orange-*`/`--indigo-*` in `styles.css`). Applies to every coin page. `NewsState.coin_news_category_url`, `coin_related_categories`, `coin_related_coins`.
+The coin news section's link reads **"Related News"** and opens the coin's own category page `/narrative/<category>` (its peer group, e.g. `/narrative/ai-agents` for FET; a coin with no peer group uses its main narrative). Applies to every coin page (`NewsState.coin_news_category_url`). Two pill sliders (news categories, coins in the stories) were added above the news on the same day and removed again at the user's request.
 </details>
