@@ -170,3 +170,9 @@ Per explicit request (`el-06/07`): anything that moves to another page is now a 
 
 Focusing the empty header search box shows a **Recent** list of the last 5 coins opened from the search dropdown (newest first; reopening a coin moves it to the top; no duplicates), in the same row design as results (icon, name, ticker, live price and 24h change). The list is comma-separated `cmc_id`s in the browser's localStorage (`repace_search_history`), so it survives full page reloads but is per browser, not per account. `assets/chain_pills.js` writes it when a `.global-search-result-row` (carries `data-cmc-id`) is clicked — in JS because the click navigates away. `CoinState.global_search_history_raw` (`rx.LocalStorage`) reads it, `global_search_history` builds the live rows (max 5), and `global_search_focused` (input `on_focus`, cleared by `reset_global_search`) opens the dropdown for an empty query only when there is history. Typing shows normal results.
 </details>
+
+<details>
+<summary><strong>🎨 Light-mode background</strong></summary>
+
+In light mode the page background is `#f5f5f7` instead of Radix's plain white. `assets/styles.css` overrides `--color-background` / `--color-page-background` and the background of `html.light .radix-themes` and `body`. Dark mode is unchanged. The stylesheet is copied at build time, so restart Reflex after editing it.
+</details>
