@@ -94,9 +94,12 @@ def _targeting_loop() -> None:
         sys.path.insert(0, str(_REPO_ROOT))
     while True:
         try:
+            from app.services.news_category import categorize_pending
             from app.services.news_targeting_service import drain
 
             drain()
+            # Accurate label + shared use-case group for what was just targeted.
+            categorize_pending()
         except Exception:  # noqa: BLE001
             logger.exception("news targeting failed")
         _target_wake.wait(timeout=120)

@@ -167,3 +167,9 @@ The Similar Coins heading row is full width with a **View More →** link (indig
 
 A clock icon, "UTC" and a ticking HH:MM:SS sit right-aligned between the TradingView chart and the "&lt;Coin&gt; on X" section. `assets/chain_pills.js` updates `#utc-clock` every second from the viewer's device clock in UTC (no server call).
 </details>
+
+<details>
+<summary><strong>🏷️ Accurate news categories and shared use-case news</strong></summary>
+
+Every AI-targeted article gets an accurate label and, when the story is about a whole use case rather than one coin, a shared peer group (`app/services/news_category.py`; columns `target_narrative`, `target_group`). Examples: generic AI-agent stories -> "AI Agents" (shared), stablecoin industry news -> "Fiat-Backed Stablecoins" (shared), one exchange's hack -> "Security & Hacks" (not shared), SEC/Congress -> "Regulation & Policy" (not shared), Fed/market moves -> "Macro & Markets" (not shared), a story naming its coin -> that coin's peer group (not shared). The rules were written by Claude Code after reviewing the existing articles (with ~35 hand corrections); new articles are categorised by the same rules right after OpenRouter targets them. On a coin page, "&lt;Coin&gt; News" shows the coin's own stories first, then the shared stories of its peer group with the ticker badge switched to that coin (e.g. FET's AI-agent stories also appear on VIRTUAL as VIRTUAL). The Narrative Radar and /narrative keep each story's original top coin.
+</details>

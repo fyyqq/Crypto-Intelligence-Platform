@@ -110,7 +110,7 @@ def _fetch_articles() -> list[dict]:
             text(
                 """
                 SELECT id, source_name, category_or_query, title, url, published_date, full_body_text, image_url, source_type, media,
-                       target_symbol, target_cmc_id, target_narrative
+                       target_symbol, target_cmc_id, target_narrative, target_group
                 FROM news_articles
                 WHERE published_date >= NOW() - INTERVAL '90 days'
                   AND (source_type <> 'telegram' OR published_date >= NOW() - INTERVAL '30 days')
@@ -461,6 +461,9 @@ def _build_article_row(row: dict) -> dict:
         "target_narrative": (row.get("target_narrative") or "").upper(),
         "has_target": bool(row.get("target_symbol")),
         "target_cmc_id": row.get("target_cmc_id") or 0,
+        # Peer group the story is shared with (app/services/news_category.py),
+        # "" when it is about one coin only.
+        "target_group": row.get("target_group") or "",
     }
 
 
@@ -1116,10 +1119,11 @@ class NewsState(rx.State):
         ][:_HOME_NEWS_LIMIT]
 
     # --- coin page "<Coin> News" (components/coin_detail.py) ---
-    # The open coin's cmc_id and its narratives (upper-case), set by
+    # The open coin's cmc_id, ticker and use-case peer group, set by
     # track_coin_news on the coin page's on_load.
     coin_news_cmc_id: int = 0
-    coin_news_narratives: list[str] = []
+    coin_news_symbol: str = ""
+    coin_news_group: str = ""
 
     @rx.event
     async def track_coin_news(self):
@@ -1128,28 +1132,30 @@ class NewsState(rx.State):
         from frontend.state.coin_state import CoinState
 
         coin_state = await self.get_state(CoinState)
-        coin = coin_state.selected_coin
-        self.coin_news_cmc_id = int(coin.get("cmc_id") or 0) if coin else 0
-        self.coin_news_narratives = [n.upper() for n in (coin.get("narratives") or [])] if coin else []
+        coin = coin_state.selected_coin or {}
+        self.coin_news_cmc_id = int(coin.get("cmc_id") or 0)
+        self.coin_news_symbol = coin.get("symbol") or ""
+        self.coin_news_group = coin.get("peer_group") or ""
 
     @rx.var(cache=True)
     def coin_news(self) -> list[dict]:
-        """Real news for the open coin, from the AI/rule targeting already on
-        news_articles (the same data as /narrative): articles tied to this
-        exact coin first (newest first), then articles whose narrative is one
-        of the coin's own categories (newest first), 10 at most."""
+        """Real news for the open coin: articles tied to this exact coin first,
+        then stories about its whole use case (target_group == the coin's
+        peer group, see app/services/news_category.py) with the ticker badge
+        switched to this coin — e.g. a general "AI agents" story picked for
+        FET also shows on VIRTUAL as VIRTUAL. Newest first, 10 at most. (The
+        Narrative Radar keeps each story's original top coin.)"""
         if not self.coin_news_cmc_id:
             return []
-        narratives = set(self.coin_news_narratives)
-        mine, same_category = [], []
+        mine, same_group = [], []
         for article in self._all_articles:  # already newest first
             if not article["has_target"]:
                 continue
             if article["target_cmc_id"] == self.coin_news_cmc_id:
                 mine.append(article)
-            elif article["target_narrative"] in narratives:
-                same_category.append(article)
-        return (mine + same_category)[:10]
+            elif self.coin_news_group and article["target_group"] == self.coin_news_group:
+                same_group.append({**article, "target_symbol": self.coin_news_symbol})
+        return (mine + same_group)[:10]
 
     @rx.var(cache=True)
     def has_coin_news(self) -> bool:
