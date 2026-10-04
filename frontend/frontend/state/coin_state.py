@@ -583,10 +583,6 @@ def _resolve_unlock_source_url(symbol: str, defillama_slug: str | None) -> str:
     return f"https://defillama.com/token/{symbol.upper()}"
 
 
-# Quick timeframes shown above the coin page chart: (TradingView code, label).
-_CHART_INTERVALS = {"1": "1m", "15": "15m", "30": "30m", "60": "1H", "240": "4H", "1D": "1D", "1W": "1W", "1M": "1M"}
-
-
 def _build_row(coin: Coin) -> dict:
     """Builds one table row dict from a Coin (with categories/contracts
     eager-loaded). Shared by load_coins (full load) and the view-driven
@@ -1256,14 +1252,6 @@ class CoinState(rx.State):
     global_search_history_raw: str = rx.LocalStorage("", name="repace_search_history")
     global_search_focused: bool = False
 
-    # Candle size of the coin page's TradingView chart, picked with the quick
-    # timeframe bar above it (components/coin_detail.py::_chart_timeframes).
-    # TradingView codes: "1"/"15"/"30"/"60"/"240" minutes, "1D", "1W", "1M"
-    # (month). The widget can't be given favourite intervals from outside (they
-    # live in its own origin's localStorage), so this bar sets the iframe's
-    # interval param instead; changing it reloads the chart.
-    chart_interval: str = "60"
-
     # Header profile-pill dropdown (frontend.py::_profile_pill) — holds the
     # dark/light mode toggle now that the header no longer has room for it
     # as a separate always-visible button on every screen size. Click the
@@ -1755,11 +1743,6 @@ class CoinState(rx.State):
     def set_global_search_query(self, value: str):
         self.global_search_query = value
         self.global_search_limit = 5
-
-    @rx.event
-    def set_chart_interval(self, value: str):
-        if value in _CHART_INTERVALS:
-            self.chart_interval = value
 
     @rx.event
     def focus_global_search(self):
@@ -2259,9 +2242,8 @@ class CoinState(rx.State):
             return {}
         return max(matches, key=lambda r: r["market_cap_usd"])
 
-    @rx.var(cache=True)
-    def similar_coins(self) -> list[dict]:
-        """Up to 10 coins with the same use case as the open coin (its peer
+    def _similar_coin_rows(self) -> list[dict]:
+        """Every coin with the same use case as the open coin (its peer
         group — e.g. SAND -> MANA, WILD, ATLAS…), largest market cap first.
         Coins without a peer group fall back to sharing its CMC narrative tag."""
         coin = self.selected_coin
@@ -2281,7 +2263,26 @@ class CoinState(rx.State):
             if r["cmc_id"] != coin["cmc_id"] and (r.get("market_cap_usd") or 0) > 0 and match(r)
         ]
         peers.sort(key=lambda r: r["market_cap_usd"], reverse=True)
-        return peers[:10]
+        return peers
+
+    @rx.var(cache=True)
+    def similar_coins(self) -> list[dict]:
+        """The top 10 for the coin page's Similar Coins slider."""
+        return self._similar_coin_rows()[:10]
+
+    @rx.var(cache=True)
+    def all_similar_coins(self) -> list[dict]:
+        """All of them, for the /coin/[symbol]/similar page."""
+        return self._similar_coin_rows()
+
+    @rx.var(cache=True)
+    def similar_coins_count(self) -> int:
+        return len(self._similar_coin_rows())
+
+    @rx.var(cache=True)
+    def similar_page_title(self) -> str:
+        name = self.selected_coin.get("name")
+        return f"Repace — {name} Similar Coins" if name else "Repace — Similar Coins"
 
     @rx.var(cache=True)
     def has_similar_coins(self) -> bool:
@@ -2732,7 +2733,7 @@ class CoinState(rx.State):
         pane_color = "#000000" if theme == "dark" else "#ffffff"
         params = {
             "symbol": symbol,
-            "interval": self.chart_interval,
+            "interval": "60",
             "theme": theme,
             "style": "1",
             "locale": "en",

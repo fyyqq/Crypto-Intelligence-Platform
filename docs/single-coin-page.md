@@ -151,13 +151,13 @@ Above the Markets section, a slider of up to 10 coins with the same use case as 
 </details>
 
 <details>
-<summary><strong>⏱️ Chart timeframe bar</strong></summary>
-
-A button bar (1m, 15m, 30m, 1H, 4H, 1D, 1W, 1M; default 1H) above the TradingView chart. It sets `CoinState.chart_interval`, which the iframe's `interval` param follows (the chart reloads). The free TradingView widget cannot be given favourite drawing tools or favourite intervals from outside: it ignores a `favorites` parameter and keeps favourites in its own origin's localStorage. A viewer can star tools (Date Range, Price Range, Horizontal Line, Long Position, …) once inside the chart and the browser remembers them; only TradingView's licensed Advanced Charts library can preset them.
-</details>
-
-<details>
 <summary><strong>📰 "&lt;Coin&gt; News" (real, targeted)</strong></summary>
 
 Real articles from `news_articles` using the AI/rule coin targeting also behind the Narrative Radar: articles tied to this exact coin first (`target_cmc_id`), then articles whose narrative is one of the coin's own categories, newest first, up to 10. Cards show the ticker and narrative badges, time, title and excerpt and open the in-app reader; "More News" opens /narrative. With no match the section says no recent news mentions the coin or its narrative. The page's `on_load` runs `NewsState.load_news`, `track_coin_news` and `watch_new_articles`.
+</details>
+
+<details>
+<summary><strong>🧭 Similar Coins: View More page</strong></summary>
+
+The Similar Coins heading row is full width with a **View More →** link (indigo, same style as "More News") that opens `/coin/[symbol]/similar`: a back link to the coin, the group name, a "N coins" badge and a 5/3/2-column grid of every coin in the same peer group, largest market cap first, using the same cards as the slider. The chart column's sections are spaced 25px apart. (The 1m–1M timeframe button bar that was briefly added above the chart was removed again; favourite drawing tools and intervals cannot be preset in the free TradingView widget.)
 </details>

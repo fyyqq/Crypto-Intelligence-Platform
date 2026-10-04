@@ -1,4 +1,4 @@
-from frontend.components.coin_detail import coin_detail_page
+from frontend.components.coin_detail import coin_detail_page, similar_coins_page_content
 from frontend.components.coin_table import coin_table
 from frontend.components.filters import filter_bar
 from frontend.components.footer import footer
@@ -12,6 +12,7 @@ from frontend.components.watchlist_table import watchlist_table
 
 __all__ = [
     "coin_detail_page",
+    "similar_coins_page_content",
     "coin_table",
     "filter_bar",
     "footer",

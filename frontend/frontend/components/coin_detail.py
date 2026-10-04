@@ -1492,7 +1492,7 @@ def _market_pairs_pagination() -> rx.Component:
     )
 
 
-def _similar_coin_card(row: rx.Var) -> rx.Component:
+def _similar_coin_card(row: rx.Var, *, in_grid: bool = False) -> rx.Component:
     return rx.link(
         rx.vstack(
             rx.hstack(
@@ -1531,7 +1531,7 @@ def _similar_coin_card(row: rx.Var) -> rx.Component:
         href="/coin/" + row["symbol"].to(str).lower(),
         underline="none",
         display="block",
-        width=["220px", "230px", "240px", "240px", "240px"],
+        width="100%" if in_grid else ["220px", "230px", "240px", "240px", "240px"],
         flex_shrink="0",
     )
 
@@ -1543,19 +1543,37 @@ def _similar_coins_section() -> rx.Component:
     return rx.cond(
         CoinState.has_similar_coins,
         rx.vstack(
-            rx.vstack(
-                rx.heading("Similar Coins", size="4"),
-                rx.text(
-                    rx.cond(
-                        CoinState.selected_coin["peer_group"] != "",
-                        CoinState.selected_coin["peer_group"],
-                        CoinState.selected_coin["primary_narrative"],
+            rx.hstack(
+                rx.vstack(
+                    rx.heading("Similar Coins", size="4"),
+                    rx.text(
+                        rx.cond(
+                            CoinState.selected_coin["peer_group"] != "",
+                            CoinState.selected_coin["peer_group"],
+                            CoinState.selected_coin["primary_narrative"],
+                        ),
+                        " · by market cap",
+                        size="1",
+                        color_scheme="gray",
                     ),
-                    " · by market cap",
-                    size="1",
-                    color_scheme="gray",
+                    spacing="0",
                 ),
-                spacing="0",
+                rx.link(
+                    rx.hstack(
+                        rx.text("View More", size="2", weight="bold"),
+                        rx.icon("arrow-right", size=14),
+                        spacing="1",
+                        align="center",
+                    ),
+                    href="/coin/" + CoinState.selected_coin["symbol"].to(str).lower() + "/similar",
+                    underline="none",
+                    # Same indigo "More News"-style link as the other sections.
+                    color_scheme="indigo",
+                ),
+                width="100%",
+                justify="between",
+                align="center",
+                wrap="wrap",
             ),
             rx.box(
                 rx.box(rx.icon("chevron-left", size=14), class_name="news-scroll-btn news-scroll-left"),
@@ -1569,6 +1587,66 @@ def _similar_coins_section() -> rx.Component:
             spacing="3",
             width="100%",
         ),
+    )
+
+
+def similar_coins_page_content() -> rx.Component:
+    """/coin/[symbol]/similar: every coin with the same use case as the open
+    coin (its peer group, see app/services/peer_groups.py), largest market cap
+    first, as the same cards the Similar Coins slider uses."""
+    coin = CoinState.selected_coin
+    return rx.box(
+        rx.cond(
+            CoinState.is_loading,
+            rx.center(rx.spinner(size="3"), padding="4em"),
+            rx.cond(
+                CoinState.selected_coin_found,
+                rx.vstack(
+                    rx.link(
+                        rx.hstack(
+                            rx.icon("arrow-left", size=14),
+                            rx.text(coin["name"], size="2", weight="bold"),
+                            spacing="1",
+                            align="center",
+                        ),
+                        href="/coin/" + coin["symbol"].to(str).lower(),
+                        underline="none",
+                        color_scheme="indigo",
+                    ),
+                    rx.flex(
+                        rx.heading(coin["name"], " Similar Coins", size="6"),
+                        rx.text(
+                            rx.cond(coin["peer_group"] != "", coin["peer_group"], coin["primary_narrative"]),
+                            " · by market cap",
+                            size="2",
+                            color_scheme="gray",
+                        ),
+                        rx.badge(CoinState.similar_coins_count, " coins", color_scheme="gray", variant="soft", size="2"),
+                        direction="column",
+                        spacing="3",
+                        align="center",
+                        text_align="center",
+                        width="100%",
+                    ),
+                    rx.cond(
+                        CoinState.similar_coins_count > 0,
+                        rx.grid(
+                            rx.foreach(CoinState.all_similar_coins, lambda r: _similar_coin_card(r, in_grid=True)),
+                            columns=rx.breakpoints(initial="2", sm="3", lg="5"),
+                            spacing="4",
+                            width="100%",
+                        ),
+                        rx.text("No similar coins found for this coin yet.", size="2", color_scheme="gray"),
+                    ),
+                    spacing="5",
+                    width="100%",
+                    align="start",
+                ),
+                _not_found(),
+            ),
+        ),
+        padding=["1em", "1em", "1.5em", "2em", "2em"],
+        width="100%",
     )
 
 
@@ -1659,30 +1737,6 @@ def _chart_placeholder(icon: rx.Component, title: str, subtitle: str = "") -> rx
     )
 
 
-_CHART_TIMEFRAMES = [("1", "1m"), ("15", "15m"), ("30", "30m"), ("60", "1H"), ("240", "4H"), ("1D", "1D"), ("1W", "1W"), ("1M", "1M")]
-
-
-def _chart_timeframes() -> rx.Component:
-    """Quick timeframe bar (1m, 15m, 30m, 1H, 4H, 1D, 1W, 1M) for the chart
-    below. Sets CoinState.chart_interval, which the iframe's src follows."""
-    return rx.hstack(
-        *[
-            rx.button(
-                label,
-                variant=rx.cond(CoinState.chart_interval == code, "solid", "soft"),
-                color_scheme=rx.cond(CoinState.chart_interval == code, "indigo", "gray"),
-                size="1",
-                on_click=CoinState.set_chart_interval(code),
-                cursor="pointer",
-            )
-            for code, label in _CHART_TIMEFRAMES
-        ],
-        spacing="1",
-        wrap="wrap",
-        width="100%",
-    )
-
-
 def _chart_column() -> rx.Component:
     coin = CoinState.selected_coin
     return rx.vstack(
@@ -1718,7 +1772,6 @@ def _chart_column() -> rx.Component:
             # sit flush left.
             width="100%",
         ),
-        _chart_timeframes(),
         rx.box(
             # This box has a genuinely definite height at every breakpoint
             # (a plain fixed value, not flex-derived), so the iframe's own
@@ -1809,6 +1862,9 @@ def _chart_column() -> rx.Component:
         _similar_coins_section(),
         _market_pairs_section(),
         spacing="3",
+        # 25px between the chart column's sections, per explicit request
+        # (the Radix spacing="3" step is smaller).
+        style={"row-gap": "25px"},
         width="100%",
         align="center",
     )

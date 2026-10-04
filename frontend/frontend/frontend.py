@@ -9,6 +9,7 @@ from starlette.staticfiles import StaticFiles
 
 from frontend.components import (
     coin_detail_page,
+    similar_coins_page_content,
     coin_table,
     filter_bar,
     footer,
@@ -892,6 +893,25 @@ def coin_detail() -> rx.Component:
     )
 
 
+def similar_coins_page() -> rx.Component:
+    # /coin/[symbol]/similar — every coin with the same use case as the open coin.
+    return rx.box(
+        _header_bar(),
+        similar_coins_page_content(),
+        footer(),
+        _floating_logo(),
+        _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
+        _alert_popups(),
+        rx.script(src="/chain_pills.js"),
+        min_height="100vh",
+        width="100%",
+        display="flex",
+        flex_direction="column",
+    )
+
+
 def _placeholder_page(heading: str) -> rx.Component:
     # Blank/placeholder page for one of the header's nav links (News,
     # Narrative, Chains, Tools) — real content for each is future work, this
@@ -1098,6 +1118,12 @@ app.add_page(
         NewsState.track_coin_news,
         NewsState.watch_new_articles,
     ],
+)
+app.add_page(
+    similar_coins_page,
+    route="/coin/[symbol]/similar",
+    title=CoinState.similar_page_title,
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
 )
 app.add_page(
     news_category_page,
