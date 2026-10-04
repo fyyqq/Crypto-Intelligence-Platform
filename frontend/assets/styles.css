@@ -990,3 +990,11 @@
 .coin-row-linked { position: relative; }
 .coin-row-linked .row-link::after { content: ""; position: absolute; inset: 0; z-index: 0; }
 .coin-row-linked .row-interactive { position: relative; z-index: 1; }
+
+/* Similar Coins slider (coin page): long category badges wrap inside the card. */
+.similar-coin-badge {
+  max-width: 100%;
+  white-space: normal;
+  height: auto;
+  line-height: 1.3;
+}

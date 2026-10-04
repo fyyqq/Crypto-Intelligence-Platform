@@ -28,6 +28,7 @@ from app.models.coin import Coin
 from app.services import ai_budget
 from app.services.description_ai_service import _fetch_website_text
 from app.services.news_summary_service import _call_openrouter
+from app.services.peer_groups import PEER_GROUPS, peer_group
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +47,14 @@ _SYSTEM = (
     "'Fiat-Backed USD Stablecoin', 'Tokenized Tesla Stock', 'Solana Meme Coin'. Never use "
     "exchange listings, investors, launchpads or chain ecosystems as the category (no "
     "'Binance Alpha', 'Coinbase Ventures Portfolio', 'Solana Ecosystem'). If the current "
-    "category is still accurate, repeat it exactly. Output one line per coin: <id>|<category>"
+    "category is still accurate, repeat it exactly. Also pick the coin's peer group (coins with "
+    "the same use case, used for 'similar coins') from exactly this list: "
+    + "; ".join(PEER_GROUPS)
+    + ". Output one line per coin: <id>|<category>|<peer group>"
 )
 
-_LINE_RE = re.compile(r"^\s*(\d+)\s*\|\s*(.+?)\s*$")
+_LINE_RE = re.compile(r"^\s*(\d+)\s*\|\s*([^|]+?)\s*(?:\|\s*(.+?)\s*)?$")
+_GROUP_BY_LOWER = {g.lower(): g for g in PEER_GROUPS}
 _BAD_RE = re.compile(r"binance|coinbase|portfolio|ecosystem|listing|alpha|ventures|unknown|n/a", re.I)
 
 
@@ -98,22 +103,27 @@ def refresh_batch() -> int:
             ai_budget.mark_failed(_COOLDOWN_KEY)
             return 0
         raw, model = result
-        answers: dict[int, str] = {}
+        answers: dict[int, tuple[str, str | None]] = {}
         for line in raw.splitlines():
             m = _LINE_RE.match(line)
             if m and _valid(m.group(2).strip("'\" ")):
-                answers[int(m.group(1))] = m.group(2).strip("'\" ")
+                category = m.group(2).strip("'\" ")
+                # The AI's group if it named one from the list, else the rules'.
+                group = _GROUP_BY_LOWER.get((m.group(3) or "").strip("'\" ").lower()) or peer_group(category)
+                answers[int(m.group(1))] = (category, group)
 
         now = datetime.utcnow()
-        changed: list[tuple[str, int]] = []
+        changed: list[tuple[str, str | None, int]] = []
         for coin in coins:
-            category = answers.get(coin.cmc_id)
-            if not category:
+            answer = answers.get(coin.cmc_id)
+            if not answer:
                 continue
-            if category != coin.business_model_category:
+            category, group = answer
+            if category != coin.business_model_category or group != coin.peer_group:
                 coin.business_model_category = category
+                coin.peer_group = group
                 coin.category_source = "openrouter"
-                changed.append((category, coin.cmc_id))
+                changed.append((category, group, coin.cmc_id))
             coin.category_checked_at = now
         db.commit()
     finally:
@@ -121,7 +131,7 @@ def refresh_batch() -> int:
 
     if changed:
         conn = sqlite3.connect(_REFLEX_DB, timeout=30)
-        conn.executemany("UPDATE coin SET business_model_category = ? WHERE cmc_id = ?", changed)
+        conn.executemany("UPDATE coin SET business_model_category = ?, peer_group = ? WHERE cmc_id = ?", changed)
         conn.commit()
         conn.close()
     logger.info("coin categories: %d checked, %d changed (%s)", len(answers), len(changed), model)

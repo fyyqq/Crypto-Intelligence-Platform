@@ -55,6 +55,8 @@ class Coin(SQLModel, table=True):
     # specific than the broad CMC narrative tags (see coin_detail.py's
     # glowing category badge next to the live-chart heading).
     business_model_category: str | None = None
+    # Mirrored from app/services/peer_groups.py (Similar Coins slider).
+    peer_group: str | None = None
 
     # Mirrored from app/services/market_pairs_service.py's on-demand CEX/
     # DEX market-pair cache — top-10-CEX + top-10-DEX already-normalized

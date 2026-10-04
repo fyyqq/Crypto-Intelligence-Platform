@@ -114,6 +114,9 @@ class Coin(Base):
     # (the CATEGORY: line of the business summary, only for uncurated coins).
     category_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
     category_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Use-case peer group for the coin page's Similar Coins slider (one of
+    # app/services/peer_groups.py::PEER_GROUPS), set with the category.
+    peer_group: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
     # On-demand CEX/DEX market-pair listing cache (see
     # app/services/market_pairs_service.py) — real per-exchange price/volume

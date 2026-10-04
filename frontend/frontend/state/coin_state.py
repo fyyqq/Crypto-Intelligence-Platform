@@ -681,6 +681,9 @@ def _build_row(coin: Coin) -> dict:
         "narratives": ", ".join(names),
         "narrative_list": names,
         "primary_narrative": primary_narrative,
+        # Use-case peer group (app/services/peer_groups.py) for the coin
+        # page's Similar Coins slider.
+        "peer_group": coin.peer_group or "",
         "primary_narrative_icon": _narrative_icon(primary_narrative),
         "main_chain": main_chain,
         "other_chains_display": "\n".join(other_chains),
@@ -2238,6 +2241,34 @@ class CoinState(rx.State):
         if not matches:
             return {}
         return max(matches, key=lambda r: r["market_cap_usd"])
+
+    @rx.var(cache=True)
+    def similar_coins(self) -> list[dict]:
+        """Up to 10 coins with the same use case as the open coin (its peer
+        group — e.g. SAND -> MANA, WILD, ATLAS…), largest market cap first.
+        Coins without a peer group fall back to sharing its CMC narrative tag."""
+        coin = self.selected_coin
+        if not coin:
+            return []
+        group = coin.get("peer_group") or ""
+        narrative = coin.get("primary_narrative") or ""
+        if group:
+            match = lambda r: r.get("peer_group") == group  # noqa: E731
+        elif narrative:
+            match = lambda r: r.get("primary_narrative") == narrative  # noqa: E731
+        else:
+            return []
+        peers = [
+            self._row_with_overrides(r)
+            for r in self.all_coins
+            if r["cmc_id"] != coin["cmc_id"] and (r.get("market_cap_usd") or 0) > 0 and match(r)
+        ]
+        peers.sort(key=lambda r: r["market_cap_usd"], reverse=True)
+        return peers[:10]
+
+    @rx.var(cache=True)
+    def has_similar_coins(self) -> bool:
+        return len(self.similar_coins) > 0
 
     @rx.var(cache=True)
     def selected_coin_found(self) -> bool:

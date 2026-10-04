@@ -139,3 +139,13 @@ Per explicit request (`el-29..31`). **Narrative Radar cards** (homepage + `/narr
 Per explicit request (`el-03/05`). **Header**: the grey "Standard" plan badge under the user's name in the logged-in profile pill is removed (`frontend.py::_profile_pill`; now just the name). **Coin page** (`coin_detail.py::_sentiment_column`): Social Insights' "See More" (was an inert `#`) now opens, in a new tab, an X search built per coin by `coin_state._x_search_url` (row field `x_search_url`): `$TICKER OR <chain>:<contract>` for a token, `$TICKER OR <chain>:native` for a coin with no contract — the same query X builds when you pick the coin from its search dropdown. Verified live: `/coin/btc` -> `https://x.com/search?q=$BTC OR bitcoin:native&src=typed_query`; `/coin/pons` -> `$PONS OR robinhood:0x39dbed3a2bd333467115de45665cc57f813c4571`; unit-checked FET -> `$FET OR ethereum:0xaea4…ad85` and SOL -> `$SOL OR solana:native`. **Limits**: X's chain slugs could not be verified live (X redirects logged-out visitors to its login page), so only slugs matching the user's examples / X's own dropdown are mapped (`_X_CHAIN_SLUGS`: ethereum, solana, base, arbitrum, polygon, optimism, robinhood, avalanche); a token on any other chain (e.g. BNB Smart Chain) falls back to a plain `$TICKER` search, and a native coin uses its main-chain name as the slug (`<name>:native`). Add a slug to `_X_CHAIN_SLUGS` once confirmed in X's dropdown. Only the Social Insights link was changed; the separate "View More" link above the X posts section still goes to the coin's own X profile.
 
 </details>
+
+<details>
+<summary><strong>🧭 Similar Coins slider</strong></summary>
+
+Above the Markets section, a slider of up to 10 coins with the same use case as the open coin, largest market cap first (e.g. SAND -> MANA, VR, TLM, WILD, ATLAS; FET -> VIRTUAL, PIEVERSE, KITE). Cards show icon, name, ticker, category badge, price, 24h change and market cap, link to the coin's page, and use the homepage news slider mechanics (arrows, drag, autoplay).
+
+- **Peer groups** (`app/services/peer_groups.py`): 51 use-case groups. Each coin's business-model category maps to one group through ordered rules plus a small override list, written by Claude Code after reviewing all 1,121 category labels of the top 1,500 coins. Stored in `coins.peer_group` (Postgres + Reflex mirror) by `scripts/apply_peer_groups.py`.
+- **Kept current by OpenRouter**: the weekly category check (`coin_category_service`) also returns a peer group chosen from the fixed `PEER_GROUPS` list (rules used if it names an unknown group); new coins get one when first categorised.
+- **Fallback**: a coin without a group shows coins sharing its CMC narrative tag; with none, the section is hidden.
+</details>

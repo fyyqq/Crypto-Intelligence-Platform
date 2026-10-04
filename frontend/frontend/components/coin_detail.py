@@ -1492,6 +1492,86 @@ def _market_pairs_pagination() -> rx.Component:
     )
 
 
+def _similar_coin_card(row: rx.Var) -> rx.Component:
+    return rx.link(
+        rx.vstack(
+            rx.hstack(
+                rx.image(src=row["icon_url"], width="28px", height="28px", border_radius="50%", flex_shrink="0"),
+                rx.vstack(
+                    rx.text(row["name"], size="2", weight="bold", class_name="global-search-result-name", width="100%"),
+                    rx.text(row["symbol"], size="1", color_scheme="gray"),
+                    spacing="0",
+                    min_width="0",
+                    flex="1",
+                ),
+                spacing="2",
+                align="center",
+                width="100%",
+            ),
+            rx.cond(
+                row["has_category_badge_display"],
+                rx.badge(row["category_badge_display"], color_scheme="indigo", size="1", class_name="similar-coin-badge"),
+            ),
+            rx.spacer(),
+            rx.hstack(
+                rx.text(row["price_display"], size="2", weight="medium"),
+                rx.text(row["change_24h_display"], size="1", color=row["change_24h_color"]),
+                spacing="2",
+                align="baseline",
+            ),
+            rx.text("MCap ", row["market_cap_display"], size="1", color_scheme="gray"),
+            spacing="2",
+            align="start",
+            padding="0.85em",
+            border_radius="8px",
+            background="var(--gray-a2)",
+            height="100%",
+            color="var(--gray-12)",
+        ),
+        href="/coin/" + row["symbol"].to(str).lower(),
+        underline="none",
+        display="block",
+        width=["220px", "230px", "240px", "240px", "240px"],
+        flex_shrink="0",
+    )
+
+
+def _similar_coins_section() -> rx.Component:
+    """Top 10 coins with the same use case (peer group, see
+    app/services/peer_groups.py), same slider mechanics as the homepage news
+    strip (news-slider-* classes: drag, arrows, autoplay)."""
+    return rx.cond(
+        CoinState.has_similar_coins,
+        rx.vstack(
+            rx.vstack(
+                rx.heading("Similar Coins", size="4"),
+                rx.text(
+                    rx.cond(
+                        CoinState.selected_coin["peer_group"] != "",
+                        CoinState.selected_coin["peer_group"],
+                        CoinState.selected_coin["primary_narrative"],
+                    ),
+                    " · by market cap",
+                    size="1",
+                    color_scheme="gray",
+                ),
+                spacing="0",
+            ),
+            rx.box(
+                rx.box(rx.icon("chevron-left", size=14), class_name="news-scroll-btn news-scroll-left"),
+                rx.box(
+                    rx.foreach(CoinState.similar_coins, _similar_coin_card),
+                    class_name="news-slider-track",
+                ),
+                rx.box(rx.icon("chevron-right", size=14), class_name="news-scroll-btn news-scroll-right"),
+                class_name="news-slider-wrap",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+    )
+
+
 def _market_pairs_section() -> rx.Component:
     # Real per-exchange price/volume from CoinGecko's free API (see
     # app/services/market_pairs_service.py's module docstring — CMC's own
@@ -1701,6 +1781,7 @@ def _chart_column() -> rx.Component:
         _x_timeline_section(),
         _about_section(),
         _business_summary_section(),
+        _similar_coins_section(),
         _market_pairs_section(),
         spacing="3",
         width="100%",

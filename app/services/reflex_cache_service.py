@@ -92,6 +92,7 @@ def sync_reflex_cache() -> tuple[int, int]:
                 business_summary=old_coin.business_summary,
                 business_summary_model=old_coin.business_summary_model,
                 business_model_category=old_coin.business_model_category,
+                peer_group=old_coin.peer_group,
                 cached_market_pairs=old_coin.cached_market_pairs,
                 market_pairs_updated_at=old_coin.market_pairs_updated_at,
                 x_username=old_coin.x_username,

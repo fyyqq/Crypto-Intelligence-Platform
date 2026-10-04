@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.coin import Coin
 from app.services import ai_budget
+from app.services.peer_groups import peer_group
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +210,7 @@ def get_business_summary(db: Session, coin: Coin) -> str | None:
     if category and coin.category_source in (None, "summary"):
         coin.business_model_category = category
         coin.category_source = "summary"
+        coin.peer_group = peer_group(category)
     db.add(coin)
     db.commit()
     return fresh
