@@ -1856,6 +1856,17 @@ def _chart_column() -> rx.Component:
             # to load rather than always black.
             background=rx.color_mode_cond(light="#ffffff", dark="#000000"),
         ),
+        # Live UTC clock under the chart, right-aligned (text is filled in and
+        # ticked every second by assets/chain_pills.js).
+        rx.hstack(
+            rx.icon("clock", size=14, color="var(--gray-11)"),
+            rx.text("UTC", size="1", color_scheme="gray", weight="bold"),
+            rx.text("--:--:--", id="utc-clock", size="2", weight="medium", style={"font-variant-numeric": "tabular-nums"}),
+            spacing="2",
+            align="center",
+            justify="end",
+            width="100%",
+        ),
         _x_timeline_section(),
         _about_section(),
         _business_summary_section(),

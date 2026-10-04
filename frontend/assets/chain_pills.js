@@ -407,3 +407,19 @@
     true
   );
 })();
+
+
+// Live UTC clock (#utc-clock, under the coin page chart): ticks every second.
+(function () {
+  if (window.__utcClockInit) return;
+  window.__utcClockInit = true;
+  const pad = (n) => String(n).padStart(2, "0");
+  function tick() {
+    const el = document.getElementById("utc-clock");
+    if (!el) return;
+    const d = new Date();
+    el.textContent = pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds());
+  }
+  tick();
+  setInterval(tick, 1000);
+})();

@@ -161,3 +161,9 @@ Real articles from `news_articles` using the AI/rule coin targeting also behind 
 
 The Similar Coins heading row is full width with a **View More →** link (indigo, same style as "More News") that opens `/coin/[symbol]/similar`: a back link to the coin, the group name, a "N coins" badge and a 5/3/2-column grid of every coin in the same peer group, largest market cap first, using the same cards as the slider. The chart column's sections are spaced 25px apart. (The 1m–1M timeframe button bar that was briefly added above the chart was removed again; favourite drawing tools and intervals cannot be preset in the free TradingView widget.)
 </details>
+
+<details>
+<summary><strong>🕐 UTC clock</strong></summary>
+
+A clock icon, "UTC" and a ticking HH:MM:SS sit right-aligned between the TradingView chart and the "&lt;Coin&gt; on X" section. `assets/chain_pills.js` updates `#utc-clock` every second from the viewer's device clock in UTC (no server call).
+</details>
