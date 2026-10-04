@@ -1785,6 +1785,8 @@ def _sentiment_column() -> rx.Component:
                 # robinhood:0x…") — see coin_state._x_search_url.
                 href=CoinState.selected_coin["x_search_url"],
                 is_external=True,
+                target="_blank",
+                rel="noopener noreferrer",
                 underline="none",
                 # Same color_scheme="indigo" pattern as news_feed.py's "More
                 # News" link — a hardcoded color="white" here was unreadable

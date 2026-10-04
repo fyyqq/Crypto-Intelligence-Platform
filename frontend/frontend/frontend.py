@@ -13,6 +13,7 @@ from frontend.components import (
     filter_bar,
     footer,
     global_search,
+    market_overview,
     narrative_alerts,
     narrative_page_content,
     news_detail_content,
@@ -808,6 +809,7 @@ def index() -> rx.Component:
     return rx.box(
         _header_bar(),
         rx.vstack(
+            market_overview(),
             rx.box(
                 news_feed("Cryptocurrency", NewsState.home_crypto_news, "/news/cryptocurrency"),
                 id="news-feed-section",
