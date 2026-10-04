@@ -381,3 +381,29 @@
   }
   requestAnimationFrame(frame);
 })();
+
+
+// Records a clicked header-search result (or recent entry) in the "Recent"
+// list shown when the empty search box is focused: newest first, max 5
+// distinct cmc_ids, comma-separated in localStorage (read by
+// CoinState.global_search_history_raw). Written here rather than in a Reflex
+// handler because the click navigates away and could drop the event.
+(function () {
+  if (window.__searchHistoryInit) return;
+  window.__searchHistoryInit = true;
+  const KEY = "repace_search_history";
+  document.addEventListener(
+    "click",
+    function (e) {
+      const link = e.target.closest && e.target.closest(".global-search-result-row");
+      if (!link) return;
+      const id = (link.getAttribute("data-cmc-id") || "").trim();
+      if (!/^\d+$/.test(id)) return;
+      try {
+        const old = (window.localStorage.getItem(KEY) || "").split(",").filter((x) => /^\d+$/.test(x) && x !== id);
+        window.localStorage.setItem(KEY, [id, ...old].slice(0, 5).join(","));
+      } catch (err) {}
+    },
+    true
+  );
+})();

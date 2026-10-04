@@ -1241,6 +1241,13 @@ class CoinState(rx.State):
     # the query changes so a new search always starts collapsed.
     global_search_query: str = ""
     global_search_limit: int = 5
+    # Recently opened coins from the search dropdown (newest first, max 5),
+    # comma-separated cmc_ids in the browser's localStorage so it survives the
+    # full page reloads every navigation does. The key is also written by
+    # assets/chain_pills.js on a result click (an event handler could be lost
+    # to the navigation), and shown when the empty box is focused.
+    global_search_history_raw: str = rx.LocalStorage("", name="repace_search_history")
+    global_search_focused: bool = False
 
     # Header profile-pill dropdown (frontend.py::_profile_pill) — holds the
     # dark/light mode toggle now that the header no longer has room for it
@@ -1735,6 +1742,10 @@ class CoinState(rx.State):
         self.global_search_limit = 5
 
     @rx.event
+    def focus_global_search(self):
+        self.global_search_focused = True
+
+    @rx.event
     def expand_global_search_results(self):
         self.global_search_limit += 10
 
@@ -1757,6 +1768,7 @@ class CoinState(rx.State):
         """
         self.global_search_query = ""
         self.global_search_limit = 5
+        self.global_search_focused = False
 
     @rx.event
     def profile_pill_click(self):
@@ -1773,9 +1785,10 @@ class CoinState(rx.State):
         cookie, log this browser session back in (name, account id and saved watchlist)."""
         # Search results are real links now, so the typed query isn't cleared by a
         # handler on click; drop it on the next page load instead.
-        if self.global_search_query:
+        if self.global_search_query or self.global_search_focused:
             self.global_search_query = ""
             self.global_search_limit = 5
+            self.global_search_focused = False
         if self.is_logged_in or not self.session_token:
             if self.is_logged_in and self.router.url.path.rstrip("/") in ("/login", "/signup"):
                 return rx.call_script("window.location.assign('/')")
@@ -2792,6 +2805,22 @@ class CoinState(rx.State):
             r for r in full_rows if query in r["name"].lower() or query in r["symbol"].lower()
         ]
         return sorted(matches, key=lambda r: r["market_cap_usd"], reverse=True)
+
+    @rx.var(cache=True)
+    def global_search_history(self) -> list[dict]:
+        """The last (up to) 5 coins opened from the search dropdown, newest
+        first, as live rows (price/change stay current)."""
+        ids: list[int] = []
+        for part in self.global_search_history_raw.split(","):
+            part = part.strip()
+            if part.isdigit() and int(part) not in ids:
+                ids.append(int(part))
+        by_id = {r["cmc_id"]: r for r in self.all_coins}
+        return [self._row_with_overrides(by_id[i]) for i in ids[:5] if i in by_id]
+
+    @rx.var(cache=True)
+    def global_search_has_history(self) -> bool:
+        return len(self.global_search_history) > 0
 
     @rx.var(cache=True)
     def global_search_results(self) -> list[dict]:

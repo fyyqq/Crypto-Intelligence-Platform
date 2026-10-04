@@ -43,6 +43,8 @@ def _global_search_result_row(row: rx.Var[dict]) -> rx.Component:
             width="100%",
         ),
         href="/coin/" + row["symbol"].to(str).lower(),
+        # Read by assets/chain_pills.js to record the click in the history.
+        custom_attrs={"data-cmc-id": row["cmc_id"].to(str)},
         underline="none",
         color="inherit",
         display="block",
@@ -98,10 +100,23 @@ def _global_search_articles_section() -> rx.Component:
     )
 
 
+def _global_search_history_section() -> rx.Component:
+    return rx.box(
+        rx.text("Recent", size="1", weight="bold", color_scheme="gray", class_name="global-search-section-label"),
+        rx.foreach(CoinState.global_search_history, _global_search_result_row),
+    )
+
+
 def _global_search_dropdown() -> rx.Component:
     return rx.box(
-        _global_search_coin_section(),
-        _global_search_articles_section(),
+        rx.cond(
+            CoinState.global_search_query == "",
+            _global_search_history_section(),
+            rx.fragment(
+                _global_search_coin_section(),
+                _global_search_articles_section(),
+            ),
+        ),
         class_name="global-search-dropdown",
     )
 
@@ -119,6 +134,7 @@ def global_search() -> rx.Component:
             rx.el.input(
                 value=CoinState.global_search_query,
                 on_change=CoinState.set_global_search_query,
+                on_focus=CoinState.focus_global_search,
                 placeholder="Search",
                 id="global-search-input-field",
                 class_name="global-search-input",
@@ -143,7 +159,8 @@ def global_search() -> rx.Component:
             ),
         ),
         rx.cond(
-            CoinState.global_search_query != "",
+            (CoinState.global_search_query != "")
+            | (CoinState.global_search_focused & CoinState.global_search_has_history),
             _global_search_dropdown(),
             rx.fragment(),
         ),
