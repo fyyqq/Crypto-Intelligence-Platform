@@ -1185,7 +1185,13 @@ app.add_page(
 app.add_page(
     narrative_page,
     route="/narrative",
-    title="Repace — Narrative Radar",
+    title=NewsState.narrative_page_title,
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, NewsState.watch_new_articles],
+)
+app.add_page(
+    narrative_page,
+    route="/narrative/[narrative_slug]",
+    title=NewsState.narrative_page_title,
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, NewsState.watch_new_articles],
 )
 app.add_page(

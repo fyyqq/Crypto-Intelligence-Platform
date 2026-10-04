@@ -459,6 +459,10 @@ def _build_article_row(row: dict) -> dict:
         # AI-picked coin + narrative (app/services/news_targeting_service.py).
         "target_symbol": row.get("target_symbol") or "",
         "target_narrative": (row.get("target_narrative") or "").upper(),
+        # Original-case label and URL slug ("AI Agents" -> "ai-agents") for
+        # the /narrative/<slug> category pages.
+        "target_narrative_label": row.get("target_narrative") or "",
+        "narrative_slug": _slugify(row.get("target_narrative") or "") if row.get("target_narrative") else "",
         "has_target": bool(row.get("target_symbol")),
         "target_cmc_id": row.get("target_cmc_id") or 0,
         # Peer group the story is shared with (app/services/news_category.py),
@@ -1075,12 +1079,25 @@ class NewsState(rx.State):
     @rx.var(cache=True)
     def narrative_view(self) -> dict:
         """/narrative: every AI-targeted Cryptocurrency article, newest first,
-        _VIEW_ALL_LIMIT (100) per page."""
+        _VIEW_ALL_LIMIT (100) per page. On /narrative/[narrative_slug] only the
+        articles of that category (their narrative label or shared peer group
+        slugs to it); `label` is then the category's display name."""
+        slug = (self.narrative_slug or "").strip().lower()
         articles = [a for a in self._all_articles if a["news_type"] == "Cryptocurrency" and a["has_target"]]
+        label = ""
+        if slug:
+            articles = [a for a in articles if a["narrative_slug"] == slug or _slugify(a["target_group"]) == slug]
+            label = next(
+                (a["target_narrative_label"] for a in articles if a["narrative_slug"] == slug),
+                "",
+            ) or next((a["target_group"] for a in articles if _slugify(a["target_group"]) == slug), "")
+            label = label or slug.replace("-", " ").title()
         total_pages = max(1, -(-len(articles) // _VIEW_ALL_LIMIT))
         page = max(1, min(self.narrative_page, total_pages))
         start = (page - 1) * _VIEW_ALL_LIMIT
         return {
+            "has_slug": bool(slug),
+            "label": label,
             "article_count": len(articles),
             "range_start": start + 1 if articles else 0,
             "range_end": min(start + _VIEW_ALL_LIMIT, len(articles)),
@@ -1089,6 +1106,11 @@ class NewsState(rx.State):
             "has_pagination": total_pages > 1,
             "articles": articles[start : start + _VIEW_ALL_LIMIT],
         }
+
+    @rx.var(cache=True)
+    def narrative_page_title(self) -> str:
+        label = self.narrative_view["label"]
+        return f"Repace — {label}" if label else "Repace — Narrative Radar"
 
     @rx.event
     def reset_narrative_page(self):
@@ -1124,6 +1146,7 @@ class NewsState(rx.State):
     coin_news_cmc_id: int = 0
     coin_news_symbol: str = ""
     coin_news_group: str = ""
+    coin_news_narrative: str = ""
 
     @rx.event
     async def track_coin_news(self):
@@ -1136,6 +1159,7 @@ class NewsState(rx.State):
         self.coin_news_cmc_id = int(coin.get("cmc_id") or 0)
         self.coin_news_symbol = coin.get("symbol") or ""
         self.coin_news_group = coin.get("peer_group") or ""
+        self.coin_news_narrative = coin.get("primary_narrative") or ""
 
     @rx.var(cache=True)
     def coin_news(self) -> list[dict]:
@@ -1156,6 +1180,63 @@ class NewsState(rx.State):
             elif self.coin_news_group and article["target_group"] == self.coin_news_group:
                 same_group.append({**article, "target_symbol": self.coin_news_symbol})
         return (mine + same_group)[:10]
+
+    @rx.var(cache=True)
+    def coin_news_category_url(self) -> str:
+        """The coin's own news-category page: /narrative/<its peer group>
+        (e.g. /narrative/ai-agents), or its main narrative when it has no
+        peer group."""
+        slug = _slugify(self.coin_news_group or self.coin_news_narrative) if (self.coin_news_group or self.coin_news_narrative) else ""
+        return f"/narrative/{slug}" if slug else "/narrative"
+
+    def _coin_related_articles(self) -> list[dict]:
+        """Every targeted article tied to the open coin or to its category,
+        newest first (coin_news is the first 10 of these)."""
+        if not self.coin_news_cmc_id:
+            return []
+        group_slug = _slugify(self.coin_news_group) if self.coin_news_group else ""
+        return [
+            a for a in self._all_articles
+            if a["has_target"]
+            and (
+                a["target_cmc_id"] == self.coin_news_cmc_id
+                or (group_slug and (a["narrative_slug"] == group_slug or _slugify(a["target_group"]) == group_slug))
+            )
+        ]
+
+    @rx.var(cache=True)
+    def coin_related_categories(self) -> list[dict]:
+        """Slider 1 above the coin's news: the news categories this coin's
+        stories fall under (most stories first), each linking to its
+        /narrative/<slug> page. The coin's own category is always first."""
+        counts: dict[str, int] = {}
+        labels: dict[str, str] = {}
+        for article in self._coin_related_articles():
+            slug = article["narrative_slug"]
+            if not slug:
+                continue
+            counts[slug] = counts.get(slug, 0) + 1
+            labels.setdefault(slug, article["target_narrative_label"])
+        own = _slugify(self.coin_news_group) if self.coin_news_group else ""
+        order = sorted(counts, key=lambda k: (k != own, -counts[k], k))[:12]
+        return [{"label": labels[k], "url": f"/narrative/{k}"} for k in order]
+
+    @rx.var(cache=True)
+    def coin_related_coins(self) -> list[dict]:
+        """Slider 2: the coins those category stories were about (the coin
+        the radar tagged on each story), most mentioned first, each linking to
+        its coin page. The open coin itself is left out."""
+        counts: dict[str, int] = {}
+        for article in self._coin_related_articles():
+            symbol = article["target_symbol"]
+            if symbol and article["target_cmc_id"] != self.coin_news_cmc_id:
+                counts[symbol] = counts.get(symbol, 0) + 1
+        order = sorted(counts, key=lambda k: (-counts[k], k))[:15]
+        return [{"symbol": k, "url": f"/coin/{k.lower()}"} for k in order]
+
+    @rx.var(cache=True)
+    def has_coin_related_pills(self) -> bool:
+        return len(self.coin_related_categories) > 0 or len(self.coin_related_coins) > 0
 
     @rx.var(cache=True)
     def has_coin_news(self) -> bool:

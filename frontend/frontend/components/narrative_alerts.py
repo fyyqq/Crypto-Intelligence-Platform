@@ -115,11 +115,19 @@ def narrative_page_content() -> rx.Component:
     view = NewsState.narrative_view
     return rx.vstack(
         rx.flex(
-            rx.heading("Narrative Radar", size="6"),
+            rx.heading(rx.cond(view["has_slug"], view["label"], "Narrative Radar"), size="6"),
             rx.text(
-                "Crypto news with the coin and narrative each story moves, picked by AI.",
+                rx.cond(
+                    view["has_slug"],
+                    "Crypto news in this category, with the coin each story moves, picked by AI.",
+                    "Crypto news with the coin and narrative each story moves, picked by AI.",
+                ),
                 size="2",
                 color_scheme="gray",
+            ),
+            rx.cond(
+                view["has_slug"],
+                rx.link(rx.text("← All narratives", size="2"), href="/narrative", underline="none", color_scheme="indigo"),
             ),
             rx.badge(view["article_count"], " articles", color_scheme="gray", variant="soft", size="2"),
             direction="column",

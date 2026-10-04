@@ -2081,15 +2081,74 @@ def _coin_news_empty() -> rx.Component:
     )
 
 
+def _related_category_pill(item: rx.Var) -> rx.Component:
+    # Same orange as a news card's category badge; a real link to
+    # /narrative/<category>.
+    return rx.link(
+        rx.text(item["label"], size="1"),
+        href=item["url"],
+        underline="none",
+        class_name="narrative-pill related-pill-category",
+    )
+
+
+def _related_coin_pill(item: rx.Var) -> rx.Component:
+    # Same indigo as a news card's ticker badge; links to the coin page.
+    return rx.link(
+        rx.text(item["symbol"], size="1", weight="bold"),
+        href=item["url"],
+        underline="none",
+        class_name="narrative-pill related-pill-ticker",
+    )
+
+
+def _related_slider(title: str, pills: rx.Component) -> rx.Component:
+    # Same pill slider (arrows, drag scroll) as the /news source filter.
+    return rx.vstack(
+        rx.text(title, size="1", color_scheme="gray", weight="bold"),
+        rx.box(
+            rx.box(rx.icon("chevron-left", size=12), class_name="narrative-scroll-btn narrative-scroll-left"),
+            rx.box(pills, class_name="narrative-pills-track"),
+            rx.box(rx.icon("chevron-right", size=12), class_name="narrative-scroll-btn narrative-scroll-right"),
+            class_name="narrative-pills-wrap",
+        ),
+        spacing="2",
+        width="100%",
+        align_items="stretch",
+    )
+
+
+def _related_pills() -> rx.Component:
+    """Two sliders above the coin's news: its news categories and the coins
+    those stories were about."""
+    return rx.cond(
+        NewsState.has_coin_related_pills,
+        rx.vstack(
+            rx.cond(
+                NewsState.coin_related_categories.length() > 0,
+                _related_slider("NEWS CATEGORIES", rx.foreach(NewsState.coin_related_categories, _related_category_pill)),
+            ),
+            rx.cond(
+                NewsState.coin_related_coins.length() > 0,
+                _related_slider("COINS IN THESE STORIES", rx.foreach(NewsState.coin_related_coins, _related_coin_pill)),
+            ),
+            spacing="3",
+            width="100%",
+            align_items="stretch",
+        ),
+    )
+
+
 def _targeted_news_section() -> rx.Component:
     coin = CoinState.selected_coin
     return rx.vstack(
+        _related_pills(),
         rx.text("TARGETED NARRATIVE NEWS", size="1", color_scheme="gray", weight="bold"),
         rx.hstack(
             rx.heading(coin["name"], " News", size="5"),
             rx.link(
-                rx.hstack(rx.text("More News", size="2", weight="bold"), rx.icon("arrow-right", size=14), spacing="1", align="center"),
-                href="/narrative",
+                rx.hstack(rx.text("Related News", size="2", weight="bold"), rx.icon("arrow-right", size=14), spacing="1", align="center"),
+                href=NewsState.coin_news_category_url,
                 underline="none",
                 # Same color_scheme="indigo" pattern as news_feed.py's own
                 # "More News" link on the homepage.
