@@ -23,3 +23,7 @@ This folder, the matching [Notion pages](https://app.notion.com/p/3e1143f8052780
 | Component | Renders on |
 |---|---|
 | [Global Components](./global-components.md) | Every page above — header/navbar, footer, floating logo, profile menu, global search |
+
+## Archive
+
+- [CHANGELOG.md](CHANGELOG.md): the full dated history formerly kept in CLAUDE.md (historical, partly superseded; not loaded into Claude context).
