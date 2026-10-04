@@ -530,28 +530,34 @@ def _watchlist_button() -> rx.Component:
 def _watchlist_popup_row(row: rx.Var[dict]) -> rx.Component:
     # Same layout as the header search results (global_search.py): icon,
     # name + ticker, price over 24h change. The price here is live — see
-    # CoinState.watchlist_live_loop.
-    return rx.hstack(
-        rx.image(src=row["icon_url"], width="22px", height="22px", border_radius="50%", flex_shrink="0"),
+    # CoinState.watchlist_live_loop. A real <a href> to the coin page.
+    return rx.link(
         rx.hstack(
-            rx.text(row["name"], size="2", weight="bold", class_name="global-search-result-name"),
-            rx.text(row["symbol"], size="2", color_scheme="gray", flex_shrink="0"),
-            spacing="1",
+            rx.image(src=row["icon_url"], width="22px", height="22px", border_radius="50%", flex_shrink="0"),
+            rx.hstack(
+                rx.text(row["name"], size="2", weight="bold", class_name="global-search-result-name"),
+                rx.text(row["symbol"], size="2", color_scheme="gray", flex_shrink="0"),
+                spacing="1",
+                align="center",
+                min_width="0",
+                flex="1",
+            ),
+            rx.vstack(
+                rx.text(row["price_display"], size="2", weight="medium"),
+                rx.text(row["change_24h_display"], size="1", color=row["change_24h_color"]),
+                spacing="0",
+                align="end",
+                flex_shrink="0",
+            ),
+            spacing="2",
             align="center",
-            min_width="0",
-            flex="1",
+            width="100%",
         ),
-        rx.vstack(
-            rx.text(row["price_display"], size="2", weight="medium"),
-            rx.text(row["change_24h_display"], size="1", color=row["change_24h_color"]),
-            spacing="0",
-            align="end",
-            flex_shrink="0",
-        ),
-        spacing="2",
-        align="center",
+        href="/coin/" + row["symbol"].to(str).lower(),
+        underline="none",
+        color="inherit",
+        display="block",
         width="100%",
-        on_click=CoinState.go_to_coin_from_search(row["symbol"]),
         class_name="global-search-result-row",
     )
 

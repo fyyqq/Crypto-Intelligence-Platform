@@ -982,3 +982,11 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+
+/* Coin table rows: the name is a real <a href>; its ::after stretches over the
+   whole row so the entire row is the link (middle-click / open-in-new-tab work).
+   Anything interactive inside the row (star, chain dropdown) sits above it. */
+.coin-row-linked { position: relative; }
+.coin-row-linked .row-link::after { content: ""; position: absolute; inset: 0; z-index: 0; }
+.coin-row-linked .row-interactive { position: relative; z-index: 1; }

@@ -16,6 +16,7 @@ from frontend.components.coin_table import (
     _STICKY_HEADER_STYLE,
     _change_cell,
     _chain_badge,
+    _name_link,
     _narrative_badge,
     _trend_cell,
 )
@@ -46,18 +47,7 @@ def _row(row: dict) -> rx.Component:
         rx.table.cell(row["rank"], vertical_align="middle"),
         rx.table.cell(
             rx.vstack(
-                rx.hstack(
-                    rx.image(
-                        src=row["icon_url"],
-                        width="22px",
-                        height="22px",
-                        border_radius="50%",
-                    ),
-                    rx.text(row["name"], weight="bold"),
-                    rx.text(row["symbol"], color_scheme="gray"),
-                    spacing="2",
-                    align="center",
-                ),
+                _name_link(row),
                 _narrative_badge(row),
                 _chain_badge(row),
                 spacing="2",
@@ -73,7 +63,7 @@ def _row(row: dict) -> rx.Component:
         _change_cell(row["change_7d_display"], row["change_7d_color"], display=_COL_FROM_SM),
         _trend_cell(row["trend_24h_data"], row["trend_24h_color"], row["trend_24h_shine"], display=_COL_FROM_LG),
         _trend_cell(row["trend_7d_data"], row["trend_7d_color"], row["trend_7d_shine"], display=_COL_FROM_LG),
-        on_click=CoinState.go_to_coin(row["symbol"]),
+        class_name="coin-row-linked",
         cursor="pointer",
         _hover={"background_color": "var(--gray-a3)"},
     )

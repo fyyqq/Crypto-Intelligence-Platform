@@ -192,9 +192,17 @@ def _chain_badge(row: dict) -> rx.Component:
           ),
           on_click=rx.stop_propagation,
           display="inline-flex",
+          class_name="row-interactive",
         ),
         rx.badge(chain_label, variant="surface", size="1", color_scheme="gray"),
     )
+
+
+def coin_href(row) -> rx.Var:
+    """The coin page's real URL ("/coin/btc") — every coin row/result links
+    here with a plain <a href>, not a click handler, so middle-click, Ctrl/Cmd-
+    click and "open in new tab" work."""
+    return "/coin/" + row["symbol"].to(str).lower()
 
 
 def _watchlist_star_cell(row: dict) -> rx.Component:
@@ -212,6 +220,25 @@ def _watchlist_star_cell(row: dict) -> rx.Component:
         ),
         on_click=[CoinState.toggle_watchlist(row["cmc_id"]), rx.stop_propagation],
         vertical_align="middle",
+        class_name="row-interactive",
+    )
+
+
+def _name_link(row: dict) -> rx.Component:
+    """Icon + name + ticker as a real link; its ::after stretches over the
+    whole row (assets/styles.css .coin-row-linked) so the entire row is the link."""
+    return rx.link(
+        rx.hstack(
+            rx.image(src=row["icon_url"], width="22px", height="22px", border_radius="50%"),
+            rx.text(row["name"], weight="bold"),
+            rx.text(row["symbol"], color_scheme="gray"),
+            spacing="2",
+            align="center",
+        ),
+        href=coin_href(row),
+        underline="none",
+        color="inherit",
+        class_name="row-link",
     )
 
 
@@ -221,18 +248,7 @@ def _row(row: dict) -> rx.Component:
         rx.table.cell(row["rank"], vertical_align="middle"),
         rx.table.cell(
             rx.vstack(
-                rx.hstack(
-                    rx.image(
-                        src=row["icon_url"],
-                        width="22px",
-                        height="22px",
-                        border_radius="50%",
-                    ),
-                    rx.text(row["name"], weight="bold"),
-                    rx.text(row["symbol"], color_scheme="gray"),
-                    spacing="2",
-                    align="center",
-                ),
+                _name_link(row),
                 _narrative_badge(row),
                 _chain_badge(row),
                 spacing="2",
@@ -248,7 +264,7 @@ def _row(row: dict) -> rx.Component:
         _change_cell(row["change_7d_display"], row["change_7d_color"], display=_COL_FROM_SM),
         _trend_cell(row["trend_24h_data"], row["trend_24h_color"], row["trend_24h_shine"], display=_COL_FROM_LG),
         _trend_cell(row["trend_7d_data"], row["trend_7d_color"], row["trend_7d_shine"], display=_COL_FROM_LG),
-        on_click=CoinState.go_to_coin(row["symbol"]),
+        class_name="coin-row-linked",
         cursor="pointer",
         _hover={"background_color": "var(--gray-a3)"},
     )

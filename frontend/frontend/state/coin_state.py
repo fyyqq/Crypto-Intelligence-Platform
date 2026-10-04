@@ -1748,6 +1748,11 @@ class CoinState(rx.State):
     async def restore_session(self):
         """Runs first on every page load: if the browser sent a valid 'stay logged in'
         cookie, log this browser session back in (name, account id and saved watchlist)."""
+        # Search results are real links now, so the typed query isn't cleared by a
+        # handler on click; drop it on the next page load instead.
+        if self.global_search_query:
+            self.global_search_query = ""
+            self.global_search_limit = 5
         if self.is_logged_in or not self.session_token:
             if self.is_logged_in and self.router.url.path.rstrip("/") in ("/login", "/signup"):
                 return rx.call_script("window.location.assign('/')")

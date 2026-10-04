@@ -12,39 +12,41 @@ from frontend.state import CoinState
 
 
 def _global_search_result_row(row: rx.Var[dict]) -> rx.Component:
-    return rx.hstack(
-        rx.image(src=row["icon_url"], width="22px", height="22px", border_radius="50%", flex_shrink="0"),
-        # name+ticker share a truncating group (min_width=0 lets a flex
-        # child shrink below its content size at all, and the name itself
-        # gets the ellipsis) so a long name (e.g. "Artificial
-        # Superintelligence Alliance") never wraps onto its own line and
-        # drags the ticker down with it — previously that wrap made the
-        # ticker land alone on a second line, reading as centered instead
-        # of pinned to the row's left side.
+    # A real <a href> to the coin page (middle-click / new tab work); the
+    # stale search text is cleared on the next page load (restore_session).
+    return rx.link(
         rx.hstack(
-            rx.text(row["name"], size="2", weight="bold", class_name="global-search-result-name"),
-            rx.text(row["symbol"], size="2", color_scheme="gray", flex_shrink="0"),
-            spacing="1",
+            rx.image(src=row["icon_url"], width="22px", height="22px", border_radius="50%", flex_shrink="0"),
+            # name+ticker share a truncating group (min_width=0 lets a flex
+            # child shrink below its content size at all, and the name itself
+            # gets the ellipsis) so a long name never wraps the ticker onto
+            # its own line.
+            rx.hstack(
+                rx.text(row["name"], size="2", weight="bold", class_name="global-search-result-name"),
+                rx.text(row["symbol"], size="2", color_scheme="gray", flex_shrink="0"),
+                spacing="1",
+                align="center",
+                min_width="0",
+                flex="1",
+            ),
+            # Real price (already-synced row data, no extra fetch) over a
+            # smaller 24h-change line, right-aligned.
+            rx.vstack(
+                rx.text(row["price_display"], size="2", weight="medium"),
+                rx.text(row["change_24h_display"], size="1", color=row["change_24h_color"]),
+                spacing="0",
+                align="end",
+                flex_shrink="0",
+            ),
+            spacing="2",
             align="center",
-            min_width="0",
-            flex="1",
+            width="100%",
         ),
-        # Real price (from this coin's already-synced row — see
-        # CoinState.global_search_matches, which reads all_coins +
-        # coin_overrides, the same data live_sync_loop/detail_sync_loop
-        # already keep fresh; no extra fetch triggered by typing a query)
-        # stacked above a smaller 24h-change line, right-aligned.
-        rx.vstack(
-            rx.text(row["price_display"], size="2", weight="medium"),
-            rx.text(row["change_24h_display"], size="1", color=row["change_24h_color"]),
-            spacing="0",
-            align="end",
-            flex_shrink="0",
-        ),
-        spacing="2",
-        align="center",
+        href="/coin/" + row["symbol"].to(str).lower(),
+        underline="none",
+        color="inherit",
+        display="block",
         width="100%",
-        on_click=CoinState.go_to_coin_from_search(row["symbol"]),
         class_name="global-search-result-row",
     )
 
