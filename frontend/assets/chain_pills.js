@@ -414,11 +414,14 @@
   if (window.__utcClockInit) return;
   window.__utcClockInit = true;
   const pad = (n) => String(n).padStart(2, "0");
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   function tick() {
     const el = document.getElementById("utc-clock");
     if (!el) return;
     const d = new Date();
-    el.textContent = pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds());
+    el.textContent =
+      d.getUTCDate() + " " + MONTHS[d.getUTCMonth()] + " " + d.getUTCFullYear() + " " +
+      pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds());
   }
   tick();
   setInterval(tick, 1000);
