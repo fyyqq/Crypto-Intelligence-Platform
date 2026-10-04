@@ -257,50 +257,75 @@ def get_altcoin_season(source: str) -> dict:
 
 
 # ---- Rainbow chart ---------------------------------------------------------
-_GENESIS = {"BTC": date(2009, 1, 3), "ETH": date(2015, 7, 30)}
-# Bottom -> top.
+# Bottom -> top. Palette and labels follow the common Bitcoin Rainbow charts.
 RAINBOW_BANDS = [
-    ("Fire sale", "#3b4cc0"),
-    ("BUY!", "#2f7ed8"),
-    ("Accumulate", "#1fa187"),
-    ("Still cheap", "#4cae4f"),
-    ("HODL!", "#a8c93a"),
-    ("Is this a bubble?", "#f2d03b"),
-    ("FOMO intensifies", "#f6a21e"),
-    ("Sell. Seriously, SELL!", "#ee6a1f"),
-    ("Maximum bubble territory", "#d62828"),
+    ("Fire sale", "#4a6fc0"),
+    ("BUY!", "#5f9ea0"),
+    ("Accumulate", "#7ebf7e"),
+    ("Still cheap", "#b5d686"),
+    ("HODL!", "#f6e58d"),
+    ("Is this a bubble?", "#ebb35e"),
+    ("FOMO intensifies", "#e08a4a"),
+    ("Sell. Seriously, SELL!", "#d1522e"),
+    ("Maximum bubble territory", "#b5382b"),
 ]
-_BAND_STEP = 0.8  # in residual standard deviations
+_BTC_GENESIS = date(2009, 1, 9)
+_ETH_GENESIS = date(2015, 7, 30)
+# Bitcoin: the widely used logarithmic-growth curve for the centre of the
+# rainbow, log10(price) = 2.66167 * ln(days since 2009-01-09) - 17.9183, with
+# the nine bands spanning +/-0.6 decades around it (matches Blockchaincenter /
+# Coinglass-style charts). Ethereum has no such standard curve, so its centre
+# is a least-squares fit of its own history and its bands span the historical
+# envelope of the price around that fit.
+_BTC_SLOPE, _BTC_ICPT, _BTC_HALF_WIDTH = 2.66167, -17.9183, 0.6
+_FUTURE_DAYS = 580  # how far past today the bands are drawn
+
+
+def _history_coinmetrics(asset: str) -> list[tuple[int, float]]:
+    data = _get(
+        "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
+        f"?assets={asset.lower()}&metrics=PriceUSD&frequency=1d&page_size=10000&start_time=2010-01-01"
+    )
+    try:
+        rows = data["data"]
+        return [
+            (int(datetime.fromisoformat(r["time"][:19]).replace(tzinfo=timezone.utc).timestamp()), float(r["PriceUSD"]))
+            for r in rows
+            if r.get("PriceUSD") and float(r["PriceUSD"]) > 0
+        ]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ToolsDataError("Unexpected price-history response.") from exc
+
+
+def _history_yahoo(asset: str) -> list[tuple[int, float]]:
+    start = int(datetime(2010, 1, 1, tzinfo=timezone.utc).timestamp())
+    data = _get(
+        f"https://query1.finance.yahoo.com/v8/finance/chart/{asset}-USD"
+        f"?period1={start}&period2={int(time.time())}&interval=1d"
+    )
+    try:
+        res = data["chart"]["result"][0]
+        closes = res["indicators"]["quote"][0]["close"]
+        stamps = res["timestamp"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ToolsDataError("Unexpected price-history response.") from exc
+    return [(t, c) for t, c in zip(stamps, closes) if c and c > 0]
 
 
 def _history(asset: str) -> list[tuple[int, float]]:
+    """Daily USD closes. CoinMetrics' free community API has the full history
+    (BTC from 2010-07, ETH from 2015-08); Yahoo (BTC from 2014) is the fallback."""
+
     def load():
-        start = int(datetime(2010, 1, 1, tzinfo=timezone.utc).timestamp())
-        data = _get(
-            f"https://query1.finance.yahoo.com/v8/finance/chart/{asset}-USD"
-            f"?period1={start}&period2={int(time.time())}&interval=1d"
-        )
         try:
-            res = data["chart"]["result"][0]
-            closes = res["indicators"]["quote"][0]["close"]
-            stamps = res["timestamp"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise ToolsDataError("Unexpected price-history response.") from exc
-        return [(t, c) for t, c in zip(stamps, closes) if c and c > 0]
+            pts = _history_coinmetrics(asset)
+            if len(pts) > 365:
+                return pts
+        except ToolsDataError:
+            pass
+        return _history_yahoo(asset)
 
     return _cached(f"hist:{asset}", 6 * 3600, load)
-
-
-def _fit(points: list[tuple[int, float]], genesis: date):
-    g = datetime(genesis.year, genesis.month, genesis.day, tzinfo=timezone.utc).timestamp()
-    xs = [math.log((t - g) / 86400) for t, _ in points]
-    ys = [math.log10(c) for _, c in points]
-    n = len(xs)
-    mx, my = sum(xs) / n, sum(ys) / n
-    slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
-    icpt = my - slope * mx
-    sigma = math.sqrt(sum((y - (slope * x + icpt)) ** 2 for x, y in zip(xs, ys)) / n)
-    return g, slope, icpt, sigma
 
 
 def _fmt_price(v: float) -> str:
@@ -311,23 +336,44 @@ def _fmt_price(v: float) -> str:
     return f"${v:g}"
 
 
-def _build_rainbow(asset: str) -> dict:
-    pts = _history(asset)
-    if len(pts) < 365:
-        raise ToolsDataError("Not enough price history to draw the chart.")
-    g, slope, icpt, sigma = _fit(pts, _GENESIS[asset])
-    step = _BAND_STEP * sigma
+def _rainbow_model(asset: str, pts: list[tuple[int, float]]):
+    """Returns (center(t), band_bottom_offset, band_top_offset) in log10 units."""
+    genesis = _BTC_GENESIS if asset == "BTC" else _ETH_GENESIS
+    g = datetime(genesis.year, genesis.month, genesis.day, tzinfo=timezone.utc).timestamp()
+    if asset == "BTC":
+        slope, icpt = _BTC_SLOPE, _BTC_ICPT
+        lo, hi = -_BTC_HALF_WIDTH, _BTC_HALF_WIDTH
+    else:
+        xs = [math.log((t - g) / 86400) for t, _ in pts if t > g]
+        ys = [math.log10(c) for t, c in pts if t > g]
+        n = len(xs)
+        mx, my = sum(xs) / n, sum(ys) / n
+        slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+        icpt = my - slope * mx
+        res = [y - (slope * x + icpt) for x, y in zip(xs, ys)]
+        lo, hi = min(res) - 0.02, max(res) + 0.02
 
     def center(t: float) -> float:
         return slope * math.log((t - g) / 86400) + icpt
 
+    return center, lo, hi
+
+
+def _build_rainbow(asset: str) -> dict:
+    pts = _history(asset)
+    if len(pts) < 365:
+        raise ToolsDataError("Not enough price history to draw the chart.")
+    center, lo, hi = _rainbow_model(asset, pts)
+    step = (hi - lo) / len(RAINBOW_BANDS)
+
     t0 = pts[0][0]
-    t1 = int(time.time()) + 365 * 86400
-    def edge(t, k):  # k from 0..9 -> bottom of band 0 ... top of band 8
-        return center(t) + (k - 4.5) * step
+    t1 = int(time.time()) + _FUTURE_DAYS * 86400
+
+    def edge(t, k):  # k = 0 (bottom of lowest band) .. 9 (top of highest band)
+        return center(t) + lo + k * step
 
     ymin_v = min(min(math.log10(c) for _, c in pts), edge(t0, 0))
-    ymax_v = max(max(math.log10(c) for _, c in pts), edge(t1, 9))
+    ymax_v = max(max(math.log10(c) for _, c in pts), edge(t1, len(RAINBOW_BANDS)))
     ymin, ymax = math.floor(ymin_v), math.ceil(ymax_v)
 
     W, H, L, R, T, B = 1000, 480, 62, 14, 14, 34
@@ -345,27 +391,25 @@ def _build_rainbow(asset: str) -> dict:
     for i, (name, color) in enumerate(RAINBOW_BANDS):
         top = [f"{px(t):.1f},{py(edge(t, i + 1)):.1f}" for t in samples]
         bot = [f"{px(t):.1f},{py(edge(t, i)):.1f}" for t in reversed(samples)]
-        parts.append(f'<polygon points="{" ".join(top + bot)}" fill="{color}" fill-opacity="0.9"/>')
-    # Grid + axes.
+        parts.append(f'<polygon points="{" ".join(top + bot)}" fill="{color}"/>')
     for e in range(ymin, ymax + 1):
         y = py(e)
         parts.append(f'<line x1="{L}" x2="{W - R}" y1="{y:.1f}" y2="{y:.1f}" stroke="var(--gray-a6)" stroke-width="1"/>')
         parts.append(f'<text x="{L - 8}" y="{y + 4:.1f}" text-anchor="end" font-size="13" fill="var(--gray-11)">{_fmt_price(10 ** e)}</text>')
-    y0 = datetime.fromtimestamp(t0, timezone.utc).year + 1
-    y1 = datetime.fromtimestamp(t1, timezone.utc).year
-    for yr in range(y0, y1 + 1):
+    y_first = datetime.fromtimestamp(t0, timezone.utc).year + 1
+    y_last = datetime.fromtimestamp(t1, timezone.utc).year
+    for yr in range(y_first, y_last + 1):
         t = int(datetime(yr, 1, 1, tzinfo=timezone.utc).timestamp())
         if t0 < t < t1:
-            x = px(t)
-            parts.append(f'<text x="{x:.1f}" y="{H - 10}" text-anchor="middle" font-size="13" fill="var(--gray-11)">{yr}</text>')
+            parts.append(f'<text x="{px(t):.1f}" y="{H - 10}" text-anchor="middle" font-size="13" fill="var(--gray-11)">{yr}</text>')
     line = " ".join(f"{px(t):.1f},{py(math.log10(c)):.1f}" for t, c in pts[::2] + [pts[-1]])
     parts.append(f'<polyline points="{line}" fill="none" stroke="#111827" stroke-width="1.8" stroke-linejoin="round"/>')
     last_t, last_c = pts[-1]
     parts.append(f'<circle cx="{px(last_t):.1f}" cy="{py(math.log10(last_c)):.1f}" r="4.5" fill="#fff" stroke="#111827" stroke-width="2"/>')
     parts.append("</svg>")
 
-    pos = (math.log10(last_c) - center(last_t)) / step + 4.5
-    idx = max(0, min(8, int(math.floor(pos))))
+    pos = (math.log10(last_c) - (center(last_t) + lo)) / step
+    idx = max(0, min(len(RAINBOW_BANDS) - 1, int(math.floor(pos))))
     return {
         "svg": "".join(parts),
         "price": f"${last_c:,.2f}",
@@ -377,7 +421,7 @@ def _build_rainbow(asset: str) -> dict:
 
 
 def get_rainbow(asset: str) -> dict:
-    if asset not in _GENESIS:
+    if asset not in ("BTC", "ETH"):
         raise ToolsDataError("Unknown asset.")
     return _cached(f"rainbow:{asset}", 6 * 3600, lambda: _build_rainbow(asset))
 

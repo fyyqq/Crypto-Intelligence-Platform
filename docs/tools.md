@@ -3,7 +3,7 @@
 **Route:** `/tools` · **Status:** Live (2026-10-05)
 **Source:** `app/services/market_tools_service.py`, `frontend/frontend/state/tools_state.py`, `frontend/frontend/components/tools_page.py`, `frontend/frontend/frontend.py::tools_page`
 
-"Market Tools": eight market-indicator widgets, each in its own card section. Two layouts: Fear & Greed and Altcoin/Bitcoin Season side by side, the rainbow chart full width, then the five TradingView embeds in a 2-column grid (1 column on phones/tablets). No horizontal overflow at 375px.
+"Market Tools": nine market-indicator sections, each in its own card section. Layout: Fear & Greed and Altcoin/Bitcoin Season side by side, the Blockchaincenter season embed and the rainbow chart full width, then the five TradingView embeds in a 2-column grid (1 column on phones/tablets). No horizontal overflow at 375px.
 
 ## Features
 
@@ -19,7 +19,12 @@ Index 0-100 = share of the top 50 coins (stablecoins, wrapped/staked/bridged tok
 
 <details><summary>BTC / ETH Rainbow Chart</summary>
 
-Drawn server-side as SVG from daily price history (Yahoo Finance chart API, free, BTC from 2014, ETH from 2017; cached 6 hours). It fits `log10(price) = a * ln(days since genesis) + b` by least squares, then draws 9 bands at +/-0.8 residual standard deviations around that line (Fire sale ... Maximum bubble territory), extended one year ahead, with the price line and a dot for today. Header shows the current price and which band it is in. BTC/ETH tabs. **Not identical to blockchaincenter's chart** (their exact bands are not public); it is a fit to the data, labelled as a guide.
+Drawn server-side as SVG from daily USD prices: **CoinMetrics' free community API** (BTC from 18 Jul 2010, ETH from Aug 2015; no key), with Yahoo Finance (BTC from 2014) as fallback; cached 6 hours. **Bitcoin** uses the widely used logarithmic-growth curve as the centre, `log10(price) = 2.66167 * ln(days since 2009-01-09) - 17.9183`, with nine bands spanning +/-0.6 decades around it (this is what Blockchaincenter/Coinglass-style charts use; an earlier version fitted its own regression on 2014+ data with wider bands and so looked different, with BTC reading "Still cheap" instead of "Fire sale"). **Ethereum** has no standard curve, so its centre is a least-squares fit of its own history and its bands span the historical envelope around that fit. The bands are extended about 1.5 years ahead; the header shows the current price and band; BTC/ETH tabs. Labels and colours follow the common rainbow charts (Fire sale ... Maximum bubble territory).
+</details>
+
+<details><summary>Altcoin / Bitcoin Season: live chart (Blockchaincenter embed)</summary>
+
+A second section below the computed one (which stays): an iframe of **blockchaincenter.net/altcoin-season-index/**, their own index with the Month and Year views, stats table and flip calendar, shown in a 560-720px scrolling card (the frame is 2000px tall so their fixed ad banner sits at the very bottom instead of over the gauge), plus an "Open blockchaincenter.net" link. It is their whole page (header and ad banner included) rather than an official widget, so it can change or add frame blocking at any time. CoinMarketCap, Coinglass and Alternative.me all send `X-Frame-Options: SAMEORIGIN` and cannot be embedded. Their figure (57 on 2026-10-04) differs from our computed index (64) because the methods differ.
 </details>
 
 <details><summary>TradingView embeds: DXY, total market cap, BTC dominance, ETH/BTC, TOTAL2</summary>
