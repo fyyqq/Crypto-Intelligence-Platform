@@ -182,7 +182,6 @@ def _profile_pill() -> rx.Component:
         rx.hstack(
             rx.vstack(
                 rx.text(CoinState.user_name, size="2", weight="bold", max_width="140px", overflow="hidden", text_overflow="ellipsis", white_space="nowrap"),
-                rx.badge("Standard", color_scheme="gray", size="1"),
                 spacing="1",
                 align="start",
                 padding_left="0.75em",

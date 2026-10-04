@@ -1781,7 +1781,10 @@ def _sentiment_column() -> rx.Component:
             rx.spacer(),
             rx.link(
                 rx.hstack(rx.text("See More", size="2"), rx.icon("arrow-right", size=14), spacing="1", align="center"),
-                href="#",
+                # X search for this coin ("$BTC OR bitcoin:native", "$PONS OR
+                # robinhood:0x…") — see coin_state._x_search_url.
+                href=CoinState.selected_coin["x_search_url"],
+                is_external=True,
                 underline="none",
                 # Same color_scheme="indigo" pattern as news_feed.py's "More
                 # News" link — a hardcoded color="white" here was unreadable

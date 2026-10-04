@@ -383,6 +383,45 @@ def _plain_price(value: float) -> str:
     return _fmt_usd(value).lstrip("$").replace(",", "")
 
 
+# X's cashtag search names a chain with a lowercase slug: "<slug>:native" for a
+# chain's own coin, "<slug>:<contract>" for a token. Verified from X's own
+# examples (bitcoin:native, ethereum:0x… for FET, robinhood:0x… for PONS); the
+# rest follow the same pattern. A chain that isn't listed here falls back to a
+# plain "$TICKER" search rather than guessing a slug X might not know.
+_X_CHAIN_SLUGS = {
+    "Ethereum": "ethereum",
+    "Solana": "solana",
+    "Base": "base",
+    "Arbitrum": "arbitrum",
+    "Polygon": "polygon",
+    "Optimism": "optimism",
+    "Robinhood Chain": "robinhood",
+    "Avalanche C-Chain": "avalanche",
+}
+
+
+def _x_search_url(symbol: str, name: str, main_chain: str, contract_address: str) -> str:
+    """Link for the coin page's Social Insights "See More": an X search for the
+    coin's cashtag OR its on-chain identity, e.g. "$BTC OR bitcoin:native" or
+    "$PONS OR robinhood:0x39db…" — the query X builds when you pick the coin
+    from its search dropdown."""
+    sym = re.sub(r"[^A-Za-z0-9]", "", symbol or "")
+    if not sym:
+        query = name or symbol or ""
+    else:
+        query = f"${sym.upper()}"
+        if contract_address:
+            slug = _X_CHAIN_SLUGS.get(main_chain)
+            if slug:
+                query += f" OR {slug}:{contract_address}"
+        else:
+            # A coin with no contract is its own chain: "<chain>:native".
+            native = re.sub(r"[^a-z0-9]", "", (main_chain or name or "").lower())
+            if native:
+                query += f" OR {native}:native"
+    return "https://x.com/search?" + urlencode({"q": query, "src": "typed_query"})
+
+
 def _fmt_alert_time(moment) -> str:
     """Kuala Lumpur wall-clock time (the app's display timezone) for alert history rows."""
     import datetime as _dt
@@ -691,6 +730,7 @@ def _build_row(coin: Coin) -> dict:
         "website_url": coin.website_url or "",
         "whitepaper_url": coin.whitepaper_url or "",
         "twitter_url": coin.twitter_url or "",
+        "x_search_url": _x_search_url(coin.symbol, coin.name, main_chain, contract_address),
         "telegram_url": coin.telegram_url or "",
         "source_code_url": coin.source_code_url or "",
         "explorer_url": coin.explorer_url or "",
