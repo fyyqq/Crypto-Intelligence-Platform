@@ -231,12 +231,102 @@ def _parse(content: str, count: int) -> dict[int, tuple[str, str, str]]:
     return out
 
 
+_name_index: tuple[float, list] | None = None
+
+
+def _coin_name_index() -> list:
+    """[(compiled regex, cmc_id, symbol, narrative)] for the top ~400 coins by
+    market cap, matching a $CASHTAG or the full coin name (>= 4 letters).
+    Bare tickers are deliberately not matched (AI, ME, OP... are too common)."""
+    global _name_index
+    if _name_index and time.monotonic() - _name_index[0] < _MAP_TTL_SECONDS:
+        return _name_index[1]
+    db = SessionLocal()
+    try:
+        rows = db.execute(text(
+            "SELECT cmc_id, symbol, name FROM coins WHERE market_cap_usd > 0 ORDER BY market_cap_usd DESC LIMIT 400"
+        )).fetchall()
+        nmap = _narrative_map()
+        index = []
+        for cmc_id, symbol, name in rows:
+            if not re.fullmatch(r"[A-Za-z0-9]{2,12}", symbol or ""):
+                continue
+            sym = symbol.upper()
+            parts = [rf"\${re.escape(sym)}(?![A-Za-z0-9])"]
+            if len(name or "") >= 4 and re.fullmatch(r"[A-Za-z0-9 .\-]+", name):
+                parts.append(rf"(?<![A-Za-z0-9]){re.escape(name)}(?![A-Za-z0-9])")
+            nars = nmap["coins"].get(sym, {}).get("narratives") or _coin_narratives(db, cmc_id)
+            index.append((re.compile("|".join(parts), re.I), cmc_id, sym, nars[0] if nars else ""))
+    finally:
+        db.close()
+    _name_index = (time.monotonic(), index)
+    return index
+
+
+def target_by_rules(limit: int = 200) -> int:
+    """No-AI fallback for when OpenRouter is unavailable (rate limit / outage):
+    an untargeted recent article that explicitly names a coin ($CASHTAG or its
+    full name) gets that coin right away (target_model 'rule'). Articles with
+    no explicit mention are left untouched for the AI. Returns hits."""
+    ensure_columns()
+    db = SessionLocal()
+    try:
+        rows = db.execute(text(
+            "SELECT id, title, full_body_text FROM news_articles "
+            "WHERE targeted_at IS NULL AND lower(category_or_query) LIKE '%crypto%' "
+            "AND published_date >= NOW() - make_interval(hours => :h) "
+            "AND title ~ '[A-Za-z]' ORDER BY published_date DESC LIMIT :n"
+        ), {"h": _LOOKBACK_HOURS, "n": limit}).fetchall()
+        index = _coin_name_index()
+        hits = 0
+        for aid, title, body in rows:
+            blob = f"{title or ''} {(body or '')[:600]}"
+            best = None
+            for rx_, cmc_id, sym, narrative in index:  # highest market cap first
+                if rx_.search(blob):
+                    best = (cmc_id, sym, narrative)
+                    break
+            if not best:
+                continue
+            db.execute(text(
+                "UPDATE news_articles SET target_symbol = :s, target_cmc_id = :c, target_narrative = :n, "
+                "target_reason = 'names the coin', target_model = 'rule', targeted_at = NOW() WHERE id = :id"
+            ), {"s": best[1], "c": best[0], "n": best[2], "id": aid})
+            hits += 1
+        db.commit()
+        if hits:
+            logger.info("News targeting (rules): %d articles", hits)
+        return hits
+    finally:
+        db.close()
+
+
+def drain(max_batches: int = 12) -> int:
+    """Runs AI batches until nothing untargeted is left (or the AI is
+    unavailable, in which case the rule fallback handles explicit mentions).
+    Returns total articles that got a coin."""
+    total = 0
+    for _ in range(max_batches):
+        processed, hits = _target_batch()
+        total += hits
+        if processed == 0:
+            break
+    else:
+        return total
+    return total
+
+
 def target_recent_articles(limit: int = _BATCH_SIZE) -> int:
-    """Analyses up to `limit` untargeted recent Cryptocurrency articles in one
-    OpenRouter call. Returns how many got a coin."""
+    """One AI batch; returns how many got a coin (kept for callers)."""
+    return _target_batch(limit)[1]
+
+
+def _target_batch(limit: int = _BATCH_SIZE) -> tuple[int, int]:
+    """(articles_processed, hits). processed == 0 means: nothing to do, or the
+    AI is unavailable (then the rule fallback runs)."""
     ensure_columns()
     if ai_budget.in_cooldown("news-targeting"):
-        return 0
+        return 0, target_by_rules()
     db = SessionLocal()
     try:
         rows = db.execute(text(
@@ -248,7 +338,7 @@ def target_recent_articles(limit: int = _BATCH_SIZE) -> int:
     finally:
         db.close()
     if not rows:
-        return 0
+        return 0, 0
     articles = [
         {"id": r[0], "title": (r[1] or "").strip(), "body": re.sub(r"\s+", " ", r[2] or "")[:400]}
         for r in rows
@@ -263,14 +353,14 @@ def target_recent_articles(limit: int = _BATCH_SIZE) -> int:
     )
     if result is None:
         ai_budget.mark_failed("news-targeting")
-        logger.info("News targeting: AI unavailable, will retry later")
-        return 0
+        logger.info("News targeting: AI unavailable, using rules until it is back")
+        return 0, target_by_rules()
     content, model = result
     answers = _parse(content, len(articles))
     if not answers:
         ai_budget.mark_failed("news-targeting")
         logger.warning("News targeting: unparseable AI answer: %s", content[:300])
-        return 0
+        return 0, 0
     hits = 0
     db = SessionLocal()
     try:
@@ -294,4 +384,4 @@ def target_recent_articles(limit: int = _BATCH_SIZE) -> int:
     finally:
         db.close()
     logger.info("News targeting: %d/%d articles got a coin (%s)", hits, len(articles), model)
-    return hits
+    return len(articles), hits

@@ -13,8 +13,9 @@ which starts (once per process) a daemon thread that:
     On start it catches up every missed post since each group's last stored
     one, so the offline gap (up to the 30-day window) is filled.
 
-  * asks the AI to pick a target coin for a batch of recent Cryptocurrency
-    articles (app/services/news_targeting_service.py).
+  * (own thread, kicked on every page load) picks a target coin for every
+    untargeted recent Cryptocurrency article — AI in batches, plus a rule
+    fallback when the AI is unavailable (app/services/news_targeting_service.py).
 
 NewsState.watch_new_articles then shows the new rows without a reload.
 """
@@ -73,21 +74,43 @@ def _loop() -> None:
             run_news_pipeline_sync()
         except Exception:  # noqa: BLE001
             logger.exception("news pipeline catch-up failed")
-        try:
-            # AI coin pick for the homepage "Targeted Narrative + Coin" slider:
-            # one batched OpenRouter call (10 articles) per pass.
-            from app.services.news_targeting_service import target_recent_articles
-
-            target_recent_articles()
-        except Exception:  # noqa: BLE001
-            logger.exception("news targeting failed")
         time.sleep(_CHECK_INTERVAL_SECONDS)
 
 
+_target_wake = threading.Event()
+_last_kick = 0.0
+
+
+def _targeting_loop() -> None:
+    """Coin targeting for the Narrative Radar, on its own thread so it never
+    waits behind the slow RSS / Google News pull: runs at start-up, every 2
+    minutes, and whenever a page load kicks it; each run drains the whole
+    untargeted backlog (AI in batches of 10, rules if the AI is unavailable)."""
+    if str(_REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(_REPO_ROOT))
+    while True:
+        try:
+            from app.services.news_targeting_service import drain
+
+            drain()
+        except Exception:  # noqa: BLE001
+            logger.exception("news targeting failed")
+        _target_wake.wait(timeout=120)
+        _target_wake.clear()
+
+
 def ensure_running() -> None:
-    global _started
+    """Called on every /news and homepage load: starts the workers once per
+    process, and on later calls re-triggers a targeting run (at most every 20s)
+    so a refresh picks up articles that arrived while nobody was looking."""
+    global _started, _last_kick
     with _lock:
         if _started:
+            if time.monotonic() - _last_kick > 20:
+                _last_kick = time.monotonic()
+                _target_wake.set()
             return
         _started = True
+        _last_kick = time.monotonic()
     threading.Thread(target=_loop, name="news-catchup", daemon=True).start()
+    threading.Thread(target=_targeting_loop, name="news-targeting", daemon=True).start()
