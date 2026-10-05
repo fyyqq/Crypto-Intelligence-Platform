@@ -2,6 +2,7 @@ from app.models.category import Category, coin_category
 from app.models.coin import Coin
 from app.models.coin_contract import CoinContract
 from app.models.price_alert import PriceAlert
+from app.models.price_snapshot import PriceSnapshot
 from app.models.sync_log import SyncLog, SyncStatus, SyncType
 from app.models.user import User
 from app.models.user_session import UserSession
@@ -12,6 +13,7 @@ __all__ = [
     "Coin",
     "CoinContract",
     "PriceAlert",
+    "PriceSnapshot",
     "SyncLog",
     "SyncStatus",
     "SyncType",

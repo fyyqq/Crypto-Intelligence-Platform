@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
@@ -9,6 +10,9 @@ from app.models.category import Category
 from app.models.coin import Coin
 from app.models.coin_contract import CoinContract
 from app.models.sync_log import SyncLog, SyncStatus, SyncType
+from app.services.price_snapshot_service import record_snapshots
+
+logger = logging.getLogger(__name__)
 
 
 class MarketDataService:
@@ -52,6 +56,7 @@ class MarketDataService:
         try:
             coins = self.client.get_all_listings()
             count = self._upsert_coins(coins)
+            self._record_snapshots(coins)
             self._finish_log(log, SyncStatus.SUCCESS, count)
         except Exception as exc:  # noqa: BLE001 - surfaced via SyncLog
             self.db.rollback()
@@ -69,6 +74,7 @@ class MarketDataService:
         try:
             coins = self.client.get_top_listings(settings.hot_sync_top_n)
             count = self._upsert_quotes(coins)
+            self._record_snapshots(coins)
             self._finish_log(log, SyncStatus.SUCCESS, count)
         except Exception as exc:  # noqa: BLE001 - surfaced via SyncLog
             self.db.rollback()
@@ -109,6 +115,17 @@ class MarketDataService:
             self.db.rollback()
             self._finish_log(log, SyncStatus.FAILED, 0, str(exc))
         return log
+
+    def _record_snapshots(self, coins: list[dict]) -> None:
+        """Price history for /gainers-losers (price_snapshot_service). Only
+        the two scheduled syncs call this, never the view-driven sync_ids
+        (a partial, every-60s refresh would flood the table). A failure here
+        is logged and never fails the price sync itself."""
+        try:
+            record_snapshots(self.db, coins)
+        except Exception:  # noqa: BLE001
+            self.db.rollback()
+            logger.exception("price snapshot insert failed")
 
     def _start_log(self, sync_type: SyncType) -> SyncLog:
         log = SyncLog(sync_type=sync_type, status=SyncStatus.RUNNING)

@@ -24,6 +24,7 @@ Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symb
 
 - Coin pages have a "Related News" link to `/narrative/<category>`; `/narrative/[narrative_slug]` exists. (The category/coin pill sliders above the coin news were removed on request.)
 - `/tools` is live (Fear & Greed, Altcoin Season (computed; the blockchaincenter embed was removed), BTC/ETH rainbow on the standard BTC curve with CoinMetrics 2010+ history, TradingView embeds, API-key popup). Details: `docs/tools.md`.
+- Gainers & Losers (`/gainers-losers/`) in progress, step 1 of 7 done: `price_snapshot` table filled by the hourly hot sync, now run from the Reflex process (`news_catchup._hot_sync_loop`). Tests: `python -m pytest tests` (needs `requirements-dev.txt`). Details: `docs/gainers-losers.md`.
 - Telegram posts are merged into the main `/news` sections on purpose (see `telegram-news.md`).
 - The Telegram listener is not auto-started by a process manager (the `/news` catch-up starts it).
 - Local commits may be unpushed until git auth is switched to `fyyqq`.

@@ -21,6 +21,12 @@ which starts (once per process) a daemon thread that:
     untargeted recent Cryptocurrency article — AI in batches, plus a rule
     fallback when the AI is unavailable (app/services/news_targeting_service.py).
 
+  * (own thread) runs the existing hourly hot listings sync
+    (app.scheduler.jobs.run_hot_listings_sync: top 500 coins, one CMC call,
+    gated by its own SyncLog interval), which also records the price
+    snapshots behind /gainers-losers. The FastAPI scheduler that normally
+    runs it is not running, so without this the snapshots would never grow.
+
 NewsState.watch_new_articles then shows the new rows without a reload.
 """
 
@@ -123,6 +129,24 @@ def _category_loop() -> None:
         time.sleep(max(settings.coin_category_interval_minutes, 5) * 60)
 
 
+_SNAPSHOT_CHECK_SECONDS = 10 * 60
+
+
+def _hot_sync_loop() -> None:
+    """Hourly top-500 price refresh + price snapshots. Checks every 10 minutes;
+    run_hot_listings_sync itself only calls CMC once its 1h interval is due."""
+    if str(_REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(_REPO_ROOT))
+    while True:
+        try:
+            from app.scheduler.jobs import run_hot_listings_sync
+
+            run_hot_listings_sync()
+        except Exception:  # noqa: BLE001
+            logger.exception("hot listings sync failed")
+        time.sleep(_SNAPSHOT_CHECK_SECONDS)
+
+
 def ensure_running() -> None:
     """Called on every /news and homepage load: starts the workers once per
     process, and on later calls re-triggers a targeting run (at most every 20s)
@@ -139,3 +163,4 @@ def ensure_running() -> None:
     threading.Thread(target=_loop, name="news-catchup", daemon=True).start()
     threading.Thread(target=_targeting_loop, name="news-targeting", daemon=True).start()
     threading.Thread(target=_category_loop, name="coin-categories", daemon=True).start()
+    threading.Thread(target=_hot_sync_loop, name="hot-sync-snapshots", daemon=True).start()
