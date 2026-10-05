@@ -29,6 +29,13 @@ which starts (once per process) a daemon thread that:
     volume change. The FastAPI scheduler that normally
     runs it is not running, so without this the snapshots would never grow.
 
+  * (own thread) runs Telegram media maintenance
+    (app.services.telegram_media_cleanup.run_media_maintenance): converts
+    any stray non-webp image to .webp, strips any stray playable video file
+    down to its poster, and deletes image/poster files for posts older
+    than MEDIA_RETENTION_DAYS (30), clearing image_url/media so the app's
+    own existing fallback takes over. Article text is never touched.
+
 NewsState.watch_new_articles then shows the new rows without a reload.
 """
 
@@ -156,6 +163,27 @@ def _hot_sync_loop() -> None:
         time.sleep(_SNAPSHOT_CHECK_SECONDS)
 
 
+_MEDIA_MAINTENANCE_INTERVAL_SECONDS = 12 * 3600
+
+
+def _media_maintenance_loop() -> None:
+    """Keeps frontend/assets/telegram_media/ bounded — see
+    app.services.telegram_media_cleanup for what each pass does. Runs at
+    startup, then every 12 hours; each step is cheap/idempotent once its
+    one-time backfill is done, so a 12h cadence is plenty for a 30-day
+    retention window."""
+    if str(_REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(_REPO_ROOT))
+    while True:
+        try:
+            from app.services.telegram_media_cleanup import run_media_maintenance
+
+            run_media_maintenance()
+        except Exception:  # noqa: BLE001
+            logger.exception("telegram media maintenance failed")
+        time.sleep(_MEDIA_MAINTENANCE_INTERVAL_SECONDS)
+
+
 def ensure_running() -> None:
     """Called on every /news and homepage load: starts the workers once per
     process, and on later calls re-triggers a targeting run (at most every 20s)
@@ -173,3 +201,4 @@ def ensure_running() -> None:
     threading.Thread(target=_targeting_loop, name="news-targeting", daemon=True).start()
     threading.Thread(target=_category_loop, name="coin-categories", daemon=True).start()
     threading.Thread(target=_hot_sync_loop, name="hot-sync-snapshots", daemon=True).start()
+    threading.Thread(target=_media_maintenance_loop, name="telegram-media-maintenance", daemon=True).start()

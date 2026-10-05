@@ -105,6 +105,18 @@ Each card additionally shows a blue **"Telegram News"** badge next to its real s
 </details>
 
 <details>
+<summary><strong>🗜️ Telegram media: WebP photos, no stored video, 30-day cleanup (2026-10-05)</strong></summary>
+
+Per explicit request, to keep `frontend/assets/telegram_media/` from growing without bound (it had reached 4.6GB — 275 videos = 4.3GB, 3,013 photos = only 256MB).
+
+**At ingestion** (`telegram_pipeline.py`): every downloaded photo/poster is now converted to `.webp` (Pillow, quality 80) instead of staying `.jpg` — smaller at equivalent quality, original deleted on success. **Videos are never downloaded** — only the video's own thumbnail (poster) is kept, `src` stays `""`, so every video post shows the reader's existing "poster image + Watch on Telegram" card (previously used only for videos over the old 100MB cap; that cap no longer exists since nothing is downloaded). Group avatars (`_avatar_<username>.jpg`) are untouched — still `.jpg`, not pruned, since the filename is hardcoded elsewhere and they're tiny (~56KB each).
+
+**Ongoing cleanup** (`app/services/telegram_media_cleanup.py`, run every 12h by `news_catchup._media_maintenance_loop`, no Telegram session needed so it's safe alongside the live listener): Telegram posts older than `MEDIA_RETENTION_DAYS` (30) have their image/poster files deleted and `image_url`/`media` cleared to `NULL`/`[]`, so the article's existing fallback (group avatar, else the category fallback image) takes over automatically — **article text (title, body, AI summaries) is never deleted**, only media, and only for `source_type='telegram'` rows (a regular article's `image_url` is an external publisher URL, never a local file, so it's never touched). A file referenced by a still-current (non-expiring) row is never deleted even if another expiring row also names it.
+
+**One-time backfill, run live on 2026-10-05**: `convert_legacy_images_to_webp` (3,012 of 3,013 existing images converted, ~97MB saved; one corrupt file safely left as-is), `strip_existing_videos` (all 275 existing video files deleted, posters kept, ~4.39GB freed), `prune_old_media` (495 already-30-day+ rows cleared, ~25MB freed). **Folder went from 4.6GB to 133MB.** Verified live: `/news` cards show `.webp` images (the only remaining `.jpg` files are group avatars), a pruned post correctly falls back to its group's avatar, a video-only post's card correctly shows its poster, and the reader's media grid correctly marks it non-playable (`playable: False`) → shows "Watch on Telegram" instead of a broken/missing player. Zero console errors. Going forward this plateaus around the same few-hundred-MB range instead of growing indefinitely.
+</details>
+
+<details>
 <summary><strong>⚡ Real-time listener and page auto-refresh</strong></summary>
 
 `app/services/telegram_listener.py` is a standalone, always-on process — start it from the repo root with `python -m app.services.telegram_listener` (it isn't started automatically). It keeps one connection open to Telegram, which pushes each new post from the 17 groups as it's published; it's stored within seconds (verified: a Watcher Guru post published 17:49:35 UTC was stored at 17:49:42). Polling every minute was rejected: 17 groups every minute is ~24k requests/day from a personal account, the pattern that gets accounts rate-limited.

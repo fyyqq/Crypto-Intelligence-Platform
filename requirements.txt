@@ -28,3 +28,4 @@ email-validator>=2.1
 
 # Spoken price alerts (app/services/alert_voice_service.py)
 google-genai>=1.0
+Pillow>=10.0

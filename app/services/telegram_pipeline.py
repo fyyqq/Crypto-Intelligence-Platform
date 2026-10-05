@@ -359,14 +359,34 @@ class IngestStats:
         return IngestStats(self.inserted + other.inserted, self.skipped + other.skipped)
 
 
+def _convert_to_webp(path: Path) -> Path | None:
+    """Re-encodes a downloaded image as .webp (smaller than the source
+    JPEG/PNG at equivalent visual quality — real disk saving for a card-
+    sized preview image) and deletes the original on success. Returns the
+    new path, or None (leaving the original file in place) if Pillow can't
+    read/write it for any reason — a working JPEG is better than no image.
+    """
+    try:
+        from PIL import Image
+
+        webp_path = path.with_suffix(".webp")
+        with Image.open(path) as img:
+            img.convert("RGB").save(webp_path, "WEBP", quality=80)
+        path.unlink(missing_ok=True)
+        return webp_path
+    except Exception as exc:  # noqa: BLE001 — conversion is a bonus, never fatal to ingestion
+        logger.warning("SKIP webp conversion for %s: %s", path.name, exc)
+        return None
+
+
 async def _download_message_image(client: TelegramClient, message, username: str) -> str | None:
     """Downloads a real preview image straight from the message's own
     media (photo, or a video's own thumbnail — `thumb=-1` picks the
     largest available thumbnail for either, which is plenty for a
     160px-tall card and far cheaper than a full-resolution photo/video
-    download) — never anything the post doesn't actually have. Returns
-    None (not a fallback) for a text-only message, or if the download
-    itself fails for any reason.
+    download) — never anything the post doesn't actually have. Saved as
+    .webp (see _convert_to_webp). Returns None (not a fallback) for a
+    text-only message, or if the download itself fails for any reason.
     """
     if not getattr(message, "media", None):
         return None
@@ -379,7 +399,9 @@ async def _download_message_image(client: TelegramClient, message, username: str
         saved_path = await client.download_media(message, file=dest_prefix, thumb=-1)
         if not saved_path:
             return None
-        return f"/telegram_media/{Path(saved_path).name}"
+        saved_path = Path(saved_path)
+        webp_path = await asyncio.to_thread(_convert_to_webp, saved_path)
+        return f"/telegram_media/{(webp_path or saved_path).name}"
     except Exception as exc:  # noqa: BLE001 — an image is a bonus, never fatal to ingestion
         logger.warning("SKIP image download for @%s/%s: %s", username, message.id, exc)
         return None
@@ -477,9 +499,6 @@ def _group_display_title(entity, username: str | None = None) -> str:
 # Videos larger than this aren't downloaded (296 of 305 videos in the busiest
 # 30 days were under it); such a video shows its thumbnail with a link to the
 # post on Telegram instead.
-_MAX_VIDEO_BYTES = 100 * 1024 * 1024
-
-
 def _is_video(message) -> bool:
     return bool(message.video or message.video_note or message.gif)
 
@@ -498,12 +517,16 @@ async def _album_messages(client: TelegramClient, message) -> list:
 
 
 async def collect_post_media(client: TelegramClient, message, username: str) -> tuple[list[dict], bool]:
-    """Downloads every photo/video of the post (all items of an album) into
-    telegram_media/ and returns ([{type, src, poster}], complete). `complete`
-    is False if any download failed, so the caller can retry later instead of
-    recording an incomplete list. Photos reuse the file _download_message_image
-    already keeps as <username>_<id>.<ext>; a video is <username>_<id>_video.<ext>
-    with its thumbnail as the poster.
+    """Downloads every photo of the post (all items of an album) into
+    telegram_media/ as .webp and returns ([{type, src, poster}], complete).
+    `complete` is False if any download failed, so the caller can retry
+    later instead of recording an incomplete list.
+
+    Videos are never downloaded/stored — per explicit request, only their
+    own thumbnail (poster) is kept (src stays ""), so the reader always
+    falls back to "poster image + Watch on Telegram" instead of playing an
+    inline video. This also keeps disk usage bounded: a video could be up
+    to 100MB, its thumbnail a few KB.
     """
     items: list[dict] = []
     complete = True
@@ -522,20 +545,7 @@ async def collect_post_media(client: TelegramClient, message, username: str) -> 
                     complete = False
             elif _is_video(item):
                 poster = await _download_message_image(client, item, username) or ""
-                size = item.document.size if item.document else 0
-                src = ""
-                if 0 < size <= _MAX_VIDEO_BYTES:
-                    _TELEGRAM_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-                    existing = list(_TELEGRAM_MEDIA_DIR.glob(f"{username}_{item.id}_video.*"))
-                    if existing:
-                        src = f"/telegram_media/{existing[0].name}"
-                    else:
-                        saved = await client.download_media(item, file=str(_TELEGRAM_MEDIA_DIR / f"{username}_{item.id}_video"))
-                        if saved:
-                            src = f"/telegram_media/{Path(saved).name}"
-                        else:
-                            complete = False
-                items.append({"type": "video", "src": src, "poster": poster})
+                items.append({"type": "video", "src": "", "poster": poster})
         except FloodWaitError:
             raise
         except Exception as exc:  # noqa: BLE001 — one bad item must not lose the rest
