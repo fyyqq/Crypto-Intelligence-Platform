@@ -1145,6 +1145,7 @@ app.add_page(
     on_load=[
         CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch,
         CoinState.detail_sync_loop,
+        CoinState.refresh_change_24h,
         CoinState.refresh_coin_description,
         CoinState.refresh_business_summary,
         CoinState.refresh_market_pairs,

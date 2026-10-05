@@ -23,8 +23,10 @@ which starts (once per process) a daemon thread that:
 
   * (own thread) runs the existing hourly hot listings sync
     (app.scheduler.jobs.run_hot_listings_sync: top 500 coins, one CMC call,
-    gated by its own SyncLog interval), which also records the price
-    snapshots behind /gainers-losers. The FastAPI scheduler that normally
+    gated by its own SyncLog interval) and the daily full listings sync
+    (run_listings_sync: every coin, 24h gate). Both record the price
+    snapshots behind /gainers-losers and the coin page's 24h market cap /
+    volume change. The FastAPI scheduler that normally
     runs it is not running, so without this the snapshots would never grow.
 
 NewsState.watch_new_articles then shows the new rows without a reload.
@@ -133,8 +135,9 @@ _SNAPSHOT_CHECK_SECONDS = 10 * 60
 
 
 def _hot_sync_loop() -> None:
-    """Hourly top-500 price refresh + price snapshots. Checks every 10 minutes;
-    run_hot_listings_sync itself only calls CMC once its 1h interval is due."""
+    """Hourly top-500 and daily all-coin price refresh + price snapshots.
+    Checks every 10 minutes; each job only calls CMC once its own interval
+    (1h / 24h) is due."""
     if str(_REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(_REPO_ROOT))
     while True:
@@ -144,6 +147,12 @@ def _hot_sync_loop() -> None:
             run_hot_listings_sync()
         except Exception:  # noqa: BLE001
             logger.exception("hot listings sync failed")
+        try:
+            from app.scheduler.jobs import run_listings_sync
+
+            run_listings_sync()  # every coin, once a day (24h gate)
+        except Exception:  # noqa: BLE001
+            logger.exception("daily listings sync failed")
         time.sleep(_SNAPSHOT_CHECK_SECONDS)
 
 

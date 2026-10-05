@@ -104,3 +104,21 @@ def test_view_driven_sync_ids_does_not_record_snapshots(db):
     _seed_coins(db, listings)
     MarketDataService(db, client=_FakeCMC(listings)).sync_ids([1])
     assert db.scalar(select(func.count()).select_from(PriceSnapshot)) == 0
+
+
+def test_absurd_values_do_not_fail_the_batch(db):
+    huge = fake_listing(2, "HUGE", 1.0, 2, volume=5e25)  # can't fit Numeric(24, 2)
+    added = record_snapshots(db, [fake_listing(1, "BTC", 85000.0, 1), huge])
+    rows = _rows(db)
+    assert added == 2 and rows[1].volume_24h is None
+
+
+def test_listings_sync_survives_an_absurd_percent_change(db):
+    bad = fake_listing(2, "PUMP", 1.0, 2)
+    bad["quote"]["USD"]["percent_change_24h"] = 3_000_000.0  # > Numeric(10, 4)
+    listings = [fake_listing(1, "BTC", 85000.0, 1), bad]
+    log = MarketDataService(db, client=_FakeCMC(listings)).sync_listings()
+    assert log.status.value == "success"
+    pump = db.scalars(select(Coin).where(Coin.cmc_id == 2)).one()
+    assert pump.percent_change_24h is None and float(pump.price_usd) == 1.0
+    assert db.scalar(select(func.count()).select_from(PriceSnapshot)) == 2

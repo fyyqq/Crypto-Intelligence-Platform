@@ -841,6 +841,48 @@ def _build_row(coin: Coin) -> dict:
     }
 
 
+def _change_24h_display(cmc_id: int, market_cap_now: float, volume_now: float) -> dict[str, str]:
+    """Coin page badges: this coin's market cap and 24h volume now vs. our own
+    price snapshot from ~24h ago (app/services/price_snapshot_service.py,
+    same lookback/tolerance as the 24h Gainers & Losers board). Blocking
+    (DB); runs in a thread, at runtime only. A side with no usable snapshot
+    (new coin, or history younger than ~20h) gets has_* = "" and shows
+    nothing."""
+    import sys
+    from pathlib import Path
+
+    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    from app.core.database import SessionLocal as OldSessionLocal
+    from app.services.price_snapshot_service import get_reference_values, pct_change
+
+    db = OldSessionLocal()
+    try:
+        ref = get_reference_values(db, cmc_id)
+    finally:
+        db.close()
+
+    out = {"cmc_id": str(cmc_id)}
+    for key, now_value, then_key in (("mcap", market_cap_now, "market_cap"), ("vol", volume_now, "volume_24h")):
+        change = pct_change(now_value or None, ref[then_key])
+        out[f"{key}_has"] = "1" if change is not None else ""
+        if change is None:
+            out[f"{key}_text"] = out[f"{key}_color"] = out[f"{key}_title"] = ""
+            continue
+        arrow = "▲" if change > 0 else "▼" if change < 0 else ""
+        out[f"{key}_text"] = f"{arrow} {abs(change):.2f}%".strip()
+        out[f"{key}_color"] = (
+            "var(--green-11)" if change > 0 else "var(--red-11)" if change < 0 else "var(--gray-11)"
+        )
+        then_at = ref[f"{then_key}_at"]
+        out[f"{key}_title"] = (
+            f"Change vs. {_fmt_compact_usd(ref[then_key])} at {then_at.strftime('%d %b %H:%M')} UTC (about 24h ago)"
+        )
+    return out
+
+
 def _sync_and_rebuild_rows(cmc_ids: list[int]) -> dict[int, dict]:
     """Blocking work for the view-driven live sync: refreshes the given
     coins' quotes in Postgres (cross-package call into the FastAPI
@@ -1313,6 +1355,9 @@ class CoinState(rx.State):
     _is_live_syncing: bool = False
     # Same guard as _is_live_syncing above, for detail_sync_loop.
     _is_detail_syncing: bool = False
+    # Coin page 24h market cap / volume change badges (_change_24h_display),
+    # tagged with the cmc_id they were computed for.
+    coin_change_24h: dict[str, str] = {}
 
     # Drives the coin detail page's centered "Copied to clipboard" popup —
     # set true right when the Contract pill is clicked (see coin_detail.py's
@@ -2424,6 +2469,7 @@ class CoinState(rx.State):
                     updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, [cmc_id])
                     async with self:
                         self._apply_updates(updated_rows)
+                    await self._refresh_change_24h()
                 await asyncio.sleep(60)
                 async with self:
                     still_connected = (
@@ -2434,6 +2480,37 @@ class CoinState(rx.State):
         finally:
             async with self:
                 self._is_detail_syncing = False
+
+    async def _refresh_change_24h(self) -> None:
+        """Recomputes the 24h market cap / volume badges from the coin's
+        current (live, 60s-synced) values. Called from background events."""
+        async with self:
+            coin = self.selected_coin
+            cmc_id = coin.get("cmc_id")
+            mcap, vol = coin.get("market_cap_usd"), coin.get("volume_raw")
+        if not cmc_id:
+            return
+        try:
+            display = await asyncio.to_thread(_change_24h_display, cmc_id, mcap, vol)
+        except Exception:  # noqa: BLE001 - badges are optional; never break the page
+            return
+        async with self:
+            self.coin_change_24h = display
+
+    @rx.event(background=True)
+    async def refresh_change_24h(self):
+        """One-shot on page load, so the badges show without waiting for the
+        detail loop's first tick."""
+        await self._refresh_change_24h()
+
+    @rx.var
+    def change_24h_view(self) -> dict[str, str]:
+        """coin_change_24h, but only when it belongs to the coin on screen."""
+        coin_id = str(self.selected_coin.get("cmc_id", ""))
+        if self.coin_change_24h.get("cmc_id") != coin_id:
+            return {"mcap_has": "", "mcap_text": "", "mcap_color": "", "mcap_title": "",
+                    "vol_has": "", "vol_text": "", "vol_color": "", "vol_title": ""}
+        return self.coin_change_24h
 
     @rx.event(background=True)
     async def refresh_coin_description(self):

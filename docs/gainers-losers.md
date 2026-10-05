@@ -9,11 +9,13 @@ Top gainers and top losers among the Top 100 / 200 / 300 / 400 / 500 coins (by c
 
 <details><summary>Price snapshots</summary>
 
-`price_snapshot` table: `coin_id` (the CMC id, same as `coins.cmc_id`; no foreign key so history survives changes to `coins`), `symbol`, `price_usd` (18 decimals, taken straight from the CMC response, because `coins.price_usd` keeps only 8 and would round micro-cap prices to zero), `cmc_rank`, `volume_24h`, `synced_at` (naive UTC, one timestamp per sync). Insert-only.
+`price_snapshot` table: `coin_id` (the CMC id, same as `coins.cmc_id`; no foreign key so history survives changes to `coins`), `symbol`, `price_usd` (18 decimals, taken straight from the CMC response, because `coins.price_usd` keeps only 8 and would round micro-cap prices to zero), `cmc_rank`, `volume_24h`, `market_cap` (added later the same day; older rows NULL; used by the coin page's 24h market cap change), `synced_at` (naive UTC, one timestamp per sync). Insert-only.
 
 **Who writes it:** `MarketDataService._record_snapshots`, from the two scheduled syncs only: `sync_hot_listings` (top 500, hourly) and `sync_listings` (all coins, daily). It reuses the CMC response those syncs already fetched (no extra API call). The view-driven `sync_ids` (every 60s for whatever is on screen) does not write snapshots. Coins with a missing, zero or negative price are skipped. A snapshot failure is logged and never fails the price sync.
 
-**What runs it:** the FastAPI scheduler is not running in this setup, so `frontend/news_catchup.py` starts a `hot-sync-snapshots` thread (with the other background workers, on the first homepage, `/news` or `/gainers-losers` load) that calls the existing `run_hot_listings_sync` every 10 minutes; the job only calls CMC once its own 1-hour interval is due (~3 CMC credits/hour). About 500 rows per hour, ~540K rows at 45-day retention.
+**What runs it:** the FastAPI scheduler is not running in this setup, so `frontend/news_catchup.py` starts a `hot-sync-snapshots` thread (with the other background workers, on the first homepage, `/news` or `/gainers-losers` load) that calls the existing `run_hot_listings_sync` every 10 minutes (the job only calls CMC once its own 1-hour interval is due, ~3 CMC credits/hour) and `run_listings_sync` (every coin, once a day, ~41 credits), so every coin also gets a daily snapshot. About 500 rows per hour, ~540K rows at 45-day retention.
+
+**Overflow guard (fixed 2026-10-05):** the daily full listings sync had been failing since 24 Sep with a numeric overflow (CMC reported a percent change beyond the `coins.percent_change_*` column range for some illiquid token), rolling back every coin. Values that can't fit their column are now stored as NULL (`market_data_service._fit`, and the same guard in `record_snapshots`), so one absurd value no longer blocks the sync; the first successful full sync since then wrote 8,124 snapshots.
 
 **No backfill:** there was no price history before this table (`coins` keeps only the latest price), so history starts at the first snapshot (2026-10-05 04:48 UTC). No past prices are invented.
 </details>

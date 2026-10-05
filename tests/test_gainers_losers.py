@@ -250,3 +250,44 @@ def test_adding_a_window_only_needs_a_config_entry(db, monkeypatch):
     snap(db, 1, "BTC", 100.0, NOW)
     db.commit()
     assert svc.get_movers(db, 100, "3d", "gainers")["coins"][0]["pct_change"] == pytest.approx(100.0)
+
+
+# ---- coin page: market cap / volume vs ~24h ago ---------------------------
+def test_pct_change_formula_and_guards():
+    assert svc.pct_change(115.09, 100.0) == pytest.approx(15.09)
+    assert svc.pct_change(50.0, 100.0) == pytest.approx(-50.0)
+    assert svc.pct_change(10.0, 0) is None  # never divides by zero
+    assert svc.pct_change(10.0, None) is None and svc.pct_change(None, 10.0) is None
+
+
+def mcap_snap(db, at, market_cap, volume):
+    db.add(PriceSnapshot(coin_id=1, symbol="BTC", price_usd=1.0, cmc_rank=1, volume_24h=volume, market_cap=market_cap, synced_at=at))
+
+
+def test_reference_values_pick_closest_to_24h_inside_tolerance(db):
+    mcap_snap(db, NOW - timedelta(hours=30), 500.0, 50.0)  # outside 20-28h
+    mcap_snap(db, NOW - timedelta(hours=25), 900.0, 90.0)
+    mcap_snap(db, NOW - timedelta(hours=21), 950.0, 95.0)
+    mcap_snap(db, NOW - timedelta(hours=1), 999.0, 99.0)  # too recent
+    db.commit()
+    ref = svc.get_reference_values(db, 1, now=NOW)
+    assert (ref["market_cap"], ref["volume_24h"]) == (900.0, 90.0)
+    assert ref["market_cap_at"] == NOW - timedelta(hours=25)
+
+
+def test_reference_values_per_field_and_missing(db):
+    # The closest row has no market cap (older snapshot): market cap falls
+    # back to the next usable one, volume uses the closest.
+    mcap_snap(db, NOW - timedelta(hours=24), None, 80.0)
+    mcap_snap(db, NOW - timedelta(hours=27), 700.0, 70.0)
+    db.commit()
+    ref = svc.get_reference_values(db, 1, now=NOW)
+    assert ref["volume_24h"] == 80.0 and ref["market_cap"] == 700.0
+    assert svc.get_reference_values(db, 2, now=NOW) == {
+        "market_cap": None, "market_cap_at": None, "volume_24h": None, "volume_24h_at": None,
+    }
+
+
+def test_snapshot_records_market_cap(db):
+    svc.record_snapshots(db, [{"id": 1, "symbol": "BTC", "cmc_rank": 1, "quote": {"USD": {"price": 2.0, "volume_24h": 5.0, "market_cap": 1234.5}}}])
+    assert float(db.scalars(select(PriceSnapshot.market_cap)).one()) == 1234.5

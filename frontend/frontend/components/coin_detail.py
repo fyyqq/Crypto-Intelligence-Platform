@@ -742,6 +742,32 @@ def _stat_row(label: str, value: rx.Var | str) -> rx.Component:
     )
 
 
+def _stat_row_with_change(label: str, value: rx.Var | str, key: str) -> rx.Component:
+    """_stat_row plus a small 24h change badge (like CMC's): the value now vs.
+    our own snapshot from ~24h ago (CoinState.change_24h_view; key "mcap" or
+    "vol"). Nothing is shown until there is a snapshot that old."""
+    change = CoinState.change_24h_view
+    return rx.hstack(
+        rx.text(label, size="1", color_scheme="gray"),
+        rx.spacer(),
+        rx.vstack(
+            rx.text(value, size="2", weight="medium", text_align="right"),
+            rx.cond(
+                change[f"{key}_has"] != "",
+                rx.tooltip(
+                    rx.text(change[f"{key}_text"], size="1", weight="medium", color=change[f"{key}_color"]),
+                    content=change[f"{key}_title"],
+                ),
+            ),
+            spacing="0",
+            align="end",
+        ),
+        width="100%",
+        justify="between",
+        align="center",
+    )
+
+
 def _alert_row(alert: rx.Var[dict]) -> rx.Component:
     return rx.hstack(
         rx.icon(
@@ -931,9 +957,9 @@ def _info_column() -> rx.Component:
         ),
         rx.box(
             rx.vstack(
-                _stat_row("Market cap", coin["market_cap_display"]),
+                _stat_row_with_change("Market cap", coin["market_cap_display"], "mcap"),
                 _stat_row("Unlocked Mkt Cap", coin["market_cap_display"]),
-                _stat_row("Volume (24h)", coin["volume_display"]),
+                _stat_row_with_change("Volume (24h)", coin["volume_display"], "vol"),
                 _stat_row("Vol/Mkt Cap (24h)", coin["vol_mkt_cap_display"]),
                 _stat_row("FDV", coin["fdv_display"]),
                 # No Basic-tier CMC equivalent for these two: Liquidity Score

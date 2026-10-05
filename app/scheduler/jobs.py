@@ -92,6 +92,26 @@ def run_hot_listings_sync() -> None:
         sync_reflex_cache()
 
 
+def run_listings_sync() -> None:
+    """Just the daily full-universe listings sync (every coin's price, market
+    cap and volume, one call per 5,000 coins, ~41 CMC credits), gated by the
+    same 24h is_sync_due rule as run_market_data_sync. Run from the Reflex
+    process (frontend/news_catchup.py) because the FastAPI scheduler is not
+    running there; it gives every coin, not only the hourly top 500, a daily
+    price snapshot for the coin page's 24h market cap / volume change.
+    Categories and contracts are left to run_market_data_sync."""
+    db = SessionLocal()
+    try:
+        service = MarketDataService(db)
+        synced = False
+        if service.is_sync_due(SyncType.LISTINGS):
+            synced = service.sync_listings().status == SyncStatus.SUCCESS
+    finally:
+        db.close()
+    if synced:
+        sync_reflex_cache()
+
+
 def run_news_pipeline_sync() -> None:
     """Runs the standalone news pipeline (app/services/news_pipeline.py)
     once every NEWS_PIPELINE_SYNC_INTERVAL_HOURS (default 24h). Gated by

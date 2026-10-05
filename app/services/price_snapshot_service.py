@@ -59,6 +59,16 @@ class SnapshotConfigError(ValueError):
 
 
 # ---- Step 1: recording -----------------------------------------------------
+def _fit(value, limit: float):
+    """The value, or None when it can't fit its Numeric column."""
+    if value is None:
+        return None
+    try:
+        return value if abs(float(value)) < limit else None
+    except (TypeError, ValueError):
+        return None
+
+
 def record_snapshots(db: Session, payloads: list[dict], synced_at: datetime | None = None) -> int:
     """Adds one PriceSnapshot per coin in a CMC listings/quotes payload and
     commits. Insert-only: never updates or deletes an existing row. A coin
@@ -72,7 +82,7 @@ def record_snapshots(db: Session, payloads: list[dict], synced_at: datetime | No
     for payload in payloads:
         quote = (payload.get("quote") or {}).get("USD") or {}
         price = quote.get("price")
-        if price is None or price <= 0:
+        if price is None or price <= 0 or price >= 1e20:  # Numeric(38, 18)
             continue
         rows.append(
             PriceSnapshot(
@@ -80,7 +90,10 @@ def record_snapshots(db: Session, payloads: list[dict], synced_at: datetime | No
                 symbol=payload.get("symbol") or "",
                 price_usd=price,
                 cmc_rank=payload.get("cmc_rank"),
-                volume_24h=quote.get("volume_24h"),
+                # Absurd CMC values that can't fit the column are dropped
+                # (None) rather than failing the whole batch.
+                volume_24h=_fit(quote.get("volume_24h"), 1e22),  # Numeric(24, 2)
+                market_cap=_fit(quote.get("market_cap"), 1e34),  # Numeric(36, 2)
                 synced_at=synced_at,
             )
         )
@@ -118,6 +131,17 @@ def cleanup_snapshots(db: Session, now: datetime | None = None, retention_days: 
     result = db.execute(delete(PriceSnapshot).where(PriceSnapshot.synced_at < cutoff))
     db.commit()
     return result.rowcount or 0
+
+
+def pct_change(value_now, value_then) -> float | None:
+    """The one formula: (now - then) / then * 100. None when either side is
+    missing or the old value is zero/negative (never divides by it)."""
+    if value_now is None or value_then is None:
+        return None
+    now, then = float(value_now), float(value_then)
+    if then <= 0:
+        return None
+    return (now - then) / then * 100
 
 
 # ---- Steps 2-4: lookback + cold start --------------------------------------
@@ -206,6 +230,9 @@ def compute_changes(db: Session, window_name: str) -> list[dict]:
             continue  # no usable history for this window yet
         price_then, then_at = then
         price_now = float(snap.price_usd)
+        change = pct_change(price_now, price_then)
+        if change is None:
+            continue
         changes.append(
             {
                 "coin_id": snap.coin_id,
@@ -214,13 +241,40 @@ def compute_changes(db: Session, window_name: str) -> list[dict]:
                 "symbol": snap.symbol,
                 "price_now": price_now,
                 "price_then": price_then,
-                "pct_change": (price_now - price_then) / price_then * 100,
+                "pct_change": change,
                 "volume_24h": float(snap.volume_24h),
                 "then_at": then_at,
                 "now_at": latest,
             }
         )
     return changes
+
+
+# ---- Coin page: market cap / volume vs ~24h ago -----------------------------
+def get_reference_values(db: Session, coin_id: int, window_name: str = "24h", now: datetime | None = None) -> dict:
+    """A coin's market cap and 24h volume from about one window ago (default
+    24h), for the coin page's change badges. Same lookback rule as the
+    boards: the snapshot closest to (now - lookback) inside the window's
+    tolerance, chosen separately per field (a snapshot may lack market cap).
+    Returns {"market_cap", "market_cap_at", "volume_24h", "volume_24h_at"};
+    a value is None when no usable snapshot exists."""
+    window = get_window(window_name)
+    now = now or datetime.utcnow()
+    target = now - window.lookback
+    rows = db.execute(
+        select(PriceSnapshot.market_cap, PriceSnapshot.volume_24h, PriceSnapshot.synced_at).where(
+            PriceSnapshot.coin_id == coin_id,
+            PriceSnapshot.synced_at >= now - window.max_age,
+            PriceSnapshot.synced_at <= now - window.min_age,
+        )
+    ).all()
+    out = {"market_cap": None, "market_cap_at": None, "volume_24h": None, "volume_24h_at": None}
+    for field, index in (("market_cap", 0), ("volume_24h", 1)):
+        usable = [(r[index], r[2]) for r in rows if r[index] is not None and float(r[index]) > 0]
+        if usable:
+            value, at = min(usable, key=lambda v: abs(v[1] - target))
+            out[field], out[f"{field}_at"] = float(value), at
+    return out
 
 
 # ---- Step 5: one ranking for both directions -------------------------------

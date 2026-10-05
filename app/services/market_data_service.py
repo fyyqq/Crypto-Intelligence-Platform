@@ -14,6 +14,24 @@ from app.services.price_snapshot_service import cleanup_snapshots, record_snapsh
 
 logger = logging.getLogger(__name__)
 
+# Largest absolute value each Numeric column can hold: percent_change_* are
+# Numeric(10, 4), market_cap_usd / volume_24h_usd are Numeric(24, 2). CMC
+# occasionally reports absurd values for illiquid tokens (e.g. a +3,000,000%
+# change), and one such value used to fail the whole listings sync with a
+# numeric overflow, rolling back every coin.
+_PCT_LIMIT = 1e6
+_USD_LIMIT = 1e22
+
+
+def _fit(value, limit: float):
+    """The value, or None when it can't fit its column."""
+    if value is None:
+        return None
+    try:
+        return value if abs(float(value)) < limit else None
+    except (TypeError, ValueError):
+        return None
+
 
 class MarketDataService:
     """Owns the sync workflow for Feature 1: fetches from CoinMarketCap via
@@ -181,11 +199,11 @@ class MarketDataService:
             coin.slug = payload["slug"]
             coin.cmc_rank = payload.get("cmc_rank")
             coin.price_usd = quote.get("price")
-            coin.market_cap_usd = quote.get("market_cap")
-            coin.volume_24h_usd = quote.get("volume_24h")
-            coin.percent_change_1h = quote.get("percent_change_1h")
-            coin.percent_change_24h = quote.get("percent_change_24h")
-            coin.percent_change_7d = quote.get("percent_change_7d")
+            coin.market_cap_usd = _fit(quote.get("market_cap"), _USD_LIMIT)
+            coin.volume_24h_usd = _fit(quote.get("volume_24h"), _USD_LIMIT)
+            coin.percent_change_1h = _fit(quote.get("percent_change_1h"), _PCT_LIMIT)
+            coin.percent_change_24h = _fit(quote.get("percent_change_24h"), _PCT_LIMIT)
+            coin.percent_change_7d = _fit(quote.get("percent_change_7d"), _PCT_LIMIT)
             coin.circulating_supply = payload.get("circulating_supply")
             coin.total_supply = payload.get("total_supply")
             coin.max_supply = payload.get("max_supply")
@@ -230,11 +248,11 @@ class MarketDataService:
             quote = payload["quote"]["USD"]
             coin.cmc_rank = payload.get("cmc_rank")
             coin.price_usd = quote.get("price")
-            coin.market_cap_usd = quote.get("market_cap")
-            coin.volume_24h_usd = quote.get("volume_24h")
-            coin.percent_change_1h = quote.get("percent_change_1h")
-            coin.percent_change_24h = quote.get("percent_change_24h")
-            coin.percent_change_7d = quote.get("percent_change_7d")
+            coin.market_cap_usd = _fit(quote.get("market_cap"), _USD_LIMIT)
+            coin.volume_24h_usd = _fit(quote.get("volume_24h"), _USD_LIMIT)
+            coin.percent_change_1h = _fit(quote.get("percent_change_1h"), _PCT_LIMIT)
+            coin.percent_change_24h = _fit(quote.get("percent_change_24h"), _PCT_LIMIT)
+            coin.percent_change_7d = _fit(quote.get("percent_change_7d"), _PCT_LIMIT)
             coin.circulating_supply = payload.get("circulating_supply")
             coin.total_supply = payload.get("total_supply")
             coin.max_supply = payload.get("max_supply")

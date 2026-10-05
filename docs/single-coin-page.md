@@ -179,3 +179,11 @@ Every AI-targeted article gets an accurate label and, when the story is about a 
 
 The coin news section's link reads **"Related News"** and opens the coin's own category page `/narrative/<category>` (its peer group, e.g. `/narrative/ai-agents` for FET; a coin with no peer group uses its main narrative). Applies to every coin page (`NewsState.coin_news_category_url`). Two pill sliders (news categories, coins in the stories) were added above the news on the same day and removed again at the user's request.
 </details>
+
+<details>
+<summary><strong>📊 24h change on Market cap and Volume (2026-10-05)</strong></summary>
+
+In the stats box, Market cap and Volume (24h) show a small CMC-style change under the value (e.g. "▲ 15.09%" green, "▼ 3.20%" red), with a tooltip naming the old value and its time. It is the app's own number, not CMC's: the coin's current value (refreshed every 60s by `CoinState.detail_sync_loop`) against our own `price_snapshot` row from about 24h ago (`price_snapshot_service.get_reference_values`: the snapshot closest to now − 24h inside 20–28h, chosen separately for each field), using the same `pct_change` formula and 24h window config as the Gainers & Losers board. Computed on page load (`CoinState.refresh_change_24h`) and again on every 60s tick; shown only for the coin that is open (`change_24h_view`).
+
+**Coverage:** snapshots now hold market cap too (`price_snapshot.market_cap`, migration `a9b5c7d8e2f4`). Every coin gets a daily snapshot from the full listings sync (`jobs.run_listings_sync`, all ~8,200 coins, ~41 CMC credits/day), and the top 500 also hourly, both run from the Reflex process (`news_catchup._hot_sync_loop`). Nothing is shown until a snapshot about 24h old exists: volume from about 20h after 2026-10-05 04:48 UTC (top 500), market cap from about 20h after the first sync with market cap, and for coins ranked below 500 about a day after the first daily full sync. No values are invented in the meantime.
+</details>

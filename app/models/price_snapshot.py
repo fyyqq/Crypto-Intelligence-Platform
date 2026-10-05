@@ -26,6 +26,9 @@ class PriceSnapshot(Base):
     price_usd: Mapped[float] = mapped_column(Numeric(38, 18))
     cmc_rank: Mapped[int | None] = mapped_column(nullable=True)
     volume_24h: Mapped[float | None] = mapped_column(Numeric(24, 2), nullable=True)
+    # Added 2026-10-05 for the coin page's 24h market-cap change; rows from
+    # before that have NULL here.
+    market_cap: Mapped[float | None] = mapped_column(Numeric(36, 2), nullable=True)
     # UTC, naive (same convention as every other timestamp in this app).
     synced_at: Mapped[datetime] = mapped_column(DateTime, index=True)
 

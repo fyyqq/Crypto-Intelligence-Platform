@@ -25,6 +25,7 @@ Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symb
 - Coin pages have a "Related News" link to `/narrative/<category>`; `/narrative/[narrative_slug]` exists. (The category/coin pill sliders above the coin news were removed on request.)
 - `/tools` is live (Fear & Greed, Altcoin Season (computed; the blockchaincenter embed was removed), BTC/ETH rainbow on the standard BTC curve with CoinMetrics 2010+ history, TradingView embeds, API-key popup). Details: `docs/tools.md`.
 - Gainers & Losers (`/gainers-losers`, in the header nav) is live: own % change from `price_snapshot` (hourly hot sync, run from the Reflex process by `news_catchup._hot_sync_loop`), 24h/7d/30d, Top 100-500. History started 2026-10-05, so boards show "collecting" until 20h / 6d / 28d of history exist. Tests: `python -m pytest tests` (needs `requirements-dev.txt`). Details: `docs/gainers-losers.md`.
+- Coin pages show our own 24h change under Market cap and Volume (vs. the `price_snapshot` row ~24h ago; daily all-coin snapshots via `jobs.run_listings_sync`, run from Reflex). Shows nothing until a ~24h-old snapshot exists. Details: `docs/single-coin-page.md`.
 - Telegram posts are merged into the main `/news` sections on purpose (see `telegram-news.md`).
 - The Telegram listener is not auto-started by a process manager (the `/news` catch-up starts it).
 - Notion is stale versus `docs/` (mirroring is optional now).
