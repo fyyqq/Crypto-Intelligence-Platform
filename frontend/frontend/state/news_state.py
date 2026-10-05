@@ -276,18 +276,18 @@ _NEWS_TYPE_ORDER = {
 
 _FALLBACK_IMAGES_BY_TYPE = {
     "Cryptocurrency": (
-        "/crypto-news-fallback-image/crypto-news-fallback-1.jpeg",
+        "/crypto-news-fallback-image/crypto-news-fallback-1.webp",
         "/crypto-news-fallback-image/crypto-news-fallback-2.webp",
-        "/crypto-news-fallback-image/crypto-news-fallback-3.jpeg",
+        "/crypto-news-fallback-image/crypto-news-fallback-3.webp",
     ),
     "Artificial Intelligence": (
-        "/ai-news-fallback-image/ai-fallback-image-1.jpeg",
-        "/ai-news-fallback-image/ai-fallback-image-2.jpeg",
-        "/ai-news-fallback-image/ai-fallback-image-3.png",
+        "/ai-news-fallback-image/ai-fallback-image-1.webp",
+        "/ai-news-fallback-image/ai-fallback-image-2.webp",
+        "/ai-news-fallback-image/ai-fallback-image-3.webp",
     ),
     "Markets & Finance": (
         "/financial-market-news-fallback-image/market-financial-fallback-image-1.webp",
-        "/financial-market-news-fallback-image/market-financial-fallback-image-2.jpeg",
+        "/financial-market-news-fallback-image/market-financial-fallback-image-2.webp",
         "/financial-market-news-fallback-image/market-financial-fallback-image-3.webp",
     ),
 }
@@ -326,7 +326,7 @@ def _telegram_group_avatar(url: str) -> str:
     match = _TELEGRAM_URL_RE.match(url)
     if not match:
         return ""
-    name = f"_avatar_{match.group(1)}.jpg"
+    name = f"_avatar_{match.group(1)}.webp"
     return f"/telegram_media/{name}" if (_TELEGRAM_MEDIA_DIR / name).exists() else ""
 
 

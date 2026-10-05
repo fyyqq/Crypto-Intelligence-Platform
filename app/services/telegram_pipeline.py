@@ -412,24 +412,35 @@ _AVATAR_MAX_AGE_SECONDS = 7 * 24 * 3600
 
 def group_avatar_path(username: str) -> Path:
     """Where a group's profile picture is stored. NewsState uses this same
-    name to show it, at /telegram_media/_avatar_<username>.jpg, on any
+    name to show it, at /telegram_media/_avatar_<username>.webp, on any
     Telegram post that has no photo of its own.
     """
-    return _TELEGRAM_MEDIA_DIR / f"_avatar_{username}.jpg"
+    return _TELEGRAM_MEDIA_DIR / f"_avatar_{username}.webp"
 
 
 async def ensure_group_avatar(client: TelegramClient, entity, username: str) -> None:
     """Downloads the group's current profile picture if we have none yet or
     ours is over a week old (they rarely change). A group with no picture,
     or a failed download, just leaves the file absent: posts then keep the
-    category fallback image.
+    category fallback image. Telegram always serves this as a JPEG —
+    Telethon doesn't transcode on its own, so it's downloaded to a temp
+    .jpg first, then converted to .webp like every other saved image.
     """
     dest = group_avatar_path(username)
     try:
         if dest.exists() and time.time() - dest.stat().st_mtime < _AVATAR_MAX_AGE_SECONDS:
             return
         _TELEGRAM_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-        await client.download_profile_photo(entity, file=str(dest), download_big=True)
+        tmp = _TELEGRAM_MEDIA_DIR / f"_avatar_{username}_tmp.jpg"
+        saved = await client.download_profile_photo(entity, file=str(tmp), download_big=True)
+        if not saved:
+            return
+        saved = Path(saved)
+        webp_path = await asyncio.to_thread(_convert_to_webp, saved)  # saved.jpg -> saved.webp
+        if webp_path and webp_path.exists():
+            webp_path.replace(dest)
+        else:
+            saved.replace(dest.with_suffix(".jpg"))  # conversion failed; keep the real jpeg, not mislabeled
     except Exception as exc:  # noqa: BLE001 — an avatar is a bonus, never fatal to ingestion
         logger.warning("SKIP avatar download for @%s: %s", username, exc)
 
