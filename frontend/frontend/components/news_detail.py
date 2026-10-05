@@ -348,6 +348,31 @@ def _media_cell(item: dict, article: dict) -> rx.Component:
     )
 
 
+def _video_embed(article: dict) -> rx.Component:
+    """Telegram's own public post widget (<url>?embed=1), a real iframe —
+    not rx.html, which would tear the widget down on every background state
+    update (see .claude/rules/reflex-frontend.md). Plays the video inline,
+    streamed straight from Telegram's CDN; nothing is stored on our side.
+    A generous fixed height since the widget's own content (caption,
+    reactions, footer) varies in height and we can't resize to it from a
+    cross-origin iframe."""
+    return rx.box(
+        rx.el.iframe(
+            src=article["video_embed_url"],
+            title="Telegram post",
+            custom_attrs={"frameborder": "0", "allowfullscreen": "true"},
+            width="100%",
+            height="100%",
+            style={"border": "0", "display": "block"},
+        ),
+        width="100%",
+        height="620px",
+        border_radius="6px",
+        overflow="hidden",
+        background="var(--gray-a3)",
+    )
+
+
 def _media_grid(article: dict) -> rx.Component:
     return rx.grid(
         rx.foreach(article["media_grid_items"].to(list[dict]), lambda item: _media_cell(item, article)),
@@ -375,23 +400,27 @@ def _reader(article: dict) -> rx.Component:
                     letter_spacing="0",
                 ),
                 rx.cond(
-                    article["has_media_grid"],
-                    _media_grid(article),
-                    rx.box(
-                        rx.image(
-                            src=article["image_url"],
+                    article["has_video_embed"],
+                    _video_embed(article),
+                    rx.cond(
+                        article["has_media_grid"],
+                        _media_grid(article),
+                        rx.box(
+                            rx.image(
+                                src=article["image_url"],
+                                width="100%",
+                                height="100%",
+                                object_fit="cover",
+                                display="block",
+                                class_name="news-reader-image",
+                                custom_attrs={"data-fallback-src": article["fallback_image_url"]},
+                            ),
                             width="100%",
-                            height="100%",
-                            object_fit="cover",
-                            display="block",
-                            class_name="news-reader-image",
-                            custom_attrs={"data-fallback-src": article["fallback_image_url"]},
+                            aspect_ratio="16 / 9",
+                            overflow="hidden",
+                            border_radius="6px",
+                            background="var(--gray-a3)",
                         ),
-                        width="100%",
-                        aspect_ratio="16 / 9",
-                        overflow="hidden",
-                        border_radius="6px",
-                        background="var(--gray-a3)",
                     ),
                 ),
                 _ai_summary(),

@@ -468,6 +468,19 @@ def _build_article_row(row: dict) -> dict:
         # Peer group the story is shared with (app/services/news_category.py),
         # "" when it is about one coin only.
         "target_group": row.get("target_group") or "",
+        # A Telegram post with a video embeds Telegram's own post widget in
+        # the reader (real inline playback, streamed from Telegram's own
+        # CDN — we never download or store the video; see telegram-news.md).
+        # Confirmed live: Telegram's public embed (`<url>?embed=1`) renders
+        # standalone in a plain iframe, no SDK script needed. Takes
+        # priority over the media grid/hero image for that post; card
+        # thumbnails elsewhere are unaffected (still the poster image) —
+        # embedding a live Telegram widget in every small grid card would
+        # mean dozens of concurrent third-party iframes per page.
+        "has_video_embed": row.get("source_type") == "telegram" and any(
+            item.get("type") == "video" for item in (row.get("media") or [])
+        ),
+        "video_embed_url": f"{article_url}?embed=1",
     }
 
 
