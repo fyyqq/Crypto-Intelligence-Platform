@@ -10,7 +10,7 @@ from app.models.category import Category
 from app.models.coin import Coin
 from app.models.coin_contract import CoinContract
 from app.models.sync_log import SyncLog, SyncStatus, SyncType
-from app.services.price_snapshot_service import record_snapshots
+from app.services.price_snapshot_service import cleanup_snapshots, record_snapshots
 
 logger = logging.getLogger(__name__)
 
@@ -120,9 +120,11 @@ class MarketDataService:
         """Price history for /gainers-losers (price_snapshot_service). Only
         the two scheduled syncs call this, never the view-driven sync_ids
         (a partial, every-60s refresh would flood the table). A failure here
-        is logged and never fails the price sync itself."""
+        is logged and never fails the price sync itself. Old snapshots past
+        the retention period are deleted in the same pass."""
         try:
             record_snapshots(self.db, coins)
+            cleanup_snapshots(self.db)
         except Exception:  # noqa: BLE001
             self.db.rollback()
             logger.exception("price snapshot insert failed")

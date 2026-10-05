@@ -18,16 +18,15 @@ Reflex (Python) frontend in `frontend/`, FastAPI backend + scheduler in `app/`, 
 
 ## Pages and status (details in `docs/README.md`)
 
-Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symbol]` · News `/news`, `/news/<cat>`, reader · Narrative `/narrative[/<slug>]` · Tools `/tools` · Watchlist `/watchlist` · Alerts `/alerts` · `/login`, `/signup` · Chains `/chains` (placeholder).
+Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symbol]` · News `/news`, `/news/<cat>`, reader · Narrative `/narrative[/<slug>]` · Gainers & Losers `/gainers-losers` · Tools `/tools` · Watchlist `/watchlist` · Alerts `/alerts` · `/login`, `/signup` · Chains `/chains` (placeholder).
 
 ## Current State (2026-10-05)
 
 - Coin pages have a "Related News" link to `/narrative/<category>`; `/narrative/[narrative_slug]` exists. (The category/coin pill sliders above the coin news were removed on request.)
 - `/tools` is live (Fear & Greed, Altcoin Season (computed; the blockchaincenter embed was removed), BTC/ETH rainbow on the standard BTC curve with CoinMetrics 2010+ history, TradingView embeds, API-key popup). Details: `docs/tools.md`.
-- Gainers & Losers (`/gainers-losers/`) in progress, step 1 of 7 done: `price_snapshot` table filled by the hourly hot sync, now run from the Reflex process (`news_catchup._hot_sync_loop`). Tests: `python -m pytest tests` (needs `requirements-dev.txt`). Details: `docs/gainers-losers.md`.
+- Gainers & Losers (`/gainers-losers`, in the header nav) is live: own % change from `price_snapshot` (hourly hot sync, run from the Reflex process by `news_catchup._hot_sync_loop`), 24h/7d/30d, Top 100-500. History started 2026-10-05, so boards show "collecting" until 20h / 6d / 28d of history exist. Tests: `python -m pytest tests` (needs `requirements-dev.txt`). Details: `docs/gainers-losers.md`.
 - Telegram posts are merged into the main `/news` sections on purpose (see `telegram-news.md`).
 - The Telegram listener is not auto-started by a process manager (the `/news` catch-up starts it).
-- Local commits may be unpushed until git auth is switched to `fyyqq`.
 - Notion is stale versus `docs/` (mirroring is optional now).
 - `.claude/rules/` and the slim CLAUDE.md were introduced on 2026-10-05; the full prior text is in `docs/CHANGELOG.md`.
 

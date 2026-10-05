@@ -13,6 +13,7 @@ from frontend.components import (
     coin_table,
     filter_bar,
     footer,
+    gainers_losers_content,
     global_search,
     market_overview,
     narrative_alerts,
@@ -26,7 +27,7 @@ from frontend.components import (
 )
 from frontend.components.alerts_page import alerts_content
 from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
-from frontend.state import CoinState, NewsDetailState, NewsState, ToolsState
+from frontend.state import CoinState, GainersLosersState, NewsDetailState, NewsState, ToolsState
 
 
 def _alerts_menu_item() -> rx.Component:
@@ -237,6 +238,7 @@ def _profile_pill() -> rx.Component:
 _NAV_LINKS = [
     ("News", "/news"),
     ("Narrative", "/narrative"),
+    ("Gainers & Losers", "/gainers-losers"),
     ("Chains", "/chains"),
     ("Tools", "/tools"),
 ]
@@ -1038,6 +1040,23 @@ def tools_page() -> rx.Component:
     )
 
 
+def gainers_losers_page() -> rx.Component:
+    # /gainers-losers — top gainers and losers from the app's own price snapshots.
+    return rx.box(
+        _header_bar(),
+        gainers_losers_content(),
+        footer(),
+        _floating_logo(),
+        _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
+        _alert_popups(),
+        rx.script(src="/chain_pills.js"),
+        min_height="100vh",
+        width="100%",
+    )
+
+
 def alerts_page() -> rx.Component:
     return rx.box(
         _header_bar(),
@@ -1198,6 +1217,12 @@ app.add_page(
     route="/narrative/[narrative_slug]",
     title=NewsState.narrative_page_title,
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, NewsState.watch_new_articles],
+)
+app.add_page(
+    gainers_losers_page,
+    route="/gainers-losers",
+    title="Repace — Top Gainers & Losers",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, GainersLosersState.load],
 )
 app.add_page(
     tools_page,

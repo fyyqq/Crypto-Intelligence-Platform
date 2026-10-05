@@ -17,7 +17,7 @@ This folder, the matching [Notion pages](https://app.notion.com/p/3e1143f8052780
 | [Chains](./chains.md) | `/chains` | Placeholder |
 | [Tools](./tools.md) | `/tools` | Live |
 | [Watchlist](./watchlist.md) | `/watchlist` | Live |
-| [Gainers & Losers](./gainers-losers.md) | `/gainers-losers/` | In progress (price snapshots recording; page not built yet) |
+| [Gainers & Losers](./gainers-losers.md) | `/gainers-losers` | Live (boards fill in as price history accumulates) |
 
 ## Shared
 

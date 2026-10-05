@@ -18,7 +18,7 @@ A responsive 3-column grid: `1fr auto 1fr` at tablet width and up (true horizont
 <details>
 <summary><strong>🔗 Nav links</strong></summary>
 
-News / Narrative / Chains / Tools — each a real page (see [News](./news.md), [Narrative](./narrative.md), [Chains](./chains.md), [Tools](./tools.md)), not an anchor into another page. The link matching the current route highlights in the accent color. Visible at every screen width; below roughly 480px the row becomes a horizontal swipe rather than clipping any link permanently, since all four genuinely don't fit next to the logo and search/profile controls at that width.
+News / Narrative / Gainers & Losers / Chains / Tools — each a real page (see [News](./news.md), [Narrative](./narrative.md), [Gainers & Losers](./gainers-losers.md), [Chains](./chains.md), [Tools](./tools.md)), not an anchor into another page. The link matching the current route highlights in the accent color. Visible at every screen width; below roughly 480px the row becomes a horizontal swipe rather than clipping any link permanently, since all four genuinely don't fit next to the logo and search/profile controls at that width.
 </details>
 
 <details>
