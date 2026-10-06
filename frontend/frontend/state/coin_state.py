@@ -9,6 +9,7 @@ import math
 import time
 import re
 import sys
+from datetime import timezone
 from pathlib import Path
 from collections import Counter
 from urllib.parse import urlencode
@@ -18,6 +19,15 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from frontend.models.coin import Coin
+
+
+def _aware(dt):
+    """Postgres TIMESTAMP columns come back naive (UTC); newer sqlmodel
+    versions reject naive datetimes outright on insert/update into the
+    Reflex SQLite mirror."""
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 # Repo root, so handlers can import the Postgres-side `app` package (Reflex only has frontend/ on sys.path).
 _ROOT_FOR_APP = str(Path(__file__).resolve().parent.parent.parent.parent)
@@ -944,7 +954,9 @@ def _sync_and_rebuild_rows(cmc_ids: list[int]) -> dict[int, dict]:
             row.percent_change_7d = (
                 float(fresh.percent_change_7d) if fresh.percent_change_7d is not None else None
             )
-            row.last_synced_at = fresh.last_synced_at
+            # Postgres TIMESTAMP columns come back naive (UTC); newer sqlmodel
+            # versions reject naive datetimes outright on insert/update.
+            row.last_synced_at = _aware(fresh.last_synced_at)
             session.add(row)
         session.commit()
 
@@ -1078,7 +1090,7 @@ def _fetch_market_pairs(symbol: str) -> tuple[int, list[dict]] | None:
             # which permanently stuck CoinState.tradingview_chart_pending
             # (see "market_pairs_fetched" in _build_row) at True even long
             # after a real fetch had already completed and been cached.
-            row.market_pairs_updated_at = market_pairs_updated_at
+            row.market_pairs_updated_at = _aware(market_pairs_updated_at)
             session.add(row)
             session.commit()
 
@@ -1122,7 +1134,7 @@ def _fetch_tradingview_dex_symbol(symbol: str) -> tuple[int, str | None] | None:
         row = session.exec(select(Coin).where(Coin.cmc_id == cmc_id)).first()
         if row is not None:
             row.tradingview_dex_symbol = dex_symbol
-            row.tradingview_dex_symbol_checked_at = checked_at
+            row.tradingview_dex_symbol_checked_at = _aware(checked_at)
             session.add(row)
             session.commit()
 
@@ -1165,7 +1177,7 @@ def _fetch_defillama_unlocks_slug(symbol: str) -> tuple[int, str | None] | None:
         row = session.exec(select(Coin).where(Coin.cmc_id == cmc_id)).first()
         if row is not None:
             row.defillama_unlocks_slug = slug
-            row.defillama_unlocks_checked_at = checked_at
+            row.defillama_unlocks_checked_at = _aware(checked_at)
             session.add(row)
             session.commit()
 
