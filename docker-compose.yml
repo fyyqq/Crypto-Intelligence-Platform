@@ -7,7 +7,9 @@ services:
       POSTGRES_PASSWORD: crypto
       POSTGRES_DB: crypto_intelligence
     ports:
-      - "5432:5432"
+      # Bound to loopback only — Docker's own iptables rules bypass ufw, so a bare
+      # "5432:5432" would expose Postgres to the internet regardless of the firewall.
+      - "127.0.0.1:5432:5432"
     volumes:
       - crypto_pg_data:/var/lib/postgresql/data
 
