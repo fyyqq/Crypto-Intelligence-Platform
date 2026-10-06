@@ -18,6 +18,10 @@ trafilatura>=2.2.0
 # URLs — trafilatura can't extract a real page from one, so this decodes
 # the real URL first. See news_pipeline.py's own module docstring.
 googlenewsdecoder>=0.2.1
+# Pinned <1.0 — googlenewsdecoder 0.2.1 (latest, 1.0.0 is yanked) still imports
+# the Modest backend (`from selectolax.parser import HTMLParser`), which
+# selectolax 1.0+ removed entirely (hard ImportError, not just a warning).
+selectolax<1.0
 
 # Telegram group ingestion (app/services/telegram_pipeline.py) — MTProto
 # client library, logs in as the user's own account (not a bot) so it can
