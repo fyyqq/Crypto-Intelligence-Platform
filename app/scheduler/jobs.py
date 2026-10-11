@@ -1,3 +1,4 @@
+import threading
 from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -90,6 +91,29 @@ def run_hot_listings_sync() -> None:
 
     if hot_synced:
         sync_reflex_cache()
+
+
+MANUAL_REFRESH_COOLDOWN_MINUTES = 5
+
+
+def run_manual_hot_sync() -> bool:
+    """The /gainers-losers refresh button: the same top-500 sync as
+    run_hot_listings_sync (~3 CMC credits, records a price snapshot), but
+    due after MANUAL_REFRESH_COOLDOWN_MINUTES instead of the hourly interval.
+    The cooldown is global (one SyncLog for every viewer), so clicks can't
+    run up CMC credits; inside it this is a no-op. Returns whether it synced."""
+    db = SessionLocal()
+    try:
+        service = MarketDataService(db)
+        if not service.is_sync_due(SyncType.LISTINGS_HOT, interval_hours=MANUAL_REFRESH_COOLDOWN_MINUTES / 60):
+            return False
+        synced = service.sync_hot_listings().status == SyncStatus.SUCCESS
+    finally:
+        db.close()
+    if synced:
+        # ~8s mirror copy for the home table; the button shouldn't wait on it.
+        threading.Thread(target=sync_reflex_cache, name="manual-refresh-cache", daemon=True).start()
+    return synced
 
 
 def run_listings_sync() -> None:

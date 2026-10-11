@@ -37,6 +37,9 @@ class Window:
 
 # One entry per window. A fixed 30 days, not a calendar month.
 WINDOWS: dict[str, Window] = {
+    # Snapshots are hourly (plus any refresh-button syncs), so 1h accepts the
+    # previous one anywhere 30-90 minutes back.
+    "1h": Window("1h", timedelta(hours=1), timedelta(minutes=30), timedelta(minutes=90)),
     "24h": Window("24h", timedelta(hours=24), timedelta(hours=20), timedelta(hours=28)),
     "7d": Window("7d", timedelta(days=7), timedelta(days=6), timedelta(days=8)),
     "30d": Window("1 Month", timedelta(days=30), timedelta(days=28), timedelta(days=32)),

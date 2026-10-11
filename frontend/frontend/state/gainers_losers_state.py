@@ -54,9 +54,28 @@ def _load_all() -> dict:
             }
         first, last = svc.saved_days(db)
         out["_days"] = (first.isoformat() if first else "", last.isoformat() if last else "")
+        latest = svc._latest_sync_time(db)
+        out["_synced"] = latest.strftime("%d %b %H:%M UTC") if latest else ""
         return out
     finally:
         db.close()
+
+
+def _refresh_all() -> dict:
+    """Refresh button: a fresh top-500 CMC pull (skipped inside the global
+    cooldown, see run_manual_hot_sync), save today's board, then reload."""
+    _service()  # puts the repo root on sys.path
+    from app.scheduler.jobs import run_manual_hot_sync
+
+    if run_manual_hot_sync():
+        from app.core.database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            _service().record_daily_movers(db)
+        finally:
+            db.close()
+    return _load_all()
 
 
 def _load_day(day_iso: str) -> dict[str, list[dict]]:
@@ -107,6 +126,13 @@ class GainersLosersState(rx.State):
     last_day: str = ""
     _day_changes: dict[str, list[dict]] = {}
     day_windows: list[str] = []  # windows with a saved board on selected_day
+    # Refresh icon: spinning while a refresh runs; time of the newest sync.
+    refreshing: bool = False
+    synced_at: str = ""
+    # Change-column sort per board, by signed % change. Defaults put the
+    # biggest move first: gainers descending, losers ascending (most negative).
+    gainers_desc: bool = True
+    losers_desc: bool = False
 
     @rx.var
     def selected_day_label(self) -> str:
@@ -163,7 +189,12 @@ class GainersLosersState(rx.State):
         svc = _service()
         source = self._day_changes if self.selected_day else self._changes
         rows = svc.rank_movers(source.get(self.window, []), self.bucket, direction, _LIMIT)
-        return [_display_row(i, c) for i, c in enumerate(rows, start=1)]
+        # The Change header's sort only reorders the board's coins (it never
+        # swaps in different ones); # stays the biggest-move position.
+        desc = self.gainers_desc if direction == "gainers" else self.losers_desc
+        ranked = list(enumerate(rows, start=1))
+        ranked.sort(key=lambda pc: pc[1]["pct_change"], reverse=desc)
+        return [_display_row(i, c) for i, c in ranked]
 
     @rx.var
     def gainers(self) -> list[dict[str, str]]:
@@ -180,6 +211,13 @@ class GainersLosersState(rx.State):
     @rx.event
     def set_bucket(self, bucket: int):
         self.bucket = bucket
+
+    @rx.event
+    def toggle_sort(self, direction: str):
+        if direction == "gainers":
+            self.gainers_desc = not self.gainers_desc
+        else:
+            self.losers_desc = not self.losers_desc
 
     @rx.event
     def set_day(self, day: str):
@@ -234,7 +272,35 @@ class GainersLosersState(rx.State):
                 self.error = f"Could not load price history: {exc}"
             return
         async with self:
-            self.first_day, self.last_day = data.pop("_days")
-            self._changes = {k: v.pop("changes") for k, v in data.items()}
-            self.statuses = data
+            self._apply(data)
             self.loading = False
+
+    def _apply(self, data: dict):
+        self.first_day, self.last_day = data.pop("_days")
+        self.synced_at = data.pop("_synced")
+        self._changes = {k: v.pop("changes") for k, v in data.items()}
+        self.statuses = data
+
+    @rx.event(background=True)
+    async def refresh(self):
+        """Refresh icon: fresh CMC prices (global 5-minute cooldown), then
+        recompute every window. Keeps the tables up while it runs (the icon
+        spins instead), and spins at least one full turn."""
+        async with self:
+            if self.refreshing:
+                return
+            self.refreshing = True
+            self.error = ""
+            self.selected_day = ""  # a refresh always shows the live board
+            self._day_changes = {}
+            self.day_windows = []
+        try:
+            data, _ = await asyncio.gather(asyncio.to_thread(_refresh_all), asyncio.sleep(0.8))
+        except Exception as exc:  # noqa: BLE001
+            async with self:
+                self.refreshing = False
+                self.error = f"Could not refresh prices: {exc}"
+            return
+        async with self:
+            self._apply(data)
+            self.refreshing = False

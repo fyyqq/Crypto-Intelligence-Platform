@@ -1019,3 +1019,13 @@ html.light .radix-themes:where([data-is-root-theme="true"]) {
   --gray-a2: #ffffff;
   --gray-2: #ffffff;
 }
+
+/* /gainers-losers refresh icon: one full clockwise turn per 0.8s while a
+   refresh runs (the state keeps it spinning for at least one turn). */
+@keyframes gl-refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.gl-refresh-spinning svg {
+  animation: gl-refresh-spin 0.8s linear infinite;
+}

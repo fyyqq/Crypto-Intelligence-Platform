@@ -134,9 +134,11 @@ def test_each_window_picks_its_own_lookback_snapshot(db):
     snap(db, 1, "BTC", 75.0, NOW - timedelta(days=6, hours=12))
     snap(db, 1, "BTC", 240.0, NOW - timedelta(hours=24))
     snap(db, 1, "BTC", 230.0, NOW - timedelta(hours=22))
+    snap(db, 1, "BTC", 290.0, NOW - timedelta(hours=1))
     snap(db, 1, "BTC", 300.0, NOW)
     db.commit()
     picks = {w: svc.compute_changes(db, w)[0] for w in svc.WINDOWS}
+    assert (picks["1h"]["price_then"], picks["1h"]["then_at"]) == (290.0, NOW - timedelta(hours=1))
     assert (picks["24h"]["price_then"], picks["24h"]["then_at"]) == (240.0, NOW - timedelta(hours=24))
     assert (picks["7d"]["price_then"], picks["7d"]["then_at"]) == (70.0, NOW - timedelta(days=7))
     assert (picks["30d"]["price_then"], picks["30d"]["then_at"]) == (30.0, NOW - timedelta(days=30))
@@ -323,10 +325,22 @@ def test_daily_movers_saved_per_day_and_replaced_by_later_sync(db):
     saved = svc.load_daily_movers(db, NOW.date())
     assert [c["symbol"] for c in saved["24h"]] == ["UP"]
     assert saved["24h"][0]["pct_change"] == pytest.approx(50.0)
-    assert db.scalar(select(func.count()).select_from(MoversDaily)) == 1
+    # (that sync also makes a 1h row: UP's previous snapshot is 1h back)
+    assert db.scalar(select(func.count()).select_from(MoversDaily).where(MoversDaily.window == "24h")) == 1
 
 
 def test_daily_movers_nothing_before_first_sync(db):
     assert svc.record_daily_movers(db) == 0
     assert svc.saved_days(db) == (None, None)
     assert svc.load_daily_movers(db, NOW.date()) == {}
+
+
+def test_1h_window_uses_previous_hourly_snapshot(db):
+    history_anchor(db)
+    snap(db, 1, "UP", 100.0, NOW - timedelta(minutes=85), rank=5)  # previous hourly sync
+    snap(db, 1, "UP", 50.0, NOW - timedelta(hours=3), rank=5)  # too old for 1h
+    snap(db, 1, "UP", 110.0, NOW, rank=5)
+    db.commit()
+    row = svc.get_movers(db, 100, "1h", "gainers")["coins"][0]
+    assert row["pct_change"] == pytest.approx(10.0)
+    assert row["then_at"] == NOW - timedelta(minutes=85)

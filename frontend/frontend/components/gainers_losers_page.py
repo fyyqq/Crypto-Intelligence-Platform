@@ -161,19 +161,68 @@ def _row(row: rx.Var) -> rx.Component:
     )
 
 
-def _board(title: str, icon: str, color: str, rows, empty_text: str) -> rx.Component:
+def _refresh_button() -> rx.Component:
+    """Re-syncs prices from CMC and recomputes every board (see
+    GainersLosersState.refresh). Spins while it runs; follows the theme."""
+    return rx.tooltip(
+        rx.icon_button(
+            rx.icon("rotate-cw", size=18),
+            on_click=S.refresh,
+            variant="ghost",
+            color_scheme="gray",
+            size="2",
+            cursor="pointer",
+            disabled=S.refreshing,
+            aria_label="Refresh prices",
+            class_name=rx.cond(S.refreshing, "gl-refresh-spinning", ""),
+            style={"color": "var(--gray-12)", "flex_shrink": "0"},
+        ),
+        content=rx.cond(S.synced_at != "", "Refresh prices · last synced " + S.synced_at, "Refresh prices"),
+    )
+
+
+def _change_header(direction: str) -> rx.Component:
+    """Change column header: click to flip the sort of this board's rows."""
+    desc = S.gainers_desc if direction == "gainers" else S.losers_desc
+    return rx.table.column_header_cell(
+        rx.hstack(
+            rx.text("Change", size="1", weight="bold", color_scheme="gray"),
+            rx.cond(
+                desc,
+                rx.icon("arrow-down-wide-narrow", size=14, color="var(--gray-11)"),
+                rx.icon("arrow-up-narrow-wide", size=14, color="var(--gray-11)"),
+            ),
+            spacing="1",
+            align="center",
+            justify="end",
+        ),
+        on_click=S.toggle_sort(direction),
+        cursor="pointer",
+        text_align="right",
+        white_space="nowrap",
+        title=rx.cond(desc, "Sorted largest % first. Click for smallest first.", "Sorted smallest % first. Click for largest first."),
+    )
+
+
+def _board(title: str, icon: str, color: str, rows, empty_text: str, direction: str) -> rx.Component:
     return rx.box(
         rx.hstack(
-            rx.icon(icon, size=18, color=color),
-            rx.heading(title, size="4"),
-            rx.badge(S.current["label"], " · Rank ", S.bucket - 99, "–", S.bucket, variant="soft", color_scheme="gray", size="1"),
-            rx.cond(
-                S.selected_day != "",
-                rx.badge(rx.icon("calendar", size=12), S.selected_day_label, variant="soft", color_scheme="indigo", size="1"),
+            rx.hstack(
+                rx.icon(icon, size=18, color=color),
+                rx.heading(title, size="4"),
+                rx.badge(S.current["label"], " · Rank ", S.bucket - 99, "–", S.bucket, variant="soft", color_scheme="gray", size="1"),
+                rx.cond(
+                    S.selected_day != "",
+                    rx.badge(rx.icon("calendar", size=12), S.selected_day_label, variant="soft", color_scheme="indigo", size="1"),
+                ),
+                spacing="2",
+                align="center",
+                wrap="wrap",
             ),
-            spacing="2",
+            _refresh_button(),
+            justify="between",
             align="center",
-            wrap="wrap",
+            width="100%",
         ),
         rx.cond(
             S.day_saved_at != "",
@@ -188,7 +237,7 @@ def _board(title: str, icon: str, color: str, rows, empty_text: str) -> rx.Compo
                             _header_cell("#"),
                             _header_cell("Coin"),
                             _header_cell("Price", "right"),
-                            _header_cell("Change", "right"),
+                            _change_header(direction),
                             rx.table.column_header_cell(
                                 rx.text("Volume 24h", size="1", weight="bold", color_scheme="gray"),
                                 text_align="right",
@@ -293,8 +342,8 @@ def gainers_losers_content() -> rx.Component:
                 rx.cond(
                     S.is_ready,
                     rx.grid(
-                        _board("Top Gainers", "trending-up", "var(--green-11)", S.gainers, "No coin in this range gained over this window."),
-                        _board("Top Losers", "trending-down", "var(--red-11)", S.losers, "No coin in this range lost over this window."),
+                        _board("Top Gainers", "trending-up", "var(--green-11)", S.gainers, "No coin in this range gained over this window.", "gainers"),
+                        _board("Top Losers", "trending-down", "var(--red-11)", S.losers, "No coin in this range lost over this window.", "losers"),
                         columns=rx.breakpoints(initial="1", lg="2"),
                         spacing="4",
                         width="100%",
