@@ -142,7 +142,8 @@ _SNAPSHOT_CHECK_SECONDS = 10 * 60
 
 
 def _hot_sync_loop() -> None:
-    """Hourly top-500 and daily all-coin price refresh + price snapshots.
+    """Hourly top-500 and daily all-coin price refresh + price snapshots,
+    then today's Gainers & Losers board is saved (movers_daily).
     Checks every 10 minutes; each job only calls CMC once its own interval
     (1h / 24h) is due."""
     if str(_REPO_ROOT) not in sys.path:
@@ -160,6 +161,19 @@ def _hot_sync_loop() -> None:
             run_listings_sync()  # every coin, once a day (24h gate)
         except Exception:  # noqa: BLE001
             logger.exception("daily listings sync failed")
+        try:
+            # Saves today's Gainers & Losers board for the page's calendar
+            # (no-op unless a new sync landed since the last save).
+            from app.core.database import SessionLocal
+            from app.services.price_snapshot_service import record_daily_movers
+
+            db = SessionLocal()
+            try:
+                record_daily_movers(db)
+            finally:
+                db.close()
+        except Exception:  # noqa: BLE001
+            logger.exception("daily movers save failed")
         time.sleep(_SNAPSHOT_CHECK_SECONDS)
 
 

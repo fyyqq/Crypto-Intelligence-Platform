@@ -292,3 +292,41 @@ def test_reference_values_per_field_and_missing(db):
 def test_snapshot_records_market_cap(db):
     svc.record_snapshots(db, [{"id": 1, "symbol": "BTC", "cmc_rank": 1, "quote": {"USD": {"price": 2.0, "volume_24h": 5.0, "market_cap": 1234.5}}}])
     assert float(db.scalars(select(PriceSnapshot.market_cap)).one()) == 1234.5
+
+
+# ---- daily history (movers_daily) --------------------------------------------
+def test_daily_movers_saved_per_day_and_replaced_by_later_sync(db):
+    from app.models.movers_daily import MoversDaily
+
+    history_anchor(db)
+    snap(db, 1, "UP", 100.0, NOW - timedelta(hours=24), rank=10)
+    snap(db, 1, "UP", 120.0, NOW, rank=10)
+    snap(db, 2, "R150", 100.0, NOW - timedelta(hours=24), rank=150)
+    snap(db, 2, "R150", 90.0, NOW, rank=150)
+    snap(db, 3, "R700", 100.0, NOW - timedelta(hours=24), rank=700)
+    snap(db, 3, "R700", 200.0, NOW, rank=700)  # beyond rank 500: not stored
+    db.commit()
+
+    assert svc.record_daily_movers(db) == 2  # only 24h is ready-with-data here
+    assert svc.record_daily_movers(db) == 0  # same sync already saved
+    assert svc.saved_days(db) == (NOW.date(), NOW.date())
+    saved = svc.load_daily_movers(db, NOW.date())
+    assert symbols(svc.rank_movers(saved["24h"], 100, "gainers")) == ["UP"]
+    assert symbols(svc.rank_movers(saved["24h"], 200, "losers")) == ["R150"]
+
+    # A later sync the same day replaces that day's rows (closing board).
+    later = NOW + timedelta(hours=1)
+    snap(db, 1, "UP", 100.0, later - timedelta(hours=24), rank=10)
+    snap(db, 1, "UP", 150.0, later, rank=10)
+    db.commit()
+    svc.record_daily_movers(db)
+    saved = svc.load_daily_movers(db, NOW.date())
+    assert [c["symbol"] for c in saved["24h"]] == ["UP"]
+    assert saved["24h"][0]["pct_change"] == pytest.approx(50.0)
+    assert db.scalar(select(func.count()).select_from(MoversDaily)) == 1
+
+
+def test_daily_movers_nothing_before_first_sync(db):
+    assert svc.record_daily_movers(db) == 0
+    assert svc.saved_days(db) == (None, None)
+    assert svc.load_daily_movers(db, NOW.date()) == {}

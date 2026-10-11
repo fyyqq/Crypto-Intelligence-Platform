@@ -1,6 +1,7 @@
 from app.models.category import Category, coin_category
 from app.models.coin import Coin
 from app.models.coin_contract import CoinContract
+from app.models.movers_daily import MoversDaily
 from app.models.price_alert import PriceAlert
 from app.models.price_snapshot import PriceSnapshot
 from app.models.sync_log import SyncLog, SyncStatus, SyncType
@@ -12,6 +13,7 @@ __all__ = [
     "Category",
     "Coin",
     "CoinContract",
+    "MoversDaily",
     "PriceAlert",
     "PriceSnapshot",
     "SyncLog",

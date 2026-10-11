@@ -1,7 +1,7 @@
 # Gainers & Losers
 
 **Route:** `/gainers-losers` · **Status:** Live (built 2026-10-05). Boards fill in as price history accumulates: 24h from about 20 hours after the first snapshot, 7d from about 6 days, 1 Month from about 28 days.
-**Source:** `app/models/price_snapshot.py`, `app/services/price_snapshot_service.py`, `app/services/market_data_service.py` (hook), `frontend/frontend/news_catchup.py` (hourly runner), `frontend/frontend/state/gainers_losers_state.py`, `frontend/frontend/components/gainers_losers_page.py`, migration `f8a4b6c7d1e3`, tests in `tests/` (`python -m pytest tests`, needs `requirements-dev.txt`).
+**Source:** `app/models/price_snapshot.py`, `app/services/price_snapshot_service.py`, `app/services/market_data_service.py` (hook), `frontend/frontend/news_catchup.py` (hourly runner), `frontend/frontend/state/gainers_losers_state.py`, `frontend/frontend/components/gainers_losers_page.py`, `app/models/movers_daily.py`, migrations `f8a4b6c7d1e3` and `b3c6d9e1f5a7` (movers_daily), tests in `tests/` (`python -m pytest tests`, needs `requirements-dev.txt`).
 
 Top gainers and top losers per rank band by current `cmc_rank`: Top 100 (ranks 1-100), 101-200, 201-300, 301-400, 401-500. The bands do not overlap (changed 2026-10-12; they used to be cumulative, so "Top 200" repeated the Top 100 coins), over 24h, 7d and 1 Month (a fixed 30 days). The % change is the app's own: `(price_now - price_then) / price_then * 100`, from stored price snapshots, never CMC's `percent_change_*` fields. Linked from the header nav ("Gainers & Losers", and in the profile dropdown below 1280px).
 
@@ -41,6 +41,13 @@ One `WINDOWS` config in `price_snapshot_service.py`: `24h` (lookback 24h, accept
 <details><summary>Ranking and output</summary>
 
 `compute_changes` is the one shared calculation; `rank_movers(changes, bucket, direction, limit)` cuts it to the band `bucket_floor(bucket) < rank <= bucket`, then: `gainers` keeps change > 0 sorted descending, `losers` keeps change < 0 sorted ascending (most negative first). 0% is in neither; lists are never padded. `get_movers(db, bucket, window, direction, limit=30)` returns status, time remaining and the coins (rank, name, symbol, price_now, price_then, pct_change, volume_24h, then_at). Unknown windows, buckets or directions raise a clear `SnapshotConfigError`.
+</details>
+
+<details><summary>Daily history (calendar)</summary>
+
+Added 2026-10-12. `movers_daily` stores each UTC day's board: per day and window, every qualifying coin up to rank 500 (rank, name, symbol, price now/then, % change, 24h volume, then_at/now_at), unique on (day, window, coin_id). `record_daily_movers` runs in the `hot-sync-snapshots` loop after each sync check (every 10 min). It is a no-op unless a newer sync landed than the day's saved rows. Otherwise it replaces that day's rows for every ready window, so once a UTC day ends its rows are that day's closing board (last hourly sync, ~23:xx UTC = ~07:xx MYT next day). A window that is still collecting is not saved for that day. Kept indefinitely (~1.5K rows/day). History starts 11 Oct 2026 (UTC); nothing earlier is reconstructed.
+
+Page: a calendar button right after the window buttons ("Live" or the picked day, e.g. "11 Oct 2026") opens a popover with a native date input bounded to the first/last saved day (`saved_days`), a "Saved daily (UTC) since ..." note, and "Back to live". Picking a day loads that day's rows (`load_daily_movers`, `GainersLosersState.load_day`). The same window and band buttons re-cut them through `rank_movers`. Each board then shows a calendar badge and "Saved board, as of <time>". A window with nothing saved that day shows a "No saved <window> board for <day>" card with "Back to live".
 </details>
 
 <details><summary>Page</summary>

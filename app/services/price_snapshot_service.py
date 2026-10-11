@@ -17,12 +17,13 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models.coin import Coin
+from app.models.movers_daily import MoversDaily
 from app.models.price_snapshot import PriceSnapshot
 
 
@@ -50,6 +51,8 @@ def bucket_floor(bucket: int) -> int:
     """Last rank of the band below: 0 for 100, 100 for 200, ..."""
     i = BUCKETS.index(bucket)
     return BUCKETS[i - 1] if i else 0
+
+
 DIRECTIONS: tuple[str, ...] = ("gainers", "losers")
 DEFAULT_LIMIT = 30
 
@@ -322,3 +325,75 @@ def get_movers(
         "hours_remaining": status["hours_remaining"],
         "coins": coins,
     }
+
+
+# ---- Daily history (the page's calendar) -----------------------------------
+def record_daily_movers(db: Session) -> int:
+    """Saves the current board of every ready window under the UTC day of
+    the latest sync, replacing that day's earlier rows, and commits. Run
+    after each scheduled sync: the last save of a day is that day's closing
+    board. Skipped (returns 0) when the latest sync is already saved, so
+    calling it more often than syncs happen costs one query. Stores every
+    qualifying coin up to rank max(BUCKETS); returns the rows written."""
+    latest = _latest_sync_time(db)
+    if latest is None:
+        return 0
+    day = latest.date()
+    saved_at = db.scalar(select(func.max(MoversDaily.now_at)).where(MoversDaily.day == day))
+    if saved_at is not None and saved_at >= latest:
+        return 0
+    written = 0
+    for name in WINDOWS:
+        if window_status(db, name)["status"] != "ready":
+            continue
+        changes = [c for c in compute_changes(db, name) if c["rank"] <= BUCKETS[-1]]
+        db.execute(delete(MoversDaily).where(MoversDaily.day == day, MoversDaily.window == name))
+        db.add_all(
+            MoversDaily(
+                day=day,
+                window=name,
+                coin_id=c["coin_id"],
+                symbol=c["symbol"],
+                name=(c["name"] or c["symbol"])[:255],
+                cmc_rank=c["rank"],
+                price_now=c["price_now"],
+                price_then=c["price_then"],
+                pct_change=c["pct_change"],
+                volume_24h=c["volume_24h"],
+                then_at=c["then_at"],
+                now_at=c["now_at"],
+            )
+            for c in changes
+        )
+        written += len(changes)
+    db.commit()
+    return written
+
+
+def saved_days(db: Session) -> tuple[date | None, date | None]:
+    """First and last UTC day with a saved board, or (None, None)."""
+    return tuple(db.execute(select(func.min(MoversDaily.day), func.max(MoversDaily.day))).one())
+
+
+def load_daily_movers(db: Session, day: date) -> dict[str, list[dict]]:
+    """A saved day's boards: {window: changes}, in compute_changes' shape so
+    rank_movers cuts them the same way as the live board. A window with
+    nothing saved that day is absent."""
+    rows = db.scalars(select(MoversDaily).where(MoversDaily.day == day)).all()
+    out: dict[str, list[dict]] = {}
+    for r in rows:
+        out.setdefault(r.window, []).append(
+            {
+                "coin_id": r.coin_id,
+                "rank": r.cmc_rank,
+                "name": r.name,
+                "symbol": r.symbol,
+                "price_now": float(r.price_now),
+                "price_then": float(r.price_then),
+                "pct_change": r.pct_change,
+                "volume_24h": float(r.volume_24h),
+                "then_at": r.then_at,
+                "now_at": r.now_at,
+            }
+        )
+    return out

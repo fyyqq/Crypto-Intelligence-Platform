@@ -52,7 +52,23 @@ def _load_all() -> dict:
                 "since": since.strftime("%d %b %Y, %H:%M UTC") if since else "",
                 "changes": changes,
             }
+        first, last = svc.saved_days(db)
+        out["_days"] = (first.isoformat() if first else "", last.isoformat() if last else "")
         return out
+    finally:
+        db.close()
+
+
+def _load_day(day_iso: str) -> dict[str, list[dict]]:
+    """A saved day's boards ({window: changes}) from movers_daily."""
+    from datetime import date
+
+    svc = _service()
+    from app.core.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        return svc.load_daily_movers(db, date.fromisoformat(day_iso))
     finally:
         db.close()
 
@@ -84,6 +100,35 @@ class GainersLosersState(rx.State):
     statuses: dict[str, dict[str, str]] = {}
     # Per window: the raw change rows (backend only, never sent to the browser).
     _changes: dict[str, list[dict]] = {}
+    # Calendar: "" = live board; else an ISO UTC day whose saved board
+    # (movers_daily) is shown. first/last_day bound the date picker.
+    selected_day: str = ""
+    first_day: str = ""
+    last_day: str = ""
+    _day_changes: dict[str, list[dict]] = {}
+    day_windows: list[str] = []  # windows with a saved board on selected_day
+
+    @rx.var
+    def selected_day_label(self) -> str:
+        if not self.selected_day:
+            return ""
+        from datetime import date
+
+        return date.fromisoformat(self.selected_day).strftime("%d %b %Y")
+
+    @rx.var
+    def first_day_label(self) -> str:
+        if not self.first_day:
+            return ""
+        from datetime import date
+
+        return date.fromisoformat(self.first_day).strftime("%d %b %Y")
+
+    @rx.var
+    def day_saved_at(self) -> str:
+        """When the shown saved board was computed (its latest sync)."""
+        rows = self._day_changes.get(self.window) or []
+        return rows[0]["now_at"].strftime("%d %b %Y, %H:%M UTC") if rows else ""
 
     @rx.var
     def window_options(self) -> list[dict[str, str]]:
@@ -97,6 +142,10 @@ class GainersLosersState(rx.State):
 
     @rx.var
     def current(self) -> dict[str, str]:
+        if self.selected_day:
+            label = self.statuses.get(self.window, {}).get("label", self.window)
+            status = "ready" if self.window in self.day_windows else "missing"
+            return {"label": label, "status": status, "days_remaining": "", "hours_remaining": "", "since": ""}
         return self.statuses.get(
             self.window, {"label": "", "status": "collecting", "days_remaining": "", "hours_remaining": "", "since": ""}
         )
@@ -105,9 +154,15 @@ class GainersLosersState(rx.State):
     def is_ready(self) -> bool:
         return self.current.get("status") == "ready"
 
+    @rx.var
+    def day_missing(self) -> bool:
+        """A past day is picked but nothing was saved for this window."""
+        return self.current.get("status") == "missing"
+
     def _board(self, direction: str) -> list[dict[str, str]]:
         svc = _service()
-        rows = svc.rank_movers(self._changes.get(self.window, []), self.bucket, direction, _LIMIT)
+        source = self._day_changes if self.selected_day else self._changes
+        rows = svc.rank_movers(source.get(self.window, []), self.bucket, direction, _LIMIT)
         return [_display_row(i, c) for i, c in enumerate(rows, start=1)]
 
     @rx.var
@@ -125,6 +180,38 @@ class GainersLosersState(rx.State):
     @rx.event
     def set_bucket(self, bucket: int):
         self.bucket = bucket
+
+    @rx.event
+    def set_day(self, day: str):
+        """From the calendar's date input; "" goes back to the live board."""
+        self.selected_day = day or ""
+        self._day_changes = {}
+        self.day_windows = []
+        if self.selected_day:
+            return GainersLosersState.load_day
+
+    @rx.event
+    def show_live(self):
+        return GainersLosersState.set_day("")
+
+    @rx.event(background=True)
+    async def load_day(self):
+        async with self:
+            day = self.selected_day
+            self.loading = True
+            self.error = ""
+        try:
+            data = await asyncio.to_thread(_load_day, day)
+        except Exception as exc:  # noqa: BLE001
+            async with self:
+                self.loading = False
+                self.error = f"Could not load the saved board: {exc}"
+            return
+        async with self:
+            if self.selected_day == day:  # ignore a stale answer after a re-pick
+                self._day_changes = data
+                self.day_windows = list(data)
+            self.loading = False
 
     @rx.event(background=True)
     async def load(self):
@@ -147,6 +234,7 @@ class GainersLosersState(rx.State):
                 self.error = f"Could not load price history: {exc}"
             return
         async with self:
+            self.first_day, self.last_day = data.pop("_days")
             self._changes = {k: v.pop("changes") for k, v in data.items()}
             self.statuses = data
             self.loading = False

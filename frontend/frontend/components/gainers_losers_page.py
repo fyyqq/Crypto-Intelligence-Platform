@@ -39,9 +39,61 @@ def _bucket_button(bucket: rx.Var) -> rx.Component:
     )
 
 
+def _calendar_button() -> rx.Component:
+    """Past days: opens a date picker over the boards saved daily
+    (movers_daily). The button reads the picked day, or "Live"."""
+    picked = S.selected_day != ""
+    return rx.popover.root(
+        rx.popover.trigger(
+            rx.button(
+                rx.icon("calendar", size=16),
+                rx.cond(picked, S.selected_day_label, "Live"),
+                variant=rx.cond(picked, "solid", "soft"),
+                color_scheme=rx.cond(picked, "indigo", "gray"),
+                size="2",
+                cursor="pointer",
+                aria_label="Pick a past day",
+            ),
+        ),
+        rx.popover.content(
+            rx.vstack(
+                rx.text("Show a past day's board", size="2", weight="bold"),
+                rx.input(
+                    type="date",
+                    value=S.selected_day,
+                    min=S.first_day,
+                    max=S.last_day,
+                    on_change=S.set_day,
+                    width="100%",
+                    style={"color_scheme": "light dark"},
+                ),
+                rx.text(
+                    rx.cond(
+                        S.first_day != "",
+                        rx.fragment("Saved daily (UTC) since ", S.first_day_label, "."),
+                        "The first daily board is saved within the hour.",
+                    ),
+                    size="1",
+                    color_scheme="gray",
+                ),
+                rx.cond(
+                    picked,
+                    rx.popover.close(
+                        rx.button("Back to live", on_click=S.show_live, variant="soft", size="1", width="100%", cursor="pointer"),
+                    ),
+                ),
+                spacing="2",
+                width="220px",
+            ),
+            side="bottom",
+            align="start",
+        ),
+    )
+
+
 def _controls() -> rx.Component:
     return rx.flex(
-        rx.hstack(rx.foreach(S.window_options, _window_button), spacing="2", wrap="wrap"),
+        rx.hstack(rx.foreach(S.window_options, _window_button), _calendar_button(), spacing="2", wrap="wrap"),
         rx.hstack(rx.foreach(S.bucket_options, _bucket_button), spacing="2", wrap="wrap"),
         direction=rx.breakpoints(initial="column", md="row"),
         justify="between",
@@ -115,9 +167,17 @@ def _board(title: str, icon: str, color: str, rows, empty_text: str) -> rx.Compo
             rx.icon(icon, size=18, color=color),
             rx.heading(title, size="4"),
             rx.badge(S.current["label"], " · Rank ", S.bucket - 99, "–", S.bucket, variant="soft", color_scheme="gray", size="1"),
+            rx.cond(
+                S.selected_day != "",
+                rx.badge(rx.icon("calendar", size=12), S.selected_day_label, variant="soft", color_scheme="indigo", size="1"),
+            ),
             spacing="2",
             align="center",
             wrap="wrap",
+        ),
+        rx.cond(
+            S.day_saved_at != "",
+            rx.text("Saved board, as of ", S.day_saved_at, size="1", color_scheme="gray", margin_top="0.35em"),
         ),
         rx.cond(
             rows.length() > 0,
@@ -180,6 +240,27 @@ def _collecting() -> rx.Component:
     )
 
 
+def _day_missing() -> rx.Component:
+    return rx.vstack(
+        rx.icon("calendar-x", size=28, color="var(--gray-11)"),
+        rx.heading("No saved ", S.current["label"], " board for ", S.selected_day_label, size="4", text_align="center"),
+        rx.text(
+            "Boards are saved once a day from our own price snapshots. A window is only saved once it has "
+            "enough history, so try another window or day.",
+            size="2",
+            color_scheme="gray",
+            text_align="center",
+            max_width="560px",
+        ),
+        rx.button("Back to live", on_click=S.show_live, variant="soft", size="2", cursor="pointer"),
+        spacing="3",
+        align="center",
+        justify="center",
+        min_height="260px",
+        **_CARD,
+    )
+
+
 def gainers_losers_content() -> rx.Component:
     return rx.vstack(
         rx.vstack(
@@ -218,7 +299,7 @@ def gainers_losers_content() -> rx.Component:
                         spacing="4",
                         width="100%",
                     ),
-                    _collecting(),
+                    rx.cond(S.day_missing, _day_missing(), _collecting()),
                 ),
             ),
         ),
