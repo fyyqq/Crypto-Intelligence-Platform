@@ -3,7 +3,7 @@
 **Route:** `/gainers-losers` · **Status:** Live (built 2026-10-05). Boards fill in as price history accumulates: 24h from about 20 hours after the first snapshot, 7d from about 6 days, 1 Month from about 28 days.
 **Source:** `app/models/price_snapshot.py`, `app/services/price_snapshot_service.py`, `app/services/market_data_service.py` (hook), `frontend/frontend/news_catchup.py` (hourly runner), `frontend/frontend/state/gainers_losers_state.py`, `frontend/frontend/components/gainers_losers_page.py`, migration `f8a4b6c7d1e3`, tests in `tests/` (`python -m pytest tests`, needs `requirements-dev.txt`).
 
-Top gainers and top losers among the Top 100 / 200 / 300 / 400 / 500 coins (by current `cmc_rank`, cumulative), over 24h, 7d and 1 Month (a fixed 30 days). The % change is the app's own: `(price_now - price_then) / price_then * 100`, from stored price snapshots, never CMC's `percent_change_*` fields. Linked from the header nav ("Gainers & Losers", and in the profile dropdown below 1280px).
+Top gainers and top losers per rank band by current `cmc_rank`: Top 100 (ranks 1-100), 101-200, 201-300, 301-400, 401-500. The bands do not overlap (changed 2026-10-12; they used to be cumulative, so "Top 200" repeated the Top 100 coins), over 24h, 7d and 1 Month (a fixed 30 days). The % change is the app's own: `(price_now - price_then) / price_then * 100`, from stored price snapshots, never CMC's `percent_change_*` fields. Linked from the header nav ("Gainers & Losers", and in the profile dropdown below 1280px).
 
 ## Features
 
@@ -40,10 +40,10 @@ One `WINDOWS` config in `price_snapshot_service.py`: `24h` (lookback 24h, accept
 
 <details><summary>Ranking and output</summary>
 
-`compute_changes` is the one shared calculation; `rank_movers(changes, bucket, direction, limit)` cuts it: `gainers` keeps change > 0 sorted descending, `losers` keeps change < 0 sorted ascending (most negative first). 0% is in neither; lists are never padded. `get_movers(db, bucket, window, direction, limit=30)` returns status, time remaining and the coins (rank, name, symbol, price_now, price_then, pct_change, volume_24h, then_at). Unknown windows, buckets or directions raise a clear `SnapshotConfigError`.
+`compute_changes` is the one shared calculation; `rank_movers(changes, bucket, direction, limit)` cuts it to the band `bucket_floor(bucket) < rank <= bucket`, then: `gainers` keeps change > 0 sorted descending, `losers` keeps change < 0 sorted ascending (most negative first). 0% is in neither; lists are never padded. `get_movers(db, bucket, window, direction, limit=30)` returns status, time remaining and the coins (rank, name, symbol, price_now, price_then, pct_change, volume_24h, then_at). Unknown windows, buckets or directions raise a clear `SnapshotConfigError`.
 </details>
 
 <details><summary>Page</summary>
 
-Window buttons (24h / 7d / 1 Month) and bucket buttons (Top 100-500). Two cards side by side from 1280px (stacked below): Top Gainers (green) and Top Losers (red), up to 30 rows each: position, coin (icon, name, symbol, current rank; links to the coin page), price now with "was <price then>" and the snapshot time used, % change, 24h volume (hidden on phones). Prices go through `_fmt_usd`. On load the state computes all three windows once (`GainersLosersState.load`); switching window or bucket only re-cuts those lists.
+Window buttons (24h / 7d / 1 Month) and band buttons (Top 100, 101–200, 201–300, 301–400, 401–500; the board badge reads e.g. "24h · Rank 101–200"). Two cards side by side from 1280px (stacked below): Top Gainers (green) and Top Losers (red), up to 30 rows each: position, coin (icon, name, symbol, current rank; links to the coin page), price now with "was <price then>" and the snapshot time used, % change, 24h volume (hidden on phones). Prices go through `_fmt_usd`. On load the state computes all three windows once (`GainersLosersState.load`); switching window or bucket only re-cuts those lists.
 </details>

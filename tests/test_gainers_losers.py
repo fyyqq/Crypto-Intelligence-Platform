@@ -157,15 +157,16 @@ def test_coin_with_24h_but_no_30d_history(db):
 
 
 # ---- buckets, limit, no padding ---------------------------------------------
-def test_buckets_are_cumulative_by_current_rank(db):
+def test_buckets_are_rank_bands_by_current_rank(db):
     history_anchor(db)
-    for cid, rank in ((1, 50), (2, 150), (3, 450)):
+    for cid, rank in ((1, 50), (2, 100), (3, 101), (4, 150), (5, 450)):
         snap(db, cid, f"R{rank}", 1.0, NOW - timedelta(hours=24), rank=rank)
         snap(db, cid, f"R{rank}", 2.0, NOW, rank=rank)
     db.commit()
-    assert symbols(svc.get_movers(db, 100, "24h", "gainers")["coins"]) == ["R50"]
-    assert set(symbols(svc.get_movers(db, 200, "24h", "gainers")["coins"])) == {"R50", "R150"}
-    assert len(svc.get_movers(db, 500, "24h", "gainers")["coins"]) == 3
+    assert set(symbols(svc.get_movers(db, 100, "24h", "gainers")["coins"])) == {"R50", "R100"}
+    assert set(symbols(svc.get_movers(db, 200, "24h", "gainers")["coins"])) == {"R101", "R150"}
+    assert symbols(svc.get_movers(db, 300, "24h", "gainers")["coins"]) == []
+    assert symbols(svc.get_movers(db, 500, "24h", "gainers")["coins"]) == ["R450"]
 
 
 def test_limit_and_no_padding(db):

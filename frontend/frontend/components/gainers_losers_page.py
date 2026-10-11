@@ -28,9 +28,9 @@ def _window_button(option: rx.Var) -> rx.Component:
 
 def _bucket_button(bucket: rx.Var) -> rx.Component:
     active = S.bucket == bucket
+    # Rank bands, not cumulative: "Top 100", then "101–200", "201–300", ...
     return rx.button(
-        "Top ",
-        bucket,
+        rx.cond(bucket == 100, "Top 100", rx.fragment(bucket - 99, "–", bucket)),
         on_click=S.set_bucket(bucket),
         variant=rx.cond(active, "solid", "soft"),
         color_scheme=rx.cond(active, "indigo", "gray"),
@@ -114,7 +114,7 @@ def _board(title: str, icon: str, color: str, rows, empty_text: str) -> rx.Compo
         rx.hstack(
             rx.icon(icon, size=18, color=color),
             rx.heading(title, size="4"),
-            rx.badge(S.current["label"], " · Top ", S.bucket, variant="soft", color_scheme="gray", size="1"),
+            rx.badge(S.current["label"], " · Rank ", S.bucket - 99, "–", S.bucket, variant="soft", color_scheme="gray", size="1"),
             spacing="2",
             align="center",
             wrap="wrap",

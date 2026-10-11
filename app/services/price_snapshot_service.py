@@ -41,7 +41,15 @@ WINDOWS: dict[str, Window] = {
     "30d": Window("1 Month", timedelta(days=30), timedelta(days=28), timedelta(days=32)),
 }
 
-BUCKETS: tuple[int, ...] = (100, 200, 300, 400, 500)  # Top N by cmc_rank, cumulative
+# Rank bands by current cmc_rank, not cumulative: 200 = ranks 101-200, so a
+# coin shows up in exactly one band.
+BUCKETS: tuple[int, ...] = (100, 200, 300, 400, 500)
+
+
+def bucket_floor(bucket: int) -> int:
+    """Last rank of the band below: 0 for 100, 100 for 200, ..."""
+    i = BUCKETS.index(bucket)
+    return BUCKETS[i - 1] if i else 0
 DIRECTIONS: tuple[str, ...] = ("gainers", "losers")
 DEFAULT_LIMIT = 30
 
@@ -287,7 +295,8 @@ def rank_movers(changes: list[dict], bucket: int, direction: str, limit: int = D
     if direction not in DIRECTIONS:
         raise SnapshotConfigError(f"Unknown direction '{direction}'. Use 'gainers' or 'losers'.")
     sign = 1 if direction == "gainers" else -1
-    picked = [c for c in changes if c["rank"] <= bucket and c["pct_change"] * sign > 0]
+    floor = bucket_floor(bucket)
+    picked = [c for c in changes if floor < c["rank"] <= bucket and c["pct_change"] * sign > 0]
     picked.sort(key=lambda c: c["pct_change"] * sign, reverse=True)
     return picked[: max(0, limit)]
 
