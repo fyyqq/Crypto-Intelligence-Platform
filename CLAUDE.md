@@ -11,10 +11,11 @@ Reflex (Python) frontend in `frontend/`, FastAPI backend + scheduler in `app/`, 
 5. **Handoff**: after significant work, add or refresh one line under Current State below (keep it under ~20 lines; move older items into `docs/`), plus any open item under Open items.
 6. **Verify, don't assume**: test UI headless (Playwright MCP or Claude-in-Chrome), report console errors honestly, and wait for a real HTTP 200 after restarts.
 7. **Process hygiene**: exactly one Reflex process pair and one Telegram listener. Stop old PIDs individually before starting. See `.claude/rules/process-management.md`.
+8. **Live deploy**: the live site (Contabo, separate code + separate database from local dev) only updates on explicit request ("update the live site", "deploy this") — pushing to GitHub (rule 3) never deploys it by itself. See `.claude/rules/live-deploy.md` for the SSH details and deploy sequence.
 
 ## Rule files (`.claude/rules/`)
 
-`reflex-frontend.md` · `process-management.md` · `telegram-news.md` · `openrouter-ai.md` · `coin-page-tradingview.md` · `auth-sessions.md` · `testing-and-docs.md`
+`reflex-frontend.md` · `process-management.md` · `telegram-news.md` · `openrouter-ai.md` · `coin-page-tradingview.md` · `auth-sessions.md` · `testing-and-docs.md` · `live-deploy.md`
 
 ## Pages and status (details in `docs/README.md`)
 
@@ -30,6 +31,7 @@ Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symb
 - Telegram media is bounded (webp, 30-day prune, 4.6GB->133MB) and video posts now embed Telegram's own player in the reader (real inline playback, nothing stored); cards still show just the poster. See `telegram-news.md` / `docs/news.md`.
 - The Telegram listener is not auto-started by a process manager (the `/news` catch-up starts it).
 - `.claude/rules/` and the slim CLAUDE.md were introduced on 2026-10-05; the full prior text is in `docs/CHANGELOG.md`.
+- **Live site is up**: https://repace.fyqqflow.com on Contabo (separate code clone + separate DB from local dev), deployed 2026-10-06. Deploy on request only — see `live-deploy.md`.
 
 ## Open items
 
