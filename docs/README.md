@@ -25,6 +25,12 @@ This folder, the matching [Notion pages](https://app.notion.com/p/3e1143f8052780
 |---|---|
 | [Global Components](./global-components.md) | Every page above — header/navbar, footer, floating logo, profile menu, global search |
 
+## Operations
+
+| Doc | What it covers |
+|---|---|
+| [Netdata Monitoring](./netdata-monitoring.md) | How to open the live-server dashboard via SSH tunnel, what to look at, nightly RAM restart |
+
 ## Archive
 
 - [CHANGELOG.md](CHANGELOG.md): the full dated history formerly kept in CLAUDE.md (historical, partly superseded; not loaded into Claude context).
