@@ -332,6 +332,9 @@
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const a = e.target.closest && e.target.closest("a[href]");
       if (!a || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+      // data-own-click: the link's own Reflex on_click handles the navigation
+      // (notification rows mark themselves read first, then go).
+      if (a.hasAttribute("data-own-click")) return;
       const url = new URL(a.href, window.location.href);
       if (url.origin !== window.location.origin) return;
       const samePath = url.pathname.replace(/\/$/, "") === window.location.pathname.replace(/\/$/, "");

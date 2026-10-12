@@ -26,8 +26,9 @@ from frontend.components import (
     watchlist_table,
 )
 from frontend.components.alerts_page import alerts_content
+from frontend.components.notifications_page import notifications_content
 from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
-from frontend.state import CoinState, GainersLosersState, NewsDetailState, NewsState, ToolsState
+from frontend.state import CoinState, GainersLosersState, NewsDetailState, NewsState, NotificationState, ToolsState
 
 
 def _alerts_menu_item() -> rx.Component:
@@ -167,6 +168,33 @@ def _profile_dropdown() -> rx.Component:
             ),
         ),
         class_name="profile-dropdown",
+    )
+
+
+def _notification_bell() -> rx.Component:
+    # Logged-in only (notifications are per account). Same bell icon as the
+    # Alerts menu item; a real link to /notifications. The badge shows the
+    # unread count (NotificationState, refreshed by the alert watch).
+    return rx.cond(
+        CoinState.is_logged_in,
+        rx.link(
+            rx.box(
+                rx.icon("bell", size=20, color="var(--gray-11)"),
+                rx.cond(
+                    NotificationState.has_unread,
+                    rx.box(
+                        NotificationState.unread_badge,
+                        class_name="notification-bell-badge",
+                    ),
+                ),
+                class_name="notification-bell",
+            ),
+            href="/notifications",
+            underline="none",
+            aria_label="Notifications",
+            title="Notifications",
+            flex_shrink="0",
+        ),
     )
 
 
@@ -355,7 +383,9 @@ def _header_bar() -> rx.Component:
             _nav_links(),
             rx.hstack(
                 global_search(),
-                _profile_pill(),
+                # One grid item below lg (bell + profile), so the header's
+                # 3-column grid keeps its search-in-the-middle layout.
+                rx.hstack(_notification_bell(), _profile_pill(), spacing="3", align="center", flex_shrink="0"),
                 # Hidden — clicked from JS (assets/chain_pills.js) on a real
                 # click outside .profile-pill-trigger, closing the dropdown
                 # (same click-outside-close pattern as the header search's
@@ -1057,6 +1087,27 @@ def gainers_losers_page() -> rx.Component:
     )
 
 
+def notifications_page() -> rx.Component:
+    return rx.box(
+        _header_bar(),
+        rx.box(
+            notifications_content(),
+            padding=["1em", "1em", "1.5em", "2em", "2em"],
+            width="100%",
+            min_height="60vh",
+        ),
+        footer(),
+        _floating_logo(),
+        _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
+        _alert_popups(),
+        rx.script(src="/chain_pills.js"),
+        min_height="100vh",
+        width="100%",
+    )
+
+
 def alerts_page() -> rx.Component:
     return rx.box(
         _header_bar(),
@@ -1175,6 +1226,12 @@ app.add_page(
     route="/alerts",
     title="Repace — Alerts",
     on_load=[CoinState.restore_session, CoinState.require_login, CoinState.load_coins, CoinState.start_alert_watch, CoinState.load_alert_history],
+)
+app.add_page(
+    notifications_page,
+    route="/notifications",
+    title="Repace — Notifications",
+    on_load=[CoinState.restore_session, CoinState.require_login, CoinState.load_coins, CoinState.start_alert_watch, NotificationState.load_notifications],
 )
 app.add_page(login_page, route="/login", title="Repace — Log in", on_load=[CoinState.restore_session, AuthState.clear_auth_error, LoginState.reset_visibility])
 app.add_page(signup_page, route="/signup", title="Repace — Sign up", on_load=[CoinState.restore_session, AuthState.clear_auth_error, LoginState.reset_visibility])

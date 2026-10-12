@@ -2065,9 +2065,15 @@ class CoinState(rx.State):
             self.alert_popup_visible = False
 
     @rx.event(background=True)
+        from frontend.state.notification_state import NotificationState
     async def start_alert_watch(self):
+        tick = 0
         """Every 4s checks this session's active alerts against live exchange prices
         (frontend/live_prices.py; falls back to the synced price) and, when one is hit,
+                if tick % 15 == 0:
+                    # bell badge: now, then about once a minute (picks up notifications made elsewhere)
+                    yield NotificationState.refresh_unread
+                tick += 1
         stacks a popup, records it in the history (and in the database when logged in) and
         shows the popup for a minute. Runs for as long as the tab stays open."""
         async with self:
@@ -2095,7 +2101,7 @@ class CoinState(rx.State):
                 live: dict[int, float] = {}
                 if items:
                     live = await asyncio.to_thread(fetch_live_prices, items)
-                triggered: list[tuple[int, int, float]] = []
+                triggered: list[tuple[int, int, float, str]] = []
                 spoken: dict[int, str] = {}
                 async with self:
                     now_ts = time.time()
@@ -2123,7 +2129,7 @@ class CoinState(rx.State):
                             }
                             popups.append(entry)
                             history.insert(0, entry)
-                            triggered.append((self.user_id, a["id"], price))
+                            triggered.append((self.user_id, a["id"], price, a["display"]))
                             spoken[a["id"]] = (
                                 f"{row['name']} ({row['symbol']}) crossed {a['direction']} {a['display']}, "
                                 f"now at {_fmt_usd(price)}"
@@ -2136,14 +2142,18 @@ class CoinState(rx.State):
                         self.alert_popup_visible = True
                         self._alert_popup_deadline = now_ts + 60
                     elif self.alert_popup_visible and now_ts > self._alert_popup_deadline:
+                    yield NotificationState.refresh_unread
                         self.alert_popup_visible = False
                 if triggered:
                     if _ROOT_FOR_APP not in sys.path:
                         sys.path.insert(0, _ROOT_FOR_APP)
                     from app.services import alert_service
 
-                    for uid, alert_id, price in triggered:
-                        if await asyncio.to_thread(alert_service.mark_triggered, uid, alert_id, price):
+                    for uid, alert_id, price, target_display in triggered:
+                        # also adds the account's notification (bell + /notifications)
+                        if await asyncio.to_thread(
+                            alert_service.mark_triggered, uid, alert_id, price, target_display, _fmt_usd(price)
+                        ):
                             yield CoinState.speak_alert(spoken[alert_id])
                 await asyncio.sleep(4)
                 async with self:

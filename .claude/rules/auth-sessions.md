@@ -2,6 +2,7 @@
 paths:
   - "app/services/auth_service.py"
   - "app/services/alert_service.py"
+  - "app/services/notification_service.py"
   - "app/services/watchlist_service.py"
   - "app/models/user*.py"
   - "frontend/frontend/components/login_page.py"
@@ -18,3 +19,4 @@ paths:
 - Password eye state is per field and reset on page load (`LoginState.reset_visibility`).
 - Cookie isn't `Secure` yet; add it when served over HTTPS.
 - Delete test users after UI tests (`users`, `user_watchlist`, `user_sessions`, `price_alerts` should end empty).
+- Notifications (`notification_service`, bell + `/notifications`) are scoped by the server-side `user_id` like alerts. New kinds: add to `KINDS`, then call `notify(...)`; see `docs/notifications.md`. A triggered price alert creates its notification inside `alert_service.mark_triggered`'s transaction.

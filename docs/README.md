@@ -18,6 +18,7 @@ This folder, the matching [Notion pages](https://app.notion.com/p/3e1143f8052780
 | [Tools](./tools.md) | `/tools` | Live |
 | [Watchlist](./watchlist.md) | `/watchlist` | Live |
 | [Gainers & Losers](./gainers-losers.md) | `/gainers-losers` | Live (boards fill in as price history accumulates) |
+| [Notifications](./notifications.md) | `/notifications` | Local only so far (header bell, price-alert notifications) |
 
 ## Shared
 

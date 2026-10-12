@@ -28,6 +28,12 @@ Always-visible (70px to 240px depending on screen width), transparent-background
 </details>
 
 <details>
+<summary><strong>🔔 Notification bell</strong></summary>
+
+Logged-in only: a 44px circular bell button between the search bar and the profile pill, linking to `/notifications`, with a red unread-count badge. Details and how it is fed: [Notifications](./notifications.md).
+</details>
+
+<details>
 <summary><strong>👤 Profile pill & dropdown</strong></summary>
 
 Avatar plus "Fyqq / Standard" (the text hides below tablet width, leaving just the avatar). Click opens a dropdown below it; a second click, or a real click outside it, closes it again. Dropdown contents, top to bottom:

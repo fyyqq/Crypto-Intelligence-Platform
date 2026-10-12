@@ -19,7 +19,7 @@ Reflex (Python) frontend in `frontend/`, FastAPI backend + scheduler in `app/`, 
 
 ## Pages and status (details in `docs/README.md`)
 
-Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symbol]` · News `/news`, `/news/<cat>`, reader · Narrative `/narrative[/<slug>]` · Gainers & Losers `/gainers-losers` · Tools `/tools` · Watchlist `/watchlist` · Alerts `/alerts` · `/login`, `/signup` · Chains `/chains` (placeholder).
+Notifications `/notifications` · Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symbol]` · News `/news`, `/news/<cat>`, reader · Narrative `/narrative[/<slug>]` · Gainers & Losers `/gainers-losers` · Tools `/tools` · Watchlist `/watchlist` · Alerts `/alerts` · `/login`, `/signup` · Chains `/chains` (placeholder).
 
 ## Current State (2026-10-05)
 
@@ -27,6 +27,7 @@ Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symb
 - `/tools` is live (Fear & Greed, Altcoin Season (computed; the blockchaincenter embed was removed), BTC/ETH rainbow on the standard BTC curve with CoinMetrics 2010+ history, TradingView embeds, API-key popup). Details: `docs/tools.md`.
 - Gainers & Losers (`/gainers-losers`, in the header nav) is live: own % change from `price_snapshot` (hourly hot sync, run from the Reflex process by `news_catchup._hot_sync_loop`), 24h/7d/30d, Top 100-500. History started 2026-10-05, so boards show "collecting" until 20h / 6d / 28d of history exist. Tests: `python -m pytest tests` (needs `requirements-dev.txt`). Details: `docs/gainers-losers.md`.
 - Gainers & Losers tiers are non-overlapping rank bands (Top 100, 101–200, …) and a calendar button shows past days' boards, saved daily (UTC) into `movers_daily` since 11 Oct 2026; also a 1h window, a per-board refresh icon (forced CMC top-500 sync, global 5-min cooldown) and a Change-column sort toggle (2026-10-12).
+- Header bell + `/notifications` (2026-10-12, **local only, not deployed**): every triggered price alert adds a notification; new kinds plug into `notification_service.KINDS`. Details: `docs/notifications.md`.
 - Coin pages show our own 24h change under Market cap and Volume (vs. the `price_snapshot` row ~24h ago; daily all-coin snapshots via `jobs.run_listings_sync`, run from Reflex). Shows nothing until a ~24h-old snapshot exists. Details: `docs/single-coin-page.md`.
 - Telegram posts are merged into the main `/news` sections on purpose (see `telegram-news.md`).
 - Telegram media is bounded (webp, 30-day prune, 4.6GB->133MB) and video posts now embed Telegram's own player in the reader (real inline playback, nothing stored); cards still show just the poster. See `telegram-news.md` / `docs/news.md`.
