@@ -2065,19 +2065,9 @@ class CoinState(rx.State):
             self.alert_popup_visible = False
 
     @rx.event(background=True)
-        from frontend.state.notification_state import NotificationState
     async def start_alert_watch(self):
-        tick = 0
         """Every 4s checks this session's active alerts against live exchange prices
         (frontend/live_prices.py; falls back to the synced price) and, when one is hit,
-                if tick % 15 == 0:
-                    # bell badge: now, then about once a minute (picks up notifications made elsewhere)
-                    yield NotificationState.page_loaded if tick == 0 else NotificationState.refresh_unread
-                tick += 1
-                if tick % 15 == 0:
-                    # bell badge: now, then about once a minute (picks up notifications made elsewhere)
-                    yield NotificationState.refresh_unread
-                tick += 1
         stacks a popup, records it in the history (and in the database when logged in) and
         shows the popup for a minute. Runs for as long as the tab stays open."""
         async with self:
@@ -2087,9 +2077,15 @@ class CoinState(rx.State):
 
         from frontend.frontend import app as reflex_app
         from frontend.live_prices import fetch_live_prices
+        from frontend.state.notification_state import NotificationState
 
+        tick = 0
         try:
             while True:
+                if tick % 15 == 0:
+                    # bell badge: now (page_loaded also closes the popup), then about once a minute
+                    yield NotificationState.page_loaded if tick == 0 else NotificationState.refresh_unread
+                tick += 1
                 items: list[dict] = []
                 async with self:
                     if not self.user_id:
@@ -2146,7 +2142,6 @@ class CoinState(rx.State):
                         self.alert_popup_visible = True
                         self._alert_popup_deadline = now_ts + 60
                     elif self.alert_popup_visible and now_ts > self._alert_popup_deadline:
-                    yield NotificationState.refresh_unread
                         self.alert_popup_visible = False
                 if triggered:
                     if _ROOT_FOR_APP not in sys.path:
@@ -2159,6 +2154,7 @@ class CoinState(rx.State):
                             alert_service.mark_triggered, uid, alert_id, price, target_display, _fmt_usd(price)
                         ):
                             yield CoinState.speak_alert(spoken[alert_id])
+                    yield NotificationState.refresh_unread
                 await asyncio.sleep(4)
                 async with self:
                     # after the slide-out transition, drop the finished popups
