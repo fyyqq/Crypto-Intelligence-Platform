@@ -276,6 +276,21 @@
   });
 })();
 
+// Click-outside close for the header notification bell's popup
+// (frontend.py::_notification_bell): a click anywhere except the bell and
+// its popup clicks the hidden #notification-popup-close-trigger.
+(function () {
+  if (window.__notificationPopupOutsideClickInit) return;
+  window.__notificationPopupOutsideClickInit = true;
+
+  document.addEventListener("click", function (e) {
+    if (!document.querySelector(".notification-popup")) return;
+    if (e.target.closest(".notification-bell-wrap")) return;
+    const trigger = document.getElementById("notification-popup-close-trigger");
+    if (trigger) trigger.click();
+  });
+})();
+
 // Scrolls a /news URL fragment (e.g. /news#reuters-com, matching each
 // section's own id — see NewsState.news_sections' "anchor_id" field) to its
 // real section once that section actually exists in the DOM. A plain

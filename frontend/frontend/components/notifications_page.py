@@ -36,6 +36,150 @@ def _avatar(item: rx.Var[dict]) -> rx.Component:
     )
 
 
+def _popup_row(item: rx.Var[dict]) -> rx.Component:
+    """Compact row for the header bell's popup (same layout idea as the
+    watchlist popup): small image, title, time. A real link; the click marks
+    it read then goes (see NotificationState.open_item)."""
+    body = rx.hstack(
+        rx.box(
+            width="7px",
+            height="7px",
+            border_radius="50%",
+            background=rx.cond(item["read"], "transparent", "var(--accent-9)"),
+            flex_shrink="0",
+        ),
+        rx.cond(
+            item["image_url"] != "",
+            rx.image(src=item["image_url"], width="28px", height="28px", border_radius="50%", flex_shrink="0"),
+            rx.center(
+                _kind_icon(item["icon"], item["tone"]),
+                width="28px",
+                height="28px",
+                border_radius="50%",
+                background="var(--gray-a3)",
+                flex_shrink="0",
+            ),
+        ),
+        rx.vstack(
+            rx.text(
+                item["title"],
+                size="2",
+                weight=rx.cond(item["read"], "medium", "bold"),
+                color="var(--gray-12)",
+                class_name="line-clamp-1",
+            ),
+            rx.text(item["time_display"], size="1", color="var(--gray-10)"),
+            spacing="0",
+            align="start",
+            min_width="0",
+            flex="1",
+        ),
+        spacing="2",
+        align="center",
+        width="100%",
+    )
+    row_style = dict(
+        display="block",
+        width="100%",
+        padding="0.55em 1em",
+        class_name="global-search-result-row",
+        background=rx.cond(item["read"], "transparent", "var(--accent-a3)"),
+    )
+    return rx.cond(
+        item["link_url"] != "",
+        rx.link(
+            body,
+            href=item["link_url"],
+            on_click=N.open_item(item["id"]).prevent_default,
+            custom_attrs={"data-own-click": "1"},
+            underline="none",
+            color="inherit",
+            **row_style,
+        ),
+        rx.box(body, on_click=N.mark_read(item["id"]), cursor="default", **row_style),
+    )
+
+
+def notification_popup() -> rx.Component:
+    """The bell's popup: latest notifications, anchored under the bell
+    (assets/styles.css `.notification-popup`)."""
+    return rx.cond(
+        N.bell_open,
+        rx.box(
+            rx.hstack(
+                rx.hstack(
+                    rx.icon("bell", size=16),
+                    rx.text("Notifications", size="3", weight="bold"),
+                    rx.cond(N.has_unread, rx.badge(N.unread, variant="soft", radius="full")),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.hstack(
+                    rx.cond(
+                        N.has_unread,
+                        rx.text(
+                            "Mark all read",
+                            size="1",
+                            color="var(--accent-11)",
+                            cursor="pointer",
+                            on_click=N.mark_all_read,
+                            white_space="nowrap",
+                        ),
+                    ),
+                    rx.icon("x", size=18, color="var(--gray-12)", cursor="pointer", on_click=N.close_popup),
+                    spacing="3",
+                    align="center",
+                ),
+                align="center",
+                justify="between",
+                width="100%",
+                padding="0.85em 1em",
+                border_bottom="1px solid var(--gray-a5)",
+            ),
+            rx.box(
+                rx.cond(
+                    N.recent_loading,
+                    rx.vstack(
+                        rx.skeleton(height="40px", width="100%", border_radius="8px"),
+                        rx.skeleton(height="40px", width="100%", border_radius="8px"),
+                        rx.skeleton(height="40px", width="100%", border_radius="8px"),
+                        spacing="2",
+                        padding="0.75em 1em",
+                        width="100%",
+                    ),
+                    rx.cond(
+                        N.recent.length() > 0,
+                        rx.foreach(N.recent, _popup_row),
+                        rx.center(
+                            rx.text(
+                                "No notifications yet. Price alerts appear here when they trigger.",
+                                size="2",
+                                color_scheme="gray",
+                                text_align="center",
+                            ),
+                            padding="2em 1em",
+                        ),
+                    ),
+                ),
+                overflow_y="auto",
+                flex="1",
+                padding_y="0.25em",
+            ),
+            rx.link(
+                rx.text("View all notifications", size="2", weight="medium"),
+                href="/notifications",
+                underline="none",
+                text_align="center",
+                padding="0.7em",
+                border_top="1px solid var(--gray-a5)",
+                display="block",
+            ),
+            class_name="notification-popup",
+        ),
+        rx.fragment(),
+    )
+
+
 def _row(item: rx.Var[dict]) -> rx.Component:
     content = rx.hstack(
         _avatar(item),

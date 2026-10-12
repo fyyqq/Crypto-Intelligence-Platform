@@ -1030,46 +1030,71 @@ html.light .radix-themes:where([data-is-root-theme="true"]) {
   animation: gl-refresh-spin 0.8s linear infinite;
 }
 
-/* Header notification bell (frontend.py::_notification_bell): a 44px circle
-   like the profile avatar, unread count badge on its top-right corner. */
+/* Header notification bell (frontend.py::_notification_bell): just the bell
+   icon (no circle), unread-count badge on its top-right, and a popup under
+   it (components/notifications_page.py::notification_popup). */
+.notification-bell-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .notification-bell {
   position: relative;
-  width: 44px;
-  height: 44px;
-  border-radius: 9999px;
-  border: 1px solid var(--gray-a6);
-  background: var(--gray-a2);
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.15s ease;
+  border-radius: 8px;
+  user-select: none;
 }
 
-.notification-bell:hover {
-  background: var(--gray-a4);
+.notification-bell:hover svg {
+  color: var(--accent-11);
 }
 
 .notification-bell-badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+  top: -3px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
   border-radius: 9999px;
   background: var(--red-9);
   color: #fff; /* on the red badge only */
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  line-height: 18px;
+  line-height: 17px;
   text-align: center;
   box-sizing: border-box;
 }
 
+.notification-popup {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: -8px;
+  width: 340px;
+  max-height: 460px;
+  display: flex;
+  flex-direction: column;
+  background: var(--gray-2);
+  border: 1px solid var(--gray-a5);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  z-index: 9998;
+}
+
 @media (max-width: 520px) {
-  .notification-bell {
-    width: 36px;
-    height: 36px;
+  /* The bell is mid-header on a phone: pin the popup under the header, full width. */
+  .notification-popup {
+    position: fixed;
+    top: 64px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+    max-height: calc(100vh - 96px);
   }
 }

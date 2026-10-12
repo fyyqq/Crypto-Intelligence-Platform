@@ -7,9 +7,13 @@ One list per account of things the app wants you to know. Today the only produce
 
 ## Features
 
-<details><summary>Bell icon in the header</summary>
+<details><summary>Bell icon and popup in the header</summary>
 
-A circular bell button (lucide `bell`, the same icon as the Alerts menu item) between the search box and the profile pill, shown only when logged in. 44px (36px below 520px). Clicking it is a real link to `/notifications`. A red badge shows the unread count (`9+` above nine). The count lives in `NotificationState.unread` and is refreshed by `NotificationState.refresh_unread`: when `CoinState.start_alert_watch` starts (every page that runs it), right after any alert triggers, and about once a minute after that, so notifications created elsewhere appear without a reload. Bell + profile pill are one grid item below 1280px so the header grid keeps search in the middle. The bell shows up after the page hydrates (the coin page is slowest).
+Just the bell icon (lucide `bell`, 22px, `var(--gray-12)`, no circle or border; accent colour on hover), between the search box and the profile pill, shown only when logged in. A red badge on its top-right corner shows the unread count (`9+` above nine). Bell + profile pill are one grid item below 1280px so the header grid keeps search in the middle.
+
+**Click = popup** (like the watchlist popup): a card under the bell (340px wide, anchored to the bell on desktop; pinned under the header at full width below 520px) with the latest 6 notifications (unread dot, image or kind icon, title, time; unread rows tinted), "Mark all read" and an x in its header, and a "View all notifications" link to `/notifications` at the bottom. Clicking a row marks it read and opens its link. It closes on the bell (2nd click), the x, a click anywhere outside (`assets/chain_pills.js`, hidden `#notification-popup-close-trigger`), and on every page load. State: `NotificationState.bell_open` / `recent` / `recent_loading`, events `toggle_popup`, `close_popup`, `page_loaded`.
+
+The unread count is refreshed by `NotificationState.refresh_unread`: when `CoinState.start_alert_watch` starts (every page that runs it, via `page_loaded`), right after any alert triggers, and about once a minute after that, so notifications created elsewhere appear without a reload; the same call also refreshes an open popup's list. The bell appears after the page hydrates (the coin page is slowest).
 </details>
 
 <details><summary>Notifications page</summary>

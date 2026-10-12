@@ -2072,6 +2072,10 @@ class CoinState(rx.State):
         (frontend/live_prices.py; falls back to the synced price) and, when one is hit,
                 if tick % 15 == 0:
                     # bell badge: now, then about once a minute (picks up notifications made elsewhere)
+                    yield NotificationState.page_loaded if tick == 0 else NotificationState.refresh_unread
+                tick += 1
+                if tick % 15 == 0:
+                    # bell badge: now, then about once a minute (picks up notifications made elsewhere)
                     yield NotificationState.refresh_unread
                 tick += 1
         stacks a popup, records it in the history (and in the database when logged in) and

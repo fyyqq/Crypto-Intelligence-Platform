@@ -25,10 +25,25 @@ def _service():
     return notification_service
 
 
+POPUP_LIMIT = 6
+
+
+def _row(r: dict) -> dict:
+    return {
+        "id": r["id"], "kind_label": r["kind_label"], "icon": r["icon"], "title": r["title"], "body": r["body"],
+        "link_url": r["link_url"], "image_url": r["image_url"], "tone": r["tone"],
+        "time_display": _fmt_alert_time(r["at"]), "read": r["read"],
+    }
+
+
 class NotificationState(rx.State):
     items: list[dict] = []
     unread: int = 0
     loading: bool = True
+    # Header bell popup: the latest few notifications.
+    bell_open: bool = False
+    recent: list[dict] = []
+    recent_loading: bool = True
 
     @rx.var
     def unread_badge(self) -> str:
@@ -48,25 +63,48 @@ class NotificationState(rx.State):
         trigger and every minute, so notifications created elsewhere show up)."""
         uid = await self._user_id()
         self.unread = await asyncio.to_thread(_service().unread_count, uid) if uid else 0
+        if self.bell_open and uid:  # keep an open popup current
+            rows = await asyncio.to_thread(_service().list_for_user, uid, POPUP_LIMIT)
+            self.recent = [_row(r) for r in rows]
+
+    @rx.event
+    async def page_loaded(self):
+        """First thing the alert watch does on every page load: the popup
+        starts closed (state outlives a full page load), badge refreshed."""
+        self.bell_open = False
+        await self.refresh_unread()
+
+    @rx.event
+    async def toggle_popup(self):
+        if self.bell_open:
+            self.bell_open = False
+            return
+        uid = await self._user_id()
+        if not uid:
+            return
+        self.bell_open = True
+        self.recent_loading = True
+        yield  # show the popup (with its skeleton) before the query returns
+        rows = await asyncio.to_thread(_service().list_for_user, uid, POPUP_LIMIT)
+        self.recent = [_row(r) for r in rows]
+        self.recent_loading = False
+
+    @rx.event
+    def close_popup(self):
+        self.bell_open = False
 
     @rx.event
     async def load_notifications(self):
         """/notifications on_load."""
         self.loading = True
+        self.bell_open = False
         uid = await self._user_id()
         if not uid:
             self.items, self.unread, self.loading = [], 0, False
             return
         svc = _service()
         rows = await asyncio.to_thread(svc.list_for_user, uid)
-        self.items = [
-            {
-                "id": r["id"], "kind_label": r["kind_label"], "icon": r["icon"], "title": r["title"], "body": r["body"],
-                "link_url": r["link_url"], "image_url": r["image_url"], "tone": r["tone"],
-                "time_display": _fmt_alert_time(r["at"]), "read": r["read"],
-            }
-            for r in rows
-        ]
+        self.items = [_row(r) for r in rows]
         self.unread = sum(1 for r in rows if not r["read"])
         self.loading = False
 
@@ -77,7 +115,8 @@ class NotificationState(rx.State):
             return
         await asyncio.to_thread(_service().mark_read, uid, notification_id)
         self.items = [{**i, "read": True} if i["id"] == notification_id else i for i in self.items]
-        self.unread = sum(1 for i in self.items if not i["read"])
+        self.recent = [{**i, "read": True} if i["id"] == notification_id else i for i in self.recent]
+        self.unread = await asyncio.to_thread(_service().unread_count, uid)
 
     @rx.event
     async def open_item(self, notification_id: int):
@@ -85,7 +124,7 @@ class NotificationState(rx.State):
         looked up from this account's own list (never taken from the browser),
         and only same-site paths are followed."""
         await self.mark_read(notification_id)
-        item = next((i for i in self.items if i["id"] == notification_id), None)
+        item = next((i for i in [*self.items, *self.recent] if i["id"] == notification_id), None)
         url = item["link_url"] if item else ""
         if url.startswith("/") and not url.startswith("//"):
             return rx.call_script(f"window.location.assign({json.dumps(url)})")
@@ -97,6 +136,7 @@ class NotificationState(rx.State):
             return
         await asyncio.to_thread(_service().mark_all_read, uid)
         self.items = [{**i, "read": True} for i in self.items]
+        self.recent = [{**i, "read": True} for i in self.recent]
         self.unread = 0
 
     @rx.event
@@ -106,7 +146,8 @@ class NotificationState(rx.State):
             return
         await asyncio.to_thread(_service().delete, uid, notification_id)
         self.items = [i for i in self.items if i["id"] != notification_id]
-        self.unread = sum(1 for i in self.items if not i["read"])
+        self.recent = [i for i in self.recent if i["id"] != notification_id]
+        self.unread = await asyncio.to_thread(_service().unread_count, uid)
 
     @rx.event
     async def clear_all(self):
@@ -115,4 +156,5 @@ class NotificationState(rx.State):
             return
         await asyncio.to_thread(_service().clear_all, uid)
         self.items = []
+        self.recent = []
         self.unread = 0

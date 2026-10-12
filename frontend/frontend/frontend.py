@@ -26,7 +26,7 @@ from frontend.components import (
     watchlist_table,
 )
 from frontend.components.alerts_page import alerts_content
-from frontend.components.notifications_page import notifications_content
+from frontend.components.notifications_page import notification_popup, notifications_content
 from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
 from frontend.state import CoinState, GainersLosersState, NewsDetailState, NewsState, NotificationState, ToolsState
 
@@ -172,28 +172,30 @@ def _profile_dropdown() -> rx.Component:
 
 
 def _notification_bell() -> rx.Component:
-    # Logged-in only (notifications are per account). Same bell icon as the
-    # Alerts menu item; a real link to /notifications. The badge shows the
-    # unread count (NotificationState, refreshed by the alert watch).
+    # Logged-in only (notifications are per account). Just the bell icon (the
+    # same one as the Alerts menu item) with an unread-count badge; click
+    # toggles a popup with the latest notifications (NotificationState).
+    # .notification-bell-wrap is the click-outside boundary (chain_pills.js).
     return rx.cond(
         CoinState.is_logged_in,
-        rx.link(
+        rx.box(
             rx.box(
-                rx.icon("bell", size=20, color="var(--gray-11)"),
+                rx.icon("bell", size=22, color="var(--gray-12)"),
                 rx.cond(
                     NotificationState.has_unread,
-                    rx.box(
-                        NotificationState.unread_badge,
-                        class_name="notification-bell-badge",
-                    ),
+                    rx.box(NotificationState.unread_badge, class_name="notification-bell-badge"),
                 ),
                 class_name="notification-bell",
+                on_click=NotificationState.toggle_popup,
+                role="button",
+                aria_label="Notifications",
+                title="Notifications",
             ),
-            href="/notifications",
-            underline="none",
-            aria_label="Notifications",
-            title="Notifications",
-            flex_shrink="0",
+            notification_popup(),
+            # Hidden: clicked from chain_pills.js on a click outside the bell
+            # and its popup (same pattern as #profile-menu-close-trigger).
+            rx.box(id="notification-popup-close-trigger", on_click=NotificationState.close_popup, display="none"),
+            class_name="notification-bell-wrap",
         ),
     )
 

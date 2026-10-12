@@ -30,7 +30,7 @@ Always-visible (70px to 240px depending on screen width), transparent-background
 <details>
 <summary><strong>🔔 Notification bell</strong></summary>
 
-Logged-in only: a 44px circular bell button between the search bar and the profile pill, linking to `/notifications`, with a red unread-count badge. Details and how it is fed: [Notifications](./notifications.md).
+Logged-in only: a bare bell icon (no circle) between the search bar and the profile pill with a red unread-count badge. Click opens a popup with the latest 6 notifications and a "View all notifications" link to `/notifications`. Details and how it is fed: [Notifications](./notifications.md).
 </details>
 
 <details>
