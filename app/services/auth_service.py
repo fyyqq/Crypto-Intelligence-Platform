@@ -13,6 +13,7 @@ import requests
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from email_validator import EmailNotValidError, validate_email
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
@@ -258,6 +259,38 @@ def resume_session(token: str) -> AuthResult:
         if row is None or row.expires_at < datetime.now(timezone.utc):
             return AuthResult(False)
         user = db.get(User, row.user_id)
+        if user is None:
+            return AuthResult(False)
+        return AuthResult(True, user_id=user.id, user_name=user.full_name, user_email=user.email)
+    finally:
+        db.close()
+
+
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "[::1]", "::1"}
+
+
+def is_local_host(host: str) -> bool:
+    """True for a Host header that is this machine itself (any port), or a
+    *.localhost name. Anything else (a real domain, an IP) is not local."""
+    name = (host or "").strip().lower()
+    if name.startswith("["):  # [::1]:3000
+        name = name.split("]")[0] + "]"
+    else:
+        name = name.rsplit(":", 1)[0] if name.count(":") == 1 else name
+    return name in _LOCAL_HOSTS or name.endswith(".localhost")
+
+
+def dev_auto_login(host: str) -> AuthResult:
+    """Local development convenience: the account named by DEV_AUTO_LOGIN_EMAIL,
+    logged in without a password. Refuses (AuthResult(False)) unless that env
+    key is set AND the request came in on a localhost Host, so it cannot work
+    on the live site even if the key were copied there by mistake."""
+    email = (settings.dev_auto_login_email or "").strip().lower()
+    if not email or not is_local_host(host):
+        return AuthResult(False)
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(func.lower(User.email) == email).first()
         if user is None:
             return AuthResult(False)
         return AuthResult(True, user_id=user.id, user_name=user.full_name, user_email=user.email)

@@ -94,3 +94,36 @@ def test_below_alert_is_a_down_notification(factory):
 def test_untriggered_or_missing_alert_makes_no_notification(factory):
     assert alert_service.mark_triggered(7, 999, 1.0) is False
     assert ns.list_for_user(7) == []
+
+
+# ---- local dev auto-login guard ------------------------------------------------
+def test_is_local_host():
+    from app.services.auth_service import is_local_host
+
+    for ok in ("localhost", "localhost:3000", "127.0.0.1:3000", "127.0.0.1", "[::1]:3000", "app.localhost:3000"):
+        assert is_local_host(ok), ok
+    for bad in ("", "repace.fyqqflow.com", "repace.fyqqflow.com:443", "207.180.233.86", "evil.com:3000", "localhost.evil.com", "127.0.0.1.evil.com"):
+        assert not is_local_host(bad), bad
+
+
+def test_dev_auto_login_needs_the_env_key_and_a_local_host(factory, monkeypatch):
+    from app.models.user import User
+    from app.services import auth_service
+
+    monkeypatch.setattr(auth_service, "SessionLocal", factory)
+    db = factory()
+    db.add(User(full_name="Dev Tester", email="dev-tester@example.com", password_hash="x"))
+    db.commit()
+    db.close()
+
+    monkeypatch.setattr(auth_service.settings, "dev_auto_login_email", "")
+    assert auth_service.dev_auto_login("localhost:3000").ok is False  # key not set (e.g. the live server)
+
+    monkeypatch.setattr(auth_service.settings, "dev_auto_login_email", "dev-tester@example.com")
+    assert auth_service.dev_auto_login("repace.fyqqflow.com").ok is False  # real domain, even with the key
+    assert auth_service.dev_auto_login("207.180.233.86").ok is False
+    ok = auth_service.dev_auto_login("localhost:3000")
+    assert ok.ok and ok.user_name == "Dev Tester"
+
+    monkeypatch.setattr(auth_service.settings, "dev_auto_login_email", "nobody@example.com")
+    assert auth_service.dev_auto_login("localhost:3000").ok is False  # unknown account

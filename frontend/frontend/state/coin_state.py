@@ -1351,6 +1351,7 @@ class CoinState(rx.State):
     alert_history: list[dict] = []
     _alert_popup_deadline: float = 0.0
     _alert_watch_running: bool = False
+    _dev_auto_login_off: bool = False  # set by logout; see restore_session
 
     # In-page sort only: reorders the current page's rows, never re-ranks
     # across the full coin list. sort_key is one of the raw numeric fields
@@ -1849,6 +1850,26 @@ class CoinState(rx.State):
             self.global_search_query = ""
             self.global_search_limit = 5
             self.global_search_focused = False
+        if not self.is_logged_in and not self.session_token and not self._dev_auto_login_off:
+            # Local development only: DEV_AUTO_LOGIN_EMAIL in the local .env logs that
+            # account in on localhost, no login step (auth_service.dev_auto_login refuses
+            # unless the key is set AND the Host is localhost, so it is inert on the live
+            # site). Logging out turns it off for this tab until Reflex restarts.
+            if _ROOT_FOR_APP not in sys.path:
+                sys.path.insert(0, _ROOT_FOR_APP)
+            from app.services import auth_service, watchlist_service
+
+            dev = await asyncio.to_thread(auth_service.dev_auto_login, self.router.headers.host)
+            if dev.ok:
+                self.is_logged_in = True
+                self.user_id = dev.user_id
+                self.user_name = dev.user_name
+                self.user_email = dev.user_email
+                self.watchlist_ids = await asyncio.to_thread(watchlist_service.get_watchlist_ids, dev.user_id)
+                await self._load_user_alerts()
+                if self.router.url.path.rstrip("/") in ("/login", "/signup"):
+                    return rx.call_script("window.location.assign('/')")
+                return
         if self.is_logged_in or not self.session_token:
             if self.is_logged_in and self.router.url.path.rstrip("/") in ("/login", "/signup"):
                 return rx.call_script("window.location.assign('/')")
@@ -1880,6 +1901,7 @@ class CoinState(rx.State):
 
             await asyncio.to_thread(auth_service.delete_session, token)
         self.session_token = ""
+        self._dev_auto_login_off = True  # stay logged out (see restore_session)
         self.is_logged_in = False
         self.user_name = ""
         self.user_email = ""

@@ -12,6 +12,12 @@ _ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
 
+    # Local development only: when set (DEV_AUTO_LOGIN_EMAIL in the local,
+    # gitignored .env) the site logs that account in automatically, but only
+    # for requests whose Host is localhost (auth_service.dev_auto_login).
+    # Never set on a server.
+    dev_auto_login_email: str = ""
+
     app_env: str = "development"
     app_host: str = "0.0.0.0"
     app_port: int = 8000
