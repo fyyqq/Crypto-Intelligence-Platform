@@ -1236,8 +1236,22 @@ def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None, str] | N
     return cmc_id, summary, model, category
 
 
+# Fields components/coin_table.py::_row reads from sorted_paged_coins.
+_TABLE_FIELDS = (
+    "cmc_id", "rank", "name", "symbol", "icon_url", "price_display", "market_cap_display", "volume_display",
+    "change_1h_display", "change_1h_color", "change_24h_display", "change_24h_color",
+    "change_7d_display", "change_7d_color", "trend_24h_data", "trend_24h_color", "trend_24h_shine",
+    "trend_7d_data", "trend_7d_color", "trend_7d_shine", "main_chain", "has_other_chains",
+    "other_chains_display", "primary_narrative", "primary_narrative_icon",
+)
+
+
 class CoinState(rx.State):
-    all_coins: list[dict] = []
+    # The full ~8,000-coin list, SERVER-ONLY (leading underscore): it used to be
+    # sent to the browser on every page load (~35 MB, plus a ~35 MB computed
+    # copy re-sent on each price update). The browser only ever gets the
+    # current page's rows (sorted_paged_coins, table fields only).
+    _all_coins: list[dict] = []
     # Small dict, keyed by cmc_id, holding only the fields that periodically
     # get refreshed for an individual coin (price/volume/% changes from the
     # sync loops, cached tweets, description, business summary, market
@@ -1426,7 +1440,7 @@ class CoinState(rx.State):
         self.market_pairs_filter = "cex"
         self.market_pairs_page = 1
 
-        if self.all_coins:
+        if self._all_coins:
             # Confirmed live this was the main cause of "every click/page-
             # switch feels slow": this on_load fires on EVERY single
             # navigation (homepage <-> any /coin/[symbol] page, and between
@@ -1464,7 +1478,7 @@ class CoinState(rx.State):
                 chain_counts.update([row["main_chain"]])
                 rows.append(row)
 
-        self.all_coins = rows
+        self._all_coins = rows
         # Top 20 by number of coins carrying that tag — out of ~600 dynamic
         # CMC categories, this keeps the default filter pill bar to the
         # narratives that actually matter for most coins shown, not an
@@ -1670,7 +1684,7 @@ class CoinState(rx.State):
                     top_100_ids = [
                         row["cmc_id"]
                         for row in sorted(
-                            (self._row_with_overrides(r) for r in self.all_coins),
+                            (self._row_with_overrides(r) for r in self._all_coins),
                             key=lambda r: r["market_cap_usd"],
                             reverse=True,
                         )[:100]
@@ -1749,7 +1763,7 @@ class CoinState(rx.State):
         watched = set(self.watchlist_ids)
         if not watched:
             return []
-        full_rows = [self._row_with_overrides(r) for r in self.all_coins]
+        full_rows = [self._row_with_overrides(r) for r in self._all_coins]
         global_rank_by_id = {
             row["cmc_id"]: i
             for i, row in enumerate(
@@ -1773,7 +1787,7 @@ class CoinState(rx.State):
         called once per refresh (not per-render), so this is negligible
         next to the cost it replaces (a full list reassignment + resend).
         """
-        base = next((r for r in self.all_coins if r["cmc_id"] == cmc_id), None)
+        base = next((r for r in self._all_coins if r["cmc_id"] == cmc_id), None)
         return self._row_with_overrides(base) if base is not None else None
 
     def _apply_updates(self, updated_rows: dict[int, dict]) -> None:
@@ -2212,7 +2226,7 @@ class CoinState(rx.State):
         with the coin's name/icon and current price."""
         out: list[dict] = []
         for key, alerts in self.price_alerts.items():
-            row = next((r for r in self.all_coins if str(r["cmc_id"]) == key), None)
+            row = next((r for r in self._all_coins if str(r["cmc_id"]) == key), None)
             if row is None:
                 continue
             row = self._row_with_overrides(row)
@@ -2343,7 +2357,7 @@ class CoinState(rx.State):
             return {}
         matches = [
             self._row_with_overrides(row)
-            for row in self.all_coins
+            for row in self._all_coins
             if row["symbol"].lower() == symbol
         ]
         if not matches:
@@ -2367,7 +2381,7 @@ class CoinState(rx.State):
             return []
         peers = [
             self._row_with_overrides(r)
-            for r in self.all_coins
+            for r in self._all_coins
             if r["cmc_id"] != coin["cmc_id"] and (r.get("market_cap_usd") or 0) > 0 and match(r)
         ]
         peers.sort(key=lambda r: r["market_cap_usd"], reverse=True)
@@ -2749,7 +2763,7 @@ class CoinState(rx.State):
         question — only the quote side varies, and that's still validated
         against a plain ticker pattern (letters/digits only) before use.
 
-        This reads `self.selected_coin` (and therefore `self.all_coins`)
+        This reads `self.selected_coin` (and therefore `self._all_coins`)
         rather than only `self.symbol` — safe now that the iframe itself is
         a real typed rx.el.iframe(src=...) (see _chart_column), not the
         dangerouslySetInnerHTML string that used to force a full reload on
@@ -2922,13 +2936,13 @@ class CoinState(rx.State):
             self.sort_direction = ""
 
     @rx.var(cache=True)
-    def filtered_coins(self) -> list[dict]:
+    def _filtered_coins(self) -> list[dict]:
         # Merges coin_overrides in once, up front, for the full universe —
         # see _row_with_overrides. Everything below (category/chain filter,
         # search, ranking) reads this already-fresh list rather than the
         # static all_coins directly, so a live-synced price or a just-
         # arrived business summary shows up here immediately.
-        full_rows = [self._row_with_overrides(r) for r in self.all_coins]
+        full_rows = [self._row_with_overrides(r) for r in self._all_coins]
         rows = full_rows
         if self.selected_category != "All narratives":
             rows = [r for r in rows if self.selected_category in r["narratives"]]
@@ -2968,7 +2982,7 @@ class CoinState(rx.State):
 
     @rx.var(cache=True)
     def total_shown(self) -> int:
-        return len(self.filtered_coins)
+        return len(self._filtered_coins)
 
     @rx.var(cache=True)
     def displayed_categories(self) -> list[str]:
@@ -2989,7 +3003,7 @@ class CoinState(rx.State):
         query = self.global_search_query.strip().lower()
         if not query:
             return []
-        full_rows = [self._row_with_overrides(r) for r in self.all_coins]
+        full_rows = [self._row_with_overrides(r) for r in self._all_coins]
         matches = [
             r for r in full_rows if query in r["name"].lower() or query in r["symbol"].lower()
         ]
@@ -3004,7 +3018,7 @@ class CoinState(rx.State):
             part = part.strip()
             if part.isdigit() and int(part) not in ids:
                 ids.append(int(part))
-        by_id = {r["cmc_id"]: r for r in self.all_coins}
+        by_id = {r["cmc_id"]: r for r in self._all_coins}
         return [self._row_with_overrides(by_id[i]) for i in ids[:5] if i in by_id]
 
     @rx.var(cache=True)
@@ -3047,9 +3061,9 @@ class CoinState(rx.State):
         return min(self.page * self.page_size, self.total_shown)
 
     @rx.var(cache=True)
-    def paged_coins(self) -> list[dict]:
+    def _paged_coins(self) -> list[dict]:
         start = (self.page - 1) * self.page_size
-        return self.filtered_coins[start : start + self.page_size]
+        return self._filtered_coins[start : start + self.page_size]
 
     @rx.var(cache=True)
     def sorted_paged_coins(self) -> list[dict]:
@@ -3057,12 +3071,12 @@ class CoinState(rx.State):
         Only ever reorders within this page (top 100, or whichever 100
         the current page is) — never re-ranks across the full coin list.
         """
-        rows = self.paged_coins
-        if not self.sort_key:
-            return rows
-        return sorted(
-            rows, key=lambda r: r[self.sort_key], reverse=self.sort_direction == "desc"
-        )
+        rows = self._paged_coins
+        if self.sort_key:
+            rows = sorted(rows, key=lambda r: r[self.sort_key], reverse=self.sort_direction == "desc")
+        # Only the fields the table renders go to the browser (a full row
+        # also carries description, AI summary, market pairs, tweets...).
+        return [{k: r.get(k) for k in _TABLE_FIELDS} for r in rows]
 
     @rx.var(cache=True)
     def page_str(self) -> str:

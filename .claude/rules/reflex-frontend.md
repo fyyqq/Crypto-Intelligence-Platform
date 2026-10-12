@@ -5,7 +5,7 @@ paths:
 
 # Reflex frontend rules
 
-- **Never reassign `CoinState.all_coins`** after the first load (it serializes to ~32 MB over the websocket). Background refreshers merge patches into `coin_overrides` (keyed by `cmc_id`); read through `_row_with_overrides` / `_merged_row`.
+- **The full coin list is server-only: `CoinState._all_coins`** (leading underscore = never sent to the browser; it was ~35 MB per page load plus a ~35 MB `filtered_coins` copy re-sent on every price update). `_filtered_coins` / `_paged_coins` are server-only computed vars; the browser only gets `sorted_paged_coins`, trimmed to `_TABLE_FIELDS`. Never expose a full-list var to the client, and add any new table field to `_TABLE_FIELDS`. Never reassign `_all_coins` after the first load; background refreshers merge patches into `coin_overrides` (keyed by `cmc_id`); read through `_row_with_overrides` / `_merged_row`.
 - **`sys.path`**: any frontend function that does `from app...` must first insert the repo root (Reflex only has `frontend/` on the path), as the other handlers in `coin_state.py` do.
 - **New `Coin` columns need both models and both migrations**: Postgres (`app/models/coin.py`, root `alembic`) and the Reflex SQLite mirror (`frontend/frontend/models/coin.py`, `reflex db makemigrations` + `reflex db migrate`); also mirror in `reflex_cache_service`.
 - **Radix breakpoints** (pixel values): xs 520, sm 768, md 1024, lg 1280, xl 1640. `md` is NOT tablet.
