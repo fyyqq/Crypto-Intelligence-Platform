@@ -1239,3 +1239,12 @@ html.light .radix-themes:where([data-is-root-theme="true"]) {
   flex-shrink: 0;
   animation: rainbow-live-pulse 1.6s ease-out infinite;
 }
+
+/* Private mode (ALLOWED_LOGIN_EMAILS): full-screen cover over every page for a
+   logged-out visitor until the redirect to /login (frontend.py::_header_bar). */
+.private-mode-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: var(--gray-1);
+}

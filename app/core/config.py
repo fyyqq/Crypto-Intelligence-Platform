@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     # Never set on a server.
     dev_auto_login_email: str = ""
 
+    # Private mode: when set (comma-separated emails, e.g. on the live server),
+    # only these accounts can log in, sign-up is closed, and every page sends
+    # a logged-out visitor to /login (auth_service.is_allowed,
+    # CoinState.restore_session). Empty = the site is open as before.
+    allowed_login_emails: str = ""
+
     app_env: str = "development"
     app_host: str = "0.0.0.0"
     app_port: int = 8000

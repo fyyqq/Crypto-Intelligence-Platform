@@ -28,6 +28,12 @@ Always-visible (70px to 240px depending on screen width), transparent-background
 </details>
 
 <details>
+<summary><strong>🔒 Private mode (login gate)</strong></summary>
+
+When `ALLOWED_LOGIN_EMAILS` is set (live server: the owner's account only), every page sends a logged-out visitor to `/login`, covered by a full-screen spinner until the redirect so nothing shows first; sign-up is closed and its link hidden; any other account gets "Invalid email or password." Unset locally, so local dev stays open (with the dev auto-login). Measured: the cover lifts ~0.2s after load for the allowed account.
+</details>
+
+<details>
 <summary><strong>🔔 Notification bell</strong></summary>
 
 Logged-in only: a bare bell icon (no circle) between the search bar and the profile pill with a red unread-count badge. Click opens a popup with the latest 6 notifications and a "View all notifications" link to `/notifications`. Details and how it is fed: [Notifications](./notifications.md).

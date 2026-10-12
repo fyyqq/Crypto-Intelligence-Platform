@@ -154,7 +154,26 @@ def verify_recaptcha(token: str, action: str) -> bool:
     return float(data.get("score", 0)) >= RECAPTCHA_MIN_SCORE
 
 
+def allowed_emails() -> set[str]:
+    return {e.strip().lower() for e in (settings.allowed_login_emails or "").split(",") if e.strip()}
+
+
+def is_private() -> bool:
+    """Private mode (ALLOWED_LOGIN_EMAILS set): only listed accounts get in."""
+    return bool(allowed_emails())
+
+
+def is_allowed(email: str) -> bool:
+    allowed = allowed_emails()
+    return not allowed or (email or "").strip().lower() in allowed
+
+
+SIGNUP_CLOSED_ERROR = "Sign-ups are closed."
+
+
 def register_user(full_name: str, email: str, password: str, repeat_password: str) -> AuthResult:
+    if is_private():
+        return AuthResult(False, SIGNUP_CLOSED_ERROR)
     name, err = validate_name(full_name)
     if err:
         return AuthResult(False, err)
@@ -199,7 +218,9 @@ def login_user(email: str, password: str) -> AuthResult:
     now = datetime.now(timezone.utc)
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.email == addr).first()
+        # Private mode: an account that isn't on the list is treated exactly
+        # like an unknown email (same message, same hashing time).
+        user = db.query(User).filter(User.email == addr).first() if is_allowed(addr) else None
         if user is None:
             try:
                 _hasher.verify(_DUMMY_HASH, password)
@@ -256,10 +277,13 @@ def resume_session(token: str) -> AuthResult:
     db = SessionLocal()
     try:
         row = db.query(UserSession).filter(UserSession.token_hash == _hash_token(token)).first()
-        if row is None or row.expires_at < datetime.now(timezone.utc):
+        if row is None:
+            return AuthResult(False)
+        expires = row.expires_at if row.expires_at.tzinfo else row.expires_at.replace(tzinfo=timezone.utc)
+        if expires < datetime.now(timezone.utc):
             return AuthResult(False)
         user = db.get(User, row.user_id)
-        if user is None:
+        if user is None or not is_allowed(user.email):
             return AuthResult(False)
         return AuthResult(True, user_id=user.id, user_name=user.full_name, user_email=user.email)
     finally:
@@ -291,7 +315,7 @@ def dev_auto_login(host: str) -> AuthResult:
     db = SessionLocal()
     try:
         user = db.query(User).filter(func.lower(User.email) == email).first()
-        if user is None:
+        if user is None or not is_allowed(user.email):
             return AuthResult(False)
         return AuthResult(True, user_id=user.id, user_name=user.full_name, user_email=user.email)
     finally:

@@ -1273,6 +1273,33 @@ def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None, str] | N
     return cmc_id, summary, model, category
 
 
+# The coin universe (every row + the narrative/chain rankings), built once per
+# server process and shared by every session (sessions never mutate rows:
+# live data goes into each session's coin_overrides). Rebuilding it took
+# ~4.6s per new session and kept a private ~35 MB copy in each one.
+_UNIVERSE: dict = {"at": 0.0, "rows": [], "narratives": [], "chains": []}
+_UNIVERSE_TTL = 600  # seconds; new listings show up within 10 minutes
+
+
+def _private_mode() -> bool:
+    """ALLOWED_LOGIN_EMAILS set (environment or the project-root .env) =
+    private mode: see app/core/config.py::allowed_login_emails. Read here
+    without importing app.* (this runs at compile time)."""
+    import os
+    from pathlib import Path
+
+    value = os.environ.get("ALLOWED_LOGIN_EMAILS")
+    if value is None:
+        env = Path(__file__).resolve().parent.parent.parent.parent / ".env"
+        try:
+            for line in env.read_text().splitlines():
+                if line.strip().startswith("ALLOWED_LOGIN_EMAILS="):
+                    value = line.split("=", 1)[1]
+        except OSError:
+            pass
+    return bool((value or "").strip().strip('"').strip("'"))
+
+
 # Fields components/coin_table.py::_row reads from sorted_paged_coins.
 _TABLE_FIELDS = (
     "cmc_id", "rank", "name", "symbol", "icon_url", "price_display", "market_cap_display", "volume_display",
@@ -1289,6 +1316,9 @@ class CoinState(rx.State):
     # copy re-sent on each price update). The browser only ever gets the
     # current page's rows (sorted_paged_coins, table fields only).
     _all_coins: list[dict] = []
+    # Private mode (only ALLOWED_LOGIN_EMAILS may log in): every page sends a
+    # logged-out visitor to /login, and _header_bar covers the page until then.
+    private_mode: bool = _private_mode()
     # Small dict, keyed by cmc_id, holding only the fields that periodically
     # get refreshed for an individual coin (price/volume/% changes from the
     # sync loops, cached tweets, description, business summary, market
@@ -1511,35 +1541,42 @@ class CoinState(rx.State):
             return
 
         self.is_loading = True
-        with rx.session() as session:
-            coins = session.exec(
-                select(Coin)
-                .options(selectinload(Coin.categories), selectinload(Coin.contracts))
-                .order_by(Coin.cmc_rank)
-            ).all()
+        if time.time() - _UNIVERSE["at"] > _UNIVERSE_TTL or not _UNIVERSE["rows"]:
+            with rx.session() as session:
+                coins = session.exec(
+                    select(Coin)
+                    .options(selectinload(Coin.categories), selectinload(Coin.contracts))
+                    .order_by(Coin.cmc_rank)
+                ).all()
 
-            rows: list[dict] = []
-            narrative_counts: Counter[str] = Counter()
-            chain_counts: Counter[str] = Counter()
-            for coin in coins:
-                narrative_counts.update(category.name for category in coin.categories)
-                row = _build_row(coin)
-                chain_counts.update([row["main_chain"]])
-                rows.append(row)
+                rows: list[dict] = []
+                narrative_counts: Counter[str] = Counter()
+                chain_counts: Counter[str] = Counter()
+                for coin in coins:
+                    narrative_counts.update(category.name for category in coin.categories)
+                    row = _build_row(coin)
+                    chain_counts.update([row["main_chain"]])
+                    rows.append(row)
+            _UNIVERSE.update(
+                at=time.time(),
+                rows=rows,
+                narratives=[name for name, _ in narrative_counts.most_common()],
+                chains=[name for name, _ in chain_counts.most_common()],
+            )
 
-        self._all_coins = rows
+        self._all_coins = _UNIVERSE["rows"]
         # Top 20 by number of coins carrying that tag — out of ~600 dynamic
         # CMC categories, this keeps the default filter pill bar to the
         # narratives that actually matter for most coins shown, not an
         # alphabetical cut. all_categories holds every narrative (no cap) so
         # "More Narrative" (see filters.py/narratives_expanded below) can
         # reveal the rest without a second query.
-        all_narrative_names = [name for name, _ in narrative_counts.most_common()]
+        all_narrative_names = _UNIVERSE["narratives"]
         self.categories = ["All narratives", *all_narrative_names[:20]]
         self.all_categories = ["All narratives", *all_narrative_names]
         # Same split for chains — top 20 by default, all_chains holds the
         # full "most common" ranking for "More Chain" to expand into.
-        all_chain_names = [name for name, _ in chain_counts.most_common()]
+        all_chain_names = _UNIVERSE["chains"]
         self.chains = ["All chains", *all_chain_names[:20]]
         self.all_chains = ["All chains", *all_chain_names]
         self.is_loading = False
@@ -1915,8 +1952,18 @@ class CoinState(rx.State):
 
     @rx.event
     async def restore_session(self):
-        """Runs first on every page load: if the browser sent a valid 'stay logged in'
-        cookie, log this browser session back in (name, account id and saved watchlist)."""
+        """Runs first on every page load: logs the browser back in (cookie, or
+        the local dev auto-login) and, in private mode, sends a logged-out
+        visitor to /login (sign-up is closed there too)."""
+        result = await self._restore_session()
+        if self.private_mode and not (self.is_logged_in and self.user_id):
+            if self.router.url.path.rstrip("/") != "/login":
+                return rx.call_script("window.location.assign('/login')")
+        return result
+
+    async def _restore_session(self):
+        """If the browser sent a valid 'stay logged in' cookie, log this
+        browser session back in (name, account id and saved watchlist)."""
         # Search results are real links now, so the typed query isn't cleared by a
         # handler on click; drop it on the next page load instead.
         if self.global_search_query or self.global_search_focused:

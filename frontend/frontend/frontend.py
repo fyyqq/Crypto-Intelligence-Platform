@@ -351,6 +351,21 @@ def _header_bar() -> rx.Component:
     # first row of the same padded content column — logo/heading/color-mode
     # icon/profile pill are all sized down to fit a nav bar's compact scale
     # rather than the oversized hero-like proportions this had before.
+    return rx.fragment(
+        # Private mode: cover the page for a logged-out visitor until
+        # restore_session redirects to /login, so nothing is shown first.
+        rx.cond(
+            CoinState.private_mode & ~CoinState.is_logged_in,
+            rx.center(
+                rx.spinner(size="3"),
+                class_name="private-mode-cover",
+            ),
+        ),
+        _header_bar_inner(),
+    )
+
+
+def _header_bar_inner() -> rx.Component:
     return rx.box(
         rx.box(
             rx.link(

@@ -314,11 +314,16 @@ def _form_panel(mode: str) -> rx.Component:
     )
     return rx.vstack(
         rx.heading("Log in to your account" if login else "Create an account", size="6", color="#fff"),
-        rx.hstack(
-            rx.text("Don't have an account?" if login else "Already have an account?", size="2", color="rgba(255,255,255,0.6)"),
-            rx.link("Sign up" if login else "Log in", href="/signup" if login else "/login", size="2", color="#fff"),
-            spacing="2",
-            wrap="wrap",
+        # Private mode (ALLOWED_LOGIN_EMAILS): no sign-up link, sign-up is closed.
+        rx.cond(
+            CoinState.private_mode,
+            rx.fragment(),
+            rx.hstack(
+                rx.text("Don't have an account?" if login else "Already have an account?", size="2", color="rgba(255,255,255,0.6)"),
+                rx.link("Sign up" if login else "Log in", href="/signup" if login else "/login", size="2", color="#fff"),
+                spacing="2",
+                wrap="wrap",
+            ),
         ),
         rx.form(
             rx.vstack(
