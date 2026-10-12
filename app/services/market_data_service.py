@@ -137,6 +137,10 @@ class MarketDataService:
             ).all()
         )
         stale = [cid for cid in cmc_ids if cid not in fresh]
+        if stale and not self.is_sync_due(SyncType.LISTINGS_RANGE, interval_hours=0, failure_backoff_hours=5 / 60):
+            # A view sync failed in the last 5 minutes (e.g. out of credits):
+            # don't hammer CMC from every tab; the caller keeps its prices.
+            return SyncLog(sync_type=SyncType.LISTINGS_RANGE, status=SyncStatus.FAILED, records_synced=0)
         if not stale:
             # Everything requested was refreshed recently (by another viewer or
             # the hourly sync): nothing to buy. Not stored in sync_logs.

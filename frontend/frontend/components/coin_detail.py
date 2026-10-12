@@ -944,7 +944,24 @@ def _info_column() -> rx.Component:
             width="100%",
         ),
         rx.hstack(
-            rx.text(coin["price_display"], size="8", weight="bold"),
+            # Live price (every 1s, from the chart's own exchange pair) once it
+            # arrives; the synced price until then. Re-keyed on every change so
+            # the up/down flash (styles.css .price-flash-*) replays.
+            rx.text(
+                rx.cond(CoinState.live_price_display != "", CoinState.live_price_display, coin["price_display"]),
+                size="8",
+                weight="bold",
+                key=CoinState.live_price_tick,
+                class_name=rx.cond(
+                    CoinState.live_price_dir == "up",
+                    "price-flash-up",
+                    rx.cond(CoinState.live_price_dir == "down", "price-flash-down", ""),
+                ),
+            ),
+            rx.cond(
+                CoinState.live_price_display != "",
+                rx.box(class_name="live-dot", title="Live price, updated every second"),
+            ),
             rx.text(coin["change_24h_display"], " (24h)", size="3", weight="bold", color=coin["change_24h_color"]),
             align="baseline",
             spacing="2",

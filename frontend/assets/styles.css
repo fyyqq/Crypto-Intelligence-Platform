@@ -1209,3 +1209,33 @@ html.light .radix-themes:where([data-is-root-theme="true"]) {
   color: var(--gray-11);
   font-variant-numeric: tabular-nums;
 }
+
+/* Coin page live price (CoinState.coin_live_price_loop): a short green/red
+   flash on each tick, then back to the normal text colour. */
+@keyframes price-flash-up {
+  from { color: var(--green-11); }
+  to { color: var(--gray-12); }
+}
+
+@keyframes price-flash-down {
+  from { color: var(--red-11); }
+  to { color: var(--gray-12); }
+}
+
+.price-flash-up {
+  animation: price-flash-up 0.9s ease-out;
+}
+
+.price-flash-down {
+  animation: price-flash-down 0.9s ease-out;
+}
+
+.live-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--green-9);
+  align-self: center;
+  flex-shrink: 0;
+  animation: rainbow-live-pulse 1.6s ease-out infinite;
+}

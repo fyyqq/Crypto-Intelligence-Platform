@@ -893,6 +893,43 @@ def _change_24h_display(cmc_id: int, market_cap_now: float, volume_now: float) -
     return out
 
 
+def _hub_rows(base_rows: list[dict]) -> dict[int, dict]:
+    """Real-time patches from the shared exchange price list
+    (app/services/price_hub.py, ~30s fresh, no CMC credits) for the given
+    rows: price, 24h change, and market cap scaled by the price move. A row
+    is skipped when no exchange lists its ticker or the exchange price is
+    implausible against the coin's stored price (another coin with the same
+    ticker). `base_rows` must be the stored rows from _all_coins, not
+    overridden ones, so market cap is always scaled from the stored figure."""
+    import sys
+    from pathlib import Path
+
+    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    from app.services import price_hub
+
+    prices = price_hub.get_prices()
+    out: dict[int, dict] = {}
+    for row in base_rows:
+        quote = prices.get((row.get("symbol") or "").upper())
+        ref = float(row.get("price_raw") or 0)
+        if not quote or not price_hub.plausible(quote["price"], ref):
+            continue
+        price, pct = quote["price"], quote["pct_24h"]
+        market_cap = float(row.get("market_cap_usd") or 0) * price / ref
+        out[row["cmc_id"]] = {
+            "price_raw": price,
+            "price_display": _fmt_usd(price),
+            "pct_24h_raw": pct,
+            "change_24h_display": _fmt_pct(pct),
+            "change_24h_color": _pct_color(pct),
+            "market_cap_usd": market_cap,
+            "market_cap_display": _fmt_compact_usd(market_cap),
+        }
+    return out
+
+
 def _sync_and_rebuild_rows(cmc_ids: list[int]) -> dict[int, dict]:
     """Blocking work for the view-driven live sync: refreshes the given
     coins' quotes in Postgres (cross-package call into the FastAPI
@@ -1382,6 +1419,18 @@ class CoinState(rx.State):
     _is_live_syncing: bool = False
     # Same guard as _is_live_syncing above, for detail_sync_loop.
     _is_detail_syncing: bool = False
+    # Coin page header price, refreshed every second by coin_live_price_loop
+    # from the exchange/pair the TradingView chart shows (frontend/live_prices.py),
+    # so it moves with the chart. Kept in its own small vars (not
+    # coin_overrides) so a 1s tick only sends a few bytes and never
+    # recomputes the big coin vars. live_price_tick re-keys the element so
+    # the up/down flash replays on every change.
+    live_price_display: str = ""
+    live_price_dir: str = ""  # "up" | "down" | ""
+    live_price_tick: int = 0
+    _live_price_cmc_id: int = 0
+    _live_price_value: float = 0.0
+    _live_price_running: bool = False
     # Coin page 24h market cap / volume change badges (_change_24h_display),
     # tagged with the cmc_id they were computed for.
     coin_change_24h: dict[str, str] = {}
@@ -1693,12 +1742,22 @@ class CoinState(rx.State):
                     # dict.fromkeys dedupes while preserving order — avoids a
                     # duplicate CMC API lookup for coins in both sets (the
                     # common case: page 1 IS the top 100).
-                    cmc_ids = list(dict.fromkeys([*top_100_ids, *visible_ids]))
-                if cmc_ids:
-                    updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, cmc_ids)
+                    cmc_ids = list(dict.fromkeys([*top_100_ids, *visible_ids, *self.watchlist_ids]))
+                    wanted = set(cmc_ids)
+                    base_rows = [r for r in self._all_coins if r["cmc_id"] in wanted]
+                if base_rows:
+                    # Exchange prices first (shared, free, ~30s fresh); CoinMarketCap
+                    # only for coins no exchange covers (stablecoins, small caps),
+                    # which sync_ids throttles to one refresh per coin per 10 min.
+                    hub_rows = await asyncio.to_thread(_hub_rows, base_rows)
                     async with self:
-                        self._apply_updates(updated_rows)
-                await asyncio.sleep(60)
+                        self._apply_updates(hub_rows)
+                    missing = [cid for cid in cmc_ids if cid not in hub_rows]
+                    if missing:
+                        updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, missing)
+                        async with self:
+                            self._apply_updates(updated_rows)
+                await asyncio.sleep(30)
                 if self.router.session.client_token not in reflex_app.event_namespace.token_to_sid:
                     break
         finally:
@@ -2523,12 +2582,15 @@ class CoinState(rx.State):
             while True:
                 async with self:
                     cmc_id = self.selected_coin.get("cmc_id")
+                    base = next((r for r in self._all_coins if r["cmc_id"] == cmc_id), None) if cmc_id else None
                 if cmc_id:
-                    updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, [cmc_id])
+                    updated_rows = await asyncio.to_thread(_hub_rows, [base]) if base else {}
+                    if not updated_rows:  # no exchange lists it: CoinMarketCap (throttled)
+                        updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, [cmc_id])
                     async with self:
                         self._apply_updates(updated_rows)
                     await self._refresh_change_24h()
-                await asyncio.sleep(60)
+                await asyncio.sleep(30)
                 async with self:
                     still_connected = (
                         self.router.session.client_token in reflex_app.event_namespace.token_to_sid
@@ -2538,6 +2600,54 @@ class CoinState(rx.State):
         finally:
             async with self:
                 self._is_detail_syncing = False
+
+    @rx.event(background=True)
+    async def coin_live_price_loop(self):
+        """Every second while a coin page is open: the last traded price of
+        the chart's own pair (falls back to OKX/Gate/MEXC/... by ticker, with
+        the same plausibility check as alerts). One loop per tab."""
+        async with self:
+            if self._live_price_running:
+                return
+            self._live_price_running = True
+        from frontend.frontend import app as reflex_app
+        from frontend.live_prices import fetch_live_prices
+
+        try:
+            while True:
+                async with self:
+                    coin = self.selected_coin
+                    cmc_id = coin.get("cmc_id") if coin else None
+                    if cmc_id != self._live_price_cmc_id:  # another coin: start clean
+                        self._live_price_cmc_id = cmc_id or 0
+                        self._live_price_value = 0.0
+                        self.live_price_display = ""
+                        self.live_price_dir = ""
+                    item = (
+                        {
+                            "cmc_id": cmc_id,
+                            "symbol": coin["symbol"],
+                            "chart_symbol": _resolve_chart_symbol(coin["symbol"], coin) or "",
+                            "ref_price": coin.get("price_raw", 0),
+                        }
+                        if cmc_id
+                        else None
+                    )
+                if item:
+                    price = (await asyncio.to_thread(fetch_live_prices, [item])).get(cmc_id)
+                    async with self:
+                        if price and self._live_price_cmc_id == cmc_id and price != self._live_price_value:
+                            if self._live_price_value:
+                                self.live_price_dir = "up" if price > self._live_price_value else "down"
+                            self._live_price_value = price
+                            self.live_price_display = _fmt_usd(price)
+                            self.live_price_tick += 1
+                await asyncio.sleep(1)
+                if self.router.session.client_token not in reflex_app.event_namespace.token_to_sid:
+                    break
+        finally:
+            async with self:
+                self._live_price_running = False
 
     async def _refresh_change_24h(self) -> None:
         """Recomputes the 24h market cap / volume badges from the coin's

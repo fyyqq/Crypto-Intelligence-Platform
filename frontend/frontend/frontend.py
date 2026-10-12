@@ -1203,6 +1203,7 @@ app.add_page(
     on_load=[
         CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch,
         CoinState.detail_sync_loop,
+        CoinState.coin_live_price_loop,
         CoinState.refresh_change_24h,
         CoinState.refresh_coin_description,
         CoinState.refresh_business_summary,
@@ -1299,4 +1300,6 @@ for _route, _page_fn in [
     ("/chains", chains_page),
     ("/watchlist", watchlist_page),
 ]:
-    app.add_page(_page_fn, route=_route, title=f"Repace — {_page_fn.__name__.replace('_page', '').title()}", on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch])
+    # /watchlist also runs the live price loop (shared exchange prices every 30s).
+    _extra = [CoinState.live_sync_loop] if _route == "/watchlist" else []
+    app.add_page(_page_fn, route=_route, title=f"Repace — {_page_fn.__name__.replace('_page', '').title()}", on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, *_extra])

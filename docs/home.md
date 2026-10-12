@@ -172,3 +172,10 @@ Per explicit request (`el-06/07`): anything that moves to another page is now a 
 
 Four equal-height (260px) empty bordered cards in one row above the Cryptocurrency news strip (`components/market_overview.py`, 4 columns from lg width, 2 from sm, 1 on phones). They are layout placeholders for Market Status / Trending Coins / Derivatives / promo content and are intentionally empty for now.
 </details>
+
+<details><summary>Real-time prices and page size (2026-10-13)</summary>
+
+**Prices every 30s, no CMC credits.** `CoinState.live_sync_loop` (homepage and `/watchlist`) refreshes the top 100, the visible page and your watchlist every 30s from the shared exchange price list `app/services/price_hub.py`: one bulk "all tickers" call each to Binance, OKX, Bybit and Gate (first to list a ticker wins), cached 30s and shared by every tab, idle when nobody is on the site. It patches price, 24h change and market cap (scaled from the stored figure by the price move). A price is only used when it is within 0.5x-2x of the coin's stored price (same-ticker guard). Coins no exchange lists (mostly stablecoins) fall back to CoinMarketCap through `sync_ids` (one refresh per coin per 10 min, and skipped for 5 min after a failed call). 1h/7d change and volume stay from the hourly CMC sync. Coverage measured from the live server: 94 of the top 100, 417 of the top 500; from Malaysia Binance/Bybit are blocked, so local dev uses OKX + Gate (91 of the top 100).
+
+**Page size.** The full coin list (`CoinState._all_coins`, ~8,300 rows) and its filtered copy stay on the server; the browser only receives the current page (`sorted_paged_coins`, table fields only). Homepage load went from ~72 MB to ~0.5 MB; the table renders in ~5s on a cold load.
+</details>

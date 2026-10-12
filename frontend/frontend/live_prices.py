@@ -19,9 +19,11 @@ import httpx
 _TIMEOUT = 2.5
 # An exchange that timed out/errored is skipped for this long, so one blocked
 # or slow venue doesn't add its timeout to every poll.
-_BACKOFF_SECONDS = 60
+_BACKOFF_SECONDS = 300  # blocked exchanges (e.g. Binance from Malaysia) cost a ~5s timeout per retry
 _down_until: dict[str, float] = {}
-_FALLBACK_ORDER = ["MEXC", "KUCOIN", "HTX", "BYBIT", "BINANCE"]
+# OKX and Gate first: they answer from Malaysia too (Binance, Bybit, KuCoin,
+# MEXC and Bitget time out from there), so local development gets prices.
+_FALLBACK_ORDER = ["OKX", "GATEIO", "MEXC", "KUCOIN", "HTX", "BYBIT", "BINANCE"]
 _QUOTES = ("USDT", "USDC", "USD", "FDUSD", "BUSD", "DAI", "TUSD")
 
 
@@ -57,6 +59,14 @@ def _price(client: httpx.Client, exchange: str, pair: str) -> float | None:
                 "https://api.bybit.com/v5/market/tickers", params={"category": "spot", "symbol": pair}
             ).json()
             return float(d["result"]["list"][0]["lastPrice"])
+        if exchange == "OKX":
+            base, quote = _split(pair)
+            d = client.get("https://www.okx.com/api/v5/market/ticker", params={"instId": f"{base}-{quote}"}).json()
+            return float(d["data"][0]["last"])
+        if exchange == "GATEIO":
+            base, quote = _split(pair)
+            d = client.get("https://api.gateio.ws/api/v4/spot/tickers", params={"currency_pair": f"{base}_{quote}"}).json()
+            return float(d[0]["last"])
     except httpx.TransportError:
         _down_until[exchange] = time.monotonic() + _BACKOFF_SECONDS
         return None
@@ -94,9 +104,21 @@ def fetch_live_prices(items: list[dict]) -> dict[int, float]:
     if not items:
         return {}
     out: dict[int, float] = {}
-    with httpx.Client(timeout=_TIMEOUT, headers={"User-Agent": "Mozilla/5.0"}) as client:
-        with ThreadPoolExecutor(max_workers=min(8, len(items))) as pool:
-            for item, price in zip(items, pool.map(lambda it: _live_price_for(client, it), items)):
-                if price:
-                    out[int(item["cmc_id"])] = price
+    client = _shared_client()
+    with ThreadPoolExecutor(max_workers=min(8, len(items))) as pool:
+        for item, price in zip(items, pool.map(lambda it: _live_price_for(client, it), items)):
+            if price:
+                out[int(item["cmc_id"])] = price
     return out
+
+
+_client: httpx.Client | None = None
+
+
+def _shared_client() -> httpx.Client:
+    """One long-lived client (connection keep-alive) instead of a new TLS
+    handshake per call: the coin page polls every second."""
+    global _client
+    if _client is None:
+        _client = httpx.Client(timeout=_TIMEOUT, headers={"User-Agent": "Mozilla/5.0"})
+    return _client
