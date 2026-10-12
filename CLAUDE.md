@@ -31,6 +31,7 @@ Notifications `/notifications` · Home `/` (coin table, filters, news strip, Nar
 - Local dev auto-login (`DEV_AUTO_LOGIN_EMAIL` in the local `.env`, localhost only): the local site is always logged in as the dummy user; see `.claude/rules/auth-sessions.md`. Never set on a server.
 - `/tools` rainbow charts show a live spot price (free exchange tickers, every 15s) and a hover/tap tooltip with band levels; Fear & Greed / Season fall back to free sources when CMC fails (2026-10-13). CMC credit guards: view-sync 10-min shared throttle, failed-sync backoff, re-used-slug fix (`market_data_service`).
 - Coin pages show our own 24h change under Market cap and Volume (vs. the `price_snapshot` row ~24h ago; daily all-coin snapshots via `jobs.run_listings_sync`, run from Reflex). Shows nothing until a ~24h-old snapshot exists. Details: `docs/single-coin-page.md`.
+- Backend exceptions are written to `logs/error.log` (gitignored) with a reference id shown in the "An error occurred" toast (2026-10-13, **not deployed yet**; local Reflex not restarted). Details: `docs/global-components.md`.
 - Telegram posts are merged into the main `/news` sections on purpose (see `telegram-news.md`).
 - Telegram media is bounded (webp, 30-day prune, 4.6GB->133MB) and video posts now embed Telegram's own player in the reader (real inline playback, nothing stored); cards still show just the poster. See `telegram-news.md` / `docs/news.md`.
 - The Telegram listener is not auto-started by a process manager (the `/news` catch-up starts it).

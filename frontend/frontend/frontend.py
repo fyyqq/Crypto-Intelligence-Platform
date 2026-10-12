@@ -7,6 +7,7 @@ from starlette.applications import Starlette
 from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
 
+from frontend.error_log import backend_exception_handler, frontend_exception_handler
 from frontend.components import (
     coin_detail_page,
     similar_coins_page_content,
@@ -1182,6 +1183,9 @@ _api_transformer = Starlette(
 app = rx.App(
     stylesheets=["/styles.css"],
     api_transformer=_api_transformer,
+    # Full tracebacks go to logs/error.log; the toast carries a matching reference id.
+    backend_exception_handler=backend_exception_handler,
+    frontend_exception_handler=frontend_exception_handler,
     # Raw <script>: rx.script wraps it in Helmet, which never runs inside the document head.
     head_components=[rx.el.script(src="/alert_voice.js")],
 )
