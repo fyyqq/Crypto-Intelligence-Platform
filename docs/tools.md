@@ -22,6 +22,18 @@ Index 0-100 = share of the top 50 coins (stablecoins, wrapped/staked/bridged tok
 Drawn server-side as SVG from daily USD prices: **CoinMetrics' free community API** (BTC from 18 Jul 2010, ETH from Aug 2015; no key), with Yahoo Finance (BTC from 2014) as fallback; cached 6 hours. **Bitcoin** uses the widely used logarithmic-growth curve as the centre, `log10(price) = 2.66167 * ln(days since 2009-01-09) - 17.9183`, with nine bands spanning +/-0.6 decades around it (this is what Blockchaincenter/Coinglass-style charts use; an earlier version fitted its own regression on 2014+ data with wider bands and so looked different, with BTC reading "Still cheap" instead of "Fire sale"). **Ethereum** has no standard curve, so its centre is a least-squares fit of its own history and its bands span the historical envelope around that fit. The bands are extended about 1.5 years ahead; the header shows the current price and band; BTC/ETH tabs. Labels and colours follow the common rainbow charts (Fire sale ... Maximum bubble territory).
 </details>
 
+<details><summary>Rainbow chart: live price and hover tooltip (2026-10-13)</summary>
+
+**Live price.** The history (CoinMetrics daily closes) only goes up to yesterday's close, so the headline price used to be that close (cached 6h). Now `market_tools_service._live_spot` reads the spot USD price from free public exchange tickers, no key: Coinbase, then Kraken, then Binance (USDT); cached 10s. `ToolsState.rainbow_live_loop` re-reads it every 15s while the page is open and moves the price (through `_fmt_usd`), the band badge, a "Live · <time> UTC · <source>" line with a pulsing dot, and the chart's last segment + live dot. The chart itself (`rainbow_svg`, cached 6h) is not re-sent: the live part is a tiny overlay SVG with the same viewBox stacked on top (`rainbow_live()` -> `rainbow_overlay`, `.rainbow-overlay`). If every ticker fails, it falls back to the last daily close ("as of <date> (daily close)").
+
+**Hover / tap tooltip** (free, our own code, no library or service): `assets/rainbow_hover.js` reads the chart model sent once per asset in `data-rainbow` on `.rainbow-chart` (geometry, band model `slope`/`icpt`/`lo`/`step`, and every daily close). On hover (or tap on touch screens) it draws a vertical guide, a dot on the price line, and a card with the date, that day's price, and all nine bands' price levels at that date with the price's band highlighted. Future dates show "Projected bands". Prices in the card mirror `_fmt_usd`; band levels are compact ($46.1K) like the axis. Touch: the card stays until a tap outside the chart; vertical scrolling still works (`touch-action: pan-y`). Theme tokens only (`.rainbow-tip` in styles.css).
+</details>
+
+<details><summary>CoinMarketCap fallback for Fear & Greed and Season (2026-10-13)</summary>
+
+When the chosen source is CoinMarketCap and it fails (rate limit / monthly credits used up / key rejected / unreachable), the card shows the free source's result instead (Alternative.me for Fear & Greed, CoinGecko 30 days for Season) with an amber note "CoinMarketCap unavailable (<reason>), showing <source> instead." A failed CMC source is not retried for 10 minutes (`_with_cmc_fallback`, `_CMC_FAIL_TTL`).
+</details>
+
 <details><summary>TradingView embeds: DXY, total market cap, BTC dominance, ETH/BTC, TOTAL2</summary>
 
 Free `widgetembed` iframes (same mechanism as the coin page chart), daily candles, KL timezone, light/dark via `rx.color_mode_cond`. Symbols: `CAPITALCOM:DXY`, `CRYPTOCAP:TOTAL`, `CRYPTOCAP:BTC.D`, `BINANCE:ETHBTC`, `CRYPTOCAP:TOTAL2`. **`TVC:DXY` (the usual DXY symbol) is blocked in embeds** ("only available on TradingView"), so DXY uses Capital.com's index, which tracks the same value. No key needed.

@@ -116,6 +116,37 @@ def _cached(key: str, ttl: float, fn):
     return value
 
 
+# A CoinMarketCap source that just failed is skipped for this long, so a
+# rate-limited or out-of-credit key isn't retried on every page load.
+_CMC_FAIL_TTL = 600
+_cmc_failed: dict[str, tuple[float, str]] = {}
+
+
+def _cmc_reason(exc: Exception) -> str:
+    text = str(exc)
+    if "429" in text:
+        return "rate limit or monthly credits used up"
+    if "401" in text or "403" in text:
+        return "API key rejected"
+    return "unreachable"
+
+
+def _with_cmc_fallback(tool: str, primary, fallback) -> dict:
+    """Runs the CoinMarketCap source; when it fails (or failed in the last
+    _CMC_FAIL_TTL seconds), returns the free source's result instead with a
+    `fallback_note` saying why, rather than an error card."""
+    failed = _cmc_failed.get(tool)
+    if not failed or time.time() - failed[0] > _CMC_FAIL_TTL:
+        try:
+            return primary()
+        except ToolsDataError as exc:
+            failed = (time.time(), _cmc_reason(exc))
+            _cmc_failed[tool] = failed
+    data = dict(fallback())
+    data["fallback_note"] = f"CoinMarketCap unavailable ({failed[1]}), showing {data['source']} instead."
+    return data
+
+
 def _get(url: str, **kw):
     try:
         r = requests.get(url, headers={**_UA, **kw.pop("headers", {})}, timeout=_TIMEOUT, **kw)
@@ -167,8 +198,10 @@ def _fng_cmc() -> dict:
 
 
 def get_fear_greed(source: str) -> dict:
-    fn = _fng_cmc if source == "cmc" else _fng_alternative
-    return _cached(f"fng:{source}", 900, fn)
+    free = lambda: _cached("fng:alternative", 900, _fng_alternative)  # noqa: E731
+    if source != "cmc":
+        return {**free(), "fallback_note": ""}
+    return _with_cmc_fallback("fng", lambda: {**_cached("fng:cmc", 900, _fng_cmc), "fallback_note": ""}, free)
 
 
 # ---- Altcoin / Bitcoin Season ---------------------------------------------
@@ -252,8 +285,12 @@ def _season_coingecko() -> dict:
 
 
 def get_altcoin_season(source: str) -> dict:
-    fn = _season_cmc if source == "cmc" else _season_coingecko
-    return _cached(f"season:{source}", 1800, fn)
+    free = lambda: _cached("season:coingecko", 1800, _season_coingecko)  # noqa: E731
+    if source != "cmc":
+        return {**free(), "fallback_note": ""}
+    return _with_cmc_fallback(
+        "season", lambda: {**_cached("season:cmc", 1800, _season_cmc), "fallback_note": ""}, free
+    )
 
 
 # ---- Rainbow chart ---------------------------------------------------------
@@ -359,7 +396,15 @@ def _rainbow_model(asset: str, pts: list[tuple[int, float]]):
     return center, lo, hi
 
 
+_W, _H, _L, _R, _T, _B = 1000, 480, 62, 14, 14, 34
+
+
 def _build_rainbow(asset: str) -> dict:
+    """The static part of the chart (bands, axes, daily price line up to the
+    last daily close), plus everything the browser needs to draw the live
+    point and the hover tooltip (assets/rainbow_hover.js): the chart
+    geometry, the band model and the daily price series. Cached 6h with the
+    history; the live price is laid over it by rainbow_live()."""
     pts = _history(asset)
     if len(pts) < 365:
         raise ToolsDataError("Not enough price history to draw the chart.")
@@ -376,7 +421,7 @@ def _build_rainbow(asset: str) -> dict:
     ymax_v = max(max(math.log10(c) for _, c in pts), edge(t1, len(RAINBOW_BANDS)))
     ymin, ymax = math.floor(ymin_v), math.ceil(ymax_v)
 
-    W, H, L, R, T, B = 1000, 480, 62, 14, 14, 34
+    W, H, L, R, T, B = _W, _H, _L, _R, _T, _B
     pw, ph = W - L - R, H - T - B
 
     def px(t):
@@ -404,26 +449,118 @@ def _build_rainbow(asset: str) -> dict:
             parts.append(f'<text x="{px(t):.1f}" y="{H - 10}" text-anchor="middle" font-size="13" fill="var(--gray-11)">{yr}</text>')
     line = " ".join(f"{px(t):.1f},{py(math.log10(c)):.1f}" for t, c in pts[::2] + [pts[-1]])
     parts.append(f'<polyline points="{line}" fill="none" stroke="#111827" stroke-width="1.8" stroke-linejoin="round"/>')
-    last_t, last_c = pts[-1]
-    parts.append(f'<circle cx="{px(last_t):.1f}" cy="{py(math.log10(last_c)):.1f}" r="4.5" fill="#fff" stroke="#111827" stroke-width="2"/>')
     parts.append("</svg>")
 
-    pos = (math.log10(last_c) - (center(last_t) + lo)) / step
-    idx = max(0, min(len(RAINBOW_BANDS) - 1, int(math.floor(pos))))
+    genesis = _BTC_GENESIS if asset == "BTC" else _ETH_GENESIS
+    g = datetime(genesis.year, genesis.month, genesis.day, tzinfo=timezone.utc).timestamp()
+    # center(t) = slope * ln(days since genesis) + icpt, so day 1 gives icpt and
+    # day e gives slope + icpt. The hover script recomputes band edges from
+    # these exactly as edge() does.
+    icpt = center(g + 86400)
+    slope_icpt = (center(g + 86400 * math.e) - icpt, icpt)
+    hover = {
+        "asset": asset,
+        "W": W, "H": H, "L": L, "R": R, "T": T, "B": B,
+        "t0": t0, "t1": t1, "ymin": ymin, "ymax": ymax,
+        "g": g, "slope": slope_icpt[0], "icpt": slope_icpt[1], "lo": lo, "step": step,
+        "bands": [[n, c] for n, c in RAINBOW_BANDS],
+        # daily closes as [day index since t0, price] (every day; ~5.7K points for BTC)
+        "pts": [[round((t - t0) / 86400), float(f"{c:.6g}")] for t, c in pts],
+    }
+    last_t, last_c = pts[-1]
     return {
         "svg": "".join(parts),
-        "price": f"${last_c:,.2f}",
-        "band": RAINBOW_BANDS[idx][0],
-        "band_color": RAINBOW_BANDS[idx][1],
-        "asof": datetime.fromtimestamp(last_t, timezone.utc).strftime("%d %b %Y"),
+        "hover": hover,
+        "last_t": last_t,
+        "last_c": last_c,
+        "geometry": (t0, t1, ymin, ymax),
+        "center": center,
+        "lo": lo,
+        "step": step,
         "legend": [{"label": n, "color": c} for n, c in reversed(RAINBOW_BANDS)],
     }
 
 
-def get_rainbow(asset: str) -> dict:
+def _rainbow_static(asset: str) -> dict:
     if asset not in ("BTC", "ETH"):
         raise ToolsDataError("Unknown asset.")
     return _cached(f"rainbow:{asset}", 6 * 3600, lambda: _build_rainbow(asset))
+
+
+def _live_spot(asset: str) -> tuple[float, str]:
+    """Spot USD price right now, from free public exchange tickers (no key):
+    Coinbase, then Kraken, then Binance (USDT). Cached 10 seconds."""
+
+    def load():
+        tries = (
+            ("Coinbase", lambda: float(_get(f"https://api.coinbase.com/v2/prices/{asset}-USD/spot")["data"]["amount"])),
+            ("Kraken", lambda: float(next(iter(_get(
+                f"https://api.kraken.com/0/public/Ticker?pair={'XBT' if asset == 'BTC' else asset}USD")["result"].values()))["c"][0])),
+            ("Binance", lambda: float(_get(f"https://api.binance.com/api/v3/ticker/price?symbol={asset}USDT")["price"])),
+        )
+        for name, fn in tries:
+            try:
+                price = fn()
+                if price > 0:
+                    return price, name
+            except (ToolsDataError, KeyError, TypeError, ValueError, StopIteration):
+                continue
+        raise ToolsDataError("No live price source answered.")
+
+    return _cached(f"spot:{asset}", 10, load)
+
+
+def _band_index(static: dict, t: float, price: float) -> int:
+    pos = (math.log10(price) - (static["center"](t) + static["lo"])) / static["step"]
+    return max(0, min(len(RAINBOW_BANDS) - 1, int(math.floor(pos))))
+
+
+def get_rainbow(asset: str) -> dict:
+    """The chart plus its current reading. The reading uses the live spot
+    price when a free exchange ticker answers, else the last daily close."""
+    static = _rainbow_static(asset)
+    out = {k: static[k] for k in ("svg", "hover", "legend")}
+    out.update(rainbow_live(asset))
+    return out
+
+
+def rainbow_live(asset: str) -> dict:
+    """Live reading for the chart: price (raw), band, when, source, and a tiny
+    overlay SVG (same viewBox as the chart) with the segment from the last
+    daily close to now and the live dot. Small, so it can be pushed often."""
+    static = _rainbow_static(asset)
+    t0, t1, ymin, ymax = static["geometry"]
+    pw, ph = _W - _L - _R, _H - _T - _B
+
+    def px(t):
+        return _L + (t - t0) / (t1 - t0) * pw
+
+    def py(v):
+        return _T + (ymax - v) / (ymax - ymin) * ph
+
+    last_t, last_c = static["last_t"], static["last_c"]
+    try:
+        price, source = _live_spot(asset)
+        t = time.time()
+        live = True
+    except ToolsDataError:
+        price, source, t, live = last_c, "CoinMetrics daily close", last_t, False
+    idx = _band_index(static, t, price)
+    x0, y0, x1, y1 = px(last_t), py(math.log10(last_c)), px(t), py(math.log10(price))
+    overlay = (
+        f'<svg viewBox="0 0 {_W} {_H}" width="100%" xmlns="http://www.w3.org/2000/svg" style="display:block">'
+        f'<polyline points="{x0:.1f},{y0:.1f} {x1:.1f},{y1:.1f}" fill="none" stroke="#111827" stroke-width="1.8"/>'
+        f'<circle cx="{x1:.1f}" cy="{y1:.1f}" r="4.5" fill="#fff" stroke="#111827" stroke-width="2"/></svg>'
+    )
+    return {
+        "price_raw": price,
+        "band": RAINBOW_BANDS[idx][0],
+        "band_color": RAINBOW_BANDS[idx][1],
+        "asof": datetime.fromtimestamp(t, timezone.utc).strftime("%d %b %Y, %H:%M:%S UTC" if live else "%d %b %Y"),
+        "live": live,
+        "price_source": source,
+        "overlay": overlay,
+    }
 
 
 # ---- Fear & Greed gauge SVG -----------------------------------------------

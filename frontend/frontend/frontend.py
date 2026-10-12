@@ -1067,6 +1067,7 @@ def tools_page() -> rx.Component:
         _watchlist_widget(),
         _alert_popups(),
         rx.script(src="/chain_pills.js"),
+        rx.script(src="/rainbow_hover.js"),
         min_height="100vh",
         width="100%",
     )

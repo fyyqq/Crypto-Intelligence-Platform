@@ -22,6 +22,19 @@ _CARD = dict(
 )
 
 
+
+def _fallback_note(note) -> rx.Component:
+    """Shown when the chosen CoinMarketCap source failed and the free one was used."""
+    return rx.cond(
+        note != "",
+        rx.hstack(
+            rx.icon("info", size=14, color="var(--amber-11)", flex_shrink="0"),
+            rx.text(note, size="1", color="var(--amber-11)"),
+            spacing="1",
+            align="center",
+        ),
+    )
+
 def _source_button(tool: str) -> rx.Component:
     return rx.button(
         rx.icon("settings-2", size=14),
@@ -116,6 +129,7 @@ def _fng_body() -> rx.Component:
             size="1",
             color_scheme="gray",
         ),
+        _fallback_note(ToolsState.fng_fallback_note),
         spacing="3",
         align="center",
         width="100%",
@@ -204,6 +218,7 @@ def _season_body() -> rx.Component:
             align="start",
         ),
         rx.text("Source: ", ToolsState.season_source_name, " · stablecoins and wrapped tokens excluded", size="1", color_scheme="gray"),
+        _fallback_note(ToolsState.season_fallback_note),
         spacing="4",
         align="start",
         width="100%",
@@ -277,12 +292,34 @@ def rainbow_section() -> rx.Component:
                                 size="2",
                                 style={"background": ToolsState.rainbow_band_color, "color": "#111827"},
                             ),
-                            rx.text("as of ", ToolsState.rainbow_asof, size="1", color_scheme="gray"),
+                            rx.cond(
+                                ToolsState.rainbow_live,
+                                rx.hstack(
+                                    rx.box(class_name="rainbow-live-dot"),
+                                    rx.text(
+                                        "Live · ", ToolsState.rainbow_asof, " · ", ToolsState.rainbow_price_source,
+                                        size="1",
+                                        color_scheme="gray",
+                                    ),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                rx.text("as of ", ToolsState.rainbow_asof, " (daily close)", size="1", color_scheme="gray"),
+                            ),
                             align="center",
                             spacing="3",
                             wrap="wrap",
                         ),
-                        rx.box(rx.html(ToolsState.rainbow_svg), width="100%"),
+                        # Static chart + the live overlay (same viewBox, stacked
+                        # exactly on top). .rainbow-chart + data-rainbow feed the
+                        # hover tooltip in assets/rainbow_hover.js.
+                        rx.box(
+                            rx.html(ToolsState.rainbow_svg),
+                            rx.box(rx.html(ToolsState.rainbow_overlay), class_name="rainbow-overlay"),
+                            class_name="rainbow-chart",
+                            custom_attrs={"data-rainbow": ToolsState.rainbow_hover},
+                            width="100%",
+                        ),
                         rx.hstack(
                             rx.foreach(ToolsState.rainbow_legend, _legend_chip),
                             wrap="wrap",

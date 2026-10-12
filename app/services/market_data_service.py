@@ -19,6 +19,13 @@ logger = logging.getLogger(__name__)
 # occasionally reports absurd values for illiquid tokens (e.g. a +3,000,000%
 # change), and one such value used to fail the whole listings sync with a
 # numeric overflow, rolling back every coin.
+# View-driven sync (sync_ids): a coin is only re-requested from CMC once its
+# last refresh (by any viewer, or by the hourly/daily syncs) is at least this
+# old. Shared through coins.last_synced_at, so ten open tabs on the same page
+# cost the same as one. Without it every viewer polled CMC every 60s, which
+# alone used more than the 15,000-credit monthly plan.
+VIEW_SYNC_MIN_AGE = timedelta(minutes=10)
+
 _PCT_LIMIT = 1e6
 _USD_LIMIT = 1e22
 
@@ -44,7 +51,23 @@ class MarketDataService:
         self.db = db
         self.client = client or CoinMarketCapClient()
 
-    def is_sync_due(self, sync_type: SyncType, interval_hours: int | None = None) -> bool:
+    def is_sync_due(
+        self, sync_type: SyncType, interval_hours: float | None = None, failure_backoff_hours: float | None = None
+    ) -> bool:
+        """Due when the last SUCCESS is older than the interval. With
+        failure_backoff_hours, a recent FAILED attempt also holds it off for
+        that long: a sync that keeps failing (e.g. a database error after the
+        CMC download) must not re-pay for the download every 10 minutes."""
+        if failure_backoff_hours is not None:
+            last_attempt = self.db.scalars(
+                select(SyncLog).where(SyncLog.sync_type == sync_type).order_by(SyncLog.started_at.desc()).limit(1)
+            ).first()
+            if (
+                last_attempt is not None
+                and last_attempt.status == SyncStatus.FAILED
+                and last_attempt.started_at > datetime.utcnow() - timedelta(hours=failure_backoff_hours)
+            ):
+                return False
         stmt = (
             select(SyncLog)
             .where(SyncLog.sync_type == sync_type, SyncLog.status == SyncStatus.SUCCESS)
@@ -107,9 +130,20 @@ class MarketDataService:
         interval controls the cadence. Never creates coins or touches
         categories/tags/contracts.
         """
+        cutoff = datetime.utcnow() - VIEW_SYNC_MIN_AGE
+        fresh = set(
+            self.db.scalars(
+                select(Coin.cmc_id).where(Coin.cmc_id.in_(cmc_ids), Coin.last_synced_at.is_not(None), Coin.last_synced_at >= cutoff)
+            ).all()
+        )
+        stale = [cid for cid in cmc_ids if cid not in fresh]
+        if not stale:
+            # Everything requested was refreshed recently (by another viewer or
+            # the hourly sync): nothing to buy. Not stored in sync_logs.
+            return SyncLog(sync_type=SyncType.LISTINGS_RANGE, status=SyncStatus.SUCCESS, records_synced=0)
         log = self._start_log(SyncType.LISTINGS_RANGE)
         try:
-            coins = self.client.get_quotes_by_ids(cmc_ids)
+            coins = self.client.get_quotes_by_ids(stale)
             count = self._upsert_quotes(coins)
             self._finish_log(log, SyncStatus.SUCCESS, count)
         except Exception as exc:  # noqa: BLE001 - surfaced via SyncLog
@@ -185,6 +219,22 @@ class MarketDataService:
         categories_by_slug = {c.slug: c for c in self.db.scalars(select(Category)).all()}
         existing_coins = {c.cmc_id: c for c in self.db.scalars(select(Coin)).all()}
         now = datetime.utcnow()
+
+        # CMC re-uses slugs: a new listing can take a slug that an older row
+        # here (a delisted/renamed coin) still holds, which violated the
+        # unique index and failed the whole daily sync. CMC's current
+        # listing wins: the stale holder is parked on "<slug>~<its cmc_id>"
+        # first (flushed before any new slug is written); if it is still
+        # listed under a new slug, the loop below gives it that one.
+        slug_owner = {c.slug: c for c in existing_coins.values() if c.slug}
+        parked = False
+        for payload in coins:
+            holder = slug_owner.get(payload.get("slug"))
+            if holder is not None and holder.cmc_id != payload["id"]:
+                holder.slug = f"{holder.slug}~{holder.cmc_id}"[:255]
+                parked = True
+        if parked:
+            self.db.flush()
 
         for payload in coins:
             coin = existing_coins.get(payload["id"])

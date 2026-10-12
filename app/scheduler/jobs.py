@@ -83,7 +83,9 @@ def run_hot_listings_sync() -> None:
     try:
         service = MarketDataService(db)
         hot_synced = False
-        if service.is_sync_due(SyncType.LISTINGS_HOT, interval_hours=settings.hot_sync_interval_hours):
+        if service.is_sync_due(
+            SyncType.LISTINGS_HOT, interval_hours=settings.hot_sync_interval_hours, failure_backoff_hours=0.5
+        ):
             hot_log = service.sync_hot_listings()
             hot_synced = hot_log.status == SyncStatus.SUCCESS
     finally:
@@ -128,7 +130,8 @@ def run_listings_sync() -> None:
     try:
         service = MarketDataService(db)
         synced = False
-        if service.is_sync_due(SyncType.LISTINGS):
+        # A failed run waits 2h before retrying (it costs ~41 credits each time).
+        if service.is_sync_due(SyncType.LISTINGS, failure_backoff_hours=2):
             synced = service.sync_listings().status == SyncStatus.SUCCESS
     finally:
         db.close()

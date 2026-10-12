@@ -1098,3 +1098,114 @@ html.light .radix-themes:where([data-is-root-theme="true"]) {
     max-height: calc(100vh - 96px);
   }
 }
+
+/* /tools rainbow chart: live overlay stacked on the static chart, and the
+   hover tooltip drawn by assets/rainbow_hover.js. Theme tokens only. */
+.rainbow-chart {
+  position: relative;
+  touch-action: pan-y;
+}
+
+.rainbow-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.rainbow-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green-9);
+  box-shadow: 0 0 0 0 var(--green-a7);
+  animation: rainbow-live-pulse 1.6s ease-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes rainbow-live-pulse {
+  0% { box-shadow: 0 0 0 0 var(--green-a7); }
+  100% { box-shadow: 0 0 0 7px transparent; }
+}
+
+.rainbow-guide {
+  position: absolute;
+  width: 1px;
+  background: var(--gray-12);
+  opacity: 0.45;
+  pointer-events: none;
+  display: none;
+}
+
+.rainbow-hover-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--gray-12);
+  border: 2px solid var(--gray-1);
+  pointer-events: none;
+  display: none;
+}
+
+.rainbow-tip {
+  position: absolute;
+  z-index: 5;
+  min-width: 210px;
+  padding: 0.6em 0.75em;
+  background: var(--gray-2);
+  color: var(--gray-12);
+  border: 1px solid var(--gray-a5);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+  display: none;
+}
+
+.rainbow-tip-date {
+  color: var(--gray-11);
+  margin-bottom: 0.15em;
+}
+
+.rainbow-tip-price {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 0.4em;
+}
+
+.rainbow-tip-muted {
+  font-weight: 500;
+  color: var(--gray-11);
+}
+
+.rainbow-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+.rainbow-tip-row-current {
+  background: var(--gray-a4);
+  font-weight: 700;
+}
+
+.rainbow-tip-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.rainbow-tip-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.rainbow-tip-level {
+  color: var(--gray-11);
+  font-variant-numeric: tabular-nums;
+}

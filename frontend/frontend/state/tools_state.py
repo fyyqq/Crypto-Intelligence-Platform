@@ -8,11 +8,14 @@ whose key is missing asks the viewer to add it to .env.
 """
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 from typing import Any
 
 import reflex as rx
+
+from frontend.state.coin_state import _fmt_usd
 
 _ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
 
@@ -64,6 +67,7 @@ class ToolsState(rx.State):
     fng_color: str = "#d6b800"
     fng_updated: str = ""
     fng_source_name: str = ""
+    fng_fallback_note: str = ""  # set when CoinMarketCap failed and the free source was used
     fng_gauge: str = ""
     fng_yesterday: str = ""
     fng_week: str = ""
@@ -81,6 +85,7 @@ class ToolsState(rx.State):
     season_window: str = ""
     season_btc_change: str = ""
     season_source_name: str = ""
+    season_fallback_note: str = ""
     season_best: list[dict[str, str]] = []
 
     # Rainbow chart
@@ -93,6 +98,15 @@ class ToolsState(rx.State):
     rainbow_band_color: str = ""
     rainbow_asof: str = ""
     rainbow_legend: list[dict[str, str]] = []
+    # Live reading (rainbow_live_loop, every 15s while the page is open): the
+    # small overlay SVG with the segment from the last daily close to the live
+    # dot, and where the price came from. rainbow_hover is the chart model +
+    # daily series as JSON for assets/rainbow_hover.js (sent once per asset).
+    rainbow_overlay: str = ""
+    rainbow_live: bool = False
+    rainbow_price_source: str = ""
+    rainbow_hover: str = ""
+    _rainbow_loop_running: bool = False
 
     @rx.var
     def dialog_title(self) -> str:
@@ -176,6 +190,7 @@ class ToolsState(rx.State):
             self.fng_color = _fng_color(data["value"])
             self.fng_updated = data["updated"]
             self.fng_source_name = data["source"]
+            self.fng_fallback_note = data.get("fallback_note", "")
             self.fng_gauge = gauge
             self.fng_yesterday = _fng_text(data["yesterday"])
             self.fng_week = _fng_text(data["week"])
@@ -212,6 +227,7 @@ class ToolsState(rx.State):
             self.season_window = data["window"]
             self.season_btc_change = data["btc_change"]
             self.season_source_name = data["source"]
+            self.season_fallback_note = data.get("fallback_note", "")
             self.season_best = data["best"]
             self.season_loading = False
 
@@ -233,12 +249,53 @@ class ToolsState(rx.State):
             if self.rainbow_asset != asset:  # viewer switched tab meanwhile
                 return
             self.rainbow_svg = data["svg"]
-            self.rainbow_price = data["price"]
-            self.rainbow_band = data["band"]
-            self.rainbow_band_color = data["band_color"]
-            self.rainbow_asof = data["asof"]
+            self.rainbow_hover = json.dumps(data["hover"], separators=(",", ":"))
             self.rainbow_legend = data["legend"]
+            self._apply_live(data)
             self.rainbow_loading = False
+        yield ToolsState.rainbow_live_loop
+
+    def _apply_live(self, data: dict):
+        self.rainbow_price = _fmt_usd(data["price_raw"])
+        self.rainbow_band = data["band"]
+        self.rainbow_band_color = data["band_color"]
+        self.rainbow_asof = data["asof"]
+        self.rainbow_live = data["live"]
+        self.rainbow_price_source = data["price_source"]
+        self.rainbow_overlay = data["overlay"]
+
+    @rx.event(background=True)
+    async def rainbow_live_loop(self):
+        """Re-reads the live spot price every 15s (free exchange tickers, see
+        market_tools_service._live_spot) and moves the live dot, price and
+        band, for as long as this tab stays open. One loop per tab."""
+        async with self:
+            if self._rainbow_loop_running:
+                return
+            self._rainbow_loop_running = True
+        from frontend.frontend import app as reflex_app
+
+        svc = _service()
+        try:
+            while True:
+                await asyncio.sleep(15)
+                if self.router.session.client_token not in reflex_app.event_namespace.token_to_sid:
+                    break  # tab closed
+                async with self:
+                    asset = self.rainbow_asset
+                    ready = not self.rainbow_loading and not self.rainbow_error
+                if not ready:
+                    continue
+                try:
+                    data = await asyncio.to_thread(svc.rainbow_live, asset)
+                except svc.ToolsDataError:
+                    continue
+                async with self:
+                    if self.rainbow_asset == asset:
+                        self._apply_live(data)
+        finally:
+            async with self:
+                self._rainbow_loop_running = False
 
     @rx.event
     def set_rainbow_asset(self, asset: str):
