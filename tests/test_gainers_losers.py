@@ -134,11 +134,9 @@ def test_each_window_picks_its_own_lookback_snapshot(db):
     snap(db, 1, "BTC", 75.0, NOW - timedelta(days=6, hours=12))
     snap(db, 1, "BTC", 240.0, NOW - timedelta(hours=24))
     snap(db, 1, "BTC", 230.0, NOW - timedelta(hours=22))
-    snap(db, 1, "BTC", 290.0, NOW - timedelta(hours=1))
     snap(db, 1, "BTC", 300.0, NOW)
     db.commit()
     picks = {w: svc.compute_changes(db, w)[0] for w in svc.WINDOWS}
-    assert (picks["1h"]["price_then"], picks["1h"]["then_at"]) == (290.0, NOW - timedelta(hours=1))
     assert (picks["24h"]["price_then"], picks["24h"]["then_at"]) == (240.0, NOW - timedelta(hours=24))
     assert (picks["7d"]["price_then"], picks["7d"]["then_at"]) == (70.0, NOW - timedelta(days=7))
     assert (picks["30d"]["price_then"], picks["30d"]["then_at"]) == (30.0, NOW - timedelta(days=30))
@@ -325,8 +323,7 @@ def test_daily_movers_saved_per_day_and_replaced_by_later_sync(db):
     saved = svc.load_daily_movers(db, NOW.date())
     assert [c["symbol"] for c in saved["24h"]] == ["UP"]
     assert saved["24h"][0]["pct_change"] == pytest.approx(50.0)
-    # (that sync also makes a 1h row: UP's previous snapshot is 1h back)
-    assert db.scalar(select(func.count()).select_from(MoversDaily).where(MoversDaily.window == "24h")) == 1
+    assert db.scalar(select(func.count()).select_from(MoversDaily)) == 1
 
 
 def test_daily_movers_nothing_before_first_sync(db):
@@ -335,12 +332,26 @@ def test_daily_movers_nothing_before_first_sync(db):
     assert svc.load_daily_movers(db, NOW.date()) == {}
 
 
-def test_1h_window_uses_previous_hourly_snapshot(db):
-    history_anchor(db)
-    snap(db, 1, "UP", 100.0, NOW - timedelta(minutes=85), rank=5)  # previous hourly sync
-    snap(db, 1, "UP", 50.0, NOW - timedelta(hours=3), rank=5)  # too old for 1h
-    snap(db, 1, "UP", 110.0, NOW, rank=5)
+# ---- exchange-price snapshots (when CMC can't record the hour) -----------------
+def test_hub_snapshot_fills_the_hour_with_plausible_exchange_prices(db, monkeypatch):
+    from app.services import price_hub
+
+    db.add(Coin(cmc_id=1, symbol="BTC", name="Bitcoin", slug="bitcoin", cmc_rank=1, price_usd=80000, market_cap_usd=1.6e12, volume_24h_usd=2e10))
+    db.add(Coin(cmc_id=2, symbol="CAT", name="Cat", slug="cat", cmc_rank=2, price_usd=0.001, volume_24h_usd=1e6))
+    db.add(Coin(cmc_id=3, symbol="USDT", name="Tether", slug="tether", cmc_rank=3, price_usd=1.0, volume_24h_usd=1e9))
+    db.add(Coin(cmc_id=4, symbol="FAR", name="Far", slug="far", cmc_rank=900, price_usd=5.0, volume_24h_usd=1e6))
     db.commit()
-    row = svc.get_movers(db, 100, "1h", "gainers")["coins"][0]
-    assert row["pct_change"] == pytest.approx(10.0)
-    assert row["then_at"] == NOW - timedelta(minutes=85)
+    monkeypatch.setattr(price_hub, "get_prices", lambda max_age=30: {
+        "BTC": {"price": 84000.0}, "CAT": {"price": 7.0}, "FAR": {"price": 5.1},  # CAT: another coin's ticker
+    })
+    assert svc.record_hub_snapshots(db, now=NOW) == 1  # only BTC: CAT implausible, USDT unlisted, FAR beyond top 500
+    row = db.scalars(select(PriceSnapshot).where(PriceSnapshot.synced_at == NOW)).one()
+    assert row.coin_id == 1 and float(row.price_usd) == 84000.0 and row.cmc_rank == 1
+    assert float(row.market_cap) == pytest.approx(1.6e12 * 84000 / 80000)
+    # within the hour: nothing more is written
+    assert svc.record_hub_snapshots(db, now=NOW + timedelta(minutes=30)) == 0
+    assert svc.record_hub_snapshots(db, now=NOW + timedelta(minutes=56)) == 1
+
+
+def test_no_1h_window_anymore():
+    assert list(svc.WINDOWS) == ["24h", "7d", "30d"]

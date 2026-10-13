@@ -37,9 +37,6 @@ class Window:
 
 # One entry per window. A fixed 30 days, not a calendar month.
 WINDOWS: dict[str, Window] = {
-    # Snapshots are hourly (plus any refresh-button syncs), so 1h accepts the
-    # previous one anywhere 30-90 minutes back.
-    "1h": Window("1h", timedelta(hours=1), timedelta(minutes=30), timedelta(minutes=90)),
     "24h": Window("24h", timedelta(hours=24), timedelta(hours=20), timedelta(hours=28)),
     "7d": Window("7d", timedelta(days=7), timedelta(days=6), timedelta(days=8)),
     "30d": Window("1 Month", timedelta(days=30), timedelta(days=28), timedelta(days=32)),
@@ -111,6 +108,58 @@ def record_snapshots(db: Session, payloads: list[dict], synced_at: datetime | No
                 synced_at=synced_at,
             )
         )
+    db.add_all(rows)
+    db.commit()
+    return len(rows)
+
+
+# Hourly snapshots normally come from the CMC top-500 sync. When that can't
+# run (credits used up, CMC down), record_hub_snapshots fills the gap from the
+# free exchange price list so the boards keep moving.
+HUB_SNAPSHOT_GAP = timedelta(minutes=55)
+HUB_SNAPSHOT_TOP_N = 500
+
+
+def record_hub_snapshots(db: Session, now: datetime | None = None) -> int:
+    """Records one snapshot of the top HUB_SNAPSHOT_TOP_N coins from the shared
+    exchange price list (app/services/price_hub.py) when no snapshot of any
+    source landed in the last HUB_SNAPSHOT_GAP, and commits. Only coins whose
+    exchange price is plausible against their stored price are written (a
+    coin no exchange lists is left out of that hour rather than given a
+    stale price, which would fake a 0% change). Rank and 24h volume are the
+    coin's stored values; market cap is scaled by the price move. Returns
+    the rows written (0 if a recent snapshot exists or nothing was priced)."""
+    from app.services import price_hub
+
+    now = now or datetime.utcnow()
+    latest = _latest_sync_time(db)
+    if latest is not None and now - latest < HUB_SNAPSHOT_GAP:
+        return 0
+    prices = price_hub.get_prices()
+    coins = db.scalars(
+        select(Coin).where(Coin.cmc_rank.is_not(None), Coin.cmc_rank <= HUB_SNAPSHOT_TOP_N)
+    ).all()
+    rows = []
+    for c in coins:
+        ref = float(c.price_usd or 0)
+        quote = prices.get((c.symbol or "").upper())
+        if not quote or not price_hub.plausible(quote["price"], ref):
+            continue
+        price = quote["price"]
+        cap = float(c.market_cap_usd) * price / ref if c.market_cap_usd else None
+        rows.append(
+            PriceSnapshot(
+                coin_id=c.cmc_id,
+                symbol=c.symbol or "",
+                price_usd=price,
+                cmc_rank=c.cmc_rank,
+                volume_24h=_fit(c.volume_24h_usd, 1e22),
+                market_cap=_fit(cap, 1e34),
+                synced_at=now,
+            )
+        )
+    if not rows:
+        return 0
     db.add_all(rows)
     db.commit()
     return len(rows)
@@ -382,7 +431,7 @@ def load_daily_movers(db: Session, day: date) -> dict[str, list[dict]]:
     """A saved day's boards: {window: changes}, in compute_changes' shape so
     rank_movers cuts them the same way as the live board. A window with
     nothing saved that day is absent."""
-    rows = db.scalars(select(MoversDaily).where(MoversDaily.day == day)).all()
+    rows = db.scalars(select(MoversDaily).where(MoversDaily.day == day, MoversDaily.window.in_(list(WINDOWS)))).all()
     out: dict[str, list[dict]] = {}
     for r in rows:
         out.setdefault(r.window, []).append(

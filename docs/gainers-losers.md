@@ -3,7 +3,7 @@
 **Route:** `/gainers-losers` · **Status:** Live (built 2026-10-05). Boards fill in as price history accumulates: 24h from about 20 hours after the first snapshot, 7d from about 6 days, 1 Month from about 28 days.
 **Source:** `app/models/price_snapshot.py`, `app/services/price_snapshot_service.py`, `app/services/market_data_service.py` (hook), `frontend/frontend/news_catchup.py` (hourly runner), `frontend/frontend/state/gainers_losers_state.py`, `frontend/frontend/components/gainers_losers_page.py`, `app/models/movers_daily.py`, migrations `f8a4b6c7d1e3` and `b3c6d9e1f5a7` (movers_daily), tests in `tests/` (`python -m pytest tests`, needs `requirements-dev.txt`).
 
-Top gainers and top losers per rank band by current `cmc_rank`: Top 100 (ranks 1-100), 101-200, 201-300, 301-400, 401-500. The bands do not overlap (changed 2026-10-12; they used to be cumulative, so "Top 200" repeated the Top 100 coins), over 1h, 24h, 7d and 1 Month (a fixed 30 days). The % change is the app's own: `(price_now - price_then) / price_then * 100`, from stored price snapshots, never CMC's `percent_change_*` fields. Linked from the header nav ("Gainers & Losers", and in the profile dropdown below 1280px).
+Top gainers and top losers per rank band by current `cmc_rank`: Top 100 (ranks 1-100), 101-200, 201-300, 301-400, 401-500. The bands do not overlap (changed 2026-10-12; they used to be cumulative, so "Top 200" repeated the Top 100 coins), over 24h, 7d and 1 Month (a fixed 30 days). The % change is the app's own: `(price_now - price_then) / price_then * 100`, from stored price snapshots, never CMC's `percent_change_*` fields. Linked from the header nav ("Gainers & Losers", and in the profile dropdown below 1280px).
 
 ## Features
 
@@ -22,7 +22,7 @@ Top gainers and top losers per rank band by current `cmc_rank`: Top 100 (ranks 1
 
 <details><summary>Windows and lookback</summary>
 
-One `WINDOWS` config in `price_snapshot_service.py`: `1h` (lookback 1h, accepts snapshots 30-90 min old, i.e. the previous hourly sync; added 2026-10-12), `24h` (lookback 24h, accepts snapshots 20-28h old), `7d` (7d, 6-8d), `30d` (label "1 Month", 30d, 28-32d). Adding a window = adding one entry; the page's window buttons are built from the same config. For each coin in the latest sync, `compute_changes` picks the snapshot closest to (latest sync - lookback) inside the tolerance; a missed sync falls back to the next closest inside the tolerance.
+One `WINDOWS` config in `price_snapshot_service.py`: `24h` (lookback 24h, accepts snapshots 20-28h old), `7d` (7d, 6-8d), `30d` (label "1 Month", 30d, 28-32d). Adding a window = adding one entry; the page's window buttons are built from the same config. For each coin in the latest sync, `compute_changes` picks the snapshot closest to (latest sync - lookback) inside the tolerance; a missed sync falls back to the next closest inside the tolerance.
 </details>
 
 <details><summary>Edge cases</summary>
@@ -59,5 +59,11 @@ The Change header has a sort icon (`arrow-down-wide-narrow` = largest % first, `
 
 <details><summary>Page</summary>
 
-Window buttons (1h / 24h / 7d / 1 Month) and band buttons (Top 100, 101–200, 201–300, 301–400, 401–500; the board badge reads e.g. "24h · Rank 101–200"). Two cards side by side from 1280px (stacked below): Top Gainers (green) and Top Losers (red), up to 30 rows each: position, coin (icon, name, symbol, current rank; links to the coin page), price now with "was <price then>" and the snapshot time used, % change, 24h volume (hidden on phones). Prices go through `_fmt_usd`. On load the state computes all three windows once (`GainersLosersState.load`); switching window or bucket only re-cuts those lists.
+Window buttons (24h / 7d / 1 Month; the 1h window was removed on request 2026-10-13) and band buttons (Top 100, 101–200, 201–300, 301–400, 401–500; the board badge reads e.g. "24h · Rank 101–200"). Two cards side by side from 1280px (stacked below): Top Gainers (green) and Top Losers (red), up to 30 rows each: position, coin (icon, name, symbol, current rank; links to the coin page), price now with "was <price then>" and the snapshot time used, % change, 24h volume (hidden on phones). Prices go through `_fmt_usd`. On load the state computes all three windows once (`GainersLosersState.load`); switching window or bucket only re-cuts those lists.
 </details>
+
+<details><summary>Exchange-price snapshots when CMC can't record the hour (2026-10-13)</summary>
+
+The boards stopped moving on 12 Oct (~13:30 UTC) because their hourly history came only from the CMC top-500 sync, and the CMC key ran out of monthly credits. Now `price_snapshot_service.record_hub_snapshots` runs in the same `hot-sync-snapshots` loop (every 10 min): when no snapshot of any source is less than ~55 min old, it records the top 500 from the free exchange price list (`price_hub`), keeping only prices plausible against the stored price (coins no exchange lists, mostly stablecoins, sit out that hour rather than get a stale price), with the stored rank and 24h volume and the market cap scaled by the price move. When CMC works again its hourly sync records first and this is a no-op. First run locally: 412 coins; the 24h board compared against 12 Oct 13:36, as expected. The saved daily boards (calendar) ignore any old `1h` rows.
+</details>
+

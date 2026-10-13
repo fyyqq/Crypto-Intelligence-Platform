@@ -162,6 +162,22 @@ def _hot_sync_loop() -> None:
         except Exception:  # noqa: BLE001
             logger.exception("daily listings sync failed")
         try:
+            # CMC couldn't record this hour's prices (e.g. credits used up):
+            # take them from the free exchange price list instead, so the
+            # Gainers & Losers boards keep moving. No-op when a snapshot of
+            # any source is less than ~1h old.
+            from app.core.database import SessionLocal
+            from app.services.price_snapshot_service import cleanup_snapshots, record_hub_snapshots
+
+            db = SessionLocal()
+            try:
+                if record_hub_snapshots(db):
+                    cleanup_snapshots(db)
+            finally:
+                db.close()
+        except Exception:  # noqa: BLE001
+            logger.exception("exchange-price snapshot failed")
+        try:
             # Saves today's Gainers & Losers board for the page's calendar
             # (no-op unless a new sync landed since the last save).
             from app.core.database import SessionLocal
