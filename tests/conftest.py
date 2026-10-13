@@ -32,3 +32,13 @@ def fake_listing(cmc_id: int, symbol: str, price, rank: int, volume=1_000_000.0)
         "tags": [],
         "quote": {"USD": {"price": price, "volume_24h": volume, "market_cap": None}},
     }
+
+
+@pytest.fixture(autouse=True)
+def _no_cmc_credit_check(monkeypatch):
+    """Tests never ask CoinMarketCap for the real credit balance (network,
+    and a used-up key would block everything); tests of the guard itself
+    patch cmc_budget.usage on top of this."""
+    from app.services import cmc_budget
+
+    monkeypatch.setattr(cmc_budget, "usage", lambda force=False: None)

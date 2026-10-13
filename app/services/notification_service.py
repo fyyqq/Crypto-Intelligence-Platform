@@ -19,6 +19,29 @@ KINDS: dict[str, tuple[str, str]] = {
     "system": ("Announcement", "megaphone"),
 }
 TONES = ("up", "down", "info")
+
+# Delivery beyond the in-app list (the bell). A channel is a function
+# fn(user_id, {"kind", "title", "body", "link_url", "image_url", "tone"})
+# called after the notification is saved; e.g. a Telegram bot sender or a
+# WhatsApp Cloud API sender, registered once at start-up with
+# register_channel(). A failing channel is logged and never blocks the others
+# or the saved notification. None are registered yet.
+_CHANNELS: list = []
+
+
+def register_channel(fn) -> None:
+    if fn not in _CHANNELS:
+        _CHANNELS.append(fn)
+
+
+def deliver_external(user_id: int, payload: dict) -> None:
+    import logging
+
+    for fn in list(_CHANNELS):
+        try:
+            fn(user_id, payload)
+        except Exception:  # noqa: BLE001
+            logging.getLogger(__name__).exception("notification channel %r failed", fn)
 RETENTION_DAYS = 90
 MAX_PER_USER = 500
 
@@ -66,9 +89,12 @@ def notify(user_id: int, kind: str, title: str, body: str | None = None, link_ur
         db.flush()
         _prune(db, user_id)
         db.commit()
-        return note.id
+        note_id = note.id
     finally:
         db.close()
+    deliver_external(user_id, {"kind": kind, "title": title, "body": body, "link_url": link_url, "image_url": image_url, "tone": tone})
+    return note_id
+
 
 
 def _prune(db: Session, user_id: int) -> None:

@@ -10,6 +10,7 @@ from app.models.category import Category
 from app.models.coin import Coin
 from app.models.coin_contract import CoinContract
 from app.models.sync_log import SyncLog, SyncStatus, SyncType
+from app.services import cmc_budget
 from app.services.price_snapshot_service import cleanup_snapshots, record_snapshots
 
 logger = logging.getLogger(__name__)
@@ -137,6 +138,9 @@ class MarketDataService:
             ).all()
         )
         stale = [cid for cid in cmc_ids if cid not in fresh]
+        if stale and not cmc_budget.optional_calls_allowed():
+            # Credits left are reserved for the hourly/daily syncs this month.
+            return SyncLog(sync_type=SyncType.LISTINGS_RANGE, status=SyncStatus.FAILED, records_synced=0)
         if stale and not self.is_sync_due(SyncType.LISTINGS_RANGE, interval_hours=0, failure_backoff_hours=5 / 60):
             # A view sync failed in the last 5 minutes (e.g. out of credits):
             # don't hammer CMC from every tab; the caller keeps its prices.

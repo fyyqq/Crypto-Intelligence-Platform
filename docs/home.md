@@ -179,3 +179,9 @@ Four equal-height (260px) empty bordered cards in one row above the Cryptocurren
 
 **Page size.** The full coin list (`CoinState._all_coins`, ~8,300 rows) and its filtered copy stay on the server; the browser only receives the current page (`sorted_paged_coins`, table fields only). Homepage load went from ~72 MB to ~0.5 MB; the table renders in ~5s on a cold load.
 </details>
+
+<details><summary>CMC credit guard and no artificial delays (2026-10-13)</summary>
+
+`app/services/cmc_budget.py` reads the key's remaining monthly credits from CMC's free `/v1/key/info` (every 30 min) and pauses the optional CMC calls (the view sync for coins no exchange lists, the Gainers & Losers refresh button) once the credits left are needed for the hourly/daily syncs until the monthly reset (250/day reserved while local and live share the key). The 8 deliberate 0.25s "keep the skeleton visible" pauses in filter/search/paging handlers are gone, and `sync_visible_page` uses the shared exchange prices first (CMC only for uncovered coins). Measured: page change, search and narrative filter answer in ~0.6-1.6s.
+</details>
+

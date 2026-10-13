@@ -84,23 +84,31 @@ def mark_triggered(
         n = db.query(PriceAlert).filter(
             PriceAlert.user_id == user_id, PriceAlert.id == alert_id, PriceAlert.triggered_at.is_(None)
         ).update({"triggered_at": datetime.now(timezone.utc), "triggered_price": price})
+        payload = None
         if n > 0:
             alert = db.query(PriceAlert).filter(PriceAlert.id == alert_id).one()
             above = alert.direction == "above"
             target_text = target_display or f"${alert.target_price:g}"
             price_text = price_display or f"${price:g}"
+            payload = {
+                "kind": "price_alert",
+                "title": f"{alert.symbol} {'rose above' if above else 'fell below'} {target_text}",
+                "body": f"{alert.coin_name} ({alert.symbol}) crossed {'above' if above else 'below'} {target_text}, now at {price_text}.",
+                "link_url": f"/coin/{alert.symbol.lower()}",
+                "image_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{alert.cmc_id}.png",
+                "tone": "up" if above else "down",
+            }
             notification_service.add_in_session(
-                db, user_id, "price_alert",
-                title=f"{alert.symbol} {'rose above' if above else 'fell below'} {target_text}",
-                body=f"{alert.coin_name} ({alert.symbol}) crossed {'above' if above else 'below'} {target_text}, now at {price_text}.",
-                link_url=f"/coin/{alert.symbol.lower()}",
-                image_url=f"https://s2.coinmarketcap.com/static/img/coins/64x64/{alert.cmc_id}.png",
-                tone="up" if above else "down",
+                db, user_id, payload["kind"], title=payload["title"], body=payload["body"],
+                link_url=payload["link_url"], image_url=payload["image_url"], tone=payload["tone"],
             )
         db.commit()
-        return n > 0
     finally:
         db.close()
+    if payload:
+        # After the commit: Telegram/WhatsApp etc. (none registered yet).
+        notification_service.deliver_external(user_id, payload)
+    return n > 0
 
 
 def update_alert(user_id: int, alert_id: int, price: float, direction: str) -> None:

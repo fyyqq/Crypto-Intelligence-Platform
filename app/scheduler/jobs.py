@@ -109,6 +109,10 @@ def run_manual_hot_sync() -> bool:
         service = MarketDataService(db)
         if not service.is_sync_due(SyncType.LISTINGS_HOT, interval_hours=MANUAL_REFRESH_COOLDOWN_MINUTES / 60):
             return False
+        from app.services import cmc_budget
+
+        if not cmc_budget.optional_calls_allowed():
+            return False  # credits are reserved for the hourly/daily syncs; the page recomputes from stored data
         synced = service.sync_hot_listings().status == SyncStatus.SUCCESS
     finally:
         db.close()

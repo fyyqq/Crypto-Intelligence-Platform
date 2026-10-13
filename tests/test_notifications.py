@@ -127,3 +127,16 @@ def test_dev_auto_login_needs_the_env_key_and_a_local_host(factory, monkeypatch)
 
     monkeypatch.setattr(auth_service.settings, "dev_auto_login_email", "nobody@example.com")
     assert auth_service.dev_auto_login("localhost:3000").ok is False  # unknown account
+
+
+# ---- external channels (Telegram/WhatsApp later) -------------------------------
+def test_triggered_alert_reaches_external_channels_once(factory, monkeypatch):
+    sent = []
+    monkeypatch.setattr(ns, "_CHANNELS", [])
+    ns.register_channel(lambda uid, p: sent.append((uid, p["title"], p["link_url"])))
+    ns.register_channel(lambda uid, p: (_ for _ in ()).throw(RuntimeError("channel down")))  # a broken channel
+    alert_id = alert_service.add_alert(7, 1, "Bitcoin", "BTC", "above", 50000.0)
+    assert alert_service.mark_triggered(7, alert_id, 51000.0, "$50,000.00", "$51,000.00")
+    assert not alert_service.mark_triggered(7, alert_id, 51000.0)  # second tab/watcher: nothing sent again
+    assert sent == [(7, "BTC rose above $50,000.00", "/coin/btc")]
+    assert len(ns.list_for_user(7)) == 1  # the broken channel didn't block the saved notification

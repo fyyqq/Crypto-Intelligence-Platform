@@ -1607,8 +1607,6 @@ class CoinState(rx.State):
         self.active_category = value
         self.active_page = 1
         self.is_filtering = True
-        yield
-        await asyncio.sleep(0.25)
         self.selected_category = value
         self.page = 1
         self.sort_key = ""
@@ -1624,8 +1622,6 @@ class CoinState(rx.State):
         self.active_chain = value
         self.active_page = 1
         self.is_filtering = True
-        yield
-        await asyncio.sleep(0.25)
         self.selected_chain = value
         self.page = 1
         self.sort_key = ""
@@ -1658,8 +1654,6 @@ class CoinState(rx.State):
         if self.search_query:
             self.active_page = 1
             self.is_filtering = True
-            yield
-            await asyncio.sleep(0.25)
             self.search_query = ""
             self.page = 1
             self.is_filtering = False
@@ -1677,8 +1671,6 @@ class CoinState(rx.State):
         self.search_query = value
         self.active_page = 1
         self.is_filtering = True
-        yield
-        await asyncio.sleep(0.25)
         self.page = 1
         self.sort_key = ""
         self.sort_direction = ""
@@ -1690,8 +1682,6 @@ class CoinState(rx.State):
         if self.page < self.total_pages:
             self.active_page = self.page + 1
             self.is_filtering = True
-            yield
-            await asyncio.sleep(0.25)
             self.page += 1
             self.sort_key = ""
             self.sort_direction = ""
@@ -1703,8 +1693,6 @@ class CoinState(rx.State):
         if self.page > 1:
             self.active_page = self.page - 1
             self.is_filtering = True
-            yield
-            await asyncio.sleep(0.25)
             self.page -= 1
             self.sort_key = ""
             self.sort_direction = ""
@@ -1717,8 +1705,6 @@ class CoinState(rx.State):
         if 1 <= page <= self.total_pages:
             self.active_page = page
             self.is_filtering = True
-            yield
-            await asyncio.sleep(0.25)
             self.page = page
             self.sort_key = ""
             self.sort_direction = ""
@@ -1729,8 +1715,6 @@ class CoinState(rx.State):
     async def set_page_size(self, value: str):
         self.active_page = 1
         self.is_filtering = True
-        yield
-        await asyncio.sleep(0.25)
         self.page_size = int(value)
         self.page = 1
         self.sort_key = ""
@@ -1746,12 +1730,20 @@ class CoinState(rx.State):
         covers the same page while it stays open, every 60s).
         """
         async with self:
-            cmc_ids = [row["cmc_id"] for row in self.sorted_paged_coins]
-        if not cmc_ids:
+            wanted = {row["cmc_id"] for row in self.sorted_paged_coins}
+            base_rows = [r for r in self._all_coins if r["cmc_id"] in wanted]
+        if not base_rows:
             return
-        updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, cmc_ids)
+        # Same order as live_sync_loop: shared exchange prices first, CMC
+        # (throttled) only for coins no exchange lists.
+        hub_rows = await asyncio.to_thread(_hub_rows, base_rows)
         async with self:
-            self._apply_updates(updated_rows)
+            self._apply_updates(hub_rows)
+        missing = [r["cmc_id"] for r in base_rows if r["cmc_id"] not in hub_rows]
+        if missing:
+            updated_rows = await asyncio.to_thread(_sync_and_rebuild_rows, missing)
+            async with self:
+                self._apply_updates(updated_rows)
 
     @rx.event(background=True)
     async def live_sync_loop(self):

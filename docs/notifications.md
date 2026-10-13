@@ -26,6 +26,16 @@ Newest first (up to 200 shown). Each row: unread dot, image (a coin icon, or the
 `alert_service.mark_triggered` (called by the alert watch when a price crosses a target) now also adds a `price_alert` notification **in the same transaction** as marking the alert triggered, so each trigger makes exactly one notification (a second open tab loses the atomic update and adds nothing). Title "BTC rose above $1.00" / "ETH fell below $2,000", body "Bitcoin (BTC) crossed above $1.00, now at $82,972.90.", link `/coin/<symbol>`, the coin's CMC icon, tone up (green) or down (red). The caller passes the prices already formatted with `_fmt_usd` (Core rule 1). Alerts that triggered before this feature have no notification (no backfill); they remain in `/alerts` history.
 </details>
 
+<details><summary>Server-side alerts, 24/7 (2026-10-13)</summary>
+
+Price alerts no longer depend on an open tab. `frontend/alert_watcher.py` runs as a server lifespan task (`frontend.py::_alert_watch`) every 10s: it loads every account's active alerts (if there are none it makes no calls at all), prices each coin from the shared exchange price list (`price_hub`, plausibility-checked against the stored price) or else the stored hourly CMC price, and triggers crossed alerts through `alert_service.mark_triggered` (atomic, so this and an open tab's own 4s check never both fire). Each trigger creates the notification and goes to the external channels. Verified with no browser open: an armed, already-crossed BTC alert fired within 25s; a far-away one stayed active. An open tab still shows its popup and voice for alerts it sees itself.
+</details>
+
+<details><summary>External channels: Telegram / WhatsApp (hook ready, none connected)</summary>
+
+`notification_service.register_channel(fn)` adds a sender `fn(user_id, {"kind", "title", "body", "link_url", "image_url", "tone"})` that receives every notification after it is saved (`notify` and triggered price alerts). A failing channel is logged and never blocks the others or the saved notification. Planned: **Telegram** (a bot from @BotFather, the user messages it once, the chat id is stored per account, send via the Bot API; free) and **WhatsApp** (Meta's WhatsApp Cloud API or a provider like Twilio; needs a WhatsApp Business account, a number and pre-approved message templates; paid per conversation).
+</details>
+
 <details><summary>How to add a new kind of notification</summary>
 
 1. Add a row to `notification_service.KINDS` (`kind: (label, lucide icon)`). The page picks the icon up automatically (`rx.match` built from `KINDS`).

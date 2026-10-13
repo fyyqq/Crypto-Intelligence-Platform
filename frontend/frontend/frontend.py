@@ -1229,6 +1229,16 @@ async def _warm_caches():
 
 
 app.register_lifespan_task(_warm_caches)
+
+
+async def _alert_watch():
+    """Server-side price alerts, 24/7 (frontend/alert_watcher.py)."""
+    from frontend.alert_watcher import run_forever
+
+    await run_forever()
+
+
+app.register_lifespan_task(_alert_watch)
 # Dynamic routes must be registered before static ones (Reflex route-matching
 # order), so /coin/[symbol] is added ahead of the "/" index page below.
 # Ticker-based (not cmc_id-based) per explicit request — CoinState.
