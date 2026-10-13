@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     # CoinState.restore_session). Empty = the site is open as before.
     allowed_login_emails: str = ""
 
+    # Google sign-in (Google Identity Services). Only the client ID is used:
+    # an ID token is verified with Google's public keys and must be issued
+    # for this client ID (app/services/google_auth_service.py). The client
+    # secret is not needed for this flow and is never sent anywhere.
+    google_client_id: str = ""
+
     app_env: str = "development"
     app_host: str = "0.0.0.0"
     app_port: int = 8000

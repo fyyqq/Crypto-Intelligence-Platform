@@ -352,10 +352,10 @@ def _header_bar() -> rx.Component:
     # icon/profile pill are all sized down to fit a nav bar's compact scale
     # rather than the oversized hero-like proportions this had before.
     return rx.fragment(
-        # Private mode: cover the page for a logged-out visitor until
+        # Every page needs a login: cover it for a logged-out visitor until
         # restore_session redirects to /login, so nothing is shown first.
         rx.cond(
-            CoinState.private_mode & ~CoinState.is_logged_in,
+            ~CoinState.is_logged_in,
             rx.center(
                 rx.spinner(size="3"),
                 class_name="private-mode-cover",
@@ -1224,10 +1224,71 @@ async def _coin_index(request):
     return Response(body, media_type="application/json", headers=headers)
 
 
+def _google_services():
+    import sys as _sys
+
+    _root = str(Path(__file__).resolve().parent.parent.parent)
+    if _root not in _sys.path:
+        _sys.path.append(_root)
+    from app.services import auth_service, google_auth_service
+
+    return auth_service, google_auth_service
+
+
+async def _google_config(request):
+    """The public Google client ID for the login page's Google button
+    (assets/google_login.js). Never the client secret."""
+    from starlette.responses import JSONResponse
+
+    _, google_auth_service = _google_services()
+    return JSONResponse({"client_id": google_auth_service.client_id()}, headers={"Cache-Control": "no-store"})
+
+
+async def _google_login(request):
+    """POST {"credential": <Google ID token>} from the login page's Google
+    button. Verified server-side (google_auth_service: Google's signature,
+    expiry, issuer, our client ID, verified + allowed email, existing account);
+    on success sets the same 30-day session cookie as "Remember me", which
+    CoinState.restore_session turns into a login on the next page load."""
+    import asyncio
+    from urllib.parse import urlparse
+
+    from starlette.responses import JSONResponse
+
+    # Same-site only: a JSON POST from this site's own pages.
+    origin = request.headers.get("origin", "")
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+    if not origin or urlparse(origin).netloc != host:
+        return JSONResponse({"ok": False, "error": "Bad request."}, status_code=403)
+    if "application/json" not in request.headers.get("content-type", ""):
+        return JSONResponse({"ok": False, "error": "Bad request."}, status_code=415)
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    credential = str((body or {}).get("credential") or "")
+    auth_service, google_auth_service = _google_services()
+    result = await asyncio.to_thread(google_auth_service.verify_and_login, credential)
+    if not result.ok:
+        return JSONResponse({"ok": False, "error": result.error}, status_code=401)
+    token = await asyncio.to_thread(auth_service.create_session, result.user_id)
+    response = JSONResponse({"ok": True})
+    secure = (request.headers.get("x-forwarded-proto") or request.url.scheme) == "https"
+    # Same cookie CoinState.session_token reads (rx.Cookie "repace_session": path /,
+    # 30 days, SameSite=Strict). Not HttpOnly because Reflex reads it in the browser,
+    # exactly like the "Remember me" login.
+    response.set_cookie(
+        "repace_session", token, max_age=30 * 24 * 3600, path="/", samesite="strict", secure=secure, httponly=False
+    )
+    return response
+
+
 _api_transformer = Starlette(
     routes=[
         Mount("/telegram_media", app=StaticFiles(directory=str(_telegram_media_dir)), name="telegram_media"),
         Route("/api/coin-index", _coin_index),
+        Route("/api/auth/google/config", _google_config),
+        Route("/api/auth/google", _google_login, methods=["POST"]),
     ],
 )
 

@@ -33,3 +33,5 @@ email-validator>=2.1
 # Spoken price alerts (app/services/alert_voice_service.py)
 google-genai>=1.0
 Pillow>=10.0
+# Google sign-in: verifies Google ID tokens (app/services/google_auth_service.py).
+google-auth>=2.30

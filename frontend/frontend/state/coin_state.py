@@ -2023,11 +2023,14 @@ class CoinState(rx.State):
     @rx.event
     async def restore_session(self):
         """Runs first on every page load: logs the browser back in (cookie, or
-        the local dev auto-login) and, in private mode, sends a logged-out
-        visitor to /login (sign-up is closed there too)."""
+        the local dev auto-login) and sends a logged-out visitor to /login.
+        Every page needs a login (requested 2026-10-14: after logging out,
+        nothing but the login/sign-up page is reachable). /signup stays open
+        unless private mode (ALLOWED_LOGIN_EMAILS) has closed sign-up."""
         result = await self._restore_session()
-        if self.private_mode and not (self.is_logged_in and self.user_id):
-            if self.router.url.path.rstrip("/") != "/login":
+        if not (self.is_logged_in and self.user_id):
+            open_paths = {"/login"} if self.private_mode else {"/login", "/signup"}
+            if self.router.url.path.rstrip("/") not in open_paths:
                 return rx.call_script("window.location.assign('/login')")
         return result
 
@@ -2102,7 +2105,7 @@ class CoinState(rx.State):
         self.alert_popups = []
         self.alert_popup_visible = False
         self.profile_menu_open = False
-        return rx.call_script("window.location.assign('/')")
+        return rx.call_script("window.location.assign('/login')")
 
     @rx.event
     def profile_pill_click_width(self, width: int):

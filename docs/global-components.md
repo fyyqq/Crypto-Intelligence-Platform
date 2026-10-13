@@ -38,6 +38,14 @@ Every click in a Reflex app is a round trip to the server (~0.35s+ from Malaysia
 </details>
 
 <details>
+<summary><strong>🔐 Login wall and Google sign-in (2026-10-14)</strong></summary>
+
+**Every page needs a login**, always (not only in private mode): `CoinState.restore_session` sends a logged-out visitor to `/login` (also `/signup` when sign-up is open, i.e. no `ALLOWED_LOGIN_EMAILS`), and `_header_bar` covers the page until then. Logging out lands on `/login`. Verified: after Log out, `/`, `/coin/btc`, `/gainers-losers`, `/tools`, `/news`, `/watchlist`, `/notifications` all go to `/login` with nothing shown first.
+
+**Google sign-in**: `/login` and `/signup` show Google's own "Continue with Google" button, rendered by the official Google Identity Services library (`https://accounts.google.com/gsi/client`) through `assets/google_login.js` (popup mode). The ID token Google returns is POSTed to `/api/auth/google` (`frontend.py::_google_login`: same-site Origin + JSON only), verified by `app/services/google_auth_service.py` with `google.oauth2.id_token.verify_oauth2_token` (Google's signature, expiry, issuer, and audience = `GOOGLE_CLIENT_ID`), and accepted only for a verified email that is allowed (`ALLOWED_LOGIN_EMAILS`) and already has an account (never creates one). Success sets the same 30-day `repace_session` cookie as "Remember me", so the next page load is logged in. `GOOGLE_CLIENT_SECRET` is not used: ID tokens are verified with Google's public keys and the client ID. The browser gets only the public client ID (`/api/auth/google/config`). Google Cloud setup needed: a "Web application" OAuth client whose Authorized JavaScript origins include `http://localhost:3000`, `http://localhost` and `https://repace.fyqqflow.com`.
+</details>
+
+<details>
 <summary><strong>🔒 Private mode (login gate)</strong></summary>
 
 When `ALLOWED_LOGIN_EMAILS` is set (live server: the owner's account only), every page sends a logged-out visitor to `/login`, covered by a full-screen spinner until the redirect so nothing shows first; sign-up is closed and its link hidden; any other account gets "Invalid email or password." Unset locally, so local dev stays open (with the dev auto-login). Measured: the cover lifts ~0.2s after load for the allowed account.
