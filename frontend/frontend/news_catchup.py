@@ -176,6 +176,12 @@ def _hot_sync_loop() -> None:
         except Exception:  # noqa: BLE001
             logger.exception("daily listings sync failed")
         try:
+            from app.scheduler.jobs import run_metadata_sync
+
+            run_metadata_sync()  # contracts + links, weekly, only when credits allow
+        except Exception:  # noqa: BLE001
+            logger.exception("weekly metadata sync failed")
+        try:
             # CMC couldn't record this hour's prices (e.g. credits used up):
             # take them from the free exchange price list instead, so the
             # Gainers & Losers boards keep moving. No-op when a snapshot of

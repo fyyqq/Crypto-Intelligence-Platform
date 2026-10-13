@@ -1336,6 +1336,17 @@ def _private_mode() -> bool:
     return bool((value or "").strip().strip('"').strip("'"))
 
 
+# Fields the header search dropdown (components/global_search.py) renders.
+# Its match list stays server-side (_global_search_matches): it used to send
+# every matching coin's full row (descriptions, summaries...) on each
+# keystroke, e.g. thousands of rows for "b".
+_SEARCH_FIELDS = ("cmc_id", "name", "symbol", "icon_url", "price_display", "change_24h_display", "change_24h_color")
+
+
+def _search_fields(row: dict) -> dict:
+    return {k: row.get(k) for k in _SEARCH_FIELDS}
+
+
 # Fields components/coin_table.py::_row reads from sorted_paged_coins.
 _TABLE_FIELDS = (
     "cmc_id", "rank", "name", "symbol", "icon_url", "price_display", "market_cap_display", "volume_display",
@@ -2702,6 +2713,8 @@ class CoinState(rx.State):
                             "symbol": coin["symbol"],
                             "chart_symbol": _resolve_chart_symbol(coin["symbol"], coin) or "",
                             "ref_price": coin.get("price_raw", 0),
+                            # last resort: the token's own DEX price (live_prices._dex_price)
+                            "contract": coin.get("contract_address") or "",
                         }
                         if cmc_id
                         else None
@@ -3156,7 +3169,7 @@ class CoinState(rx.State):
         return self.all_chains if self.chains_expanded else self.chains
 
     @rx.var(cache=True)
-    def global_search_matches(self) -> list[dict]:
+    def _global_search_matches(self) -> list[dict]:
         """Every coin matching the header search box's query, ranked by
         market cap — the full match list before global_search_limit trims
         it for display. Independent of the homepage table's own
@@ -3182,7 +3195,7 @@ class CoinState(rx.State):
             if part.isdigit() and int(part) not in ids:
                 ids.append(int(part))
         by_id = {r["cmc_id"]: r for r in self._all_coins}
-        return [self._row_with_overrides(by_id[i]) for i in ids[:5] if i in by_id]
+        return [_search_fields(self._row_with_overrides(by_id[i])) for i in ids[:5] if i in by_id]
 
     @rx.var(cache=True)
     def global_search_has_history(self) -> bool:
@@ -3190,15 +3203,15 @@ class CoinState(rx.State):
 
     @rx.var(cache=True)
     def global_search_results(self) -> list[dict]:
-        return self.global_search_matches[: self.global_search_limit]
+        return [_search_fields(r) for r in self._global_search_matches[: self.global_search_limit]]
 
     @rx.var(cache=True)
     def global_search_has_more(self) -> bool:
-        return len(self.global_search_matches) > len(self.global_search_results)
+        return len(self._global_search_matches) > len(self.global_search_results)
 
     @rx.var(cache=True)
     def global_search_has_matches(self) -> bool:
-        return len(self.global_search_matches) > 0
+        return len(self._global_search_matches) > 0
 
     @rx.var(cache=True)
     def total_pages(self) -> int:

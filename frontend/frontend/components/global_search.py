@@ -118,6 +118,9 @@ def _global_search_dropdown() -> rx.Component:
             ),
         ),
         class_name="global-search-dropdown",
+        # Lets assets/instant_ui.js tell when these server results match what
+        # is typed, so it can swap its own instant results for these.
+        custom_attrs={"data-q": CoinState.global_search_query},
     )
 
 

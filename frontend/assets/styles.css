@@ -1248,3 +1248,75 @@ html.light .radix-themes:where([data-is-root-theme="true"]) {
   z-index: 100000;
   background: var(--gray-1);
 }
+
+/* assets/instant_ui.js: instant feedback before the server answers. */
+.coin-table-wrap tbody.skel-rows {
+  display: none;
+}
+.coin-table-wrap.table-loading tbody.skel-rows {
+  display: table-row-group;
+}
+.coin-table-wrap.table-loading tbody.real-rows {
+  display: none;
+}
+
+svg.wl-star-force-on {
+  fill: var(--amber-9) !important;
+  color: var(--amber-9) !important;
+}
+svg.wl-star-force-off {
+  fill: none !important;
+  color: var(--gray-9) !important;
+}
+
+/* Header search: instant suggestions (.gs-instant) shown while the server's
+   own dropdown catches up; the stale server dropdown is hidden meanwhile. */
+.global-search-container.gs-pending .global-search-dropdown:not(.gs-instant) {
+  display: none !important;
+}
+.gs-instant {
+  display: none;
+}
+.gs-row {
+  display: flex !important;
+  align-items: center;
+  gap: 0.5em;
+  color: var(--gray-12);
+  text-decoration: none;
+}
+.gs-row img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.gs-names {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  min-width: 0;
+  flex: 1;
+  font-size: 14px;
+}
+.gs-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gs-sym {
+  color: var(--gray-11);
+  flex-shrink: 0;
+}
+.gs-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.gs-chg {
+  font-size: 12px;
+  font-weight: 400;
+}

@@ -80,3 +80,42 @@ def test_plausible_guards_same_ticker_coins():
     assert hub.plausible(105, 100)
     assert not hub.plausible(999, 100)  # a different coin with the same ticker
     assert not hub.plausible(1.0, 0)  # no stored price to compare with
+
+
+# ---- chart symbol selection (TradingView search results) -----------------------
+def _tv(symbol, exchange, description, type_="spot", prefix=None, currency="USDT", typespecs=("crypto",)):
+    return {"symbol": symbol, "exchange": exchange, "description": description, "type": type_, "prefix": prefix,
+            "currency_code": currency, "typespecs": list(typespecs)}
+
+
+CYBERLEEK = [
+    _tv("CYBERLEEKUSD", "CRYPTO", "CyberLeek", currency="USD", typespecs=("crypto", "synthetic")),
+    _tv("CYBERLEEKUSDT", "KCEX", "CyberLeek / USDT"),
+    _tv("CYBERLEEKUSDT.P", "BingX", "CyberLeek/USD Tether Perpetual Contract", type_="swap", prefix="BINGX"),
+    _tv("CYBERLEEKETH_3BCAF5.USD", "Uniswap v4 Base", "CyberLeek / Ether on Base (0x3BCaF5C01751aD4812162Bed8773735f715cdc1d) in USD", prefix="UNISWAP4BASE", currency="USD"),
+]
+
+
+def test_cex_listing_beats_dex_pools_and_ignores_chain():
+    from app.services.tradingview_symbol_service import _pick_best_match
+
+    assert _pick_best_match(CYBERLEEK, "CYBERLEEK", "CyberLeek", {"solana"}) == "KCEX:CYBERLEEKUSDT"
+    assert _pick_best_match(CYBERLEEK, "CYBERLEEK", "CyberLeek", set()) == "KCEX:CYBERLEEKUSDT"
+
+
+def test_dex_pool_on_another_chain_is_never_charted():
+    from app.services.tradingview_symbol_service import _pick_best_match
+
+    dex_only = [r for r in CYBERLEEK if r["exchange"] != "KCEX"]
+    assert _pick_best_match(dex_only, "CYBERLEEK", "CyberLeek", {"solana"}) is None  # Base pool, Solana coin
+
+
+def test_preferred_cex_wins_and_dex_on_own_chain_is_used():
+    from app.services.tradingview_symbol_service import _ecosystem_hints, _pick_best_match
+
+    rows = [_tv("ABCUSDT", "KCEX", "Abc / USDT"), _tv("ABCUSDT", "Binance", "Abc / TetherUS", prefix="BINANCE")]
+    assert _pick_best_match(rows, "ABC", "Abc", set()) == "BINANCE:ABCUSDT"
+    pools = [_tv("ABCSOL_1A2B3C.USD", "Raydium", "Abc / SOL on Solana (So11111111111111111111111111111111111111112) in USD", prefix="RAYDIUM", currency="USD"),
+             _tv("ABCWETH_9F.USD", "Uniswap v4 Base", "Abc / WETH on Base (0x9f00000000) in USD", prefix="UNISWAP4BASE", currency="USD")]
+    assert _pick_best_match(pools, "ABC", "Abc", _ecosystem_hints(["Solana Ecosystem", "Memes"])) == "RAYDIUM:ABCSOL_1A2B3C.USD"
+    assert _pick_best_match(pools, "ABC", "Abc", set()) is None  # two chains, no hint: don't guess

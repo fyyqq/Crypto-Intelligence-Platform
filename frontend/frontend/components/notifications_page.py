@@ -102,9 +102,9 @@ def _popup_row(item: rx.Var[dict]) -> rx.Component:
 
 def notification_popup() -> rx.Component:
     """The bell's popup: latest notifications, anchored under the bell
-    (assets/styles.css `.notification-popup`)."""
-    return rx.cond(
-        N.bell_open,
+    (assets/styles.css `.notification-popup`). Always rendered and shown by
+    display, so assets/instant_ui.js can open it instantly on click."""
+    return rx.fragment(
         rx.box(
             rx.hstack(
                 rx.hstack(
@@ -175,8 +175,8 @@ def notification_popup() -> rx.Component:
                 display="block",
             ),
             class_name="notification-popup",
+            style={"display": rx.cond(N.bell_open, "flex", "none")},
         ),
-        rx.fragment(),
     )
 
 

@@ -90,6 +90,7 @@ def _sortable_header(label: str, sort_key: str, display: list[str] = _COL_ALWAYS
         ),
         on_click=CoinState.set_sort(sort_key),
         display=display,
+        class_name="sortable-th",  # assets/instant_ui.js: instant skeleton on click
         **_STICKY_HEADER_STYLE,
     )
 
@@ -220,7 +221,7 @@ def _watchlist_star_cell(row: dict) -> rx.Component:
         ),
         on_click=[CoinState.toggle_watchlist(row["cmc_id"]), rx.stop_propagation],
         vertical_align="middle",
-        class_name="row-interactive",
+        class_name="row-interactive wl-star",  # instant fill toggle: assets/instant_ui.js
     )
 
 
@@ -317,6 +318,7 @@ def _rows_per_page_selector() -> rx.Component:
             value=CoinState.page_size_str,
             on_change=CoinState.set_page_size,
             size="2",
+            class_name="rows-per-page-select",  # assets/instant_ui.js: instant skeleton
         ),
         spacing="2",
         align="center",
@@ -555,14 +557,19 @@ def coin_table() -> rx.Component:
                 rx.cond(
                     CoinState.is_filtering,
                     _skeleton_body(),
-                    rx.table.body(rx.foreach(CoinState.sorted_paged_coins, _row)),
+                    rx.table.body(rx.foreach(CoinState.sorted_paged_coins, _row), class_name="real-rows"),
                 ),
+                # Hidden copy of the skeleton, shown instantly in the browser
+                # (assets/instant_ui.js adds .table-loading on a page/filter/
+                # sort click) until the server's new rows arrive, so a click
+                # never waits a round trip for visible feedback.
+                rx.table.body(rx.foreach(CoinState.skeleton_rows, _skeleton_row), class_name="skel-rows"),
                 variant="surface",
                 width="100%",
             ),
             height="max-content",
             width="100%",
-            class_name="coin-table-scroll-fix",
+            class_name="coin-table-scroll-fix coin-table-wrap",
         ),
         _pagination_bar(pill=False),
         width="100%",

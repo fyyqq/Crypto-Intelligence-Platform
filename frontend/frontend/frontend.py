@@ -4,7 +4,7 @@ from pathlib import Path
 
 import reflex as rx
 from starlette.applications import Starlette
-from starlette.routing import Mount
+from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from frontend.error_log import backend_exception_handler, frontend_exception_handler
@@ -577,6 +577,7 @@ def _watchlist_button() -> rx.Component:
         border="1px solid var(--gray-a6)",
         box_shadow="0 4px 12px rgba(0, 0, 0, 0.3)",
         on_click=CoinState.toggle_watchlist_popup,
+        class_name="watchlist-fab",  # assets/instant_ui.js opens the popup instantly
     )
 
 
@@ -616,8 +617,9 @@ def _watchlist_popup_row(row: rx.Var[dict]) -> rx.Component:
 
 
 def _watchlist_widget() -> rx.Component:
-    return rx.cond(
-        CoinState.watchlist_popup_open,
+    # Always rendered, shown/hidden by display, so assets/instant_ui.js can
+    # open/close it instantly on click while the server state catches up.
+    return rx.fragment(
         rx.box(
             rx.hstack(
                 rx.hstack(
@@ -669,7 +671,10 @@ def _watchlist_widget() -> rx.Component:
             width=["calc(100vw - 32px)", "320px", "320px", "320px", "320px"],
             max_width="320px",
             max_height=["calc(100vh - 160px)", "420px", "420px", "420px", "420px"],
-            display="flex",
+            # Inline style (not the display prop, which becomes a CSS class) so
+            # instant_ui.js's immediate toggle and the server's render both
+            # drive the same style.display.
+            style={"display": rx.cond(CoinState.watchlist_popup_open, "flex", "none")},
             flex_direction="column",
             border_radius="16px",
             border="1px solid var(--gray-a5)",
@@ -677,8 +682,8 @@ def _watchlist_widget() -> rx.Component:
             box_shadow="0 12px 32px rgba(0, 0, 0, 0.3)",
             overflow="hidden",
             z_index="9998",
+            class_name="watchlist-popup",
         ),
-        rx.fragment(),
     )
 
 
@@ -1191,8 +1196,39 @@ def watchlist_page() -> rx.Component:
 # app.py already uses internally for rx.upload's uploaded-files route.
 _telegram_media_dir = Path(__file__).resolve().parent.parent / "assets" / "telegram_media"
 _telegram_media_dir.mkdir(parents=True, exist_ok=True)
+async def _coin_index(request):
+    """Compact list of every coin for the header search's instant results
+    (assets/instant_ui.js filters it in the browser while the server's own
+    live results are on their way). Public market data only: symbol, name,
+    rank order, stored price and 24h change. Built from the shared coin
+    list, cached by the browser for 5 minutes."""
+    import asyncio
+    import gzip
+    import json as _json
+
+    from starlette.responses import Response
+
+    from frontend.state.coin_state import _UNIVERSE, ensure_universe
+
+    await asyncio.to_thread(ensure_universe)
+    rows = sorted(_UNIVERSE["rows"], key=lambda r: r.get("market_cap_usd") or 0, reverse=True)
+    data = [
+        [r["cmc_id"], r["symbol"], r["name"], r.get("price_display", ""), r.get("change_24h_display", ""),
+         r.get("change_24h_color", "")]
+        for r in rows
+    ]
+    body = _json.dumps(data, separators=(",", ":")).encode()
+    headers = {"Cache-Control": "private, max-age=300", "Vary": "Accept-Encoding"}
+    if "gzip" in request.headers.get("accept-encoding", ""):  # nginx doesn't compress proxied responses
+        body, headers["Content-Encoding"] = gzip.compress(body, 6), "gzip"
+    return Response(body, media_type="application/json", headers=headers)
+
+
 _api_transformer = Starlette(
-    routes=[Mount("/telegram_media", app=StaticFiles(directory=str(_telegram_media_dir)), name="telegram_media")]
+    routes=[
+        Mount("/telegram_media", app=StaticFiles(directory=str(_telegram_media_dir)), name="telegram_media"),
+        Route("/api/coin-index", _coin_index),
+    ],
 )
 
 app = rx.App(
@@ -1202,7 +1238,7 @@ app = rx.App(
     backend_exception_handler=backend_exception_handler,
     frontend_exception_handler=frontend_exception_handler,
     # Raw <script>: rx.script wraps it in Helmet, which never runs inside the document head.
-    head_components=[rx.el.script(src="/alert_voice.js")],
+    head_components=[rx.el.script(src="/alert_voice.js"), rx.el.script(src="/instant_ui.js")],
 )
 
 

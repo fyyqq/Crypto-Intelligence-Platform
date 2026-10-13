@@ -24,6 +24,9 @@ _down_until: dict[str, float] = {}
 # OKX and Gate first: they answer from Malaysia too (Binance, Bybit, KuCoin,
 # MEXC and Bitget time out from there), so local development gets prices.
 _FALLBACK_ORDER = ["OKX", "GATEIO", "MEXC", "KUCOIN", "HTX", "BYBIT", "BINANCE"]
+# TradingView exchange prefixes that name the same venue differently.
+_EXCHANGE_ALIASES = {"GATE": "GATEIO", "HUOBI": "HTX"}
+
 _QUOTES = ("USDT", "USDC", "USD", "FDUSD", "BUSD", "DAI", "TUSD")
 
 
@@ -84,19 +87,54 @@ def _live_price_for(client: httpx.Client, item: dict) -> float | None:
     chart = item.get("chart_symbol") or ""
     if ":" in chart:
         exchange, pair = chart.split(":", 1)
+        exchange = _EXCHANGE_ALIASES.get(exchange, exchange)
         # A chart pair quoted in a foreign fiat or DEX pool can't be priced
-        # here; _price just returns None for unknown exchanges.
+        # here; _price just returns None for unknown exchanges. The chart's
+        # own pair is the coin itself, so it gets a wider sanity band than a
+        # ticker guess: the stored reference price can lag (e.g. while the
+        # CoinMarketCap sync is down) and a real 2-3x move would otherwise be
+        # rejected as "a different coin".
         v = _price(client, exchange, pair)
-        if sane(v):
+        if v and v > 0 and (ref <= 0 or 0.2 <= v / ref <= 5.0):
             return v
     ticker = "".join(c for c in item.get("symbol", "").upper() if c.isalnum())
-    if not ticker:
+    if ticker:
+        for exchange in _FALLBACK_ORDER:
+            v = _price(client, exchange, f"{ticker}USDT")
+            if sane(v):
+                return v
+    # No exchange we can read lists it (e.g. a memecoin only on KCEX or only
+    # on DEXes): its own contract's DEX price. A contract address is an exact
+    # identity, so no sanity band against the (possibly stale) stored price.
+    return _dex_price(client, item.get("contract") or "")
+
+
+_dex_cache: dict[str, tuple[float, float | None]] = {}
+_DEX_TTL = 3.0
+
+
+def _dex_price(client: httpx.Client, contract: str) -> float | None:
+    """USD price of the deepest DEX pool for this token contract, from
+    DexScreener's free public API (no key; 300 requests/min). Cached 3s."""
+    contract = contract.strip()
+    if len(contract) < 20 or _down_until.get("DEXSCREENER", 0) > time.monotonic():
         return None
-    for exchange in _FALLBACK_ORDER:
-        v = _price(client, exchange, f"{ticker}USDT")
-        if sane(v):
-            return v
-    return None
+    hit = _dex_cache.get(contract)
+    if hit and time.monotonic() - hit[0] < _DEX_TTL:
+        return hit[1]
+    price = None
+    try:
+        pairs = client.get(f"https://api.dexscreener.com/latest/dex/tokens/{contract}").json().get("pairs") or []
+        own = [p for p in pairs if (p.get("baseToken") or {}).get("address", "").lower() == contract.lower()]
+        own.sort(key=lambda p: float((p.get("liquidity") or {}).get("usd") or 0), reverse=True)
+        if own and float(own[0].get("priceUsd") or 0) > 0:
+            price = float(own[0]["priceUsd"])
+    except httpx.TransportError:
+        _down_until["DEXSCREENER"] = time.monotonic() + _BACKOFF_SECONDS
+    except Exception:  # noqa: BLE001 - bad payload: no price
+        price = None
+    _dex_cache[contract] = (time.monotonic(), price)
+    return price
 
 
 def fetch_live_prices(items: list[dict]) -> dict[int, float]:

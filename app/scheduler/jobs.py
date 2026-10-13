@@ -95,6 +95,35 @@ def run_hot_listings_sync() -> None:
         sync_reflex_cache()
 
 
+METADATA_SYNC_INTERVAL_HOURS = 24 * 7
+
+
+def run_metadata_sync() -> bool:
+    """Weekly coin metadata from CMC's /v2/info (~83 credits): contract
+    addresses per chain (chart chain checks) and website/X/Telegram/... links
+    (the coin page's X section and links). Only the FastAPI scheduler used to
+    run this, and it isn't running, so the live server never had any. Skipped
+    while the credit guard reserves the remaining credits for the hourly and
+    daily syncs; a failed run waits a day. Returns whether it synced."""
+    from app.services import cmc_budget
+
+    db = SessionLocal()
+    try:
+        service = MarketDataService(db)
+        if not service.is_sync_due(
+            SyncType.CONTRACTS, interval_hours=METADATA_SYNC_INTERVAL_HOURS, failure_backoff_hours=24
+        ):
+            return False
+        if not cmc_budget.optional_calls_allowed():
+            return False
+        synced = service.sync_contracts().status == SyncStatus.SUCCESS
+    finally:
+        db.close()
+    if synced:
+        threading.Thread(target=sync_reflex_cache, name="metadata-cache", daemon=True).start()
+    return synced
+
+
 MANUAL_REFRESH_COOLDOWN_MINUTES = 5
 
 

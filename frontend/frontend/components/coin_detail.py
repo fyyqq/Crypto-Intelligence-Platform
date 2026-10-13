@@ -937,6 +937,7 @@ def _info_column() -> rx.Component:
                 ),
                 cursor="pointer",
                 on_click=CoinState.toggle_watchlist(coin["cmc_id"]),
+                class_name="wl-star",  # instant fill toggle: assets/instant_ui.js
             ),
             rx.icon("share-2", size=18, color="var(--gray-9)", flex_shrink="0"),
             spacing="3",

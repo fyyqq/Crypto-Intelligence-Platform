@@ -28,6 +28,16 @@ Always-visible (70px to 240px depending on screen width), transparent-background
 </details>
 
 <details>
+<summary><strong>⚡ Instant clicks (assets/instant_ui.js, 2026-10-13)</strong></summary>
+
+Every click in a Reflex app is a round trip to the server (~0.35s+ from Malaysia to the live server in Germany) before anything visibly changes. `assets/instant_ui.js` (loaded on every page via `head_components`) gives the first visible reaction in the browser instead, while the server event still runs and confirms it. Measured with 350 ms of simulated latency:
+- **Table** (page numbers/arrows, narrative + chain pills, sortable headers `.sortable-th`, rows-per-page `.rows-per-page-select`, the table search): the clicked pill/page turns active and the skeleton (`tbody.skel-rows`, always rendered hidden) shows in ~5-12 ms via `.coin-table-wrap.table-loading`, until the new rows arrive (at least 300 ms, the old skeleton duration).
+- **Watchlist stars** (`.wl-star`): fill flips in ~5 ms (`svg.wl-star-force-on/off`), dropped once the server re-renders the star.
+- **Popups**: watchlist (`.watchlist-fab` -> `.watchlist-popup`) and notification bell (`.notification-bell` -> `.notification-popup`) are always rendered and shown by an inline `style.display`, so the script opens/closes them in ~2-120 ms; the bell also closes on a click outside.
+- **Header search**: on first focus the browser loads `/api/coin-index` (every coin's id, symbol, name, stored price/24h, by market cap; ~185 KB gzipped, cached 5 min; built from the shared coin list in `frontend.py::_coin_index`) and shows the top 5 matches as you type (`.gs-instant`); the server's live results replace them as soon as the dropdown's `data-q` matches the box. The server match list is server-only now (`_global_search_matches`; it used to send every match's full row on each keystroke).
+</details>
+
+<details>
 <summary><strong>🔒 Private mode (login gate)</strong></summary>
 
 When `ALLOWED_LOGIN_EMAILS` is set (live server: the owner's account only), every page sends a logged-out visitor to `/login`, covered by a full-screen spinner until the redirect so nothing shows first; sign-up is closed and its link hidden; any other account gets "Invalid email or password." Unset locally, so local dev stays open (with the dev auto-login). Measured: the cover lifts ~0.2s after load for the allowed account.
