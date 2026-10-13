@@ -211,6 +211,21 @@ def test_cold_start_is_per_window(db):
     assert (s30["status"], s30["days_remaining"]) == ("collecting", 26)  # needs 28 days
 
 
+def test_a_recording_gap_restarts_the_clock_instead_of_showing_an_empty_ready_board(db):
+    # Old history exists, but nothing was recorded between 2 days ago and 14h
+    # ago (e.g. CMC credits ran out): no snapshot is 20-28h old, so 24h is not
+    # "ready" and says when the first snapshot after the gap turns 20h old.
+    snap(db, 1, "BTC", 1.0, NOW - timedelta(days=3))
+    snap(db, 1, "BTC", 1.0, NOW - timedelta(hours=16))
+    snap(db, 1, "BTC", 1.1, NOW)
+    db.commit()
+    status = svc.window_status(db, "24h")
+    assert status["status"] == "collecting"
+    assert status["hours_remaining"] == 4  # the 16h-old snapshot needs to reach 20h
+    assert status["history_since"] == NOW - timedelta(hours=16)
+    assert svc.get_movers(db, 100, "24h", "gainers")["coins"] == []
+
+
 def test_cold_start_with_no_snapshots_at_all(db):
     out = svc.get_movers(db, 100, "24h", "gainers")
     assert out["status"] == "collecting" and out["coins"] == [] and out["hours_remaining"] == 20

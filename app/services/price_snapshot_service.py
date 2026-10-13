@@ -221,22 +221,36 @@ def _latest_sync_time(db: Session) -> datetime | None:
 
 def window_status(db: Session, window_name: str) -> dict:
     """Cold start, per window and independent of the others: a window is
-    ready once the oldest stored snapshot is at least its min_age old
-    (relative to the latest sync). Otherwise it is "collecting" and says how
-    long until it can start."""
+    ready once a snapshot exists that is min_age..max_age older than the
+    latest sync (the baseline compute_changes compares against). Otherwise it
+    is "collecting" and says how long until it can start. That also covers a
+    gap in the recording (e.g. CMC credits ran out and nothing was stored for
+    a day): old history alone does not make a window ready, and the clock
+    restarts from the first snapshot after the gap."""
     window = get_window(window_name)
     latest = _latest_sync_time(db)
     oldest = db.scalar(select(func.min(PriceSnapshot.synced_at)))
-    history = (latest - oldest) if latest and oldest else timedelta(0)
-    if latest is not None and history >= window.min_age:
+    if latest is None or oldest is None:
+        remaining = window.min_age
+        return {
+            "status": "collecting",
+            "days_remaining": math.ceil(remaining.total_seconds() / 86400),
+            "hours_remaining": math.ceil(remaining.total_seconds() / 3600),
+            "history_since": oldest,
+        }
+    lo, hi = latest - window.max_age, latest - window.min_age
+    baseline = db.scalar(select(func.min(PriceSnapshot.synced_at)).where(PriceSnapshot.synced_at >= lo))
+    if baseline is not None and baseline <= hi:
         return {"status": "ready", "days_remaining": 0, "hours_remaining": 0, "history_since": oldest}
-    remaining = window.min_age - history
-    hours = math.ceil(remaining.total_seconds() / 3600)
+    # Usable history starts at `baseline` (the first snapshot inside the
+    # tolerance range); it becomes old enough min_age after it was taken.
+    start = baseline if baseline is not None else latest
+    remaining = max(start + window.min_age - latest, timedelta(0))
     return {
         "status": "collecting",
         "days_remaining": math.ceil(remaining.total_seconds() / 86400),
-        "hours_remaining": hours,
-        "history_since": oldest,
+        "hours_remaining": math.ceil(remaining.total_seconds() / 3600),
+        "history_since": start,
     }
 
 

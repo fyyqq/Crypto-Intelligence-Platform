@@ -35,7 +35,7 @@ One `WINDOWS` config in `price_snapshot_service.py`: `24h` (lookback 24h, accept
 
 <details><summary>Cold start (per window)</summary>
 
-`window_status` says a window is "ready" once the oldest stored snapshot is at least that window's minimum age (20h / 6d / 28d) older than the latest sync; otherwise "collecting" with days and hours remaining. Each window is judged on its own. The page shows an hourglass card ("Collecting data for the 7d board ... ready in about N day(s)") instead of an empty or invented table.
+`window_status` says a window is "ready" once a snapshot exists that is 20h-28h (24h), 6-8d (7d) or 28-32d (30d) older than the latest sync, i.e. the baseline `compute_changes` really compares against; otherwise "collecting" with days and hours remaining. A recording gap (e.g. CMC credits ran out 12 Oct 12:50 UTC and nothing was stored until the exchange-price fallback began 13 Oct 13:24 UTC) therefore restarts the clock from the first snapshot after the gap instead of showing a "ready" but empty board (fixed 2026-10-14). Each window is judged on its own. The page shows an hourglass card ("Collecting data for the 7d board ... ready in about N day(s)") instead of an empty or invented table.
 </details>
 
 <details><summary>Ranking and output</summary>
