@@ -63,6 +63,34 @@
   animation: sentiment-red-pulse 1.6s ease-in-out infinite;
 }
 
+.tv-timeframe-controls {
+  width: 100%;
+}
+
+.tv-timeframe-button {
+  min-width: 34px;
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--gray-11);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tv-timeframe-button:hover {
+  background: var(--gray-a3);
+  color: var(--gray-12);
+}
+
+.tv-timeframe-button[aria-pressed="true"] {
+  border-color: var(--gray-a5);
+  background: var(--gray-a3);
+  color: var(--gray-12);
+}
+
 /* The 24h/7d Price trend-line charts are focusable (recharts sets
    tabindex="0" for keyboard a11y), so clicking one shows the browser's
    default focus outline around the whole chart. Keep the line itself,

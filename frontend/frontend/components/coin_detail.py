@@ -16,6 +16,7 @@ Per explicit scope for this pass — only the middle chart is real:
 import reflex as rx
 
 from frontend.components.footer import _BRAND_ICON_PATHS
+from frontend.components.tradingview_controls import timeframe_controls
 from frontend.state import CoinState, NewsState
 
 # Dummy placeholder tag groups — CMC's categories API (CoinState.
@@ -1977,6 +1978,7 @@ def _chart_column() -> rx.Component:
             # sit flush left.
             width="100%",
         ),
+        rx.cond(CoinState.has_tradingview_chart, timeframe_controls("60")),
         rx.box(
             # This box has a genuinely definite height at every breakpoint
             # (a plain fixed value, not flex-derived), so the iframe's own
@@ -2081,6 +2083,7 @@ def _chart_column() -> rx.Component:
         style={"row-gap": "25px"},
         width="100%",
         align="center",
+        custom_attrs={"data-tv-chart": "true"},
     )
 
 

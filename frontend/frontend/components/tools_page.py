@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 
 import reflex as rx
 
+from frontend.components.tradingview_controls import timeframe_controls
 from frontend.state.tools_state import ToolsState
 
 _CARD = dict(
@@ -362,6 +363,7 @@ def _tv_src(symbol: str, theme: str, interval: str = "D") -> str:
 def _tv_section(title: str, subtitle: str, symbol: str) -> rx.Component:
     return rx.box(
         _section_header(title, subtitle, rx.badge(symbol, variant="soft", color_scheme="gray", size="1")),
+        timeframe_controls("D"),
         rx.box(
             rx.el.iframe(
                 src=rx.color_mode_cond(light=_tv_src(symbol, "light"), dark=_tv_src(symbol, "dark")),
@@ -375,6 +377,7 @@ def _tv_section(title: str, subtitle: str, symbol: str) -> rx.Component:
             height=["340px", "380px", "420px", "420px", "420px"],
             width="100%",
         ),
+        custom_attrs={"data-tv-chart": "true"},
         **_CARD,
     )
 

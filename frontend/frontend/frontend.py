@@ -1238,7 +1238,11 @@ app = rx.App(
     backend_exception_handler=backend_exception_handler,
     frontend_exception_handler=frontend_exception_handler,
     # Raw <script>: rx.script wraps it in Helmet, which never runs inside the document head.
-    head_components=[rx.el.script(src="/alert_voice.js"), rx.el.script(src="/instant_ui.js")],
+    head_components=[
+        rx.el.script(src="/alert_voice.js"),
+        rx.el.script(src="/instant_ui.js"),
+        rx.el.script(src="/tradingview_timeframes.js"),
+    ],
 )
 
 

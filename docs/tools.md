@@ -36,7 +36,7 @@ When the chosen source is CoinMarketCap and it fails (rate limit / monthly credi
 
 <details><summary>TradingView embeds: DXY, total market cap, BTC dominance, ETH/BTC, TOTAL2</summary>
 
-Free `widgetembed` iframes (same mechanism as the coin page chart), daily candles, KL timezone, light/dark via `rx.color_mode_cond`. Symbols: `CAPITALCOM:DXY`, `CRYPTOCAP:TOTAL`, `CRYPTOCAP:BTC.D`, `BINANCE:ETHBTC`, `CRYPTOCAP:TOTAL2`. **`TVC:DXY` (the usual DXY symbol) is blocked in embeds** ("only available on TradingView"), so DXY uses Capital.com's index, which tracks the same value. No key needed.
+Free `widgetembed` iframes (same mechanism as the coin page chart), daily candles by default, KL timezone, light/dark via `rx.color_mode_cond`. Each chart has independent 1m, 5m, 15m, 1h, 4h, D, and W controls. Symbols: `CAPITALCOM:DXY`, `CRYPTOCAP:TOTAL`, `CRYPTOCAP:BTC.D`, `BINANCE:ETHBTC`, `CRYPTOCAP:TOTAL2`. **`TVC:DXY` (the usual DXY symbol) is blocked in embeds** ("only available on TradingView"), so DXY uses Capital.com's index, which tracks the same value. No key needed.
 </details>
 
 <details><summary>Data source popup and API keys</summary>
