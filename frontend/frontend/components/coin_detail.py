@@ -2038,12 +2038,10 @@ def _chart_column() -> rx.Component:
                 ),
             ),
             width="100%",
-            # Constrained instead of letting it stretch edge-to-edge of the
-            # (often quite wide) flexible middle column — a plain 100%-width
-            # chart looked stretched/oversized; this keeps it a contained,
-            # nicely-proportioned rectangle, centered via the vstack's own
-            # align="center" below.
-            max_width="760px",
+            # Fill the available chart column at every breakpoint. The parent
+            # column already has min_width=0 and the page stacks its columns
+            # below the large-screen breakpoint, so this stays within the
+            # viewport on mobile while using the full center column on desktop.
             height=_CHART_HEIGHTS,
             border_radius="10px",
             overflow="hidden",
@@ -2401,6 +2399,7 @@ def coin_detail_page() -> rx.Component:
                                 _chart_column(),
                                 flex="1",
                                 min_width="0",
+                                width=["100%", "100%", "100%", "auto", "auto"],
                             ),
                             rx.box(
                                 rx.vstack(

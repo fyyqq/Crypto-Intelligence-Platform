@@ -32,6 +32,8 @@ Symbol resolution, in order:
 Default interval is 1 hour, clock shown in Kuala Lumpur time. Built as a real, stable React prop rather than a raw HTML string, so background data syncs elsewhere on the page don't tear down and rebuild the chart — that was previously resetting the viewer's manually-chosen interval roughly every 60 seconds.
 
 The chart prefers whichever of MEXC, KuCoin, HTX, or Bybit (in that order) a coin actually has a real pair on, overriding the usual USD-equivalent-quote/volume ranking — a coin with just one of these four (e.g. only Bybit) still prefers it over a higher-volume Binance pair. Binance, Coinbase, or any other real exchange only get used via the normal ranking, and only when a coin has none of those four at all. An earlier version of this rule only kicked in when a coin had all three of MEXC, KuCoin, *and* Binance together — that left most real coins (which don't have all three) still defaulting to Binance, which is what this version fixes.
+
+The chart fills the full width of its available column: the three-column desktop layout uses the entire flexible center column, and below the large-screen breakpoint the stacked chart uses the full padded page width. Its height remains responsive by breakpoint, and the iframe scales to the wrapper without forcing horizontal page overflow. This sizing is shared by every coin route.
 </details>
 
 <details>
