@@ -2132,6 +2132,12 @@ def _post_card(post: dict, index: int) -> rx.Component:
             post["body_before"],
             "$",
             CoinState.selected_coin["symbol"],
+            post["body_after"],
+            size="2",
+            margin_top="0.4em",
+        ),
+        rx.hstack(
+            rx.hstack(rx.icon("heart", size=13), rx.text(post["likes"], size="1"), spacing="1", align="center"),
             rx.hstack(rx.icon("message-circle", size=13), rx.text(post["comments"], size="1"), spacing="1", align="center"),
             rx.hstack(rx.icon("repeat-2", size=13), rx.text(post["reposts"], size="1"), spacing="1", align="center"),
             spacing="4",
