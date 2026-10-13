@@ -207,3 +207,8 @@ The 1-second header price falls back, when no supported exchange lists the coin,
 The coin page's X section (and links) needs the coin metadata from CMC's `/v2/info` (`sync_contracts`), which only the never-running FastAPI scheduler used to call, so the live server had no X links or contracts at all. It now runs weekly from the hot-sync loop (`jobs.run_metadata_sync`, behind the CMC credit guard).
 </details>
 
+<details><summary>Fix a wrong chart by hand (red report icon, 2026-10-13)</summary>
+
+A red warning-triangle icon (18px, transparent background, `coin_detail.py::_chart_report_button`) sits right after "<Coin> Live Chart" on every coin page. Clicking it (logged in) opens a centered popup (`_chart_picker_dialog`): the chart symbol in use and whether it is automatic or picked by hand; a search of TradingView's own markets for the coin (`chart_override_service.search_options`: real spot markets only, labelled CEX/DEX, CEX first) with a "Use" button per market; a field to type a symbol exactly as on TradingView ("EXCHANGE:SYMBOL", validated); and "Reset to automatic". A choice is saved in Postgres (`chart_symbol_overrides`, keyed by CMC id; migration `d5e8f1a3b7c9`), loaded into the shared coin list when it is built, and checked first by `coin_state._resolve_chart_symbol`, so it applies to every session, survives restarts, reloads and closed tabs, and also drives the 1-second live header price (same pair). Verified: pick -> chart switches at once; a new browser session and a server restart keep it; reset returns to the automatic pick.
+</details>
+

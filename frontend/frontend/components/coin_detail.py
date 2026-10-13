@@ -1781,11 +1781,158 @@ def _chart_placeholder(icon: rx.Component, title: str, subtitle: str = "") -> rx
     )
 
 
+# The report icon (red warning triangle with a white "!", transparent
+# background), 18px like the watchlist star.
+_REPORT_ICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">'
+    '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" fill="#EF404B"/>'
+    '<rect x="11" y="8" width="2" height="6.6" rx="1" fill="#FFF6EE"/>'
+    '<circle cx="12" cy="17.6" r="1.25" fill="#FFF6EE"/></svg>'
+)
+
+
+def _chart_report_button() -> rx.Component:
+    """Opens the chart picker: fix a wrong TradingView chart for this coin."""
+    return rx.box(
+        rx.html(_REPORT_ICON_SVG),
+        on_click=CoinState.open_chart_dialog,
+        cursor="pointer",
+        display="flex",
+        align_items="center",
+        flex_shrink="0",
+        title="Wrong chart? Pick the right TradingView market for this coin",
+        aria_label="Change this coin's chart",
+        role="button",
+    )
+
+
+def _chart_option_row(option: rx.Var[dict]) -> rx.Component:
+    return rx.hstack(
+        rx.badge(
+            option["kind"],
+            color_scheme=rx.cond(option["kind"] == "CEX", "green", "orange"),
+            variant="soft",
+            size="1",
+            flex_shrink="0",
+        ),
+        rx.vstack(
+            rx.text(option["symbol"], size="2", weight="bold", color="var(--gray-12)"),
+            rx.text(option["exchange"], " · ", option["description"], size="1", color="var(--gray-11)", class_name="line-clamp-1"),
+            spacing="0",
+            align="start",
+            min_width="0",
+            flex="1",
+        ),
+        rx.cond(
+            option["symbol"] == CoinState.chart_symbol_now,
+            rx.badge("In use", color_scheme="indigo", variant="solid", size="1"),
+            rx.button("Use", size="1", variant="soft", on_click=CoinState.choose_chart_symbol(option["symbol"]), cursor="pointer"),
+        ),
+        spacing="3",
+        align="center",
+        width="100%",
+        padding="0.55em 0.7em",
+        border_radius="8px",
+        border="1px solid var(--gray-a4)",
+        background="var(--gray-a2)",
+    )
+
+
+def _chart_picker_dialog() -> rx.Component:
+    """Centered popup to set this coin's TradingView chart permanently
+    (CoinState.choose_chart_symbol -> app/services/chart_override_service.py)."""
+    coin = CoinState.selected_coin
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("Chart for ", coin["name"], margin="0"),
+            rx.dialog.description(
+                "Pick the market TradingView should chart for this coin. Saved permanently for everyone, "
+                "until you reset it.",
+                size="2",
+                color_scheme="gray",
+                margin_top="0.25em",
+            ),
+            rx.hstack(
+                rx.text("Now:", size="2", color="var(--gray-11)"),
+                rx.code(rx.cond(CoinState.chart_symbol_now != "", CoinState.chart_symbol_now, "no chart"), size="2"),
+                rx.badge(rx.cond(CoinState.chart_is_manual, "Picked by hand", "Automatic"), variant="soft", size="1"),
+                spacing="2",
+                align="center",
+                wrap="wrap",
+                margin_top="0.75em",
+            ),
+            rx.hstack(
+                rx.input(
+                    value=CoinState.chart_search_query,
+                    on_change=CoinState.set_chart_search_query,
+                    placeholder="Search TradingView (ticker or name)",
+                    width="100%",
+                ),
+                rx.button("Search", on_click=CoinState.search_chart_options, loading=CoinState.chart_search_loading, cursor="pointer"),
+                spacing="2",
+                width="100%",
+                margin_top="0.9em",
+            ),
+            rx.box(
+                rx.cond(
+                    CoinState.chart_search_loading,
+                    rx.vstack(
+                        rx.skeleton(height="44px", width="100%"),
+                        rx.skeleton(height="44px", width="100%"),
+                        rx.skeleton(height="44px", width="100%"),
+                        spacing="2",
+                        width="100%",
+                    ),
+                    rx.cond(
+                        CoinState.chart_options.length() > 0,
+                        rx.vstack(rx.foreach(CoinState.chart_options, _chart_option_row), spacing="2", width="100%"),
+                        rx.text("No TradingView markets found. Try another search, or type the symbol below.", size="2", color="var(--gray-11)"),
+                    ),
+                ),
+                max_height="320px",
+                overflow_y="auto",
+                width="100%",
+                margin_top="0.75em",
+            ),
+            rx.text("Or type it exactly as on TradingView:", size="2", color="var(--gray-11)", margin_top="1em"),
+            rx.hstack(
+                rx.input(
+                    value=CoinState.chart_manual_symbol,
+                    on_change=CoinState.set_chart_manual_symbol,
+                    placeholder="EXCHANGE:SYMBOL, e.g. MEXC:CYBERLEEKUSDT",
+                    width="100%",
+                ),
+                rx.button("Save", on_click=CoinState.save_manual_chart_symbol, cursor="pointer"),
+                spacing="2",
+                width="100%",
+                margin_top="0.4em",
+            ),
+            rx.cond(CoinState.chart_dialog_error != "", rx.text(CoinState.chart_dialog_error, size="1", color="var(--red-11)", margin_top="0.4em")),
+            rx.hstack(
+                rx.cond(
+                    CoinState.chart_is_manual,
+                    rx.button("Reset to automatic", variant="soft", color_scheme="gray", on_click=CoinState.reset_chart_symbol, cursor="pointer"),
+                ),
+                rx.dialog.close(rx.button("Close", variant="soft", color_scheme="gray", cursor="pointer")),
+                spacing="2",
+                justify="end",
+                width="100%",
+                margin_top="1.1em",
+            ),
+            max_width="560px",
+        ),
+        open=CoinState.chart_dialog_open,
+        on_open_change=CoinState.set_chart_dialog_open,
+    )
+
+
 def _chart_column() -> rx.Component:
     coin = CoinState.selected_coin
     return rx.vstack(
+        _chart_picker_dialog(),
         rx.hstack(
             rx.heading(coin["name"], " Live Chart", size="4"),
+            _chart_report_button(),
             # Category badge: the AI-generated business-model classification
             # (see business_summary_service.py's CATEGORY: line) when this
             # coin has one — more specific than the broad CMC narrative tags

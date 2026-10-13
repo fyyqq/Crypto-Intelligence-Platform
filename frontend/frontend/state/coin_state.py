@@ -319,6 +319,9 @@ def _resolve_chart_symbol(symbol: str, coin: dict | None) -> str | None:
     """Shared by CoinState._resolve_tradingview_symbol (the viewed coin's chart)
     and the floating watchlist popup's live prices (one call per watched
     coin) — see that method's docstring for the full ranking rules."""
+    # A chart picked by hand on the coin page wins (chart_override_service).
+    if coin and coin.get("chart_symbol_override"):
+        return coin["chart_symbol_override"]
     base = re.sub(r"[^A-Z0-9]", "", (symbol or "").strip().upper())
     if not base:
         return None
@@ -1308,6 +1311,16 @@ def ensure_universe(force: bool = False) -> None:
                 row = _build_row(coin)
                 chain_counts.update([row["main_chain"]])
                 rows.append(row)
+        try:  # hand-picked chart symbols (Postgres), so every session uses them
+            if _ROOT_FOR_APP not in sys.path:
+                sys.path.insert(0, _ROOT_FOR_APP)
+            from app.services.chart_override_service import all_overrides
+
+            overrides = all_overrides()
+        except Exception:  # noqa: BLE001 - charts fall back to the automatic pick
+            overrides = {}
+        for row in rows:
+            row["chart_symbol_override"] = overrides.get(row["cmc_id"], "")
         _UNIVERSE.update(
             at=time.time(),
             rows=rows,
@@ -1496,6 +1509,13 @@ class CoinState(rx.State):
     _is_live_syncing: bool = False
     # Same guard as _is_live_syncing above, for detail_sync_loop.
     _is_detail_syncing: bool = False
+    # Chart picker (red report icon next to "<Coin> Live Chart").
+    chart_dialog_open: bool = False
+    chart_search_query: str = ""
+    chart_options: list[dict[str, str]] = []
+    chart_search_loading: bool = False
+    chart_manual_symbol: str = ""
+    chart_dialog_error: str = ""
     # Coin page header price, refreshed every second by coin_live_price_loop
     # from the exchange/pair the TradingView chart shows (frontend/live_prices.py),
     # so it moves with the chart. Kept in its own small vars (not
@@ -2734,6 +2754,97 @@ class CoinState(rx.State):
         finally:
             async with self:
                 self._live_price_running = False
+
+    @rx.var(cache=True)
+    def chart_symbol_now(self) -> str:
+        return self._resolve_tradingview_symbol() or ""
+
+    @rx.var(cache=True)
+    def chart_is_manual(self) -> bool:
+        return bool((self.selected_coin or {}).get("chart_symbol_override"))
+
+    @rx.event
+    @_login_required
+    async def open_chart_dialog(self):
+        coin = self.selected_coin
+        if not coin:
+            return
+        self.chart_dialog_open = True
+        self.chart_dialog_error = ""
+        self.chart_manual_symbol = ""
+        self.chart_search_query = coin.get("symbol", "")
+        return CoinState.search_chart_options
+
+    @rx.event
+    def set_chart_dialog_open(self, is_open: bool):
+        self.chart_dialog_open = is_open
+
+    @rx.event
+    def set_chart_search_query(self, value: str):
+        self.chart_search_query = value
+
+    @rx.event
+    def set_chart_manual_symbol(self, value: str):
+        self.chart_manual_symbol = value
+        self.chart_dialog_error = ""
+
+    @rx.event(background=True)
+    async def search_chart_options(self):
+        """TradingView's listings for the typed ticker/name (CEX first)."""
+        async with self:
+            query = self.chart_search_query
+            self.chart_search_loading = True
+        if _ROOT_FOR_APP not in sys.path:
+            sys.path.insert(0, _ROOT_FOR_APP)
+        from app.services import chart_override_service
+
+        options = await asyncio.to_thread(chart_override_service.search_options, query)
+        async with self:
+            if self.chart_search_query == query:
+                self.chart_options = options
+            self.chart_search_loading = False
+
+    async def _save_chart_symbol(self, symbol: str) -> None:
+        """Saves (symbol) or clears ("") this coin's hand-picked chart, in
+        Postgres and in the shared coin list, then re-renders the chart."""
+        if _ROOT_FOR_APP not in sys.path:
+            sys.path.insert(0, _ROOT_FOR_APP)
+        from app.services import chart_override_service
+
+        coin = self.selected_coin
+        cmc_id = coin.get("cmc_id") if coin else None
+        if not cmc_id:
+            return
+        try:
+            if symbol:
+                symbol = await asyncio.to_thread(chart_override_service.set_override, cmc_id, symbol, self.user_id)
+            else:
+                await asyncio.to_thread(chart_override_service.clear_override, cmc_id)
+        except chart_override_service.ChartOverrideError as exc:
+            self.chart_dialog_error = str(exc)
+            return
+        # This session first (its skip-if-unchanged check reads the shared
+        # row), then the shared row so every other session gets it too.
+        self._set_override(cmc_id, {"chart_symbol_override": symbol})
+        shared = _UNIVERSE["by_id"].get(cmc_id)
+        if shared is not None:
+            shared["chart_symbol_override"] = symbol
+        self.chart_dialog_open = False
+
+    @rx.event
+    @_login_required
+    async def choose_chart_symbol(self, symbol: str):
+        await self._save_chart_symbol(symbol)
+
+    @rx.event
+    @_login_required
+    async def save_manual_chart_symbol(self):
+        await self._save_chart_symbol(self.chart_manual_symbol)
+
+    @rx.event
+    @_login_required
+    async def reset_chart_symbol(self):
+        await self._save_chart_symbol("")
 
     async def _refresh_change_24h(self) -> None:
         """Recomputes the 24h market cap / volume badges from the coin's

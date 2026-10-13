@@ -1,4 +1,5 @@
 from app.models.category import Category, coin_category
+from app.models.chart_symbol_override import ChartSymbolOverride
 from app.models.coin import Coin
 from app.models.coin_contract import CoinContract
 from app.models.movers_daily import MoversDaily
@@ -12,6 +13,7 @@ from app.models.user_watchlist import UserWatchlist
 
 __all__ = [
     "Category",
+    "ChartSymbolOverride",
     "Coin",
     "CoinContract",
     "MoversDaily",
