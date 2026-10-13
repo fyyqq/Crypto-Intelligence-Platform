@@ -5,9 +5,20 @@ instead of needing scripts/port_to_reflex_sqlite.py run by hand.
 """
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _aware(dt: datetime | None) -> datetime | None:
+    """Postgres TIMESTAMP columns come back naive (UTC); newer sqlmodel
+    versions reject naive datetimes outright on insert."""
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 _FRONTEND_PATH = str(ROOT / "frontend")
 if _FRONTEND_PATH not in sys.path:
     sys.path.insert(0, _FRONTEND_PATH)
@@ -94,11 +105,11 @@ def sync_reflex_cache() -> tuple[int, int]:
                 business_model_category=old_coin.business_model_category,
                 peer_group=old_coin.peer_group,
                 cached_market_pairs=old_coin.cached_market_pairs,
-                market_pairs_updated_at=old_coin.market_pairs_updated_at,
+                market_pairs_updated_at=_aware(old_coin.market_pairs_updated_at),
                 x_username=old_coin.x_username,
                 cached_tweets=old_coin.cached_tweets,
-                last_social_update=old_coin.last_social_update,
-                last_synced_at=old_coin.last_synced_at,
+                last_social_update=_aware(old_coin.last_social_update),
+                last_synced_at=_aware(old_coin.last_synced_at),
                 categories=[category_map[c.id] for c in old_coin.categories],
                 contracts=[
                     NewCoinContract(
