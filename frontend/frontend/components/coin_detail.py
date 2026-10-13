@@ -1931,8 +1931,15 @@ def _chart_column() -> rx.Component:
     return rx.vstack(
         _chart_picker_dialog(),
         rx.hstack(
-            rx.heading(coin["name"], " Live Chart", size="4"),
-            _chart_report_button(),
+            # Icon grouped with the heading (not a 3rd justify="between" item)
+            # so it sits right after the text instead of centering between
+            # the heading and the badge when a badge is present.
+            rx.hstack(
+                rx.heading(coin["name"], " Live Chart", size="4"),
+                _chart_report_button(),
+                spacing="2",
+                align="center",
+            ),
             # Category badge: the AI-generated business-model classification
             # (see business_summary_service.py's CATEGORY: line) when this
             # coin has one — more specific than the broad CMC narrative tags
