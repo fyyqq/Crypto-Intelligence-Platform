@@ -1348,3 +1348,13 @@ svg.wl-star-force-off {
   font-size: 12px;
   font-weight: 400;
 }
+
+/* Google sign-in button (components/login_page.py::_google_button, assets/
+   google_login.js). Google renders it in an iframe whose document is a light
+   scheme; on this page's dark panel the browser then paints an opaque white
+   backdrop around the button (its ~10px glow margin). A light color-scheme on
+   the iframe keeps that backdrop transparent. */
+#google-signin-btn,
+#google-signin-btn iframe {
+  color-scheme: light;
+}
