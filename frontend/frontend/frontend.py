@@ -1204,6 +1204,31 @@ app = rx.App(
     # Raw <script>: rx.script wraps it in Helmet, which never runs inside the document head.
     head_components=[rx.el.script(src="/alert_voice.js")],
 )
+
+
+async def _warm_caches():
+    """Server start: build the shared coin list and the exchange price list in
+    the background, so the first visitor after a restart (e.g. the nightly
+    one) doesn't wait for them. Failures only log; pages build them on demand."""
+    import asyncio
+    import logging
+    import sys as _sys
+
+    from frontend.state.coin_state import ensure_universe
+
+    try:
+        await asyncio.to_thread(ensure_universe)
+        _root = str(Path(__file__).resolve().parent.parent.parent)
+        if _root not in _sys.path:
+            _sys.path.append(_root)
+        from app.services import price_hub
+
+        await asyncio.to_thread(price_hub.refresh)
+    except Exception:  # noqa: BLE001
+        logging.getLogger(__name__).exception("cache warm-up failed")
+
+
+app.register_lifespan_task(_warm_caches)
 # Dynamic routes must be registered before static ones (Reflex route-matching
 # order), so /coin/[symbol] is added ahead of the "/" index page below.
 # Ticker-based (not cmc_id-based) per explicit request — CoinState.

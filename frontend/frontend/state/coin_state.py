@@ -1277,8 +1277,44 @@ def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None, str] | N
 # server process and shared by every session (sessions never mutate rows:
 # live data goes into each session's coin_overrides). Rebuilding it took
 # ~4.6s per new session and kept a private ~35 MB copy in each one.
-_UNIVERSE: dict = {"at": 0.0, "rows": [], "narratives": [], "chains": []}
+_UNIVERSE: dict = {"at": 0.0, "rows": [], "by_id": {}, "narratives": [], "chains": []}
 _UNIVERSE_TTL = 600  # seconds; new listings show up within 10 minutes
+
+
+_UNIVERSE_LOCK = __import__("threading").Lock()
+
+
+def ensure_universe(force: bool = False) -> None:
+    """Builds the shared coin universe if it is missing or older than
+    _UNIVERSE_TTL. Called by load_coins and, at server start, by the
+    lifespan warm-up in frontend.py (so the first visitor after a restart
+    doesn't wait for it)."""
+    if not force and _UNIVERSE["rows"] and time.time() - _UNIVERSE["at"] <= _UNIVERSE_TTL:
+        return
+    with _UNIVERSE_LOCK:
+        if not force and _UNIVERSE["rows"] and time.time() - _UNIVERSE["at"] <= _UNIVERSE_TTL:
+            return  # another caller built it while we waited
+        with rx.session() as session:
+            coins = session.exec(
+                select(Coin)
+                .options(selectinload(Coin.categories), selectinload(Coin.contracts))
+                .order_by(Coin.cmc_rank)
+            ).all()
+            rows: list[dict] = []
+            narrative_counts: Counter[str] = Counter()
+            chain_counts: Counter[str] = Counter()
+            for coin in coins:
+                narrative_counts.update(category.name for category in coin.categories)
+                row = _build_row(coin)
+                chain_counts.update([row["main_chain"]])
+                rows.append(row)
+        _UNIVERSE.update(
+            at=time.time(),
+            rows=rows,
+            by_id={r["cmc_id"]: r for r in rows},
+            narratives=[name for name, _ in narrative_counts.most_common()],
+            chains=[name for name, _ in chain_counts.most_common()],
+        )
 
 
 def _private_mode() -> bool:
@@ -1541,28 +1577,7 @@ class CoinState(rx.State):
             return
 
         self.is_loading = True
-        if time.time() - _UNIVERSE["at"] > _UNIVERSE_TTL or not _UNIVERSE["rows"]:
-            with rx.session() as session:
-                coins = session.exec(
-                    select(Coin)
-                    .options(selectinload(Coin.categories), selectinload(Coin.contracts))
-                    .order_by(Coin.cmc_rank)
-                ).all()
-
-                rows: list[dict] = []
-                narrative_counts: Counter[str] = Counter()
-                chain_counts: Counter[str] = Counter()
-                for coin in coins:
-                    narrative_counts.update(category.name for category in coin.categories)
-                    row = _build_row(coin)
-                    chain_counts.update([row["main_chain"]])
-                    rows.append(row)
-            _UNIVERSE.update(
-                at=time.time(),
-                rows=rows,
-                narratives=[name for name, _ in narrative_counts.most_common()],
-                chains=[name for name, _ in chain_counts.most_common()],
-            )
+        ensure_universe()
 
         self._all_coins = _UNIVERSE["rows"]
         # Top 20 by number of coins carrying that tag — out of ~600 dynamic
@@ -1883,7 +1898,10 @@ class CoinState(rx.State):
         called once per refresh (not per-render), so this is negligible
         next to the cost it replaces (a full list reassignment + resend).
         """
-        base = next((r for r in self._all_coins if r["cmc_id"] == cmc_id), None)
+        if self._all_coins is _UNIVERSE["rows"]:  # the shared list: use its id index
+            base = _UNIVERSE["by_id"].get(cmc_id)
+        else:
+            base = next((r for r in self._all_coins if r["cmc_id"] == cmc_id), None)
         return self._row_with_overrides(base) if base is not None else None
 
     def _apply_updates(self, updated_rows: dict[int, dict]) -> None:
@@ -1893,15 +1911,31 @@ class CoinState(rx.State):
         stale prior override fields get superseded by the fresh row's own
         values for the same keys).
         """
-        if not updated_rows:
+        # Only rows whose values actually changed: an unchanged write would
+        # still mark coin_overrides dirty and make Reflex recompute and
+        # re-send every coin var (similar coins, table rows, selected coin:
+        # ~240 KB and ~1s of CPU per write).
+        changed = {cid: row for cid, row in updated_rows.items() if self._differs(cid, row)}
+        if not changed:
             return
         self.coin_overrides = {
             **self.coin_overrides,
             **{
                 cmc_id: {**self.coin_overrides.get(cmc_id, {}), **fresh_row}
-                for cmc_id, fresh_row in updated_rows.items()
+                for cmc_id, fresh_row in changed.items()
             },
         }
+
+    def _differs(self, cmc_id: int, patch: dict) -> bool:
+        current = self._merged_row(cmc_id) or {}
+        return any(current.get(k) != v for k, v in patch.items())
+
+    def _set_override(self, cmc_id: int, patch: dict) -> None:
+        """Merges patch into this coin's override, skipping the write when the
+        row already holds those values (see _apply_updates for why)."""
+        if not self._differs(cmc_id, patch):
+            return
+        self.coin_overrides = {**self.coin_overrides, cmc_id: {**self.coin_overrides.get(cmc_id, {}), **patch}}
 
     @rx.event
     def go_to_coin(self, symbol: str):
@@ -2750,15 +2784,11 @@ class CoinState(rx.State):
             return
         cmc_id, description = result
         async with self:
-            self.coin_overrides = {
-                **self.coin_overrides,
-                cmc_id: {
-                    **self.coin_overrides.get(cmc_id, {}),
+            self._set_override(cmc_id, {
                     "description": description,
                     "has_description": True,
                     "description_tokens": _tokenize_highlights(description),
-                },
-            }
+            })
 
     @rx.event(background=True)
     async def refresh_business_summary(self):
@@ -2779,10 +2809,7 @@ class CoinState(rx.State):
         async with self:
             base = self._merged_row(cmc_id)
             primary_narrative = base["primary_narrative"] if base else ""
-            self.coin_overrides = {
-                **self.coin_overrides,
-                cmc_id: {
-                    **self.coin_overrides.get(cmc_id, {}),
+            self._set_override(cmc_id, {
                     "business_summary": summary,
                     "has_business_summary": True,
                     "business_summary_sections": _parse_business_summary_sections(summary),
@@ -2796,8 +2823,7 @@ class CoinState(rx.State):
                     # produce one.
                     "category_badge_display": _category_badge(category, primary_narrative),
                     "has_category_badge_display": bool(_category_badge(category, primary_narrative)),
-                },
-            }
+            })
 
     @rx.event(background=True)
     async def refresh_market_pairs(self):
@@ -2818,10 +2844,7 @@ class CoinState(rx.State):
         async with self:
             base = self._merged_row(cmc_id)
             price_raw = base["price_raw"] if base else 0.0
-            self.coin_overrides = {
-                **self.coin_overrides,
-                cmc_id: {
-                    **self.coin_overrides.get(cmc_id, {}),
+            self._set_override(cmc_id, {
                     "market_pairs": formatted,
                     "has_market_pairs": bool(formatted),
                     "market_pairs_fetched": True,
@@ -2833,8 +2856,7 @@ class CoinState(rx.State):
                     # CMC price is untouched (price_usd truthy short-
                     # circuits the fallback).
                     "price_display": _price_display_with_fallback(price_raw, pairs),
-                },
-            }
+            })
 
     @rx.event(background=True)
     async def refresh_tradingview_dex_symbol(self):
@@ -2854,14 +2876,10 @@ class CoinState(rx.State):
             return
         cmc_id, dex_symbol = result
         async with self:
-            self.coin_overrides = {
-                **self.coin_overrides,
-                cmc_id: {
-                    **self.coin_overrides.get(cmc_id, {}),
+            self._set_override(cmc_id, {
                     "tradingview_dex_symbol": dex_symbol or "",
                     "tradingview_dex_symbol_fetched": True,
-                },
-            }
+            })
 
     @rx.event(background=True)
     async def refresh_defillama_unlocks_slug(self):
@@ -2878,13 +2896,9 @@ class CoinState(rx.State):
             return
         cmc_id, slug = result
         async with self:
-            self.coin_overrides = {
-                **self.coin_overrides,
-                cmc_id: {
-                    **self.coin_overrides.get(cmc_id, {}),
+            self._set_override(cmc_id, {
                     "unlock_source_url": _resolve_unlock_source_url(symbol, slug),
-                },
-            }
+            })
 
     def _resolve_tradingview_symbol(self) -> str | None:
         """Picks the real, exchange-prefixed TradingView symbol for this
