@@ -814,7 +814,12 @@ def _alert_dialog() -> rx.Component:
                 "Get an alert for ",
                 CoinState.selected_coin["name"],
                 " when its price reaches the value below. Now: ",
-                CoinState.selected_coin["price_display"],
+                # The live price (same as the page header), not the stored CMC one.
+                rx.cond(
+                    CoinState.live_price_display != "",
+                    CoinState.live_price_display,
+                    CoinState.selected_coin["price_display"],
+                ),
                 size="2",
                 color_scheme="gray",
                 margin_top="0.25em",
@@ -983,7 +988,9 @@ def _info_column() -> rx.Component:
                 # No Basic-tier CMC equivalent for these two: Liquidity Score
                 # is a paid-tier metric, holder counts need a separate
                 # blockchain-explorer API — stay dummy "—" placeholders.
-                _stat_row("Liq/Mkt Cap", "—"),
+                # From the token's DEX pools (DexScreener) for a coin with a
+                # contract; "—" when it has none. See CoinState._rebase_coin_info.
+                _stat_row("Liq/Mkt Cap", coin["liq_mkt_cap_display"]),
                 _stat_row("Total supply", coin["total_supply_display"]),
                 _stat_row("Max supply", coin["max_supply_display"]),
                 _stat_row("Circulating supply", coin["circulating_supply_display"]),

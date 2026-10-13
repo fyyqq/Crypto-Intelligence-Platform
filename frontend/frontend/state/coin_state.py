@@ -721,6 +721,15 @@ def _build_row(coin: Coin) -> dict:
             if coin.fully_diluted_market_cap
             else "—"
         ),
+        # Raw figures the live-price re-basing needs (app/services/coin_info.py).
+        "fdv_raw": float(coin.fully_diluted_market_cap or 0),
+        "locked_supply_raw": float(
+            (coin.max_supply - coin.circulating_supply)
+            if coin.max_supply and coin.circulating_supply and coin.max_supply > coin.circulating_supply
+            else 0
+        ),
+        # Filled on a coin page from the token's DEX pools (DexScreener); "—" otherwise.
+        "liq_mkt_cap_display": "—",
         "circulating_supply_display": (
             f"{_fmt_compact_number(coin.circulating_supply)} {coin.symbol}"
             if coin.circulating_supply
@@ -1526,6 +1535,10 @@ class CoinState(rx.State):
     live_price_dir: str = ""  # "up" | "down" | ""
     live_price_tick: int = 0
     _live_price_cmc_id: int = 0
+    # Coin information re-based on the live price (see coin_live_price_loop).
+    _info_price: float = 0.0
+    _info_at: float = 0.0
+    _info_liquidity: float = 0.0
     _live_price_value: float = 0.0
     _live_price_running: bool = False
     # Coin page 24h market cap / volume change badges (_change_24h_display),
@@ -2120,7 +2133,7 @@ class CoinState(rx.State):
     @_login_required
     async def open_alert_dialog(self):
         # Prefilled with the coin's current price.
-        price = float((self.selected_coin or {}).get("price_raw") or 0)
+        price = self._alert_ref_price(self.selected_coin or {})
         self.alert_price_input = _plain_price(price) if price > 0 else ""
         self.editing_alert_id = 0
         self.alert_error = ""
@@ -2171,7 +2184,7 @@ class CoinState(rx.State):
         if not editing and len(existing) >= 10:
             self.alert_error = "You can have up to 10 alerts per coin."
             return
-        current = float(coin.get("price_raw") or 0)
+        current = self._alert_ref_price(coin)
         direction = "below" if current > 0 and target < current else "above"
         if any(a["price"] == target for a in existing):
             self.alert_error = "You already have an alert at this price."
@@ -2296,6 +2309,7 @@ class CoinState(rx.State):
                                 "cmc_id": row["cmc_id"], "symbol": row["symbol"],
                                 "chart_symbol": _resolve_chart_symbol(row["symbol"], row) or "",
                                 "ref_price": row.get("price_raw", 0),
+                                "contract": row.get("contract_address") or "",
                             })
                 live: dict[int, float] = {}
                 if items:
@@ -2454,6 +2468,7 @@ class CoinState(rx.State):
                             "symbol": r["symbol"],
                             "chart_symbol": _resolve_chart_symbol(r["symbol"], r) or "",
                             "ref_price": r.get("price_raw", 0),
+                            "contract": r.get("contract_address") or "",
                         }
                         for r in self.watchlist_coins[:30]
                     ]
@@ -2727,6 +2742,7 @@ class CoinState(rx.State):
                         self._live_price_value = 0.0
                         self.live_price_display = ""
                         self.live_price_dir = ""
+                        self._info_price = self._info_at = self._info_liquidity = 0.0
                     item = (
                         {
                             "cmc_id": cmc_id,
@@ -2748,12 +2764,51 @@ class CoinState(rx.State):
                             self._live_price_value = price
                             self.live_price_display = _fmt_usd(price)
                             self.live_price_tick += 1
+                    if price:
+                        await self._rebase_coin_info(cmc_id, price, item.get("contract") or "")
                 await asyncio.sleep(1)
                 if self.router.session.client_token not in reflex_app.event_namespace.token_to_sid:
                     break
         finally:
             async with self:
                 self._live_price_running = False
+
+    async def _rebase_coin_info(self, cmc_id: int, price: float, contract: str) -> None:
+        """Keeps the coin information (market cap, FDV, Vol/Mkt Cap, Liq/Mkt
+        Cap...) on the live price instead of the stored CMC price. Writes only
+        when the price moved >0.5% since the last write, or every 60s for the
+        liquidity (every write re-sends the coin's rows to the browser)."""
+        from app.services.coin_info import scaled_info
+        from frontend.live_prices import dex_info
+
+        now = time.time()
+        async with self:
+            moved = self._info_price <= 0 or abs(price / self._info_price - 1) > 0.005
+            liquidity_due = bool(contract) and now - self._info_at > 60
+            if not (moved or liquidity_due):
+                return
+        if liquidity_due:
+            info = await asyncio.to_thread(dex_info, contract)
+            async with self:
+                self._info_liquidity = float((info or {}).get("liquidity_usd") or 0)
+        async with self:
+            if self._live_price_cmc_id != cmc_id:
+                return
+            stored = _UNIVERSE["by_id"].get(cmc_id)
+            if stored is None:
+                return
+            patch = scaled_info(stored, price, self._info_liquidity or None)
+            if patch:
+                self._set_override(cmc_id, patch)
+            self._info_price, self._info_at = price, now
+
+    def _alert_ref_price(self, coin: dict) -> float:
+        """The coin's current price for alerts: the live price the page header
+        shows (chart pair / exchange / DEX), else the stored CMC price."""
+        cmc_id = coin.get("cmc_id")
+        if cmc_id and cmc_id == self._live_price_cmc_id and self._live_price_value > 0:
+            return self._live_price_value
+        return float(coin.get("price_raw") or 0)
 
     @rx.var(cache=True)
     def chart_symbol_now(self) -> str:

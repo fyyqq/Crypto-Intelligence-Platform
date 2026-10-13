@@ -109,32 +109,49 @@ def _live_price_for(client: httpx.Client, item: dict) -> float | None:
     return _dex_price(client, item.get("contract") or "")
 
 
-_dex_cache: dict[str, tuple[float, float | None]] = {}
+_dex_cache: dict[str, tuple[float, dict | None]] = {}
 _DEX_TTL = 3.0
 
 
-def _dex_price(client: httpx.Client, contract: str) -> float | None:
-    """USD price of the deepest DEX pool for this token contract, from
-    DexScreener's free public API (no key; 300 requests/min). Cached 3s."""
+def _dex_info(client: httpx.Client, contract: str, ttl: float = _DEX_TTL) -> dict | None:
+    """The token's own DEX market data from DexScreener (free public API, no
+    key, 300 requests/min): {"price": USD price of the deepest pool,
+    "liquidity_usd": liquidity summed over every pool of this token,
+    "volume_24h": 24h volume summed over every pool}. Only pools whose base
+    token IS this contract count. Cached `ttl` seconds."""
     contract = contract.strip()
     if len(contract) < 20 or _down_until.get("DEXSCREENER", 0) > time.monotonic():
         return None
     hit = _dex_cache.get(contract)
-    if hit and time.monotonic() - hit[0] < _DEX_TTL:
+    if hit and time.monotonic() - hit[0] < ttl:
         return hit[1]
-    price = None
+    info = None
     try:
         pairs = client.get(f"https://api.dexscreener.com/latest/dex/tokens/{contract}").json().get("pairs") or []
         own = [p for p in pairs if (p.get("baseToken") or {}).get("address", "").lower() == contract.lower()]
         own.sort(key=lambda p: float((p.get("liquidity") or {}).get("usd") or 0), reverse=True)
         if own and float(own[0].get("priceUsd") or 0) > 0:
-            price = float(own[0]["priceUsd"])
+            info = {
+                "price": float(own[0]["priceUsd"]),
+                "liquidity_usd": sum(float((p.get("liquidity") or {}).get("usd") or 0) for p in own),
+                "volume_24h": sum(float((p.get("volume") or {}).get("h24") or 0) for p in own),
+            }
     except httpx.TransportError:
         _down_until["DEXSCREENER"] = time.monotonic() + _BACKOFF_SECONDS
-    except Exception:  # noqa: BLE001 - bad payload: no price
-        price = None
-    _dex_cache[contract] = (time.monotonic(), price)
-    return price
+    except Exception:  # noqa: BLE001 - bad payload: no data
+        info = None
+    _dex_cache[contract] = (time.monotonic(), info)
+    return info
+
+
+def _dex_price(client: httpx.Client, contract: str) -> float | None:
+    info = _dex_info(client, contract)
+    return info["price"] if info else None
+
+
+def dex_info(contract: str, ttl: float = 60.0) -> dict | None:
+    """Public wrapper for the coin page's information panel (liquidity)."""
+    return _dex_info(_shared_client(), contract, ttl)
 
 
 def fetch_live_prices(items: list[dict]) -> dict[int, float]:
