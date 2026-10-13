@@ -20,3 +20,5 @@ paths:
 - `NewsState` loads the list once per session; edits to existing rows need a tab reload (the 60 s watcher only detects new max id).
 - Dedup of cross-source duplicate stories is planned but deferred: wait for the user (see memory `project_news_dedup_plan`).
 - Reader routes: `/news/<category>/<slug>` (slug collisions get `-1`, `-2`). Category page `/news/<category>` pages 100/page. Section pages are 10/page.
+- **The news pipeline runs in its own process, never as a thread in the web server** (2026-10-13): with `NEWS_PIPELINE_SYNC_INTERVAL_HOURS=0.5` and ~25 min of CPU-heavy parsing per run it kept the server's GIL busy ~80% of the time, so every page on live waited 5-40s. `news_catchup._loop` runs `python -m app.scheduler.news_job` at `nice 10` (90-min timeout) and waits for it. The background workers (hourly price syncs/snapshots, news, targeting) now also start at server start (`frontend.py::_warm_caches`), not only on the first homepage or `/news` visit.
+

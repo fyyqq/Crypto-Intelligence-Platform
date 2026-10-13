@@ -1226,6 +1226,15 @@ async def _warm_caches():
         await asyncio.to_thread(price_hub.refresh)
     except Exception:  # noqa: BLE001
         logging.getLogger(__name__).exception("cache warm-up failed")
+    try:
+        # The background workers (hourly price syncs and snapshots, news,
+        # targeting) otherwise only start when someone opens the homepage or
+        # /news, so after a restart nothing ran until the first visit.
+        from frontend.news_catchup import ensure_running
+
+        ensure_running()
+    except Exception:  # noqa: BLE001
+        logging.getLogger(__name__).exception("starting background workers failed")
 
 
 app.register_lifespan_task(_warm_caches)

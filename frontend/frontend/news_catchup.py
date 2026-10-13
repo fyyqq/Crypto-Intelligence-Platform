@@ -79,6 +79,22 @@ def _ensure_listener() -> None:
     logger.info("Started telegram_listener")
 
 
+def _run_news_pipeline_process() -> None:
+    """The news pipeline in its own low-priority process (see
+    app/scheduler/news_job.py for why it must not run inside the web
+    server). Gated by its own SyncLog interval, so most calls return at once.
+    Waits for it so only one runs at a time; a hung run is killed after 90 min."""
+    import os
+
+    subprocess.run(
+        [sys.executable, "-m", "app.scheduler.news_job"],
+        cwd=str(_REPO_ROOT),
+        timeout=90 * 60,
+        check=False,
+        preexec_fn=lambda: os.nice(10),
+    )
+
+
 def _loop() -> None:
     if str(_REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(_REPO_ROOT))
@@ -88,9 +104,7 @@ def _loop() -> None:
         except Exception:  # noqa: BLE001 — never let the loop die
             logger.exception("telegram listener check failed")
         try:
-            from app.scheduler.jobs import run_news_pipeline_sync
-
-            run_news_pipeline_sync()
+            _run_news_pipeline_process()
         except Exception:  # noqa: BLE001
             logger.exception("news pipeline catch-up failed")
         time.sleep(_CHECK_INTERVAL_SECONDS)
