@@ -157,6 +157,7 @@ COMMANDS = [
     {"command": "clear_chat", "description": "Delete this chat's messages (last 48 hours)"},
     {"command": "site_health", "description": "Site and data health check"},
     {"command": "fear_greed_index", "description": "Fear & Greed Index: now and yesterday"},
+    {"command": "forex_factory", "description": "This month's CPI, FOMC, jobs report & Fed speeches"},
     {"command": "alerts", "description": "Show list of active alerts"},
     {"command": "alert", "description": "Show active alerts for one coin, e.g. /alert ETH"},
 ]
@@ -176,6 +177,7 @@ def commands_overview() -> str:
         "",
         "<b>Market</b>",
         "/fear_greed_index - Fear &amp; Greed Index, now and yesterday",
+        "/forex_factory - this month's US CPI, FOMC, Non-Farm Employment and Fed speeches (Kuala Lumpur time). /forex-factory works too",
         "",
         "<b>System</b>",
         "/site_health - is the site and its data (prices, news, CoinMarketCap, alerts, server) healthy?",
@@ -196,7 +198,8 @@ def commands_overview() -> str:
         "<code>/gainers_losers_7d_top200_{date}</code> - timeframe (24h, 7d, 1m) and band (top100...top500) are optional, the date is always last",
         "{date} = day_month_year, e.g. 13_10_2026",
         "",
-        "Boards update once an hour. Sent automatically every day at 08:00 (Kuala Lumpur): the 24H Top 100 board and the Fear &amp; Greed Index. Everything else only when you ask.",
+        "Boards update once an hour. Sent automatically every day at 08:00 (Kuala Lumpur): the 24H Top 100 board and the Fear &amp; Greed Index. Other boards only when you ask.\n"
+        "Reminders 7 days, 3 days and 1 hour before every CPI release, Non-Farm Employment report, FOMC event and Fed Chair speech are sent automatically.",
     ])
 
 
@@ -281,6 +284,8 @@ def handle_message(msg: dict) -> None:
         return
     parts = text.split()
     cmd = parts[0][1:].split("@")[0].lower()
+    if cmd == "forex-factory":  # Telegram's menu cannot hold a hyphen; typed by hand it is fine
+        cmd = "forex_factory"
     arg = parts[1] if len(parts) > 1 else ""
     if cmd == "start":
         if arg:
@@ -300,7 +305,7 @@ def handle_message(msg: dict) -> None:
         return
     parsed = digest.parse_command(cmd)
     past = digest.parse_date_command(cmd)
-    if cmd not in ("alerts", "command1", "alert", "fear_greed_index", "site_health") and not parsed and not past:
+    if cmd not in ("alerts", "command1", "alert", "fear_greed_index", "site_health", "forex_factory") and not parsed and not past:
         return
     user_id = _user_for_chat(chat["id"])
     if not user_id:
@@ -311,6 +316,10 @@ def handle_message(msg: dict) -> None:
         _send(chat["id"], site_health_service.build_message())
     elif cmd == "fear_greed_index":
         digest.handle_fng(chat["id"])
+    elif cmd == "forex_factory":
+        from app.services import macro_reminder_service
+
+        macro_reminder_service.handle_command(chat["id"])
     elif parsed:
         digest.handle_command(chat["id"], parsed[0], arg, parsed[1])
     elif past:

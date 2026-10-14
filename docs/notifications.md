@@ -61,3 +61,8 @@ Ideas not built: followed-news alerts, watchlist movers, Gainers & Losers milest
 
 `notifications` table: `user_id` (FK to users, cascade delete), `kind`, `title`, `body`, `link_url`, `image_url`, `tone`, `created_at`, `read_at` (NULL = unread), indexed on (`user_id`, `created_at`). Each `notify` prunes that account's list: anything older than 90 days, then everything beyond the newest 500.
 </details>
+
+
+## Forex Factory reminders and /forex_factory (2026-10-15)
+
+Telegram reminders 7 days, 3 days and 1 hour before every US CPI release, Non-Farm Employment report, FOMC event and Fed Chair speech (not single members' speeches), sent to every connected account by `app/services/macro_reminder_service.py` (one pass a minute, live only via `TELEGRAM_DIGEST`, once each, state in `logs/macro_reminders_sent.json`). `/forex_factory` (or `/forex-factory`) lists the current month's events. CPI and jobs report dates weeks ahead need a free `FRED_API_KEY`; see `docs/tools.md`.

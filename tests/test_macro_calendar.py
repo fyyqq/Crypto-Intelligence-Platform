@@ -37,6 +37,10 @@ def reset(monkeypatch, tmp_path):
     monkeypatch.setattr(mc, "_runs", {})
     monkeypatch.setattr(mc, "_last_run", 0.0)
     monkeypatch.setattr(mc, "_ACTUALS_FILE", tmp_path / "actuals.json")
+    monkeypatch.setattr(mc, "_STORE_FILE", tmp_path / "store.json")
+    monkeypatch.setattr(mc, "_SCHEDULE_FILE", tmp_path / "schedule.json")
+    monkeypatch.setattr(mc, "_schedule", None)
+    monkeypatch.setattr(mc, "_schedule_failed_at", 0.0)
     monkeypatch.setattr(mc.settings, "apify_token", "")
 
 
@@ -62,15 +66,17 @@ def test_event_ids_are_stable_and_distinguish_same_title_events():
     assert len({e["id"] for e in a}) == 2 and a[0]["id"] == mc.parse_feed([FEED[2] | {"date": "2026-10-13T13:00:00-04:00"}])[0]["id"]
 
 
-def test_countdown_and_next_event_prefers_the_next_high_impact_one():
+def test_countdown_and_next_event_is_the_nearest_upcoming_one():
     ev = mc.parse_feed(FEED)
     now = datetime(2026, 10, 14, 11, 0, tzinfo=UTC)  # 07:00 New York, 90 minutes before CPI
     nxt = mc.next_event(ev, now)
     assert nxt["title"] in ("CPI m/m", "Core CPI y/y") and mc.countdown((nxt["start"] - now).total_seconds()) == "1h 30m"
-    after = datetime(2026, 10, 15, 4, 0, tzinfo=UTC)  # only low-impact + later high ones remain
-    assert mc.next_event(ev, after)["title"] == "Fed Chairman Warsh Speaks"
+    after = datetime(2026, 10, 14, 18, 0, tzinfo=UTC)  # the CPI numbers passed; a low-impact speech is nearer than the Fed Chair
+    assert mc.next_event(ev, after)["title"] == "Fed Chairman Warsh Speaks"  # the only later one in FEED
     assert mc.next_event(ev, datetime(2026, 11, 1, tzinfo=UTC)) is None
     assert [mc.countdown(s) for s in (30, 600, 3 * 3600 + 120, 2 * 86400 + 5 * 3600)] == ["under a minute", "10m", "3h 2m", "2d 5h"]
+    speech = {**ev[0], "title": "FOMC Member X Speaks", "impact": "low", "start": datetime(2026, 10, 14, 12, 0, tzinfo=UTC)}
+    assert mc.next_event(ev + [speech], now)["title"] == "FOMC Member X Speaks"  # nearer wins over high impact
 
 
 def test_html_groups_days_in_kl_time_dims_the_past_and_escapes_text():
@@ -351,3 +357,93 @@ def test_bls_uses_v2_only_when_a_key_is_set(monkeypatch):
     monkeypatch.setattr(mc.settings, "bls_api_key", "abc123")
     mc._fetch_bls_levels()
     assert posts[1][0] == mc.BLS_V2_URL and posts[1][1]["registrationkey"] == "abc123" and "CES0000000001" in posts[1][1]["seriesid"]
+
+
+# ---- the month ahead ----------------------------------------------------------------------------------
+
+def ev(title, iso, currency="USD", **kw):
+    return mc.parse_feed([row(title, currency, iso, **kw)])[0]
+
+
+def test_the_page_drops_days_before_today_in_malaysia_and_stops_after_30_days():
+    now = datetime(2026, 10, 15, 17, 0, tzinfo=UTC)  # 01:00 on the 16th in Kuala Lumpur
+    old = ev("CPI m/m", "2026-10-14T08:30:00-04:00")  # 20:30 KL on the 14th
+    yesterday_kl = ev("FOMC Member A Speaks", "2026-10-15T10:00:00-04:00")  # 22:00 KL on the 15th: already yesterday in Malaysia
+    today_early = ev("FOMC Member B Speaks", "2026-10-15T12:30:00-04:00")  # 00:30 KL on the 16th: earlier today, kept
+    far = ev("CPI m/m", "2026-11-20T08:30:00-05:00")
+    keep = ev("CPI m/m", "2026-11-12T08:30:00-05:00")
+    assert mc.in_window([old, yesterday_kl, today_early, keep, far], now) == [today_early, keep]
+
+
+def test_month_events_are_the_calendar_month_in_kuala_lumpur():
+    now = datetime(2026, 9, 20, 5, 0, tzinfo=UTC)
+    sep, early_oct_kl = ev("CPI m/m", "2026-09-11T08:30:00-04:00"), ev("CPI m/m", "2026-09-30T12:30:00-04:00")  # 00:30 KL on 1 Oct
+    assert mc.month_events([sep, early_oct_kl, ev("CPI m/m", "2026-10-14T08:30:00-04:00")], now) == [sep]
+
+
+def test_feed_events_are_remembered_and_a_changed_time_replaces_the_old_one(monkeypatch):
+    now = datetime(2026, 10, 15, tzinfo=UTC)
+    first = [ev("CPI m/m", "2026-10-14T08:30:00-04:00"), ev("FOMC Member A Speaks", "2026-10-13T10:00:00-04:00")]
+    assert [e["title"] for e in mc.remember(first, now)] == ["FOMC Member A Speaks", "CPI m/m"]
+    # next fetch: this week's feed no longer lists the speech (past) and moved nothing; the speech stays remembered
+    assert len(mc.remember([ev("CPI m/m", "2026-10-14T08:30:00-04:00")], now)) == 2
+    moved = mc.remember([ev("CPI m/m", "2026-10-14T09:30:00-04:00")], now)  # same title inside the same week, new time
+    assert [e["start"].astimezone(mc.ET).strftime("%H:%M") for e in moved if e["title"] == "CPI m/m"] == ["09:30"]
+    assert mc.remember([], datetime(2026, 12, 30, tzinfo=UTC)) == []  # older than 40 days is forgotten
+
+
+def test_fomc_decision_days_come_from_the_fed_calendar_page():
+    page = (
+        '<h4><a id="1">2026 FOMC Meetings</a></h4>'
+        '<div class="fomc-meeting__month col"><strong>October</strong></div><div class="fomc-meeting__date col">27-28</div>'
+        '<div class="fomc-meeting__month col"><strong>August</strong></div><div class="fomc-meeting__date col">22 (notation vote)</div>'
+        '<div class="fomc-meeting__month col"><strong>Apr/May</strong></div><div class="fomc-meeting__date col">30-1</div>'
+        '<h4><a id="2">2027 FOMC Meetings</a></h4>'
+        '<div class="fomc-meeting__month col"><strong>January</strong></div><div class="fomc-meeting__date col">26-27*</div>'
+    )
+    assert [d.isoformat() for d in mc.parse_fomc_page(page)] == ["2026-05-01", "2026-10-28", "2027-01-27"]
+
+
+def test_scheduled_releases_fill_the_month_until_the_feed_has_the_real_rows():
+    sched = {"fomc": ["2026-10-28"], "cpi": ["2026-11-10", "2026-10-14"], "nfp": ["2026-11-06"]}
+    now = datetime(2026, 10, 15, tzinfo=UTC)
+    real = [ev("CPI m/m", "2026-10-14T08:30:00-04:00"), ev("Federal Funds Rate", "2026-10-28T14:00:00-04:00")]
+    got = mc.placeholder_events(sched, real, now)
+    assert [(e["group"], e["start"].astimezone(mc.KL).strftime("%d %b %H:%M")) for e in got] == [("CPI", "10 Nov 21:30"), ("NFP", "06 Nov 21:30")]
+    assert all(e["scheduled"] and e["impact"] == "high" and e["currency"] == "USD" for e in got)
+    fomc = mc.placeholder_events({"fomc": ["2026-10-28"]}, [], now)[0]
+    assert fomc["start"] == datetime(2026, 10, 28, 18, 0, tzinfo=UTC) and fomc["start"].astimezone(mc.KL).strftime("%d %b %H:%M") == "29 Oct 02:00"
+
+
+def test_get_schedule_merges_stored_events_and_scheduled_ones_and_never_breaks_without_a_fred_key(monkeypatch):
+    monkeypatch.setattr(mc, "_load_feed", lambda force=False: ([row("CPI m/m", "USD", "2026-10-14T08:30:00-04:00", forecast="0.3%")], False, ""))
+    calls = []
+
+    class R:
+        text = '<h4>2026 FOMC Meetings</h4><div class="fomc-meeting__month"><strong>October</strong></div><div class="fomc-meeting__date">27-28</div>'
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(mc.requests, "get", lambda url, **kw: calls.append(url) or R())
+    monkeypatch.setattr(mc.settings, "fred_api_key", "")
+    out = mc.get_schedule(datetime(2026, 10, 15, tzinfo=UTC))["events"]
+    assert [(e["title"], bool(e.get("scheduled"))) for e in out] == [("CPI m/m", False), ("FOMC Meeting: Federal Funds Rate decision", True)]
+    assert calls == [mc.FED_URL]  # no FRED call without a key
+    mc.get_schedule(datetime(2026, 10, 15, tzinfo=UTC))
+    assert calls == [mc.FED_URL]  # cached for 12 hours
+
+
+def test_a_failing_schedule_source_is_retried_later_and_keeps_old_dates(monkeypatch):
+    monkeypatch.setattr(mc.settings, "fred_api_key", "k")
+    seen = []
+
+    def boom(url, **kw):
+        seen.append(url)
+        raise OSError("down")
+
+    monkeypatch.setattr(mc.requests, "get", boom)
+    s = mc.load_schedule(datetime(2026, 10, 15, tzinfo=UTC))
+    assert s["fomc"] == [] and len(seen) == 3  # fed + two FRED releases tried
+    mc.load_schedule(datetime(2026, 10, 15, tzinfo=UTC))
+    assert len(seen) == 3  # not hammered: wait 30 minutes after a failure

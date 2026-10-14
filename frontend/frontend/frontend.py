@@ -1427,6 +1427,16 @@ async def _telegram_digest():
 
 
 app.register_lifespan_task(_telegram_digest)
+
+
+async def _telegram_macro_reminders():
+    """Telegram reminders 7 days / 3 days / 1 hour before CPI, FOMC, NFP and Fed Chair events; only where TELEGRAM_DIGEST=true (live)."""
+    from app.services import macro_reminder_service  # noqa: E402
+
+    await macro_reminder_service.run_reminder_loop()
+
+
+app.register_lifespan_task(_telegram_macro_reminders)
 # Dynamic routes must be registered before static ones (Reflex route-matching
 # order), so /coin/[symbol] is added ahead of the "/" index page below.
 # Ticker-based (not cmc_id-based) per explicit request — CoinState.

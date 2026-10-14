@@ -56,6 +56,14 @@ KL = ZoneInfo("Asia/Kuala_Lumpur")
 ET = ZoneInfo("America/New_York")
 _ACTUALS_FILE = Path(__file__).resolve().parent.parent.parent / "logs" / "macro_actuals.json"
 _FEED_FILE = Path(__file__).resolve().parent.parent.parent / "logs" / "macro_feed.json"
+_STORE_FILE = Path(__file__).resolve().parent.parent.parent / "logs" / "macro_events.json"
+_SCHEDULE_FILE = Path(__file__).resolve().parent.parent.parent / "logs" / "macro_schedule.json"
+FED_URL = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+FRED_DATES_URL = "https://api.stlouisfed.org/fred/release/dates"
+SCHEDULE_TTL = 12 * 3600  # the Fed and FRED calendars change a few times a year
+SCHEDULE_RETRY = 1800  # after a failed fetch, wait this long
+STORE_KEEP = timedelta(days=40)  # remembered feed events (the /forex_factory month list needs the past days of the month)
+HORIZON_DAYS = 30  # the page shows today and the next 30 days
 
 # CPI events, everything FOMC (the committee's members' speeches, statement, minutes, press conference,
 # the rate decision, which Forex Factory names "Federal Funds Rate", and the Fed Chair) and the monthly
@@ -70,6 +78,8 @@ _blocked_until = 0.0  # after a 429, no request before this time (time.time())
 _actuals: dict[str, dict] | None = None
 _runs: dict[str, int] = {}  # "YYYY-MM-DD" -> Apify runs started that day
 _last_run = 0.0
+_schedule: dict | None = None
+_schedule_failed_at = 0.0
 
 
 def _event_id(title: str, currency: str, start: datetime) -> str:
@@ -396,6 +406,180 @@ def refresh_actuals(events: list[dict], now: datetime | None = None) -> int:
     return _store(events, found)
 
 
+# ---- the month ahead: remembered feed events + the official release calendars --------------------------
+# The free feed holds only the current week, so a month view and "7 days before" reminders need more:
+#  - every feed event is remembered on disk (past days of the month, and a time that changed);
+#  - FOMC meetings come from the Federal Reserve's own calendar page (no key, decision day 14:00 New York);
+#  - CPI and the jobs report dates come from FRED's release calendar (free key, FRED_API_KEY; without it
+#    these two only appear once the feed's week reaches them). They are placeholders ("scheduled") that
+#    the feed's real rows (with forecast and previous) replace as soon as that week is published.
+
+_MONTHS = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
+
+
+def _ser(e: dict) -> dict:
+    return {**e, "start": e["start"].isoformat()}
+
+
+def _de(d: dict) -> dict:
+    return {**d, "start": datetime.fromisoformat(d["start"])}
+
+
+def _load_store() -> list[dict]:
+    try:
+        return [_de(d) for d in json.loads(_STORE_FILE.read_text())]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def remember(events: list[dict], now: datetime | None = None) -> list[dict]:
+    """Merges the feed's events into the on-disk store and returns the whole store (oldest first, only the
+    last STORE_KEEP days). A feed event replaces a stored one with the same currency and title inside
+    the feed's own week (its time or numbers changed). Never raises."""
+    now = now or datetime.now(timezone.utc)
+    stored = _load_store()
+    if events:
+        lo, hi = min(e["start"] for e in events) - timedelta(hours=12), max(e["start"] for e in events) + timedelta(hours=12)
+        keys = {(e["currency"], e["title"]) for e in events}
+        stored = [e for e in stored if not (lo <= e["start"] <= hi and (e["currency"], e["title"]) in keys)]
+        stored += events
+    stored = [e for e in {e["id"]: e for e in stored}.values() if e["start"] >= now - STORE_KEEP]
+    stored.sort(key=lambda e: (e["start"], e["title"]))
+    try:
+        _STORE_FILE.parent.mkdir(exist_ok=True)
+        _STORE_FILE.write_text(json.dumps([_ser(e) for e in stored]))
+    except Exception:  # noqa: BLE001
+        log.warning("could not save the remembered calendar events", exc_info=True)
+    return stored
+
+
+def parse_fomc_page(page: str) -> list[date]:
+    """Decision days (the last day of each two-day meeting) from the Federal Reserve's calendar page.
+    Lines without a day range (e.g. "22 (notation vote)") are skipped."""
+    out: list[date] = []
+    heads = [(m.start(), int(m.group(1))) for m in re.finditer(r"(\d{4}) FOMC Meetings", page)]
+    for i, (pos, year) in enumerate(heads):
+        part = page[pos: heads[i + 1][0] if i + 1 < len(heads) else len(page)]
+        for mon, days in re.findall(r'fomc-meeting__month[^>]*><strong>([A-Za-z/ ]+)</strong>.*?fomc-meeting__date[^>]*>([^<]*)<', part, re.S):
+            m = re.match(r"\s*(\d{1,2})\s*-\s*(\d{1,2})", days)
+            names = [n.strip().lower()[:3] for n in mon.split("/")]
+            if not m or names[0] not in _MONTHS or names[-1] not in _MONTHS:
+                continue
+            first, last = int(m.group(1)), int(m.group(2))
+            month = _MONTHS[names[-1]] if len(names) > 1 else _MONTHS[names[0]] + (1 if last < first else 0)
+            y = year + (1 if month > 12 else 0)
+            try:
+                out.append(date(y, (month - 1) % 12 + 1, last))
+            except ValueError:
+                continue
+    return sorted(set(out))
+
+
+def _fetch_fred_dates(release_id: int, today: date) -> list[date]:
+    r = requests.get(
+        FRED_DATES_URL,
+        params={"release_id": release_id, "api_key": settings.fred_api_key.strip(), "file_type": "json",
+                "realtime_start": today.isoformat(), "realtime_end": "9999-12-31",
+                "include_release_dates_with_no_data": "true", "sort_order": "asc", "limit": 20},
+        timeout=(5, 15),
+    )
+    r.raise_for_status()
+    return [date.fromisoformat(d["date"]) for d in r.json().get("release_dates", []) if d.get("date", "") >= today.isoformat()]
+
+
+def _read_schedule() -> dict | None:
+    try:
+        d = json.loads(_SCHEDULE_FILE.read_text())
+        return d if isinstance(d.get("fomc"), list) else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def load_schedule(now: datetime | None = None) -> dict:
+    """{"fomc": [iso dates], "cpi": [...], "nfp": [...]}: upcoming release days, cached 12 hours on disk. A source
+    that fails keeps its last known dates; a failure is retried after 30 minutes. Never raises."""
+    global _schedule, _schedule_failed_at
+    now = now or datetime.now(timezone.utc)
+    with _lock:
+        if _schedule is None:
+            _schedule = _read_schedule() or {"at": 0.0, "fomc": [], "cpi": [], "nfp": []}
+        t = time.time()
+        if t - _schedule["at"] < SCHEDULE_TTL or t - _schedule_failed_at < SCHEDULE_RETRY:
+            return _schedule
+        today = now.astimezone(ET).date()
+        new, ok = dict(_schedule), True
+        try:
+            r = requests.get(FED_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=(5, 15))
+            r.raise_for_status()
+            days = [d for d in parse_fomc_page(r.text) if d >= today]
+            if days:
+                new["fomc"] = [d.isoformat() for d in days]
+        except Exception as exc:  # noqa: BLE001
+            ok = False
+            log.warning("Fed meeting calendar failed: %s", exc)
+        if settings.fred_api_key.strip():
+            for key, rid in (("cpi", 10), ("nfp", 50)):
+                try:
+                    new[key] = [d.isoformat() for d in _fetch_fred_dates(rid, today)]
+                except Exception as exc:  # noqa: BLE001
+                    ok = False
+                    log.warning("FRED %s release dates failed: %s", key, type(exc).__name__)
+        if ok:
+            new["at"] = t
+        else:
+            _schedule_failed_at = t
+        _schedule = new
+        try:
+            _SCHEDULE_FILE.parent.mkdir(exist_ok=True)
+            _SCHEDULE_FILE.write_text(json.dumps(new))
+        except Exception:  # noqa: BLE001
+            log.warning("could not save the release schedule", exc_info=True)
+        return _schedule
+
+
+_RELEASES = {  # key -> (group, title, impact, hour, minute) New York time
+    "cpi": ("CPI", "CPI (release date)", "high", 8, 30),
+    "nfp": ("NFP", "Non-Farm Employment Change", "high", 8, 30),
+    "fomc": ("FOMC", "FOMC Meeting: Federal Funds Rate decision", "high", 14, 0),
+}
+_FOMC_DECISION = re.compile(r"Federal Funds Rate|FOMC Statement|FOMC Press Conference|FOMC Meeting", re.I)
+
+
+def placeholder_events(schedule: dict, real: list[dict], now: datetime | None = None) -> list[dict]:
+    """USD events from the release calendars that the feed has not published yet. A day the feed (or the
+    store) already has a real row for the same release is skipped."""
+    now = now or datetime.now(timezone.utc)
+    have = {(e["group"], e["start"].astimezone(ET).date()) for e in real
+            if e["currency"] == "USD" and (e["group"] != "FOMC" or _FOMC_DECISION.search(e["title"]))}
+    out = []
+    for key, (group, title, impact, h, m) in _RELEASES.items():
+        for iso in schedule.get(key, []):
+            try:
+                day = date.fromisoformat(iso)
+            except ValueError:
+                continue
+            if (group, day) in have:
+                continue
+            start = datetime(day.year, day.month, day.day, h, m, tzinfo=ET).astimezone(timezone.utc)
+            out.append({"id": _event_id(title, "USD", start), "title": title, "currency": "USD", "impact": impact,
+                        "start": start, "forecast": "", "previous": "", "actual": "", "revised": "", "group": group,
+                        "scheduled": True})
+    return out
+
+
+def get_schedule(now: datetime | None = None, currencies: tuple[str, ...] | None = ("USD",)) -> dict:
+    """get_events() plus the remembered past days and the scheduled upcoming releases: the month view's data."""
+    now = now or datetime.now(timezone.utc)
+    data = get_events(now, None)
+    stored = remember(data["events"], now)
+    events = stored + placeholder_events(load_schedule(now), stored, now)
+    if currencies:
+        events = [e for e in events if e["currency"] in currencies]
+    events.sort(key=lambda e: (e["start"], e["title"]))
+    apply_actuals(events, _load_actuals())
+    return {**data, "events": events}
+
+
 # ---- public API -----------------------------------------------------------------------------------
 
 def get_events(now: datetime | None = None, currencies: tuple[str, ...] | None = ("USD",)) -> dict:
@@ -416,11 +600,26 @@ def get_events(now: datetime | None = None, currencies: tuple[str, ...] | None =
 
 
 def next_event(events: list[dict], now: datetime | None = None) -> dict | None:
-    """The next high-impact event (CPI, the rate decision, the Fed Chair) if one is still ahead this
-    week, otherwise the next event of any impact; None when everything has passed."""
+    """The nearest upcoming event of any kind (CPI, jobs report, rate decision, a speech); None when
+    everything has passed."""
     now = now or datetime.now(timezone.utc)
-    upcoming = [e for e in events if e["start"] >= now]
-    return next((e for e in upcoming if e["impact"] == "high"), upcoming[0] if upcoming else None)
+    return next((e for e in sorted(events, key=lambda e: (e["start"], e["title"])) if e["start"] >= now), None)
+
+
+def in_window(events: list[dict], now: datetime | None = None, days: int = HORIZON_DAYS) -> list[dict]:
+    """The page's events: from the start of today (Kuala Lumpur date, so earlier days drop out of the table)
+    up to `days` days ahead."""
+    now = now or datetime.now(timezone.utc)
+    start = datetime.combine(now.astimezone(KL).date(), datetime.min.time(), tzinfo=KL)
+    end = now + timedelta(days=days)
+    return [e for e in events if start <= e["start"] <= end]
+
+
+def month_events(events: list[dict], now: datetime | None = None) -> list[dict]:
+    """Every event of the current calendar month in Kuala Lumpur time (past days included)."""
+    now = now or datetime.now(timezone.utc)
+    ym = (now.astimezone(KL).year, now.astimezone(KL).month)
+    return [e for e in events if (e["start"].astimezone(KL).year, e["start"].astimezone(KL).month) == ym]
 
 
 def countdown(seconds: float) -> str:
@@ -468,7 +667,7 @@ def build_html(events: list[dict], now: datetime | None = None, has_actuals_sour
     minutes pulse, and a released event that is still waiting for its actual shows animated dots."""
     now = now or datetime.now(timezone.utc)
     if not events:
-        return '<div class="mc-empty">No CPI, FOMC or Non-Farm Employment events in this week\'s calendar.</div>'
+        return '<div class="mc-empty">No CPI, FOMC or Non-Farm Employment events in the next 30 days.</div>'
     days: dict[date, list[dict]] = {}
     for e in events:
         days.setdefault(e["start"].astimezone(KL).date(), []).append(e)

@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # Free BLS registration key (https://data.bls.gov/registrationEngine/). Optional: without it the BLS v1
     # API is used (25 requests a day), with it v2 (500 a day).
     bls_api_key: str = ""
+    # Free FRED API key (https://fredaccount.stlouisfed.org/apikeys). Optional: gives the CPI and jobs report
+    # release dates weeks ahead (Telegram 7-day / 3-day reminders, the month view); FOMC dates need no key.
+    fred_api_key: str = ""
     macro_free_actuals_max_per_day: int = 20  # BLS public API v1 allows 25 requests a day
 
     app_env: str = "development"

@@ -26,8 +26,8 @@ def _snapshot(scope: str) -> dict:
     """Blocking: everything the page shows for `scope` ("USD" or "ALL")."""
     svc = _service()
     now = datetime.now(timezone.utc)
-    data = svc.get_events(now, ("USD",) if scope == "USD" else None)
-    events = data["events"]
+    data = svc.get_schedule(now, ("USD",) if scope == "USD" else None)
+    events = svc.in_window(data["events"], now)  # today to 30 days ahead: earlier days drop out
     svc.refresh_actuals_in_background(events, now)  # official sources (BLS/FRED), then Apify if configured; never blocks
     nxt = svc.next_event(events, now)
     fetched = data["fetched_at"]
