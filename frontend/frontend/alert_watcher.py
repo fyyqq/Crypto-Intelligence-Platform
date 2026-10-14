@@ -121,6 +121,9 @@ async def run_forever() -> None:
     while True:
         try:
             fired = await asyncio.to_thread(check_once)
+            from app.services import heartbeat  # repo root is on sys.path after the first check_once
+
+            heartbeat.beat("alert_watcher")  # read by the bot's /site_health
             if fired:
                 logger.info("server alert watch: %d alert(s) triggered", fired)
         except Exception:  # noqa: BLE001 - never let one bad pass stop the watcher
