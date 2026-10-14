@@ -157,6 +157,12 @@ COMMANDS = [
     {"command": "alert", "description": "Show active alerts for one coin, e.g. /alert ETH"},
 ]
 
+
+def menu_commands() -> list[dict]:
+    from app.services import telegram_digest_service
+
+    return COMMANDS + telegram_digest_service.COMMANDS
+
 _fmt_price = lambda v: f"${v:g}"  # noqa: E731  (replaced by the frontend's _fmt_usd, Core rule 1)
 
 
@@ -212,13 +218,19 @@ def handle_message(msg: dict) -> None:
         else:
             _send(chat["id"], "Repace price alerts. Connect your account from Repace > Notifications > Connect Telegram.")
         return
-    if cmd not in ("alerts", "command1", "alert", "help"):
+    from app.services import telegram_digest_service as digest
+
+    window = digest.command_window(cmd)
+    if cmd not in ("alerts", "command1", "alert", "help") and not window:
         return
     user_id = _user_for_chat(chat["id"])
     if not user_id:
         _send(chat["id"], "This chat is not connected. Open Repace > Notifications > Connect Telegram.")
+    elif window:
+        digest.handle_command(chat["id"], window, arg)
     elif cmd == "help":
-        _send(chat["id"], "/alerts - all active alerts\n/alert ETH - active alerts for one coin")
+        _send(chat["id"], "/alerts - all active alerts\n/alert ETH - active alerts for one coin\n"
+                          "/gainers_losers_24h, _7d, _1m - top gainers & losers (add 200, 300... for other rank bands)")
     elif cmd == "alert":
         sym = arg.lstrip("$").strip()
         if not re.fullmatch(r"[A-Za-z0-9]{1,20}", sym):
@@ -235,7 +247,7 @@ async def run_poller() -> None:
     if not (configured() and settings.telegram_bot_polling):
         return
     try:
-        await asyncio.to_thread(_api, "setMyCommands", commands=COMMANDS)
+        await asyncio.to_thread(_api, "setMyCommands", commands=menu_commands())
     except Exception:  # noqa: BLE001
         log.exception("telegram setMyCommands failed")
     offset = None

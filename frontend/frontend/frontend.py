@@ -1373,6 +1373,16 @@ async def _telegram_commands():
 
 
 app.register_lifespan_task(_telegram_commands)
+
+
+async def _telegram_digest():
+    """Automatic Gainers & Losers messages (08:00 KL); only where TELEGRAM_DIGEST=true (live)."""
+    from app.services import telegram_digest_service  # noqa: E402  (repo root is on sys.path via _telegram())
+
+    await telegram_digest_service.run_digest_loop()
+
+
+app.register_lifespan_task(_telegram_digest)
 # Dynamic routes must be registered before static ones (Reflex route-matching
 # order), so /coin/[symbol] is added ahead of the "/" index page below.
 # Ticker-based (not cmc_id-based) per explicit request — CoinState.

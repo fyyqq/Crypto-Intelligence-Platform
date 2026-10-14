@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # (/alerts, /alert ETH). Telegram allows a single getUpdates consumer per
     # bot token, so local dev leaves this off (on-demand linking only).
     telegram_bot_polling: bool = False
+    # True on the same ONE server: sends the automatic Gainers & Losers digest
+    # (app/services/telegram_digest_service.py) so it is not sent twice.
+    telegram_digest: bool = False
 
     app_env: str = "development"
     app_host: str = "0.0.0.0"
