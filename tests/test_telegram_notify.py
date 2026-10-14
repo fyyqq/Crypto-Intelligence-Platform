@@ -86,3 +86,66 @@ def test_disconnect(env):
     tg._set_chat_id(1, 42)
     tg.disconnect(1)
     assert tg.chat_id_for(1) is None
+
+
+# ---- commands ------------------------------------------------------------------------------
+
+from app.models.price_alert import PriceAlert  # noqa: E402
+
+
+def _alert(maker, user_id, symbol, direction, price, triggered=False):
+    from datetime import datetime, timezone
+
+    db = maker()
+    db.add(PriceAlert(user_id=user_id, cmc_id=1, coin_name=symbol, symbol=symbol, direction=direction,
+                      target_price=price, triggered_at=datetime.now(timezone.utc) if triggered else None))
+    db.commit()
+    db.close()
+
+
+def _msg(text, chat_id=42, chat_type="private"):
+    return {"text": text, "chat": {"id": chat_id, "type": chat_type}}
+
+
+def _sent(calls):
+    return [p["text"] for m, p in calls if m == "sendMessage"]
+
+
+def test_alerts_and_alert_commands(env):
+    calls, _ = env
+    maker = tg.SessionLocal
+    tg._set_chat_id(1, 42)
+    _alert(maker, 1, "BTC", "above", 100000)
+    _alert(maker, 1, "ETH", "below", 2000)
+    _alert(maker, 1, "ETH", "above", 3000)
+    _alert(maker, 1, "ETH", "above", 9999, triggered=True)  # already triggered: hidden
+    _alert(maker, 2, "SOL", "above", 500)  # another account: hidden
+    tg.handle_message(_msg("/alerts"))
+    tg.handle_message(_msg("/command1"))  # the name the bot menu had before
+    tg.handle_message(_msg("/alert eth"))
+    tg.handle_message(_msg("/alert@test_bot $ETH"))
+    tg.handle_message(_msg("/alert DOGE"))
+    tg.handle_message(_msg("/alert"))
+    out = _sent(calls)
+    assert "Active alerts (3)" in out[0] and "BTC" in out[0] and "ETH" in out[0] and "SOL" not in out[0]
+    assert out[1] == out[0]
+    assert "ETH alerts (2)" in out[2] and "below $2000" in out[2] and "9999" not in out[2] and "BTC" not in out[2]
+    assert out[3] == out[2]
+    assert "No active alerts for <b>DOGE</b>" in out[4]
+    assert out[5] == "Usage: /alert ETH"
+
+
+def test_commands_ignore_unlinked_chats_and_groups(env):
+    calls, _ = env
+    tg.handle_message(_msg("/alerts", chat_id=999))
+    assert "not connected" in _sent(calls)[0]
+    n = len(calls)
+    tg.handle_message(_msg("/alerts", chat_type="group"))
+    tg.handle_message(_msg("hello"))
+    assert len(calls) == n
+
+
+def test_start_with_code_links_through_handle_message(env):
+    code, _ = tg.start_link(1)
+    tg.handle_message(_msg(f"/start {code}", chat_id=88))
+    assert tg.chat_id_for(1) == 88

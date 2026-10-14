@@ -6,8 +6,10 @@ code and a t.me deep link; the user presses Start in the bot; `poll_link` reads
 the bot's pending updates (on demand only, never a permanent poller, so local
 and live can share one bot token) and stores the chat id on the account.
 Sending: `send_channel` is registered with notification_service.register_channel."""
+import asyncio
 import html
 import logging
+import re
 import secrets
 import time
 
@@ -16,6 +18,7 @@ from sqlalchemy import update
 
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.models.price_alert import PriceAlert
 from app.models.user import User
 
 log = logging.getLogger(__name__)
@@ -75,29 +78,34 @@ def start_link(user_id: int) -> tuple[str, str]:
     return code, f"https://t.me/{bot_username()}?start={code}"
 
 
+def _handle_start(msg: dict) -> None:
+    """`/start <code>` in a private chat links that chat to the code's account."""
+    text = (msg.get("text") or "").strip()
+    chat = msg.get("chat") or {}
+    code = text.split(" ", 1)[1].strip() if text.startswith("/start ") else ""
+    owner = _codes.get(code)
+    if not owner or owner[1] < time.time() or chat.get("type") != "private":
+        return
+    del _codes[code]
+    _set_chat_id(owner[0], chat["id"])
+    try:
+        _send(chat["id"], "✅ <b>Repace alerts connected.</b> Triggered price alerts will arrive here.\n"
+                          "Commands: /alerts (all active alerts), /alert ETH (one coin).")
+    except Exception:  # noqa: BLE001
+        log.exception("telegram confirmation failed")
+
+
 def poll_link(user_id: int) -> bool:
-    """True once this account is connected. Reads the bot's pending /start
-    updates and links whichever codes they carry (so another account's press
-    is not lost), then acknowledges them so they are not read twice."""
-    updates = _api("getUpdates", timeout=0, allowed_updates=["message"])
-    for u in updates:
-        msg = u.get("message") or {}
-        text = (msg.get("text") or "").strip()
-        chat = msg.get("chat") or {}
-        if not text.startswith("/start ") or chat.get("type") != "private":
-            continue
-        code = text.split(" ", 1)[1].strip()
-        owner = _codes.get(code)
-        if not owner or owner[1] < time.time():
-            continue
-        del _codes[code]
-        _set_chat_id(owner[0], chat["id"])
-        try:
-            _send(chat["id"], "✅ <b>Repace alerts connected.</b> Triggered price alerts will arrive here.")
-        except Exception:  # noqa: BLE001
-            log.exception("telegram confirmation failed")
-    if updates:
-        _api("getUpdates", offset=updates[-1]["update_id"] + 1, timeout=0)
+    """True once this account is connected. With the command listener running
+    (settings.telegram_bot_polling) it already links /start presses, so this
+    only checks the account. Otherwise (local dev) it reads the bot's pending
+    updates itself, links whichever codes they carry and acknowledges them."""
+    if not settings.telegram_bot_polling:
+        updates = _api("getUpdates", timeout=0, allowed_updates=["message"])
+        for u in updates:
+            _handle_start(u.get("message") or {})
+        if updates:
+            _api("getUpdates", offset=updates[-1]["update_id"] + 1, timeout=0)
     return chat_id_for(user_id) is not None
 
 
@@ -133,3 +141,116 @@ def send_channel(user_id: int, payload: dict) -> None:
         base = settings.public_site_url.rstrip("/")
         lines.append(f'<a href="{html.escape(base + link)}">Open on Repace</a>')
     _send(chat_id, "\n".join(lines))
+
+
+# ---- Commands (/alerts, /alert ETH) -------------------------------------------------------
+
+COMMANDS = [
+    {"command": "alerts", "description": "Show list of active alerts"},
+    {"command": "alert", "description": "Show active alerts for one coin, e.g. /alert ETH"},
+]
+
+_fmt_price = lambda v: f"${v:g}"  # noqa: E731  (replaced by the frontend's _fmt_usd, Core rule 1)
+
+
+def set_price_formatter(fn) -> None:
+    global _fmt_price
+    _fmt_price = fn
+
+
+def _user_for_chat(chat_id: int) -> int | None:
+    db = SessionLocal()
+    try:
+        return db.query(User.id).filter(User.telegram_chat_id == chat_id).scalar()
+    finally:
+        db.close()
+
+
+def format_alerts(user_id: int, symbol: str | None = None) -> str:
+    db = SessionLocal()
+    try:
+        q = db.query(PriceAlert).filter(PriceAlert.user_id == user_id, PriceAlert.triggered_at.is_(None))
+        if symbol:
+            q = q.filter(PriceAlert.symbol.ilike(symbol))
+        rows = q.order_by(PriceAlert.symbol, PriceAlert.target_price).all()
+    finally:
+        db.close()
+    if not rows:
+        return f"No active alerts for <b>{html.escape(symbol.upper())}</b>." if symbol else "You have no active alerts."
+    by_coin: dict[str, list[str]] = {}
+    for r in rows:
+        arrow = "🟢 above" if r.direction == "above" else "🔴 below"
+        by_coin.setdefault(r.symbol.upper(), []).append(f"{arrow} {_fmt_price(r.target_price)}")
+    head = f"🔔 <b>{html.escape(symbol.upper())} alerts ({len(rows)})</b>" if symbol else f"🔔 <b>Active alerts ({len(rows)})</b>"
+    lines = [head]
+    for sym, items in by_coin.items():
+        if not symbol:
+            lines.append(f"<b>{html.escape(sym)}</b>")
+        lines.extend(f"   {i}" for i in items)
+    return "\n".join(lines)[:4000]
+
+
+def handle_message(msg: dict) -> None:
+    """One incoming bot message: /start <code> links, /alerts and /alert <COIN> reply."""
+    chat = msg.get("chat") or {}
+    text = (msg.get("text") or "").strip()
+    if chat.get("type") != "private" or not text.startswith("/"):
+        return
+    parts = text.split()
+    cmd = parts[0][1:].split("@")[0].lower()
+    arg = parts[1] if len(parts) > 1 else ""
+    if cmd == "start":
+        if arg:
+            _handle_start(msg)
+        else:
+            _send(chat["id"], "Repace price alerts. Connect your account from Repace > Notifications > Connect Telegram.")
+        return
+    if cmd not in ("alerts", "command1", "alert", "help"):
+        return
+    user_id = _user_for_chat(chat["id"])
+    if not user_id:
+        _send(chat["id"], "This chat is not connected. Open Repace > Notifications > Connect Telegram.")
+    elif cmd == "help":
+        _send(chat["id"], "/alerts - all active alerts\n/alert ETH - active alerts for one coin")
+    elif cmd == "alert":
+        sym = arg.lstrip("$").strip()
+        if not re.fullmatch(r"[A-Za-z0-9]{1,20}", sym):
+            _send(chat["id"], "Usage: /alert ETH")
+        else:
+            _send(chat["id"], format_alerts(user_id, sym))
+    else:  # /alerts (and the old /command1 name)
+        _send(chat["id"], format_alerts(user_id))
+
+
+async def run_poller() -> None:
+    """Long-polls the bot for commands, only when settings.telegram_bot_polling
+    (one server). Runs inside the Reflex process as a lifespan task."""
+    if not (configured() and settings.telegram_bot_polling):
+        return
+    try:
+        await asyncio.to_thread(_api, "setMyCommands", commands=COMMANDS)
+    except Exception:  # noqa: BLE001
+        log.exception("telegram setMyCommands failed")
+    offset = None
+    log.info("telegram command listener started")
+    while True:
+        try:
+            params = {"timeout": 25, "allowed_updates": ["message"]}
+            if offset is not None:
+                params["offset"] = offset
+            async with httpx.AsyncClient(timeout=40) as client:
+                r = await client.post(f"https://api.telegram.org/bot{_token()}/getUpdates", json=params)
+            data = r.json()
+            if not data.get("ok"):
+                raise RuntimeError(data.get("description"))
+            for u in data["result"]:
+                offset = u["update_id"] + 1
+                try:
+                    await asyncio.to_thread(handle_message, u.get("message") or {})
+                except Exception:  # noqa: BLE001
+                    log.exception("telegram command failed")
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            log.warning("telegram poll failed, retrying in 5s", exc_info=True)
+            await asyncio.sleep(5)

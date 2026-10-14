@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # public site URL used for the "Open on Repace" link in those messages.
     telegram_bot_token: str = ""
     public_site_url: str = "https://repace.fyqqflow.com"
+    # True on ONE server only (live): runs the bot's command listener
+    # (/alerts, /alert ETH). Telegram allows a single getUpdates consumer per
+    # bot token, so local dev leaves this off (on-demand linking only).
+    telegram_bot_polling: bool = False
 
     app_env: str = "development"
     app_host: str = "0.0.0.0"
