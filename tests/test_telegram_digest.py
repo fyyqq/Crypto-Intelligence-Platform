@@ -1,6 +1,7 @@
 """Gainers & Losers in Telegram: commands, message format, schedule, once-only sending.
 The movers and the Telegram API are faked; nothing leaves the machine."""
 
+import re
 from datetime import datetime
 
 import pytest
@@ -116,3 +117,30 @@ def test_collecting_window_is_skipped_then_retried(env):
     assert dg.check_and_send(at(2026, 6, 1, 10)) == []  # 7d still collecting
     ready["7d"] = True
     assert dg.check_and_send(at(2026, 6, 1, 11)) == ["7d"]  # sent once it is ready, inside the grace period
+
+
+def test_band_commands():
+    assert dg.parse_command("gainers_losers_24h_top100") == ("24h", 100)
+    assert dg.parse_command("gainers_losers_7d_top200") == ("7d", 200)
+    assert dg.parse_command("gainer-losers-1M-top500") == ("30d", 500)  # hand-typed spelling
+    assert dg.parse_command("gainers_losers_24h") == ("24h", None)
+    assert dg.parse_command("gainers_losers_24h_top150") is None and dg.parse_command("gainers_losers_24h_top600") is None
+
+
+def test_menu_entries_are_valid_for_telegram():
+    names = [c["command"] for c in dg.COMMANDS]
+    assert len(names) == 18 and len(set(names)) == 18  # 3 windows x (default + 5 bands)
+    assert all(re.fullmatch(r"[a-z0-9_]{1,32}", n) for n in names)
+    assert all(1 <= len(c["description"]) <= 256 for c in dg.COMMANDS)
+    assert "gainers_losers_30d_top200" not in names and "gainers_losers_1m_top200" in names
+
+
+def test_band_command_replies_with_that_band(env):
+    sent, _ = env
+    msg = lambda t: {"text": t, "chat": {"id": 42, "type": "private"}}  # noqa: E731
+    tg.handle_message(msg("/gainers_losers_24h_top200"))
+    tg.handle_message(msg("/gainers_losers_7d_top500@test_bot"))
+    tg.handle_message(msg("/gainers_losers_1m_top100"))
+    assert "24H · Rank 101-200" in sent[0][1]
+    assert "7D · Rank 401-500" in sent[1][1]
+    assert "1 Month · Top 100" in sent[2][1]

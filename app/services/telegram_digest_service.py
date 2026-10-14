@@ -37,18 +37,39 @@ _STATE_FILE = Path(__file__).resolve().parent.parent.parent / "logs" / "telegram
 # command suffix -> snapshot window name (price_snapshot_service.WINDOWS)
 _CMD_WINDOWS = {"24h": "24h", "7d": "7d", "1m": "30d"}
 LABELS = {"24h": "24H", "7d": "7D", "30d": "1 Month"}
-COMMANDS = [
-    {"command": "gainers_losers_24h", "description": "Top gainers & losers, 24H (add 200 for ranks 101-200...)"},
-    {"command": "gainers_losers_7d", "description": "Top gainers & losers, 7 days"},
-    {"command": "gainers_losers_1m", "description": "Top gainers & losers, 1 month"},
-]
+
+
+def _menu() -> list[dict]:
+    """The menu entries: each window's default board, then its per-band boards
+    (/gainers_losers_24h_top200 = ranks 101-200)."""
+    rows = []
+    for suffix, window in _CMD_WINDOWS.items():
+        label = LABELS[window]
+        rows.append({"command": f"gainers_losers_{suffix}", "description": f"Top gainers & losers, {label} (Top 100)"})
+        for band in ps.BUCKETS:
+            low = ps.bucket_floor(band)
+            span = f"ranks {low + 1}-{band}" if low else "ranks 1-100"
+            rows.append({"command": f"gainers_losers_{suffix}_top{band}", "description": f"{label} gainers & losers, {span}"})
+    return rows
+
+
+COMMANDS = _menu()
+
+
+def parse_command(cmd: str) -> tuple[str, int | None] | None:
+    """/gainers_losers_24h -> ("24h", None); /gainers_losers_7d_top300 -> ("7d", 300).
+    Also accepts the hyphenated spelling (/gainer-losers-24H) because Telegram
+    does not allow hyphens in the menu. None when it is not one of these."""
+    m = re.fullmatch(r"gainers?_losers?_(24h|7d|1m)(?:_top(\d+))?", cmd.lower().replace("-", "_"))
+    if not m:
+        return None
+    band = int(m.group(2)) if m.group(2) else None
+    return (_CMD_WINDOWS[m.group(1)], band) if band is None or band in ps.BUCKETS else None
 
 
 def command_window(cmd: str) -> str | None:
-    """/gainers_losers_24h -> "24h". Also accepts the hyphenated spelling
-    (/gainer-losers-24H) because Telegram does not allow hyphens in the menu."""
-    m = re.fullmatch(r"gainers?_losers?_(24h|7d|1m)", cmd.lower().replace("-", "_"))
-    return _CMD_WINDOWS[m.group(1)] if m else None
+    parsed = parse_command(cmd)
+    return parsed[0] if parsed else None
 
 
 def parse_band(arg: str) -> int | None:
@@ -92,10 +113,12 @@ def build_message(window: str, bucket: int = DEFAULT_BAND, rows: int = ROWS) -> 
     return "\n".join(lines), True
 
 
-def handle_command(chat_id: int, window: str, arg: str) -> None:
-    bucket = parse_band(arg)
+def handle_command(chat_id: int, window: str, arg: str = "", band: int | None = None) -> None:
+    """`band` comes from the command name (_top200); otherwise an optional
+    argument (/gainers_losers_24h 200) picks it; default Top 100."""
+    bucket = band or parse_band(arg)
     if bucket is None:
-        tg._send(chat_id, "Usage: /gainers_losers_24h or /gainers_losers_24h 200 (band: 100, 200, 300, 400, 500)")
+        tg._send(chat_id, "Usage: /gainers_losers_24h or /gainers_losers_24h_top200 (bands: top100, top200, top300, top400, top500)")
         return
     tg._send(chat_id, build_message(window, bucket)[0])
 

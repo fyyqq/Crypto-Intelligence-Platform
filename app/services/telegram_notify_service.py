@@ -220,17 +220,18 @@ def handle_message(msg: dict) -> None:
         return
     from app.services import telegram_digest_service as digest
 
-    window = digest.command_window(cmd)
-    if cmd not in ("alerts", "command1", "alert", "help") and not window:
+    parsed = digest.parse_command(cmd)
+    if cmd not in ("alerts", "command1", "alert", "help") and not parsed:
         return
     user_id = _user_for_chat(chat["id"])
     if not user_id:
         _send(chat["id"], "This chat is not connected. Open Repace > Notifications > Connect Telegram.")
-    elif window:
-        digest.handle_command(chat["id"], window, arg)
+    elif parsed:
+        digest.handle_command(chat["id"], parsed[0], arg, parsed[1])
     elif cmd == "help":
         _send(chat["id"], "/alerts - all active alerts\n/alert ETH - active alerts for one coin\n"
-                          "/gainers_losers_24h, _7d, _1m - top gainers & losers (add 200, 300... for other rank bands)")
+                          "/gainers_losers_24h, _7d, _1m - top gainers & losers (Top 100)\n"
+                          "/gainers_losers_24h_top200 (also _top300, _top400, _top500, and _7d / _1m) - other rank bands")
     elif cmd == "alert":
         sym = arg.lstrip("$").strip()
         if not re.fullmatch(r"[A-Za-z0-9]{1,20}", sym):
