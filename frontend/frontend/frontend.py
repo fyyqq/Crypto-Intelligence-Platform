@@ -272,7 +272,6 @@ def _profile_pill() -> rx.Component:
 _NAV_LINKS = [
     ("News", "/news"),
     ("Narrative", "/narrative"),
-    ("Gainers & Losers", "/gainers-losers"),
     ("Chains", "/chains"),
     ("Tools", "/tools"),
 ]
@@ -292,7 +291,12 @@ def _dropdown_nav_item(label: str, href: str, entries: list[tuple[str, str]]) ->
     """A nav link with a hover dropdown listing (name, href) entries: News (its
     categories) and Tools (its sub-pages)."""
     return rx.box(
-        rx.hstack(_nav_link(label, href), rx.icon("chevron-down", size=14, color="var(--gray-10)"), spacing="1", align="center"),
+        rx.hstack(
+            _nav_link(label, href, tuple(entry_href for _, entry_href in entries)),
+            rx.icon("chevron-down", size=14, color="var(--gray-10)"),
+            spacing="1",
+            align="center",
+        ),
         rx.box(
             rx.box(
                 *[rx.link(name, href=entry_href, underline="none", class_name="nav-dropdown-item") for name, entry_href in entries],
@@ -312,10 +316,13 @@ _NAV_DROPDOWNS = {
 }
 
 
-def _nav_link(label: str, href: str) -> rx.Component:
+def _nav_link(label: str, href: str, also_active: tuple[str, ...] = ()) -> rx.Component:
     # Active on the page itself and on any sub-page (e.g. /news/<category>
-    # and /news/<category>/<article> keep "News" highlighted).
+    # and /news/<category>/<article> keep "News" highlighted). `also_active`
+    # adds other paths that belong under this link (Tools covers /gainers-losers).
     is_active = (CoinState.current_nav_path == href) | CoinState.current_nav_path.startswith(href + "/")
+    for extra in also_active:
+        is_active = is_active | (CoinState.current_nav_path == extra) | CoinState.current_nav_path.startswith(extra + "/")
     return rx.link(
         rx.text(label, size="2", weight="medium"),
         href=href,

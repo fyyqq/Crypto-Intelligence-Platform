@@ -70,7 +70,7 @@ class MarketStatusState(rx.State):
 
     @rx.var
     def season_left(self) -> str:
-        return f"calc({max(0, min(100, self.season_value))}% - 8px)"
+        return f"calc({max(0, min(100, self.season_value))}% - 6px)"
 
     @rx.event(background=True)
     async def load(self):

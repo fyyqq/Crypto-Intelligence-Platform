@@ -19,13 +19,13 @@ Reflex (Python) frontend in `frontend/`, FastAPI backend + scheduler in `app/`, 
 
 ## Pages and status (details in `docs/README.md`)
 
-Notifications `/notifications` · Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symbol]` · News `/news`, `/news/<cat>`, reader · Narrative `/narrative[/<slug>]` · Gainers & Losers `/gainers-losers` · Tools `/tools` (landing) + `/tools/market-indicators` + `/tools/market-charts` · Watchlist `/watchlist` · Alerts `/alerts` · `/login`, `/signup` · Chains `/chains` (placeholder).
+Notifications `/notifications` · Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symbol]` · News `/news`, `/news/<cat>`, reader · Narrative `/narrative[/<slug>]` · Gainers & Losers `/gainers-losers` (under Tools) · Tools `/tools` (landing) + `/tools/market-indicators` + `/tools/market-charts` · Watchlist `/watchlist` · Alerts `/alerts` · `/login`, `/signup` · Chains `/chains` (placeholder).
 
 ## Current State (2026-10-05)
 
 - Coin pages have a "Related News" link to `/narrative/<category>`; `/narrative/[narrative_slug]` exists. (The category/coin pill sliders above the coin news were removed on request.)
 - `/tools` is live (Fear & Greed, Altcoin Season (computed; the blockchaincenter embed was removed), BTC/ETH rainbow on the standard BTC curve with CoinMetrics 2010+ history, TradingView embeds, API-key popup). Details: `docs/tools.md`.
-- Gainers & Losers (`/gainers-losers`, in the header nav) is live: own % change from `price_snapshot` (hourly hot sync, run from the Reflex process by `news_catchup._hot_sync_loop`), 24h/7d/30d, Top 100-500. History started 2026-10-05, so boards show "collecting" until 20h / 6d / 28d of history exist. Tests: `python -m pytest tests` (needs `requirements-dev.txt`). Details: `docs/gainers-losers.md`.
+- Gainers & Losers (`/gainers-losers`, reached from the Tools dropdown / `/tools` card, no navbar link of its own) is live: own % change from `price_snapshot` (hourly hot sync, run from the Reflex process by `news_catchup._hot_sync_loop`), 24h/7d/30d, Top 100-500. History started 2026-10-05, so boards show "collecting" until 20h / 6d / 28d of history exist. Tests: `python -m pytest tests` (needs `requirements-dev.txt`). Details: `docs/gainers-losers.md`.
 - Gainers & Losers tiers are non-overlapping rank bands (Top 100, 101–200, …) and a calendar button shows past days' boards, saved daily (UTC) into `movers_daily` since 11 Oct 2026; also a 1h window, a per-board refresh icon (forced CMC top-500 sync, global 5-min cooldown) and a Change-column sort toggle (2026-10-12).
 - Header bell + `/notifications` (2026-10-12, **local only, not deployed**): every triggered price alert adds a notification; new kinds plug into `notification_service.KINDS`. Details: `docs/notifications.md`.
 - `/tools` split (2026-10-14, **local only, not deployed**): `/tools` is now a landing page with two link cards; Fear & Greed + Altcoin Season + Rainbow moved to `/tools/market-indicators`, the five TradingView charts to `/tools/market-charts`; the header Tools link has a hover dropdown to both. Details: `docs/tools.md`.
