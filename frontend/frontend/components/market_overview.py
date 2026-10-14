@@ -1,10 +1,12 @@
-"""Row of four equal-height cards above the homepage news strip. The first is
-the "Market Status" card (Fear & Greed, total market cap, top 20, Altcoin
-Season, from MarketStatusState); the other three are still empty placeholders
-(Trending Coins / Derivatives / promo)."""
+"""Row of four equal-height cards above the homepage news strip:
+1. Market Status (Fear & Greed, total market cap, top 20, Altcoin Season; MarketStatusState)
+2. Gainers & Losers (top 5 gainers / top 5 losers of the Top 100 over 24h, two pages; HomeMoversState)
+3. still an empty placeholder
+4. Community (sample posts for now: static dummy data, no real accounts)."""
 
 import reflex as rx
 
+from frontend.state.home_movers_state import HomeMoversState as H
 from frontend.state.market_status_state import MarketStatusState as M
 
 _CARD_HEIGHT = "300px"
@@ -170,10 +172,182 @@ def _market_status_card() -> rx.Component:
     )
 
 
+_CARD = dict(
+    display="flex",
+    flex_direction="column",
+    height=_CARD_HEIGHT,
+    width="100%",
+    padding="1em",
+    border_radius="12px",
+    border="1px solid var(--gray-a5)",
+    background="var(--gray-a2)",
+)
+
+
+def _card_title(text, href: str | None = None) -> rx.Component:
+    title = rx.hstack(
+        rx.heading(text, size="4", color="var(--gray-12)", white_space="nowrap"),
+        rx.icon("chevron-right", size=18, color="var(--gray-11)"),
+        spacing="1",
+        align="center",
+    )
+    return rx.link(title, href=href, underline="none") if href else title
+
+
+# ---- Gainers & Losers (top 5, two pages) ------------------------------------------------------
+
+def _mover_row(row: rx.Var[dict]) -> rx.Component:
+    return rx.link(
+        rx.hstack(
+            rx.text(row["position"], size="3", color="var(--gray-10)", width="1.1em", flex_shrink="0"),
+            rx.image(src=row["icon_url"], width="30px", height="30px", border_radius="50%", flex_shrink="0"),
+            rx.text(row["symbol"], size="3", weight="medium", color="var(--gray-12)", class_name="line-clamp-1", min_width="0"),
+            rx.spacer(),
+            rx.text(row["price"], size="3", color="var(--gray-12)", white_space="nowrap"),
+            rx.text(row["change"], size="3", weight="medium", color=row["color"], white_space="nowrap", min_width="5.2em", text_align="right"),
+            spacing="3",
+            align="center",
+            width="100%",
+        ),
+        href=row["href"],
+        underline="none",
+        color="inherit",
+        display="block",
+        width="100%",
+        padding_y="0.3em",
+        border_radius="8px",
+        _hover={"background": "var(--gray-a3)"},
+    )
+
+
+def _pager() -> rx.Component:
+    arrow = dict(variant="ghost", color_scheme="gray", size="1", cursor="pointer", on_click=H.flip_page)
+    return rx.hstack(
+        rx.icon_button(rx.icon("chevron-left", size=16), aria_label="Previous page", **arrow),
+        rx.text(H.page_label, size="2", color="var(--gray-11)", min_width="2.2em", text_align="center"),
+        rx.icon_button(rx.icon("chevron-right", size=16), aria_label="Next page", **arrow),
+        spacing="1",
+        align="center",
+    )
+
+
+def _movers_body() -> rx.Component:
+    return rx.cond(
+        ~H.loaded,
+        rx.vstack(*[rx.skeleton(height="34px", width="100%", border_radius="8px") for _ in range(5)], spacing="2", width="100%"),
+        rx.cond(
+            H.collecting != "",
+            rx.center(
+                rx.vstack(
+                    rx.icon("hourglass", size=24, color="var(--gray-9)"),
+                    rx.text("Collecting data for the 24h board", size="2", weight="medium"),
+                    rx.text("Ready in ", H.collecting, size="2", color="var(--gray-11)"),
+                    spacing="2",
+                    align="center",
+                ),
+                flex="1",
+            ),
+            rx.cond(
+                H.rows.length() > 0,
+                rx.vstack(rx.foreach(H.rows, _mover_row), spacing="1", width="100%", justify="between", flex="1"),
+                rx.center(rx.text("No data yet", size="2", color="var(--gray-11)"), flex="1"),
+            ),
+        ),
+    )
+
+
+def _movers_card() -> rx.Component:
+    return rx.box(
+        rx.hstack(
+            rx.vstack(
+                _card_title(H.title, "/gainers-losers"),
+                rx.text("24h · Top 100", size="1", color="var(--gray-10)"),
+                spacing="0",
+                align="start",
+            ),
+            _pager(),
+            justify="between",
+            align="start",
+            width="100%",
+            margin_bottom="0.4em",
+        ),
+        _movers_body(),
+        class_name="market-overview-card movers-card",
+        **_CARD,
+    )
+
+
+# ---- Community (sample posts) -------------------------------------------------------------------
+# Placeholder content: invented handles and headlines, no real accounts. Replace with real data later.
+_POSTS = [
+    {"name": "CryptoNova", "initial": "C", "color": "#7c5cff", "time": "2h", "score": "101.78", "coin": "$BTC",
+     "text": "Is Holding $83K, But Traders Are Preparing for Volatility. 👀…", "mood": ""},
+    {"name": "BlockSage", "initial": "B", "color": "#1f9d8b", "time": "2h", "score": "132.73", "coin": "",
+     "text": "🏦 A Major Bank Brings Bitcoin and ETH Trading to New Clients…", "mood": "Bullish"},
+]
+
+
+def _post(p: dict) -> rx.Component:
+    head = [
+        rx.text(p["name"], size="2", weight="bold", color="var(--gray-12)", white_space="nowrap"),
+        rx.icon("badge-check", size=15, color="var(--accent-10)", flex_shrink="0"),
+        rx.text(f"· {p['time']}", size="2", color="var(--gray-10)", white_space="nowrap"),
+    ]
+    if p["mood"]:
+        head += [
+            rx.icon("trending-up", size=14, color="var(--green-10)", flex_shrink="0"),
+            rx.text(p["mood"], size="2", weight="medium", color="var(--green-10)", white_space="nowrap"),
+        ]
+    text = rx.text(
+        *([rx.text(p["coin"] + " ", as_="span", color="var(--accent-11)")] if p["coin"] else []),
+        p["text"],
+        size="2",
+        color="var(--gray-12)",
+        class_name="line-clamp-2",
+    )
+    return rx.hstack(
+        rx.center(
+            rx.text(p["initial"], size="3", weight="bold", color="#ffffff"),
+            width="36px",
+            height="36px",
+            border_radius="50%",
+            background=p["color"],
+            flex_shrink="0",
+        ),
+        rx.vstack(
+            rx.hstack(*head, spacing="1", align="center", wrap="wrap"),
+            rx.text(f"{p['score']} Influence Score", size="1", color="var(--gray-10)"),
+            text,
+            spacing="0",
+            align="start",
+            min_width="0",
+            flex="1",
+        ),
+        spacing="3",
+        align="start",
+        width="100%",
+        padding="0.55em 0.75em",
+        border_radius="10px",
+        border="1px solid var(--gray-a5)",
+        background="var(--gray-a2)",
+    )
+
+
+def _community_card() -> rx.Component:
+    return rx.box(
+        _card_title("Community"),
+        rx.vstack(*[_post(p) for p in _POSTS], spacing="2", width="100%", margin_top="0.6em", flex="1", min_height="0"),
+        class_name="market-overview-card community-card",
+        **_CARD,
+    )
+
+
 def market_overview() -> rx.Component:
     return rx.grid(
         _market_status_card(),
-        *[_overview_card() for _ in range(3)],
+        _movers_card(),
+        _overview_card(),
+        _community_card(),
         # 1 column on phones, 2 on tablets, 4 in one row from desktop width.
         columns=rx.breakpoints(initial="1", sm="2", lg="4"),
         spacing="4",

@@ -69,3 +69,31 @@ def test_fng_arc_svg():
     assert cx > 60  # 62 is right of the middle
     assert float(re.search(r'<circle cx="([\d.]+)"', mts.fng_arc_svg(10)).group(1)) < 60
     assert ">100</text>" in mts.fng_arc_svg(150) and ">0</text>" in mts.fng_arc_svg(-5)  # clamped
+
+
+# ---- homepage Gainers & Losers card (price_snapshot_service.top_movers) --------------------
+
+from app.services import price_snapshot_service as ps  # noqa: E402
+
+
+def _chg(sym, rank, pct):
+    return {"coin_id": rank, "symbol": sym, "name": sym, "rank": rank, "price_now": 1.0, "price_then": 1.0,
+            "pct_change": pct, "volume_24h": 1e6, "then_at": None}
+
+
+def test_top_movers_takes_five_each_from_the_top_100(monkeypatch):
+    changes = [_chg(f"G{i}", i, i * 1.5) for i in range(1, 11)] + [_chg(f"L{i}", 10 + i, -i * 2.0) for i in range(1, 11)]
+    changes += [_chg("OUT", 150, 99.0), _chg("ZERO", 5, 0.0)]  # rank 150 is another band; 0% is in neither list
+    monkeypatch.setattr(ps, "window_status", lambda db, w: {"status": "ready", "hours_remaining": 0})
+    monkeypatch.setattr(ps, "compute_changes", lambda db, w: changes)
+    m = ps.top_movers(None)
+    assert m["status"] == "ready"
+    assert [c["symbol"] for c in m["gainers"]] == ["G10", "G9", "G8", "G7", "G6"]  # biggest first
+    assert [c["symbol"] for c in m["losers"]] == ["L10", "L9", "L8", "L7", "L6"]  # most negative first
+    assert "OUT" not in [c["symbol"] for c in m["gainers"]]
+
+
+def test_top_movers_while_the_window_is_collecting(monkeypatch):
+    monkeypatch.setattr(ps, "window_status", lambda db, w: {"status": "collecting", "hours_remaining": 7})
+    monkeypatch.setattr(ps, "compute_changes", lambda db, w: pytest.fail("must not compute before the window is ready"))
+    assert ps.top_movers(None) == {"status": "collecting", "hours_remaining": 7, "gainers": [], "losers": []}

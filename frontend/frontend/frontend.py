@@ -29,7 +29,7 @@ from frontend.components import (
 from frontend.components.alerts_page import alerts_content
 from frontend.components.notifications_page import notification_popup, notifications_content
 from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
-from frontend.state import CoinState, GainersLosersState, MarketStatusState, NewsDetailState, NewsState, NotificationState, ToolsState
+from frontend.state import CoinState, GainersLosersState, HomeMoversState, MarketStatusState, NewsDetailState, NewsState, NotificationState, ToolsState
 
 
 def _alerts_menu_item() -> rx.Component:
@@ -1451,7 +1451,7 @@ app.add_page(
     # `image=` above only sets the og:image social-preview meta tag — the
     # actual browser-tab favicon needs its own <link rel="icon"> tag.
     meta=[rx.el.link(rel="icon", href="/favicon_logo.png", type="image/png")],
-    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CoinState.live_sync_loop, MarketStatusState.load, NewsState.load_news, NewsState.watch_new_articles],
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CoinState.live_sync_loop, MarketStatusState.load, HomeMoversState.load, NewsState.load_news, NewsState.watch_new_articles],
 )
 # /news has real content (news_page_content(), NewsState) — registered on
 # its own so it can add NewsState.load_news to the shared on_load list below

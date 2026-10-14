@@ -393,6 +393,22 @@ def get_movers(
     }
 
 
+def top_movers(db: Session, window: str = "24h", bucket: int = 100, limit: int = 5) -> dict:
+    """The few biggest gainers and losers of one window and rank band, from a
+    single compute_changes pass (the homepage card). {"status", "hours_remaining",
+    "gainers", "losers"}; the lists are empty until the window is ready."""
+    status = window_status(db, window)
+    if status["status"] != "ready":
+        return {"status": status["status"], "hours_remaining": status["hours_remaining"], "gainers": [], "losers": []}
+    changes = compute_changes(db, window)
+    return {
+        "status": "ready",
+        "hours_remaining": 0,
+        "gainers": rank_movers(changes, bucket, "gainers", limit),
+        "losers": rank_movers(changes, bucket, "losers", limit),
+    }
+
+
 # ---- Daily history (the page's calendar) -----------------------------------
 def record_daily_movers(db: Session) -> int:
     """Saves the current board of every ready window under the UTC day of
