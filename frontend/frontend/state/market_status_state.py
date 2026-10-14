@@ -76,9 +76,9 @@ class MarketStatusState(rx.State):
     async def load(self):
         svc = _service()
         fng, season, status = await asyncio.gather(
-            asyncio.to_thread(svc.get_fear_greed, "alternative_me"),
-            asyncio.to_thread(svc.get_altcoin_season, "coingecko"),
-            asyncio.to_thread(svc.get_market_status),
+            asyncio.to_thread(svc.with_stale, "home:fng", lambda: svc.get_fear_greed("alternative_me")),
+            asyncio.to_thread(svc.with_stale, "home:season", lambda: svc.get_altcoin_season("coingecko")),
+            asyncio.to_thread(svc.with_stale, "home:status", svc.get_market_status),
             return_exceptions=True,
         )
         async with self:

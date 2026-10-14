@@ -97,3 +97,53 @@ def test_top_movers_while_the_window_is_collecting(monkeypatch):
     monkeypatch.setattr(ps, "window_status", lambda db, w: {"status": "collecting", "hours_remaining": 7})
     monkeypatch.setattr(ps, "compute_changes", lambda db, w: pytest.fail("must not compute before the window is ready"))
     assert ps.top_movers(None) == {"status": "collecting", "hours_remaining": 7, "gainers": [], "losers": []}
+
+
+# ---- with_stale: a failed refresh keeps the card filled -------------------------------------
+
+def test_with_stale_serves_the_last_good_value_and_backs_off(monkeypatch):
+    mts._last_good.clear()
+    mts._failed_at.clear()
+    calls = []
+    state = {"fail": False}
+
+    def fn():
+        calls.append(1)
+        if state["fail"]:
+            raise mts.ToolsDataError("429")
+        return {"v": len(calls)}
+
+    assert mts.with_stale("k", fn) == {"v": 1}
+    state["fail"] = True
+    assert mts.with_stale("k", fn) == {"v": 1}  # refresh failed: the last good value
+    assert len(calls) == 2
+    assert mts.with_stale("k", fn) == {"v": 1} and len(calls) == 2  # inside the 2-minute back-off: no new call
+    monkeypatch.setattr(mts.time, "time", lambda t=mts.time.time: t() + mts.RETRY_AFTER_FAILURE + 1)
+    assert mts.with_stale("k", fn) == {"v": 1} and len(calls) == 3  # retried after the back-off, still failing
+    state["fail"] = False
+    monkeypatch.setattr(mts.time, "time", lambda t=mts.time.time: t() + 2 * mts.RETRY_AFTER_FAILURE + 2)
+    assert mts.with_stale("k", fn) == {"v": 4}  # recovered
+
+
+def test_with_stale_raises_when_there_is_nothing_to_fall_back_on():
+    mts._last_good.clear()
+    mts._failed_at.clear()
+
+    def fn():
+        raise mts.ToolsDataError("down")
+
+    with pytest.raises(mts.ToolsDataError):
+        mts.with_stale("never-worked", fn)
+
+
+def test_with_stale_does_not_serve_a_value_older_than_six_hours(monkeypatch):
+    mts._last_good.clear()
+    mts._failed_at.clear()
+    mts.with_stale("old", lambda: 1)
+    monkeypatch.setattr(mts.time, "time", lambda t=mts.time.time: t() + mts.STALE_MAX_SECONDS + 5)
+
+    def fn():
+        raise mts.ToolsDataError("down")
+
+    with pytest.raises(mts.ToolsDataError):
+        mts.with_stale("old", fn)

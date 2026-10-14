@@ -633,6 +633,36 @@ def get_market_status() -> dict:
     return _cached("market:status", 300, _market_status)
 
 
+# Last good value per key, for the homepage card: CoinGecko's free API rate-limits
+# a server's IP after a few calls (HTTP 429 / connection reset), and a card that
+# blanks on one failed refresh is worse than one showing a slightly older figure.
+_last_good: dict[str, tuple[float, object]] = {}
+_failed_at: dict[str, float] = {}
+STALE_MAX_SECONDS = 6 * 3600
+RETRY_AFTER_FAILURE = 120
+
+
+def with_stale(key: str, fn):
+    """fn(), remembering the result. If fn fails (ToolsDataError), return the
+    last good result (up to 6 h old) and do not call fn again for 2 minutes;
+    raise when there is nothing usable."""
+    now = time.time()
+    good = _last_good.get(key)
+    usable = good is not None and now - good[0] < STALE_MAX_SECONDS
+    if usable and now - _failed_at.get(key, 0) < RETRY_AFTER_FAILURE:
+        return good[1]
+    try:
+        value = fn()
+    except ToolsDataError:
+        _failed_at[key] = now
+        if usable:
+            return good[1]
+        raise
+    _last_good[key] = (now, value)
+    _failed_at.pop(key, None)
+    return value
+
+
 def fng_arc_svg(value: int) -> str:
     """The Fear & Greed gauge for the homepage card: a semicircle of five
     separate colour segments with round ends, the value in the middle and a
