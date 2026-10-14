@@ -63,39 +63,56 @@ def clear_override(cmc_id: int) -> None:
         db.close()
 
 
-def search_options(query: str, limit: int = 30) -> list[dict]:
-    """TradingView's own listings for a ticker/name, for the picker: real spot
-    markets only (no perpetuals, no synthetic/index rows), each labelled CEX
-    or DEX. [] when TradingView can't be reached."""
+def _kind(tv, s: dict) -> str:
+    if tv._is_index(s):
+        return "Index"
+    if tv._is_perpetual(s):
+        return "Perp"
+    if s.get("type") == "futures":
+        return "Futures"
+    return "DEX" if tv._is_dex_listing(s) else "CEX"
+
+
+_MARKET_LABEL = {"CEX": "spot", "DEX": "DEX pool", "Perp": "perpetual", "Futures": "futures", "Index": "index"}
+
+
+def search_options(query: str, limit: int = 40, also: tuple[str, ...] = ()) -> list[dict]:
+    """Everything TradingView's Crypto tab lists for the query, for the picker:
+    spot markets, perpetuals, DEX pools and TradingView's own indexes, each
+    labelled (CEX / Perp / DEX / Futures / Index), in TradingView's order. A
+    ticker is also searched as "<ticker>USDT" (some listings, e.g. BingX's
+    CYBERLEEKUSDT.P, only show up for the pair name, as in TradingView's own
+    search box), plus any `also` queries (the coin's name); results are merged
+    without duplicates, indexes last. [] when TradingView can't be reached."""
     from app.services import tradingview_symbol_service as tv
 
     query = (query or "").strip()
     if not query:
         return []
-    rows = tv._search_tradingview(query) or []
+    queries = [query, *[q.strip() for q in also if q and q.strip()]]
+    if re.fullmatch(r"[A-Za-z0-9]{1,15}", query) and not query.upper().endswith("USDT"):
+        queries.append(f"{query}USDT")
     out: list[dict] = []
     seen: set[str] = set()
-    for s in rows:
-        if s.get("type") != "spot":
-            continue
-        typespecs = set(s.get("typespecs") or [])
-        if typespecs & {"synthetic", "index"} or "discontinued" in typespecs:
-            continue
-        prefix = (s.get("prefix") or s.get("exchange") or "").upper().replace(" ", "")
-        symbol = tv._EM_TAG_RE.sub("", s.get("symbol", "")).upper()
-        full = f"{prefix}:{symbol}"
-        if not prefix or full in seen or not _SYMBOL_RE.match(full):
-            continue
-        seen.add(full)
-        out.append(
-            {
-                "symbol": full,
-                "exchange": s.get("exchange", "") or prefix,
-                "description": tv._EM_TAG_RE.sub("", s.get("description", "")),
-                "kind": "DEX" if tv._is_dex_listing(s) else "CEX",
-            }
-        )
-        if len(out) >= limit:
-            break
-    out.sort(key=lambda o: o["kind"] != "CEX")  # CEX first, TradingView's own order within each
-    return out
+    for q in dict.fromkeys(queries):
+        for s in tv._search_tradingview(q) or []:
+            if "discontinued" in (s.get("typespecs") or []):
+                continue
+            prefix = (s.get("prefix") or s.get("exchange") or "").upper().replace(" ", "")
+            symbol = tv._EM_TAG_RE.sub("", s.get("symbol", "")).upper()
+            full = f"{prefix}:{symbol}"
+            if not prefix or full in seen or not _SYMBOL_RE.match(full):
+                continue
+            seen.add(full)
+            kind = _kind(tv, s)
+            out.append(
+                {
+                    "symbol": full,
+                    "exchange": s.get("exchange", "") or prefix,
+                    "description": tv._EM_TAG_RE.sub("", s.get("description", "")),
+                    "kind": kind,
+                    "market": _MARKET_LABEL[kind],
+                }
+            )
+    out.sort(key=lambda o: o["kind"] == "Index")  # stable: TradingView's order, indexes (market cap etc.) last
+    return out[:limit]

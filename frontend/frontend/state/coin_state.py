@@ -1017,7 +1017,25 @@ def _sync_and_rebuild_rows(cmc_ids: list[int]) -> dict[int, dict]:
         return {coin.cmc_id: _build_row(coin) for coin in updated_coins}
 
 
-def _fetch_better_description(symbol: str) -> tuple[int, str] | None:
+def _page_coin(old_db, OldCoin, symbol: str, cmc_id: int | None, *options):
+    """The Postgres row of the coin the page actually shows: by its cmc_id when
+    the page knows it, by ticker otherwise. Tickers are not unique: /coin/si is
+    both Super Inu and Sealwifhat (both $0 market cap), and picking "the
+    biggest by ticker" here updated the other one, so the page's chart waited
+    forever for a result that never came for its own coin."""
+    from sqlalchemy import select as sa_select
+
+    if cmc_id:
+        query = sa_select(OldCoin).where(OldCoin.cmc_id == cmc_id)
+        coin = old_db.scalars(query.options(*options) if options else query).first()
+        if coin is not None:
+            return coin
+    query = sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol))
+    matches = old_db.scalars(query.options(*options) if options else query).all()
+    return max(matches, key=lambda c: c.market_cap_usd or 0.0) if matches else None
+
+
+def _fetch_better_description(symbol: str, cmc_id: int | None = None) -> tuple[int, str] | None:
     """Blocking work for the on-demand description upgrade (see CoinState.
     refresh_coin_description) — same lookup-by-ticker-in-Postgres pattern as
     _fetch_business_summary below. Two independent, one-time-per-coin steps, each
@@ -1050,12 +1068,9 @@ def _fetch_better_description(symbol: str) -> tuple[int, str] | None:
 
     old_db = OldSessionLocal()
     try:
-        matches = old_db.scalars(
-            sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol)).options(selectinload(OldCoin.contracts))
-        ).all()
-        if not matches:
+        coin = _page_coin(old_db, OldCoin, symbol, cmc_id, selectinload(OldCoin.contracts))
+        if coin is None:
             return None
-        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
         original = coin.description
         upgrade_description(old_db, coin)
         generate_description_from_sources(old_db, coin)
@@ -1096,7 +1111,7 @@ def _format_market_pairs(pairs: list[dict]) -> list[dict]:
     ]
 
 
-def _fetch_market_pairs(symbol: str) -> tuple[int, list[dict]] | None:
+def _fetch_market_pairs(symbol: str, cmc_id: int | None = None) -> tuple[int, list[dict]] | None:
     """Blocking work for the on-demand Markets-section refresh (see
     CoinState.refresh_market_pairs) — same lookup-by-ticker-in-Postgres
     pattern as _fetch_business_summary above, delegating
@@ -1120,10 +1135,9 @@ def _fetch_market_pairs(symbol: str) -> tuple[int, list[dict]] | None:
 
     old_db = OldSessionLocal()
     try:
-        matches = old_db.scalars(sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol))).all()
-        if not matches:
+        coin = _page_coin(old_db, OldCoin, symbol, cmc_id)
+        if coin is None:
             return None
-        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
         pairs = get_market_pairs(old_db, coin)
         cmc_id = coin.cmc_id
         market_pairs_updated_at = coin.market_pairs_updated_at
@@ -1146,7 +1160,7 @@ def _fetch_market_pairs(symbol: str) -> tuple[int, list[dict]] | None:
     return cmc_id, pairs
 
 
-def _fetch_tradingview_dex_symbol(symbol: str) -> tuple[int, str | None] | None:
+def _fetch_tradingview_dex_symbol(symbol: str, cmc_id: int | None = None) -> tuple[int, str | None] | None:
     """Blocking work for CoinState.refresh_tradingview_dex_symbol — same
     lookup-by-ticker-in-Postgres pattern as _fetch_market_pairs above,
     delegating to tradingview_symbol_service's own "skip unless this coin
@@ -1169,10 +1183,9 @@ def _fetch_tradingview_dex_symbol(symbol: str) -> tuple[int, str | None] | None:
 
     old_db = OldSessionLocal()
     try:
-        matches = old_db.scalars(sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol))).all()
-        if not matches:
+        coin = _page_coin(old_db, OldCoin, symbol, cmc_id)
+        if coin is None:
             return None
-        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
         dex_symbol = resolve_dex_chart_symbol(old_db, coin)
         cmc_id = coin.cmc_id
         checked_at = coin.tradingview_dex_symbol_checked_at
@@ -1190,7 +1203,7 @@ def _fetch_tradingview_dex_symbol(symbol: str) -> tuple[int, str | None] | None:
     return cmc_id, dex_symbol
 
 
-def _fetch_defillama_unlocks_slug(symbol: str) -> tuple[int, str | None] | None:
+def _fetch_defillama_unlocks_slug(symbol: str, cmc_id: int | None = None) -> tuple[int, str | None] | None:
     """Blocking work for CoinState.refresh_defillama_unlocks_slug — same
     lookup-by-ticker-in-Postgres pattern as _fetch_tradingview_dex_symbol
     above, delegating to defillama_unlocks_service's own TTL (settings.
@@ -1212,10 +1225,9 @@ def _fetch_defillama_unlocks_slug(symbol: str) -> tuple[int, str | None] | None:
 
     old_db = OldSessionLocal()
     try:
-        matches = old_db.scalars(sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol))).all()
-        if not matches:
+        coin = _page_coin(old_db, OldCoin, symbol, cmc_id)
+        if coin is None:
             return None
-        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
         slug = resolve_unlocks_slug(old_db, coin)
         cmc_id = coin.cmc_id
         checked_at = coin.defillama_unlocks_checked_at
@@ -1233,7 +1245,7 @@ def _fetch_defillama_unlocks_slug(symbol: str) -> tuple[int, str | None] | None:
     return cmc_id, slug
 
 
-def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None, str] | None:
+def _fetch_business_summary(symbol: str, cmc_id: int | None = None) -> tuple[int, str, str | None, str] | None:
     """Blocking work for the on-demand business-summary refresh (see
     CoinState.refresh_business_summary) — same lookup-by-ticker-in-Postgres
     pattern as _fetch_better_description above,
@@ -1258,12 +1270,9 @@ def _fetch_business_summary(symbol: str) -> tuple[int, str, str | None, str] | N
 
     old_db = OldSessionLocal()
     try:
-        matches = old_db.scalars(
-            sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol)).options(selectinload(OldCoin.categories))
-        ).all()
-        if not matches:
+        coin = _page_coin(old_db, OldCoin, symbol, cmc_id, selectinload(OldCoin.categories))
+        if coin is None:
             return None
-        coin = max(matches, key=lambda c: c.market_cap_usd or 0.0)
         summary = get_business_summary(old_db, coin)
         if not summary:
             return None
@@ -2848,15 +2857,20 @@ class CoinState(rx.State):
 
     @rx.event(background=True)
     async def search_chart_options(self):
-        """TradingView's listings for the typed ticker/name (CEX first)."""
+        """Everything TradingView's Crypto tab lists for the typed ticker/name
+        (spot, perpetuals, DEX pools, indexes), in TradingView's order."""
         async with self:
             query = self.chart_search_query
+            coin = self.selected_coin or {}
+            # Searching the coin's own ticker also searches its name, so the list matches
+            # what TradingView's Crypto tab shows for either.
+            also = (coin.get("name", ""),) if query.strip().upper() == (coin.get("symbol") or "").upper() else ()
             self.chart_search_loading = True
         if _ROOT_FOR_APP not in sys.path:
             sys.path.insert(0, _ROOT_FOR_APP)
         from app.services import chart_override_service
 
-        options = await asyncio.to_thread(chart_override_service.search_options, query)
+        options = await asyncio.to_thread(chart_override_service.search_options, query, 40, also)
         async with self:
             if self.chart_search_query == query:
                 self.chart_options = options
@@ -2953,7 +2967,9 @@ class CoinState(rx.State):
         symbol = self.symbol.strip()
         if not symbol:
             return
-        result = await asyncio.to_thread(_fetch_better_description, symbol)
+        async with self:
+            page_cmc_id = (self.selected_coin or {}).get("cmc_id")
+        result = await asyncio.to_thread(_fetch_better_description, symbol, page_cmc_id)
         if result is None:
             return
         cmc_id, description = result
@@ -2976,7 +2992,9 @@ class CoinState(rx.State):
         symbol = self.symbol.strip()
         if not symbol:
             return
-        result = await asyncio.to_thread(_fetch_business_summary, symbol)
+        async with self:
+            page_cmc_id = (self.selected_coin or {}).get("cmc_id")
+        result = await asyncio.to_thread(_fetch_business_summary, symbol, page_cmc_id)
         if result is None:
             return
         cmc_id, summary, model, category = result
@@ -3010,7 +3028,9 @@ class CoinState(rx.State):
         symbol = self.symbol.strip()
         if not symbol:
             return
-        result = await asyncio.to_thread(_fetch_market_pairs, symbol)
+        async with self:
+            page_cmc_id = (self.selected_coin or {}).get("cmc_id")
+        result = await asyncio.to_thread(_fetch_market_pairs, symbol, page_cmc_id)
         if result is None:
             return
         cmc_id, pairs = result
@@ -3045,7 +3065,9 @@ class CoinState(rx.State):
         symbol = self.symbol.strip()
         if not symbol:
             return
-        result = await asyncio.to_thread(_fetch_tradingview_dex_symbol, symbol)
+        async with self:
+            page_cmc_id = (self.selected_coin or {}).get("cmc_id")
+        result = await asyncio.to_thread(_fetch_tradingview_dex_symbol, symbol, page_cmc_id)
         if result is None:
             return
         cmc_id, dex_symbol = result
@@ -3065,7 +3087,9 @@ class CoinState(rx.State):
         symbol = self.symbol.strip()
         if not symbol:
             return
-        result = await asyncio.to_thread(_fetch_defillama_unlocks_slug, symbol)
+        async with self:
+            page_cmc_id = (self.selected_coin or {}).get("cmc_id")
+        result = await asyncio.to_thread(_fetch_defillama_unlocks_slug, symbol, page_cmc_id)
         if result is None:
             return
         cmc_id, slug = result

@@ -38,17 +38,39 @@ def test_save_update_and_reset_are_permanent(store):
     assert svc.all_overrides() == {1: "BINANCE:BTCUSDT"}
 
 
-def test_search_options_cex_first_and_only_real_markets(monkeypatch):
+def test_search_options_lists_the_whole_crypto_tab(monkeypatch):
+    """The picker shows everything TradingView's Crypto tab lists (spot, perpetuals, DEX pools,
+    indexes) in TradingView's order, merging the ticker, the coin's name and "<ticker>USDT"."""
     from app.services import tradingview_symbol_service as tv
 
-    rows = [
-        {"symbol": "CYBERLEEKETH_3BCAF5.USD", "exchange": "Uniswap v4 Base", "prefix": "UNISWAP4BASE", "type": "spot",
-         "description": "CyberLeek / Ether on Base (0x3BCaF5C01751aD4812162Bed8773735f715cdc1d) in USD", "typespecs": ["crypto"]},
-        {"symbol": "CYBERLEEKUSD", "exchange": "CRYPTO", "type": "spot", "description": "CyberLeek", "typespecs": ["crypto", "synthetic"]},
-        {"symbol": "CYBERLEEKUSDT.P", "exchange": "BingX", "prefix": "BINGX", "type": "swap", "description": "perp", "typespecs": ["crypto"]},
-        {"symbol": "<em>CYBERLEEK</em>USDT", "exchange": "KCEX", "type": "spot", "description": "CyberLeek / USDT", "typespecs": ["crypto"]},
+    by_query = {
+        "cyberleek": [
+            {"symbol": "CYBERLEEK", "exchange": "CRYPTOCAP", "type": "index", "description": "Market Cap CYBERLEEK, $", "typespecs": ["crypto", "synthetic"]},
+            {"symbol": "<em>CYBERLEEK</em>USDT", "exchange": "KCEX", "type": "spot", "description": "CyberLeek / USDT", "typespecs": ["crypto"]},
+            {"symbol": "CYBERLEEKUSDT.P", "exchange": "LBank", "prefix": "LBANK", "type": "swap", "description": "CYBERLEEK / Tether USD PERPETUAL CONTRACT", "typespecs": ["crypto", "perpetual"]},
+            {"symbol": "CYBERLEEKETH_3BCAF5.USD", "exchange": "Uniswap v4 Base", "prefix": "UNISWAP4BASE", "type": "spot",
+             "description": "CyberLeek / Ether on Base (0x3BCaF5C01751aD4812162Bed8773735f715cdc1d) in USD", "typespecs": ["crypto"]},
+            {"symbol": "OLDUSDT", "exchange": "X", "type": "spot", "description": "gone", "typespecs": ["crypto", "discontinued"]},
+        ],
+        "cyberleekusdt": [
+            {"symbol": "CYBERLEEKUSDT", "exchange": "KCEX", "type": "spot", "description": "CyberLeek / USDT", "typespecs": ["crypto"]},
+            {"symbol": "CYBERLEEKUSDT.P", "exchange": "BingX", "prefix": "BINGX", "type": "swap", "description": "CyberLeek/USD Tether Perpetual Contract", "typespecs": ["crypto", "perpetual"]},
+        ],
+    }
+    asked = []
+    monkeypatch.setattr(tv, "_search_tradingview", lambda q: asked.append(q) or by_query.get(q.lower(), []))
+    out = svc.search_options("cyberleek", also=("CyberLeek",))
+    assert asked == ["cyberleek", "CyberLeek", "cyberleekUSDT"]  # ticker, the coin's name, then the pair name
+    assert [(o["symbol"], o["kind"], o["market"]) for o in out] == [
+        ("KCEX:CYBERLEEKUSDT", "CEX", "spot"),
+        ("LBANK:CYBERLEEKUSDT.P", "Perp", "perpetual"),
+        ("UNISWAP4BASE:CYBERLEEKETH_3BCAF5.USD", "DEX", "DEX pool"),
+        ("BINGX:CYBERLEEKUSDT.P", "Perp", "perpetual"),  # only found by "CYBERLEEKUSDT"
+        ("CRYPTOCAP:CYBERLEEK", "Index", "index"),  # indexes last
     ]
-    monkeypatch.setattr(tv, "_search_tradingview", lambda q: rows)
-    out = svc.search_options("cyberleek")
-    assert [(o["symbol"], o["kind"]) for o in out] == [("KCEX:CYBERLEEKUSDT", "CEX"), ("UNISWAP4BASE:CYBERLEEKETH_3BCAF5.USD", "DEX")]
     assert svc.search_options("  ") == []
+
+
+def test_a_perpetual_can_be_saved_permanently(store):
+    assert svc.set_override(42395, "bingx:siusdt.p") == "BINGX:SIUSDT.P"
+    assert svc.all_overrides() == {42395: "BINGX:SIUSDT.P"}

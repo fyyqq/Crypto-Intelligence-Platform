@@ -106,16 +106,104 @@ def test_cex_listing_beats_dex_pools_and_ignores_chain():
 def test_dex_pool_on_another_chain_is_never_charted():
     from app.services.tradingview_symbol_service import _pick_best_match
 
-    dex_only = [r for r in CYBERLEEK if r["exchange"] != "KCEX"]
-    assert _pick_best_match(dex_only, "CYBERLEEK", "CyberLeek", {"solana"}) is None  # Base pool, Solana coin
+    no_spot = [r for r in CYBERLEEK if r["exchange"] != "KCEX"]
+    assert _pick_best_match(no_spot, "CYBERLEEK", "CyberLeek", {"solana"}) == "BINGX:CYBERLEEKUSDT.P"  # a perpetual trades the coin itself
+    dex_only = [r for r in no_spot if r["type"] != "swap" and r["exchange"] != "CRYPTO"]
+    assert _pick_best_match(dex_only, "CYBERLEEK", "CyberLeek", {"solana"}) is None  # Base pool, Solana coin: never
 
 
 def test_preferred_cex_wins_and_dex_on_own_chain_is_used():
     from app.services.tradingview_symbol_service import _ecosystem_hints, _pick_best_match
 
     rows = [_tv("ABCUSDT", "KCEX", "Abc / USDT"), _tv("ABCUSDT", "Binance", "Abc / TetherUS", prefix="BINANCE")]
-    assert _pick_best_match(rows, "ABC", "Abc", set()) == "BINANCE:ABCUSDT"
+    assert _pick_best_match(rows, "ABC", "Abc", set()) == "BINANCE:ABCUSDT"  # a listed big exchange beats an unlisted one
     pools = [_tv("ABCSOL_1A2B3C.USD", "Raydium", "Abc / SOL on Solana (So11111111111111111111111111111111111111112) in USD", prefix="RAYDIUM", currency="USD"),
              _tv("ABCWETH_9F.USD", "Uniswap v4 Base", "Abc / WETH on Base (0x9f00000000) in USD", prefix="UNISWAP4BASE", currency="USD")]
     assert _pick_best_match(pools, "ABC", "Abc", _ecosystem_hints(["Solana Ecosystem", "Memes"])) == "RAYDIUM:ABCSOL_1A2B3C.USD"
-    assert _pick_best_match(pools, "ABC", "Abc", set()) is None  # two chains, no hint: don't guess
+    # two chains and no chain hint: the first pool that names the coin, in TradingView's order (since
+    # 2026-10-15, on request: better a chart to fix by hand with the report icon than none)
+    assert _pick_best_match(pools, "ABC", "Abc", set()) == "RAYDIUM:ABCSOL_1A2B3C.USD"
+
+
+# ---- Crypto-tab search: Super Inu ("SI") and friends -------------------------------------------
+SUPER_INU_BY_NAME = [  # TradingView's Crypto tab for "Super Inu", in its order
+    _tv("SIUSDT", "MEXC", "Super Inu / USDT"),
+    _tv("SIUSDT.P", "BingX", "Super Inu/USD Tether Perpetual Contract", type_="swap", prefix="BINGX", typespecs=("crypto", "perpetual")),
+    _tv("SISUPERUSD", "CRYPTO", "Super Inu", currency="USD", typespecs=("crypto", "cryptoasset", "synthetic")),
+    _tv("SIUSDT", "Gate", "Super Inu/Tether", prefix="GATE"),
+    _tv("SIUSDT_4F423F", "PancakeSwap v2 BNB chain", "Super Inu / Tether USD on BSC (0x4f423F1B98DF1063628052)", prefix="PANCAKESWAP"),
+]
+SI_BY_TICKER = [  # "SI": a perpetual of an unnamed "SI" first, then other coins sharing the ticker
+    _tv("SIUSDT.P", "MEXC", "SI / Tether PERPETUAL FUTURES", type_="swap", typespecs=("crypto", "perpetual")),
+    _tv("SIUSDT", "MEXC", "Super Inu / USDT"),
+    _tv("SIUSDT_76A67F", "PancakeSwap v2 BNB chain", "SUPER INTELLIGENCE / Tether USD on BSC (0x76A67f4e49426)", prefix="PANCAKESWAP"),
+    _tv("SIUSDT_273346", "Uniswap v4 BNB chain", "SpaceX Inu / Tether USD on BNB Chain (BSC) (0x2733462A8)", prefix="UNISWAP4BSC"),
+]
+
+
+def test_super_inu_gets_its_cex_spot_listing():
+    from app.services.tradingview_symbol_service import _ecosystem_hints, _pick_best_match
+
+    hints = _ecosystem_hints(["Solana Ecosystem", "Memes"])
+    assert _pick_best_match(SUPER_INU_BY_NAME, "SI", "Super Inu", hints) == "MEXC:SIUSDT"
+    assert _pick_best_match(SI_BY_TICKER, "SI", "Super Inu", hints) == "MEXC:SIUSDT"  # the named spot beats the bare perp
+
+
+def test_cex_priority_follows_the_app_wide_order():
+    from app.services.tradingview_symbol_service import _pick_best_match
+
+    rows = [_tv("ABCUSDT", "Binance", "Abc / TetherUS", prefix="BINANCE"), _tv("ABCUSDT", "Bybit", "Abc / USDT", prefix="BYBIT"), _tv("ABCUSDT", "MEXC", "Abc / USDT")]
+    assert _pick_best_match(rows, "ABC", "Abc", set()) == "MEXC:ABCUSDT"  # MEXC > KuCoin > HTX > Bybit > Binance
+
+
+def test_perpetual_when_there_is_no_spot_listing():
+    from app.services.tradingview_symbol_service import _pick_best_match
+
+    rows = [_tv("XYZUSDT.P", "LBank", "XYZ coin / Tether USD PERPETUAL CONTRACT", type_="swap", prefix="LBANK", typespecs=("crypto", "perpetual"))]
+    assert _pick_best_match(rows, "XYZ", "XYZ coin", set()) == "LBANK:XYZUSDT.P"
+
+
+def test_first_listing_that_names_the_coin_is_the_fallback_but_never_another_coin():
+    from app.services.tradingview_symbol_service import _pick_best_match
+
+    # only pools on two venues and no known chain: the first one that names the coin (TradingView's order)
+    pools = [_tv("FOOWETH_1A.USD", "Uniswap v4 Base", "Foo Token / WETH on Base (0x1a00000000)", prefix="UNISWAP4BASE", currency="USD"),
+             _tv("FOOBNB_2B", "PancakeSwap v2 BNB chain", "Foo Token / WBNB on BSC (0x2b00000000)", prefix="PANCAKESWAP")]
+    assert _pick_best_match(pools, "FOO", "Foo Token", set()) == "UNISWAP4BASE:FOOWETH_1A.USD"
+    # same ticker, different coins only: nothing (SpaceX Inu / Super Intelligence are not Super Inu)
+    others = [r for r in SI_BY_TICKER if "Super Inu" not in r["description"] and ".P" not in r["symbol"]]
+    assert _pick_best_match(others, "SI", "Super Inu", set()) is None
+
+
+def test_crypto_index_is_the_last_resort():
+    from app.services.tradingview_symbol_service import _pick_best_match
+
+    only_index = [_tv("SISUPERUSD", "CRYPTO", "Super Inu", currency="USD", typespecs=("crypto", "cryptoasset", "synthetic"))]
+    assert _pick_best_match(only_index, "SI", "Super Inu", set()) == "CRYPTO:SISUPERUSD"
+
+
+def test_resolver_searches_the_name_first_and_never_calls_coingecko(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services import tradingview_symbol_service as tv
+
+    asked = []
+    monkeypatch.setattr(tv, "_search_tradingview", lambda q: asked.append(q) or (SUPER_INU_BY_NAME if q == "Super Inu" else SI_BY_TICKER))
+    monkeypatch.setattr("app.services.market_pairs_service.get_market_pairs", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no CoinGecko call")))
+    coin = SimpleNamespace(symbol="SI", name="Super Inu", contracts=[], categories=[SimpleNamespace(name="Solana Ecosystem")],
+                           tradingview_dex_symbol=None, tradingview_dex_symbol_checked_at=None)
+    db = SimpleNamespace(add=lambda c: None, commit=lambda: None)
+    assert tv.resolve_dex_chart_symbol(db, coin) == "MEXC:SIUSDT"
+    assert asked == ["Super Inu"]  # found by name: the noisy ticker search is not needed
+    assert coin.tradingview_dex_symbol_checked_at is not None
+
+
+def test_resolver_keeps_the_old_symbol_when_tradingview_is_down(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services import tradingview_symbol_service as tv
+
+    monkeypatch.setattr(tv, "_search_tradingview", lambda q: None)
+    coin = SimpleNamespace(symbol="SI", name="Super Inu", contracts=[], categories=[], tradingview_dex_symbol="MEXC:SIUSDT", tradingview_dex_symbol_checked_at=None)
+    db = SimpleNamespace(add=lambda c: (_ for _ in ()).throw(AssertionError("nothing to save")), commit=lambda: None)
+    assert tv.resolve_dex_chart_symbol(db, coin) == "MEXC:SIUSDT" and coin.tradingview_dex_symbol_checked_at is None

@@ -2,7 +2,7 @@
 1. Market Status (Fear & Greed, total market cap, top 20, Altcoin Season; MarketStatusState)
 2. Gainers & Losers (top 5 gainers / top 5 losers of the Top 100 over 24h, two pages; HomeMoversState)
 3. still an empty placeholder
-4. Incoming News (sample items for now: static dummy data, no real accounts; was titled "Community").
+4. Incoming News (skeleton placeholder rows until real items exist; was titled "Community").
 
 Layout spec (matched to CoinMarketCap's cards, 2026-10-14): every card is 244px
 tall with 16px padding and a one-line, 24px title row. Market Status is a 2 x 3
@@ -271,50 +271,21 @@ def _movers_card() -> rx.Component:
     )
 
 
-# ---- Incoming News (sample items) -------------------------------------------------------------------
-# Placeholder content: invented handles and headlines, no real accounts. Replace with real data later.
-_POSTS = [
-    {"name": "CryptoNova", "initial": "C", "color": "#7c5cff", "time": "2h", "score": "101.78", "coin": "$BTC",
-     "text": "Is Holding $83K, But Traders Are Preparing for Volatility. 👀…", "mood": ""},
-    {"name": "BlockSage", "initial": "B", "color": "#1f9d8b", "time": "2h", "score": "132.73", "coin": "",
-     "text": "🏦 A Major Bank Brings Bitcoin and ETH Trading to New Clients…", "mood": "Bullish"},
-]
+# ---- Incoming News (placeholder) -------------------------------------------------------------
+# No real items yet: two skeleton rows in the shape of a post (avatar, name line, sub line, two text
+# lines), pulsing like every other loading state, instead of invented sample posts.
 
-
-def _post(p: dict) -> rx.Component:
-    head = [
-        rx.text(p["name"], size="2", weight="bold", color="var(--gray-12)", white_space="nowrap", overflow="hidden", text_overflow="ellipsis", min_width="0"),
-        rx.icon("badge-check", size=14, color="var(--accent-10)", flex_shrink="0"),
-        rx.text(f"· {p['time']}", size="1", color="var(--gray-10)", white_space="nowrap"),
-    ]
-    if p["mood"]:
-        head += [
-            rx.icon("trending-up", size=13, color="var(--green-10)", flex_shrink="0"),
-            rx.text(p["mood"], size="1", weight="medium", color="var(--green-10)", white_space="nowrap"),
-        ]
-    text = rx.text(
-        *([rx.text(p["coin"] + " ", as_="span", color="var(--accent-11)")] if p["coin"] else []),
-        p["text"],
-        size="1",
-        color="var(--gray-12)",
-        class_name="line-clamp-2",
-        line_height="1.4",
-    )
+def _post_skeleton() -> rx.Component:
     return rx.hstack(
-        rx.center(
-            rx.text(p["initial"], size="2", weight="bold", color="#ffffff"),
-            width="30px",
-            height="30px",
-            border_radius="50%",
-            background=p["color"],
-            flex_shrink="0",
-        ),
+        rx.skeleton(width="30px", height="30px", border_radius="50%", flex_shrink="0"),
         rx.vstack(
-            rx.hstack(*head, spacing="1", align="center", flex_wrap="nowrap", width="100%", min_width="0"),
-            rx.text(f"{p['score']} Influence Score", size="1", color="var(--gray-10)"),
-            text,
-            spacing="0",
+            rx.skeleton(height="12px", width="55%", border_radius="4px"),
+            rx.skeleton(height="10px", width="35%", border_radius="4px"),
+            rx.skeleton(height="10px", width="100%", border_radius="4px"),
+            rx.skeleton(height="10px", width="80%", border_radius="4px"),
+            spacing="2",
             align="start",
+            width="100%",
             min_width="0",
             flex="1",
         ),
@@ -330,7 +301,7 @@ def _post(p: dict) -> rx.Component:
 def _community_card() -> rx.Component:
     return rx.box(
         _card_title("Incoming News"),
-        rx.vstack(*[_post(p) for p in _POSTS], spacing="2", width="100%", margin_top="8px", flex="1", min_height="0"),
+        rx.vstack(_post_skeleton(), _post_skeleton(), spacing="2", width="100%", margin_top="8px", flex="1", min_height="0"),
         class_name="market-overview-card community-card",
         **_CARD,
     )

@@ -1818,14 +1818,23 @@ def _chart_option_row(option: rx.Var[dict]) -> rx.Component:
     return rx.hstack(
         rx.badge(
             option["kind"],
-            color_scheme=rx.cond(option["kind"] == "CEX", "green", "orange"),
+            color_scheme=rx.match(
+                option["kind"],
+                ("CEX", "green"),
+                ("Perp", "violet"),
+                ("DEX", "orange"),
+                ("Futures", "blue"),
+                "gray",
+            ),
             variant="soft",
             size="1",
             flex_shrink="0",
+            min_width="3.6em",
+            justify_content="center",
         ),
         rx.vstack(
-            rx.text(option["symbol"], size="2", weight="bold", color="var(--gray-12)"),
-            rx.text(option["exchange"], " · ", option["description"], size="1", color="var(--gray-11)", class_name="line-clamp-1"),
+            rx.text(option["symbol"], size="2", weight="bold", color="var(--gray-12)", class_name="line-clamp-1"),
+            rx.text(option["exchange"], " · ", option["market"], " · ", option["description"], size="1", color="var(--gray-11)", class_name="line-clamp-1"),
             spacing="0",
             align="start",
             min_width="0",
@@ -1854,8 +1863,8 @@ def _chart_picker_dialog() -> rx.Component:
         rx.dialog.content(
             rx.dialog.title("Chart for ", coin["name"], margin="0"),
             rx.dialog.description(
-                "Pick the market TradingView should chart for this coin. Saved permanently for everyone, "
-                "until you reset it.",
+                "Pick the market TradingView should chart for this coin: everything in TradingView's Crypto tab "
+                "(spot, perpetual, DEX). Saved permanently for everyone, until you reset it.",
                 size="2",
                 color_scheme="gray",
                 margin_top="0.25em",
@@ -1897,7 +1906,7 @@ def _chart_picker_dialog() -> rx.Component:
                         rx.text("No TradingView markets found. Try another search, or type the symbol below.", size="2", color="var(--gray-11)"),
                     ),
                 ),
-                max_height="320px",
+                max_height="360px",
                 overflow_y="auto",
                 width="100%",
                 margin_top="0.75em",

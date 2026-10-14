@@ -63,6 +63,10 @@ def needs_refresh(coin: Coin) -> bool:
 
 
 def _search_tradingview(ticker: str) -> list[dict] | None:
+    """TradingView's own symbol search with the "Crypto" tab selected
+    (search_type=crypto): only crypto listings, in TradingView's order. Much
+    faster and cleaner than an unfiltered search: "SI" alone returned silver
+    futures and stocks in 6.5s, the Crypto tab returns Super Inu in 0.8s."""
     try:
         resp = requests.get(
             _SEARCH_URL,
@@ -71,6 +75,7 @@ def _search_tradingview(ticker: str) -> list[dict] | None:
                 "hl": "1",
                 "exchange": "",
                 "lang": "en",
+                "search_type": "crypto",
                 "domain": "production",
             },
             headers=_HEADERS,
@@ -110,8 +115,20 @@ _DEX_EXCHANGE_RE = re.compile(
 )
 _ADDRESS_IN_DESC_RE = re.compile(r"\((0x[0-9a-fA-F]{6,}|[1-9A-HJ-NP-Za-km-z]{30,})\)")
 _CEX_QUOTES = ("USDT", "USDC", "USD", "FDUSD")
-# Preferred real exchanges, best first; any other CEX comes after these.
-_CEX_ORDER = ["BINANCE", "OKX", "BYBIT", "BITGET", "GATEIO", "KUCOIN", "MEXC", "HTX", "COINBASE", "KRAKEN"]
+# Preferred real exchanges, best first; any other CEX comes after these, in
+# TradingView's own order. Same chart priority as the coin page's CEX-pairs path
+# (coin_state._EXCHANGE_PRIORITY: MEXC > KuCoin > HTX > Bybit), then the big ones.
+_CEX_ORDER = ["MEXC", "KUCOIN", "HTX", "BYBIT", "BINANCE", "OKX", "BITGET", "GATE", "GATEIO", "COINBASE", "KRAKEN"]
+
+
+def _is_perpetual(s: dict) -> bool:
+    return s.get("type") == "swap" or "perpetual" in (s.get("typespecs") or []) or _EM_TAG_RE.sub("", s.get("symbol", "")).upper().endswith(".P")
+
+
+def _is_index(s: dict) -> bool:
+    """TradingView's own aggregates: CRYPTO:<coin>USD price index, CRYPTOCAP market cap/dominance."""
+    typespecs = set(s.get("typespecs") or [])
+    return s.get("type") == "index" or bool(typespecs & {"synthetic", "cryptoasset"})
 
 
 def _is_dex_listing(s: dict) -> bool:
@@ -122,72 +139,92 @@ def _is_dex_listing(s: dict) -> bool:
 def _pick_best_match(
     symbols: list[dict], ticker: str, coin_name: str, chain_hints: set[str]
 ) -> str | None:
-    """The chart symbol for a coin with no cached CEX pair, from TradingView's
-    own search results. Real spot listings only (no perpetuals, no
-    synthetic/index/discontinued rows such as "CRYPTO:XUSD").
+    """The chart symbol for a coin from TradingView's Crypto-tab search results
+    (rows in TradingView's own order), CEX first:
 
-    1. **CEX first** (rule since 2026-10-13): a centralized-exchange spot
-       listing "{TICKER}{USDT|USDC|USD|FDUSD}" whose description names this
-       coin, preferred exchanges first (_CEX_ORDER), then any other CEX
-       (e.g. KCEX for CyberLeek). A CEX listing is not chain-specific, so no
-       chain check: it trades the coin itself.
-    2. **DEX only on the coin's own chain**: a DEX pool (Uniswap, Raydium,
-       PumpSwap...) is only taken when its venue/description matches one of
-       chain_hints (the coin's contract platforms or its "X Ecosystem"
-       category). Same-name tokens on other chains are common for memecoins
-       (CyberLeek is Solana-only, but TradingView lists two "CyberLeek" pools
-       on Base; "MUMU" exists on three chains), so with no chain hint at all a
-       DEX pool is only taken when every DEX candidate is on one single
-       venue/chain; otherwise nothing ("don't guess" beats charting the wrong
-       coin). Among chain-confirmed pools: name match + ".USD" variant
-       first (keeps the chart's axis in USD like the page), then name match,
-       then USD, then the first.
+    1. **CEX spot**: "{TICKER}{USDT|USDC|USD|FDUSD}" on a centralized exchange
+       whose description names this coin, _CEX_ORDER first (MEXC, KuCoin,
+       HTX, Bybit, Binance...), then TradingView's order. Not chain-specific:
+       it trades the coin itself.
+    2. **CEX perpetual** ("{TICKER}USDT.P"), same checks and order.
+    3. **DEX only on the coin's own chain** (chain_hints = its contract
+       platforms or "X Ecosystem" category). Same-name tokens on other chains
+       are common for memecoins (CyberLeek is Solana-only, but TradingView
+       lists two "CyberLeek" pools on Base), so with no chain hint a pool is
+       only taken when every DEX candidate is on one single venue. Name match
+       + ".USD" variant first (keeps the axis in USD), then name match, then
+       USD, then the first.
+    4. **The first listing that names this coin**, whatever its kind (spot,
+       perpetual, or a pool when the coin's chain is unknown), in TradingView's
+       order: what a person would pick from the top of the Crypto tab. Only when
+       its description contains the coin's name, so a same-ticker different coin
+       ("SI" is also SpaceX Inu and Super Intelligence) is never charted, and
+       never a pool on a chain the coin is known not to be on.
+    5. **TradingView's CRYPTO:<coin> price index** with the coin's exact name.
+    Otherwise None (the page shows "No live chart"; the report icon picks one).
     """
     ticker_upper = ticker.upper()
     name_lower = re.sub(r"\s*\([^)]*\)\s*$", "", coin_name).strip().lower() if coin_name else ""
-    cex: list[tuple[int, int, str]] = []
+    cex_spot: list[tuple[int, int, int, str]] = []
+    cex_perp: list[tuple[int, int, str]] = []
     dex: list[tuple[bool, bool, bool, str, str]] = []
-    for s in symbols:
-        if s.get("type") != "spot":
-            continue
+    named_any: list[str] = []
+    index_rows: list[str] = []
+    for pos, s in enumerate(symbols):
         typespecs = set(s.get("typespecs") or [])
-        if typespecs & {"synthetic", "index"} or "discontinued" in typespecs:
+        if "discontinued" in typespecs:
             continue
         symbol = _EM_TAG_RE.sub("", s.get("symbol", "")).upper()
-        if not symbol.startswith(ticker_upper):
-            continue
         prefix = (s.get("prefix") or s.get("exchange") or "").upper().replace(" ", "")
-        if not prefix:
+        if not prefix or not symbol:
             continue
         description = _EM_TAG_RE.sub("", s.get("description", "")).lower()
         name_matches = bool(name_lower) and name_lower in description
-        if not _is_dex_listing(s):
-            quote = symbol[len(ticker_upper):]
-            if quote in _CEX_QUOTES and (name_matches or description.startswith(ticker.lower())):
-                rank = _CEX_ORDER.index(prefix) if prefix in _CEX_ORDER else len(_CEX_ORDER)
-                cex.append((rank, _CEX_QUOTES.index(quote), f"{prefix}:{symbol}"))
+        full = f"{prefix}:{symbol}"
+        if _is_index(s):
+            if s.get("type") != "index" and name_lower and description.strip() == name_lower and symbol.startswith(ticker_upper):
+                index_rows.append(full)
             continue
+        is_dex = _is_dex_listing(s)
         haystack = f"{description} {s.get('exchange', '').lower()}"
         chain_matches = any(hint in haystack for hint in chain_hints)
-        is_usd = (s.get("currency_code") or "").upper() == "USD"
-        dex.append((chain_matches, name_matches, is_usd, f"{prefix}:{symbol}", s.get("exchange", "")))
+        # A pool on a chain the coin is known NOT to be on is a different token with the same
+        # name (CyberLeek is Solana-only; TradingView's "CyberLeek" pools are on Base): never charted.
+        if name_matches and (not is_dex or not chain_hints or chain_matches):
+            named_any.append(full)
+        if not symbol.startswith(ticker_upper):
+            continue
+        rank = _CEX_ORDER.index(prefix) if prefix in _CEX_ORDER else len(_CEX_ORDER)
+        if is_dex:
+            if s.get("type") != "spot":
+                continue
+            is_usd = (s.get("currency_code") or "").upper() == "USD"
+            dex.append((chain_matches, name_matches, is_usd, full, s.get("exchange", "")))
+            continue
+        if not (name_matches or description.startswith(ticker.lower())):
+            continue
+        if _is_perpetual(s):
+            quote = symbol[len(ticker_upper):].removesuffix(".P")
+            if quote in _CEX_QUOTES:
+                cex_perp.append((rank, pos, full))
+        elif s.get("type") == "spot":
+            quote = symbol[len(ticker_upper):]
+            if quote in _CEX_QUOTES:
+                cex_spot.append((rank, _CEX_QUOTES.index(quote), pos, full))
 
-    if cex:
-        cex.sort()
-        return cex[0][2]
-    if not dex:
-        return None
-    if chain_hints:
-        dex = [d for d in dex if d[0]]
-        if not dex:
-            return None
-    elif len({d[4] for d in dex}) > 1:
-        return None  # pools on several venues/chains and no idea which chain is ours
-    for want_name, want_usd in ((True, True), (True, False), (False, True), (False, False)):
-        for _, name_matches, is_usd, resolved, _venue in dex:
-            if name_matches == want_name and is_usd == want_usd:
-                return resolved
-    return dex[0][3]
+    if cex_spot:
+        return sorted(cex_spot)[0][3]
+    if cex_perp:
+        return sorted(cex_perp)[0][2]
+    if dex:
+        candidates = [d for d in dex if d[0]] if chain_hints else (dex if len({d[4] for d in dex}) == 1 else [])
+        for want_name, want_usd in ((True, True), (True, False), (False, True), (False, False)):
+            for _, name_matches, is_usd, resolved, _venue in candidates:
+                if name_matches == want_name and is_usd == want_usd:
+                    return resolved
+    if named_any:
+        return named_any[0]
+    return index_rows[0] if index_rows else None
 
 
 def _ecosystem_hints(category_names: list[str]) -> set[str]:
@@ -199,40 +236,35 @@ def _ecosystem_hints(category_names: list[str]) -> set[str]:
 
 
 def resolve_dex_chart_symbol(db: Session, coin: Coin) -> str | None:
-    """Returns this coin's cached last-resort TradingView symbol (refreshing
-    from TradingView's search API first if the cache is stale — see
-    needs_refresh), or None if this coin genuinely has no real chart
-    anywhere TradingView tracks. Never raises.
-
-    Skips the external call entirely (no checked_at write either, so a
-    coin that later loses its only CEX pair still gets a fresh check next
-    visit) whenever this coin already has at least one real CEX market
-    pair cached — market_pairs_service.py's own get_market_pairs already
-    ran as part of the same page's on_load, so this is just reading its
-    already-cached result, never a second network call. This module exists
-    specifically for the CEX-empty case (confirmed live for zKML, a
-    Uniswap-only listing) — a coin with a real CEX pair already resolves
-    through the fast, purely-local _resolve_tradingview_symbol path in
-    coin_state.py, and never needs TradingView's own search API at all.
+    """This coin's TradingView chart symbol from TradingView's own Crypto-tab
+    search (see _pick_best_match), cached in Postgres for
+    settings.tradingview_symbol_ttl_hours (24h). coin_state._resolve_chart_symbol
+    still prefers a symbol built from the coin's own CEX market pairs and only
+    falls back to this one, but this no longer waits for those pairs (it used
+    to call get_market_pairs first, a CoinGecko round trip, and only then
+    search), so a coin with no usable CEX pair gets its chart in about a
+    second. Searches the coin's name first (much more specific than a short
+    ticker: "Super Inu" vs "SI"), then its ticker. Never raises.
     """
-    from app.services.market_pairs_service import get_market_pairs
-
-    pairs = get_market_pairs(db, coin)
-    if any(not p.get("is_dex") for p in pairs):
-        return None
-
     if not needs_refresh(coin):
         return coin.tradingview_dex_symbol
 
-    symbols = _search_tradingview(coin.symbol)
     hints = _chain_hints([c.platform_name for c in coin.contracts]) or _ecosystem_hints(
         [c.name for c in coin.categories]
     )
-    resolved = (
-        _pick_best_match(symbols, coin.symbol, coin.name or "", hints)
-        if symbols is not None
-        else coin.tradingview_dex_symbol
-    )
+    name = re.sub(r"\s*\([^)]*\)\s*$", "", coin.name or "").strip()
+    resolved = None
+    searched = False
+    for query in dict.fromkeys(q for q in (name, coin.symbol) if q):
+        symbols = _search_tradingview(query)
+        if symbols is None:
+            continue
+        searched = True
+        resolved = _pick_best_match(symbols, coin.symbol, coin.name or "", hints)
+        if resolved:
+            break
+    if not searched:  # TradingView unreachable: keep what we had, try again next view
+        return coin.tradingview_dex_symbol
 
     coin.tradingview_dex_symbol = resolved
     coin.tradingview_dex_symbol_checked_at = datetime.utcnow()

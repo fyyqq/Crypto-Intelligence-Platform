@@ -88,6 +88,7 @@ def _live_price_for(client: httpx.Client, item: dict) -> float | None:
     if ":" in chart:
         exchange, pair = chart.split(":", 1)
         exchange = _EXCHANGE_ALIASES.get(exchange, exchange)
+        pair = pair.removesuffix(".P")  # a perpetual chart: price its spot pair (perp tracks spot)
         # A chart pair quoted in a foreign fiat or DEX pool can't be priced
         # here; _price just returns None for unknown exchanges. The chart's
         # own pair is the coin itself, so it gets a wider sanity band than a
