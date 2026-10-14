@@ -168,9 +168,11 @@ Per explicit request (`el-06/07`): anything that moves to another page is now a 
 </details>
 
 <details>
-<summary><strong>🧱 Overview cards row (placeholders)</strong></summary>
+<summary><strong>🧱 Overview cards row + Market Status card (2026-10-14)</strong></summary>
 
-Four equal-height (260px) empty bordered cards in one row above the Cryptocurrency news strip (`components/market_overview.py`, 4 columns from lg width, 2 from sm, 1 on phones). They are layout placeholders for Market Status / Trending Coins / Derivatives / promo content and are intentionally empty for now.
+Four equal-height (300px; was 260px) bordered cards in one row above the Cryptocurrency news strip (`components/market_overview.py`; 4 columns from Reflex's `lg` = 1280px, 2 from `sm`, 1 on phones). The first is the **Market Status** card; the other three are still empty placeholders (Trending Coins / Derivatives / promo).
+
+**Market Status** (title links to `/tools`), laid out like CoinMarketCap's card minus ETF Flows: a 2-column grid with **Fear & Greed** (tall left cell: five-segment arc gauge with a white dot at the value, the value in the middle, a pill with the label coloured by zone), **Market Cap** and **Top 20** (right column: value and 24h change ▲/▼ on one line, wrapping on narrow cards), and **Altcoin Season** (full-width bottom cell: the index number and an orange-to-blue bar with a dot; hover shows the label, e.g. Neutral). Data (`state/market_status_state.py::MarketStatusState.load`, a background event on the homepage `on_load`, so it never delays the table; a figure that fails shows an em dash, loading shows skeletons): Fear & Greed from Alternative.me and Altcoin Season from CoinGecko (30 days), both through the same `market_tools_service` functions and caches as `/tools` (15 / 30 min, no CMC credits); **Market Cap** is CoinGecko's total crypto market cap and its 24h change; **Top 20** is the combined market cap of the 20 biggest coins, excluding stablecoins, wrapped, staked and gold-backed tokens (`_market_status`), with the 24h change of that combined cap (each coin's cap a day ago = now / (1 + its 24h change)). It is not CoinMarketCap's CMC20 index (no index level), and both market-cap figures are cached 5 min (`get_market_status`). Market caps use `_fmt_compact_usd`. Theme: text uses `var(--gray-12)` / `var(--gray-11)`, surfaces `var(--gray-a2)`; verified in light and dark at 1440 / 1280 / 1100 / 992 / 834 / 375 with no overflow, no horizontal scroll and zero console errors. Tests: `tests/test_market_status.py`.
 </details>
 
 <details><summary>Real-time prices and page size (2026-10-13)</summary>

@@ -594,3 +594,71 @@ def fng_gauge_svg(value: int) -> str:
         out.append(f'<text x="{x + (14 if v_lbl == 0 else -14):.1f}" y="{y + 16:.1f}" text-anchor="middle" font-size="11" fill="var(--gray-11)">{txt}</text>')
     out.append("</svg>")
     return "".join(out)
+
+
+# ---- Homepage "Market Status" card ----------------------------------------
+_NOT_TOP20 = {"XAUT", "PAXG", "WBTC", "WETH", "WSTETH", "WEETH", "CBBTC"}  # gold-backed / wrapped: not a "top 20 coin"
+
+
+def _market_status() -> dict:
+    """Total crypto market cap (CoinGecko /global) and the combined market cap
+    of the 20 biggest coins, excluding stablecoins and wrapped/staked/gold
+    tokens, with its 24h change (free, no key)."""
+    g = _get("https://api.coingecko.com/api/v3/global")["data"]
+    rows = _get(
+        "https://api.coingecko.com/api/v3/coins/markets"
+        "?vs_currency=usd&order=market_cap_desc&per_page=60&page=1&price_change_percentage=24h"
+    )
+    top = [
+        c for c in rows
+        if c.get("market_cap")
+        and c["symbol"].upper() not in _STABLE
+        and c["symbol"].upper() not in _NOT_TOP20
+        and not any(w in c["name"].lower() for w in _DERIVATIVE_WORDS)
+    ][:20]
+    if len(top) < 20:
+        raise ToolsDataError("Not enough coins returned for the top 20.")
+    now = sum(c["market_cap"] for c in top)
+    # each coin's market cap a day ago = now / (1 + its 24h change)
+    before = sum(c["market_cap"] / (1 + (c.get("price_change_percentage_24h_in_currency") or 0) / 100) for c in top)
+    return {
+        "total": float(g["total_market_cap"]["usd"]),
+        "total_change": g.get("market_cap_change_percentage_24h_usd"),
+        "top20": float(now),
+        "top20_change": (now / before - 1) * 100 if before else None,
+    }
+
+
+def get_market_status() -> dict:
+    return _cached("market:status", 300, _market_status)
+
+
+def fng_arc_svg(value: int) -> str:
+    """The Fear & Greed gauge for the homepage card: a semicircle of five
+    separate colour segments with round ends, the value in the middle and a
+    white dot on the arc at the current value."""
+    cx, cy, r, gap = 60, 56, 48, 3.0
+
+    def pt(v: float):
+        a = math.pi * (1 - v / 100)
+        return cx + r * math.cos(a), cy - r * math.sin(a)
+
+    v = max(0, min(100, int(value)))
+    out = [
+        '<svg viewBox="0 0 120 64" width="100%" xmlns="http://www.w3.org/2000/svg" role="img" '
+        f'aria-label="Fear and Greed {v}" style="display:block;overflow:visible">'
+    ]
+    for a, b, color in _FNG_ZONES:
+        x1, y1 = pt(a + gap)
+        x2, y2 = pt(b - gap)
+        out.append(
+            f'<path d="M{x1:.2f},{y1:.2f} A{r},{r} 0 0 1 {x2:.2f},{y2:.2f}" fill="none" stroke="{color}" '
+            'stroke-width="6" stroke-linecap="round"/>'
+        )
+    x, y = pt(v)
+    out.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="5" fill="#fff" stroke="rgba(0,0,0,.35)" stroke-width="1.5"/>')
+    out.append(
+        f'<text x="{cx}" y="{cy - 4}" text-anchor="middle" font-size="22" font-weight="700" fill="var(--gray-12)">{v}</text>'
+    )
+    out.append("</svg>")
+    return "".join(out)
