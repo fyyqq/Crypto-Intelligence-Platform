@@ -17,6 +17,7 @@ import reflex as rx
 
 from frontend.components.tradingview_controls import timeframe_controls
 from frontend.state.calendar_state import CalendarState as Cal
+from frontend.state.macro_calendar_state import MacroCalendarState as Mac
 from frontend.state.tools_state import ToolsState
 
 _CARD = dict(
@@ -508,6 +509,13 @@ TOOL_PAGES = [
         "description": "A month-by-month calendar of token unlocks, launches, macro releases and earnings, taken from the Layergg calendar posts.",
         "chips": ["Crypto", "Macro", "Earnings", "2026"],
     },
+    {
+        "title": "CPI & FOMC",
+        "href": "/tools/cpi-fomc",
+        "icon": "landmark",
+        "description": "This week's US inflation (CPI) releases and Federal Reserve (FOMC) events with the exact date and time, forecast and previous values, updated live.",
+        "chips": ["CPI", "FOMC", "Rate decision", "Live"],
+    },
 ]
 
 
@@ -705,6 +713,127 @@ def crypto_calendar_content() -> rx.Component:
                 color="var(--gray-11)",
                 underline="hover",
             ),
+        ),
+        spacing="4",
+        width="100%",
+        padding=_PAGE_PADDING,
+    )
+
+
+def _scope_button(label: str, scope: str) -> rx.Component:
+    active = Mac.scope == scope
+    return rx.button(
+        label,
+        on_click=Mac.set_scope(scope),
+        size="2",
+        variant=rx.cond(active, "solid", "soft"),
+        color_scheme=rx.cond(active, "indigo", "gray"),
+        cursor="pointer",
+    )
+
+
+def _next_card() -> rx.Component:
+    """The next event with a countdown (re-read every 30 s)."""
+    return rx.cond(
+        Mac.unavailable,
+        rx.fragment(),  # the feed is down: the message below the toolbar says so, no "no events" claim
+        rx.cond(
+        Mac.next_title != "",
+        rx.hstack(
+            rx.vstack(
+                rx.text("NEXT EVENT", size="1", weight="bold", color="var(--gray-11)", letter_spacing="0.06em"),
+                rx.hstack(
+                    rx.text(Mac.next_title, size="5", weight="bold", color="var(--gray-12)"),
+                    rx.badge(Mac.next_currency, variant="soft", color_scheme="gray", size="1"),
+                    rx.badge(
+                        Mac.next_impact,
+                        variant="soft",
+                        color_scheme=rx.match(Mac.next_impact, ("high", "red"), ("medium", "orange"), "yellow"),
+                        size="1",
+                        text_transform="capitalize",
+                    ),
+                    spacing="2",
+                    align="center",
+                    wrap="wrap",
+                ),
+                rx.text(Mac.next_when, " (Kuala Lumpur time)", size="2", color="var(--gray-11)"),
+                spacing="1",
+                align="start",
+            ),
+            rx.spacer(),
+            rx.vstack(
+                rx.text("IN", size="1", weight="bold", color="var(--gray-11)", letter_spacing="0.06em"),
+                rx.text(Mac.next_in, size="7", weight="bold", color="var(--accent-11)", white_space="nowrap"),
+                spacing="0",
+                align="end",
+            ),
+            spacing="4",
+            align="center",
+            width="100%",
+            wrap="wrap",
+            padding="1em 1.2em",
+            border_radius="12px",
+            border="1px solid var(--gray-a5)",
+            background="var(--gray-a2)",
+        ),
+        rx.box(
+            rx.text("No more CPI or FOMC events this week.", size="2", color="var(--gray-11)"),
+            padding="1em 1.2em",
+            border_radius="12px",
+            border="1px solid var(--gray-a5)",
+            background="var(--gray-a2)",
+            width="100%",
+        ),
+        ),
+    )
+
+
+def cpi_fomc_content() -> rx.Component:
+    """/tools/cpi-fomc: this week's CPI and FOMC calendar, live."""
+    legend = rx.hstack(
+        *[
+            rx.hstack(rx.box(class_name=f"mc-dot mc-dot-{k}"), rx.text(label, size="1", color="var(--gray-11)"), spacing="1", align="center")
+            for k, label in (("high", "High"), ("medium", "Medium"), ("low", "Low"))
+        ],
+        spacing="3",
+    )
+    return rx.vstack(
+        _page_header("CPI & FOMC Calendar", "US inflation (CPI) and Federal Reserve (FOMC) events from the Forex Factory calendar, with exact times."),
+        rx.hstack(
+            rx.hstack(_scope_button("USD only", "USD"), _scope_button("All currencies", "ALL"), spacing="2"),
+            rx.spacer(),
+            legend,
+            rx.hstack(
+                rx.cond(Mac.unavailable, rx.fragment(), rx.box(class_name="rainbow-live-dot")),
+                rx.text(
+                    rx.cond(
+                        Mac.unavailable,
+                        "Waiting for the calendar feed…",
+                        rx.cond(Mac.stale, "Showing the last copy, feed unreachable · last update " + Mac.updated + " KL", "Live · calendar refreshed " + Mac.updated + " KL"),
+                    ),
+                    size="1",
+                    color="var(--gray-11)",
+                ),
+                spacing="2",
+                align="center",
+            ),
+            align="center",
+            width="100%",
+            wrap="wrap",
+            spacing="3",
+        ),
+        _next_card(),
+        rx.cond(
+            Mac.loaded,
+            rx.html(Mac.html, width="100%"),
+            rx.skeleton(height="420px", width="100%", border_radius="12px"),
+        ),
+        rx.text(
+            "Times are Kuala Lumpur (the New York time is shown under each). Schedule, forecast and previous: the public Forex Factory "
+            "calendar feed, refreshed every few minutes. Actual values: the official US sources (BLS for CPI, FRED for the Federal Funds Rate), "
+            "filled in a minute or two after each release; ▲/▼ compares the actual with the forecast.",
+            size="1",
+            color="var(--gray-10)",
         ),
         spacing="4",
         width="100%",

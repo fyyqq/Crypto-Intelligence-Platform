@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     # (app/services/telegram_digest_service.py) so it is not sent twice.
     telegram_digest: bool = False
 
+    # CPI & FOMC calendar (/tools/cpi-fomc): the schedule, forecast and previous come from the free
+    # public Forex Factory feed (no key); actual values come from the free official sources (BLS for CPI,
+    # FRED for the fed funds target). An Apify token is an optional extra (pay per event, 25 free rows
+    # per run) for whatever those cannot fill (app/services/macro_calendar_service.py).
+    apify_token: str = ""
+    macro_actuals_max_runs_per_day: int = 40
+    macro_free_actuals_max_per_day: int = 20  # BLS public API v1 allows 25 requests a day
+
     app_env: str = "development"
     app_host: str = "0.0.0.0"
     app_port: int = 8000

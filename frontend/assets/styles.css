@@ -1476,3 +1476,70 @@ svg.wl-star-force-off {
   .cal-day { min-height: 0; }
   .cal-dow { display: inline; }
 }
+
+/* /tools/cpi-fomc: the week's CPI/FOMC events (HTML built in app/services/macro_calendar_service.py). */
+.mc-dot { width: 10px; height: 10px; border-radius: 3px; }
+.mc-dot-high { background: var(--red-9); }
+.mc-dot-medium { background: var(--orange-9); }
+.mc-dot-low { background: var(--yellow-9); }
+
+.mc-board { width: 100%; display: flex; flex-direction: column; gap: 14px; }
+.mc-day { border: 1px solid var(--gray-a5); border-radius: 12px; overflow: hidden; background: var(--gray-a2); }
+.mc-day-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px;
+  background: var(--accent-9);
+  color: var(--accent-contrast);
+  font-size: 0.85rem; font-weight: 700; letter-spacing: 0.02em;
+}
+.mc-today { padding: 1px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.22); font-size: 0.7rem; text-transform: uppercase; }
+
+.mc-row {
+  display: grid;
+  grid-template-columns: 92px 52px 26px minmax(0, 1fr) 96px 96px 96px;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--gray-a4);
+  font-size: 0.9rem;
+}
+.mc-day-head + .mc-row { border-top: 0; }
+.mc-past { opacity: 0.55; }
+.mc-soon { background: var(--accent-a3); box-shadow: inset 3px 0 0 var(--accent-9); }
+.mc-time { display: flex; flex-direction: column; line-height: 1.15; }
+.mc-time b { font-size: 0.95rem; color: var(--gray-12); font-variant-numeric: tabular-nums; }
+.mc-time small { color: var(--gray-10); font-size: 0.72rem; }
+.mc-cur { font-weight: 600; color: var(--gray-11); }
+.mc-imp span { display: block; width: 14px; height: 14px; border-radius: 4px; background: var(--yellow-9); }
+.mc-impact-high .mc-imp span { background: var(--red-9); }
+.mc-impact-medium .mc-imp span { background: var(--orange-9); }
+.mc-impact-holiday .mc-imp span { background: var(--gray-8); }
+.mc-title { color: var(--gray-12); font-weight: 500; min-width: 0; overflow-wrap: anywhere; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mc-impact-high .mc-title { font-weight: 700; }
+.mc-chip { padding: 1px 7px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; }
+.mc-chip-cpi { background: var(--blue-a4); color: var(--blue-11); }
+.mc-chip-fomc { background: var(--violet-a4); color: var(--violet-11); }
+.mc-num { text-align: right; font-variant-numeric: tabular-nums; color: var(--gray-12); }
+.mc-actual { font-weight: 700; }
+.mc-dash { color: var(--gray-8); }
+.mc-rev { display: block; font-size: 0.7rem; font-weight: 500; color: var(--gray-10); }
+.mc-wait { display: inline-flex; gap: 3px; }
+.mc-wait i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent-9); animation: mc-wait 1.2s ease-in-out infinite; }
+.mc-wait i:nth-child(2) { animation-delay: 0.2s; }
+.mc-wait i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes mc-wait { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+.mc-empty { padding: 3.5em 1em; text-align: center; color: var(--gray-11); border: 1px dashed var(--gray-a5); border-radius: 12px; }
+
+@media (max-width: 767px) {
+  .mc-row { grid-template-columns: 74px 1fr 1fr 1fr; grid-template-areas: "time cur imp imp" "title title title title" "act fc prev prev"; row-gap: 6px; }
+  .mc-time { grid-area: time; }
+  .mc-cur { grid-area: cur; }
+  .mc-imp { grid-area: imp; }
+  .mc-title { grid-area: title; }
+  .mc-num { text-align: left; }
+  .mc-num::before { content: attr(data-label); display: block; font-size: 0.66rem; color: var(--gray-10); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500; }
+  .mc-row > .mc-num:nth-child(5) { grid-area: act; }
+  .mc-row > .mc-num:nth-child(6) { grid-area: fc; }
+  .mc-row > .mc-num:nth-child(7) { grid-area: prev; }
+}
+.mc-vs { margin-left: 4px; font-size: 0.65rem; color: var(--gray-10); vertical-align: 1px; }

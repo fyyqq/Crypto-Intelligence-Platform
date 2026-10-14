@@ -15,7 +15,7 @@ This folder, the matching [Notion pages](https://app.notion.com/p/3e1143f8052780
 | [News](./news.md) | `/news`, `/news/[news_category]/[article_slug]` | Live |
 | [Narrative](./narrative.md) | `/narrative` | Live — Narrative Radar (AI-targeted crypto news, 100 per page) |
 | [Chains](./chains.md) | `/chains` | Placeholder |
-| [Tools](./tools.md) | `/tools`, `/tools/market-indicators`, `/tools/market-charts`, `/tools/crypto-calendar` | Live (landing + sub-pages; split 2026-10-14) |
+| [Tools](./tools.md) | `/tools`, `/tools/market-indicators`, `/tools/market-charts`, `/tools/crypto-calendar`, `/tools/cpi-fomc` | Live (landing + sub-pages; split 2026-10-14) |
 | [Watchlist](./watchlist.md) | `/watchlist` | Live |
 | [Gainers & Losers](./gainers-losers.md) | `/gainers-losers` | Live (boards fill in as price history accumulates) |
 | [Notifications](./notifications.md) | `/notifications` | Local only so far (header bell, price-alert notifications) |

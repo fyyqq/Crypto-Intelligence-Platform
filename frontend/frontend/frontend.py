@@ -24,6 +24,7 @@ from frontend.components import (
     news_category_content,
     news_page_content,
     TOOL_PAGES,
+    cpi_fomc_content,
     crypto_calendar_content,
     market_charts_content,
     market_indicators_content,
@@ -33,7 +34,7 @@ from frontend.components import (
 from frontend.components.alerts_page import alerts_content
 from frontend.components.notifications_page import notification_popup, notifications_content
 from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
-from frontend.state import CalendarState, CoinState, GainersLosersState, HomeMoversState, MarketStatusState, NewsDetailState, NewsState, NotificationState, ToolsState
+from frontend.state import CalendarState, CoinState, MacroCalendarState, GainersLosersState, HomeMoversState, MarketStatusState, NewsDetailState, NewsState, NotificationState, ToolsState
 
 
 def _alerts_menu_item() -> rx.Component:
@@ -1127,6 +1128,11 @@ def market_charts_page() -> rx.Component:
     return _tools_shell(market_charts_content())
 
 
+def cpi_fomc_page() -> rx.Component:
+    # /tools/cpi-fomc: this week's CPI and FOMC events, live.
+    return _tools_shell(cpi_fomc_content())
+
+
 def crypto_calendar_page() -> rx.Component:
     # /tools/crypto-calendar: empty placeholder for now.
     return _tools_shell(crypto_calendar_content())
@@ -1533,6 +1539,12 @@ app.add_page(
     route="/tools/market-indicators",
     title="Repace — Market Indicators",
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, ToolsState.refresh_fng, ToolsState.refresh_season, ToolsState.refresh_rainbow],
+)
+app.add_page(
+    cpi_fomc_page,
+    route="/tools/cpi-fomc",
+    title="Repace — CPI & FOMC Calendar",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, MacroCalendarState.load],
 )
 app.add_page(
     crypto_calendar_page,
