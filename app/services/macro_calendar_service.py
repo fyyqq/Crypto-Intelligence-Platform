@@ -1,5 +1,5 @@
-"""CPI & FOMC calendar (/tools/cpi-fomc): this week's US inflation (CPI) and Federal Reserve (FOMC)
-events from Forex Factory's economic calendar.
+"""Forex Factory calendar page (/tools/cpi-fomc): this week's US inflation (CPI), Federal Reserve (FOMC) and
+Non-Farm Employment Change (NFP) events from Forex Factory's economic calendar.
 
 Sources
 - **Schedule, forecast, previous** (always): the free public feed
@@ -10,9 +10,11 @@ Sources
   the current week only (the next-week file does not exist until it is published). Fields: title,
   country (currency), date (ISO with the New York offset), impact, forecast, previous. It has NO
   actual or revised values.
-- **Actual, free and official**: US CPI from the Bureau of Labor Statistics' public API (no key): the
-  four CPI events are computed from the published index levels the way Forex Factory reports them (m/m
-  from the seasonally adjusted series, y/y from the not adjusted one, one decimal); the Federal Funds
+- **Actual, free and official**: US CPI and Non-Farm Employment from the Bureau of Labor Statistics' public
+  API (no key needed; a free registration key, BLS_API_KEY, raises the limit from 25 to 500 requests a
+  day): the four CPI events are computed from the published index levels the way Forex Factory reports
+  them (m/m from the seasonally adjusted series, y/y from the not adjusted one, one decimal), and
+  "Non-Farm Employment Change" is the month's change in total nonfarm payrolls in thousands ("29K"); the Federal Funds
   Rate decision from FRED's public CSV of the target's upper bound (FRED can lag the decision by a day).
   Looked up only after a release, at most once every 2 minutes and 20 times a day (the BLS v1 limit is 25).
 - **Actual, optional extra**: the Apify actor scrapemint/forexfactory-economic-calendar, only when
@@ -55,9 +57,10 @@ ET = ZoneInfo("America/New_York")
 _ACTUALS_FILE = Path(__file__).resolve().parent.parent.parent / "logs" / "macro_actuals.json"
 _FEED_FILE = Path(__file__).resolve().parent.parent.parent / "logs" / "macro_feed.json"
 
-# CPI events and everything FOMC: the committee's members' speeches, statement, minutes, press
-# conference, the rate decision (Forex Factory names it "Federal Funds Rate") and the Fed Chair.
-_KEEP = re.compile(r"\bCPI\b|FOMC|Federal Funds Rate|\bFed Chair", re.I)
+# CPI events, everything FOMC (the committee's members' speeches, statement, minutes, press conference,
+# the rate decision, which Forex Factory names "Federal Funds Rate", and the Fed Chair) and the monthly
+# jobs report, "Non-Farm Employment Change".
+_KEEP = re.compile(r"\bCPI\b|FOMC|Federal Funds Rate|\bFed Chair|Non-?Farm Employment Change", re.I)
 _IMPACT = {"high": "high", "medium": "medium", "low": "low", "holiday": "holiday", "non-economic": "low"}
 
 _lock = threading.Lock()
@@ -74,7 +77,9 @@ def _event_id(title: str, currency: str, start: datetime) -> str:
 
 
 def group_of(title: str) -> str:
-    return "CPI" if re.search(r"\bCPI\b", title, re.I) else "FOMC"
+    if re.search(r"\bCPI\b", title, re.I):
+        return "CPI"
+    return "NFP" if re.search(r"Non-?Farm Employment", title, re.I) else "FOMC"
 
 
 def parse_feed(raw: list[dict]) -> list[dict]:
@@ -158,7 +163,9 @@ def _load_feed(force: bool = False) -> tuple[list[dict], bool, str]:
 
 BLS_URL = "https://api.bls.gov/publicAPI/v1/timeseries/data/"
 FRED_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
-_BLS = {"all_sa": "CUSR0000SA0", "all_nsa": "CUUR0000SA0", "core_sa": "CUSR0000SA0L1E", "core_nsa": "CUUR0000SA0L1E"}
+BLS_V2_URL = "https://api.bls.gov/publicAPI/v2/timeseries/data/"
+_BLS = {"all_sa": "CUSR0000SA0", "all_nsa": "CUUR0000SA0", "core_sa": "CUSR0000SA0L1E", "core_nsa": "CUUR0000SA0L1E",
+        "nfp": "CES0000000001"}  # total nonfarm employment, seasonally adjusted, thousands
 FREE_MIN_GAP = 120
 _free_runs: dict[str, int] = {}
 _last_free = 0.0
@@ -183,13 +190,29 @@ def cpi_from_levels(levels: dict[str, dict[tuple[int, int], Decimal]], year: int
     return out
 
 
+def nfp_from_levels(levels: dict[str, dict[tuple[int, int], Decimal]], year: int, month: int) -> str:
+    """"29K" / "-12K": the month's change in total nonfarm payrolls (thousands), the way the headline
+    "Non-Farm Employment Change" is reported (this month's level minus the revised previous month's);
+    "" when the month is not published yet."""
+    s_ = levels.get("nfp", {})
+    prev = (year, month - 1) if month > 1 else (year - 1, 12)
+    if (year, month) not in s_ or prev not in s_:
+        return ""
+    change = (s_[(year, month)] - s_[prev]).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return f"{change}K"
+
+
 def _fetch_bls_levels() -> dict[str, dict[tuple[int, int], Decimal]]:
-    r = requests.post(BLS_URL, json={"seriesid": list(_BLS.values())}, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+    key = settings.bls_api_key.strip()
+    body = {"seriesid": list(_BLS.values())}
+    if key:
+        body["registrationkey"] = key
+    r = requests.post(BLS_V2_URL if key else BLS_URL, json=body, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
     r.raise_for_status()
-    body = r.json()
-    if body.get("status") != "REQUEST_SUCCEEDED":
-        raise RuntimeError(f"BLS: {body.get('message')}")
-    by_id = {s["seriesID"]: s["data"] for s in body["Results"]["series"]}
+    reply = r.json()
+    if reply.get("status") != "REQUEST_SUCCEEDED":
+        raise RuntimeError(f"BLS: {reply.get('message')}")
+    by_id = {s["seriesID"]: s["data"] for s in reply["Results"]["series"]}
     levels: dict[str, dict[tuple[int, int], Decimal]] = {}
     for key, sid in _BLS.items():
         levels[key] = {(int(d["year"]), int(d["period"][1:])): Decimal(d["value"]) for d in by_id.get(sid, [])
@@ -217,27 +240,31 @@ def refresh_free_actuals(events: list[dict], now: datetime | None = None) -> int
     global _last_free
     now = now or datetime.now(timezone.utc)
     pending = [e for e in events if e["currency"] == "USD" and not e["actual"] and e["start"] <= now <= e["start"] + FREE_WINDOW
-               and (e["group"] == "CPI" or e["title"].lower() == "federal funds rate")]
+               and (e["group"] in ("CPI", "NFP") or e["title"].lower() == "federal funds rate")]
     if not pending:
         return 0
     day = now.date().isoformat()
+    cap = max(settings.macro_free_actuals_max_per_day, 200) if settings.bls_api_key.strip() else settings.macro_free_actuals_max_per_day  # v2 allows 500/day
     with _lock:
-        if time.time() - _last_free < FREE_MIN_GAP or _free_runs.get(day, 0) >= settings.macro_free_actuals_max_per_day:
+        if time.time() - _last_free < FREE_MIN_GAP or _free_runs.get(day, 0) >= cap:
             return 0
         _last_free = time.time()
         _free_runs[day] = _free_runs.get(day, 0) + 1
     found: dict[str, dict] = {}
-    cpi_events = [e for e in pending if e["group"] == "CPI"]
-    if cpi_events:
+    bls_events = [e for e in pending if e["group"] in ("CPI", "NFP")]
+    if bls_events:
         try:
             levels = _fetch_bls_levels()
-            ref = cpi_events[0]["start"].astimezone(ET).date().replace(day=1) - timedelta(days=1)  # the month before the release
-            values = cpi_from_levels(levels, ref.year, ref.month)
-            for e in cpi_events:
-                if e["title"] in values:
-                    found[e["id"]] = {"actual": values[e["title"]], "revised": ""}
+            for e in bls_events:
+                ref = e["start"].astimezone(ET).date().replace(day=1) - timedelta(days=1)  # the month before the release
+                if e["group"] == "CPI":
+                    value = cpi_from_levels(levels, ref.year, ref.month).get(e["title"], "")
+                else:
+                    value = nfp_from_levels(levels, ref.year, ref.month)
+                if value:
+                    found[e["id"]] = {"actual": value, "revised": ""}
         except Exception:  # noqa: BLE001
-            log.warning("BLS CPI lookup failed", exc_info=True)
+            log.warning("BLS lookup failed", exc_info=True)
     for e in pending:
         if e["title"].lower() == "federal funds rate":
             try:
@@ -441,7 +468,7 @@ def build_html(events: list[dict], now: datetime | None = None, has_actuals_sour
     minutes pulse, and a released event that is still waiting for its actual shows animated dots."""
     now = now or datetime.now(timezone.utc)
     if not events:
-        return '<div class="mc-empty">No CPI or FOMC events in this week\'s calendar.</div>'
+        return '<div class="mc-empty">No CPI, FOMC or Non-Farm Employment events in this week\'s calendar.</div>'
     days: dict[date, list[dict]] = {}
     for e in events:
         days.setdefault(e["start"].astimezone(KL).date(), []).append(e)

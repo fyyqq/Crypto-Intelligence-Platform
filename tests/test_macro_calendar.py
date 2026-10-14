@@ -21,7 +21,7 @@ FEED = [
     row("Federal Funds Rate", "USD", "2026-10-28T14:00:00-04:00", forecast="3.75%", previous="4.00%"),
     row("Fed Chairman Warsh Speaks", "USD", "2026-10-15T23:30:00-04:00"),
     row("CPI y/y", "CNY", "2026-10-13T21:30:00-04:00", impact="Low", forecast="1.0%", previous="0.8%"),
-    row("Philly Fed Manufacturing Index", "USD", "2026-10-15T08:30:00-04:00", impact="Medium"),  # not CPI/FOMC
+    row("Philly Fed Manufacturing Index", "USD", "2026-10-15T08:30:00-04:00", impact="Medium"),  # not CPI/FOMC/NFP
     row("Bank Holiday", "USD", "2026-10-12T07:00:00-04:00", impact="Holiday"),
     {"title": "Broken", "country": "USD", "date": "not a date", "impact": "High"},
     {"country": "USD", "date": "2026-10-14T08:30:00-04:00"},  # no title
@@ -82,7 +82,7 @@ def test_html_groups_days_in_kl_time_dims_the_past_and_escapes_text():
     later = mc.build_html([e for e in ev if e["currency"] == "USD"], datetime(2026, 10, 14, 13, 5, tzinfo=UTC))  # CPI is 35 min old
     assert later.count("mc-past") >= 2 and "mc-soon" not in later
     assert "&lt;b&gt;CPI&lt;/b&gt; y/y" in h and "<b>CPI</b> y/y" not in h
-    assert "No CPI or FOMC events" in mc.build_html([], now)
+    assert "No CPI, FOMC or Non-Farm Employment events" in mc.build_html([], now)
 
 
 def test_feed_is_cached_for_everyone_and_survives_an_outage(monkeypatch):
@@ -294,3 +294,60 @@ def test_arrow_against_the_forecast():
         if e["title"] == "CPI m/m":
             e["actual"] = "0.7%"
     assert "▲" in mc.build_html([e for e in ev if e["title"] == "CPI m/m"], datetime(2026, 10, 14, 14, 0, tzinfo=UTC))
+
+
+# ---- Non-Farm Employment Change ---------------------------------------------------------------
+
+NFP_FEED = [row("Non-Farm Employment Change", "USD", "2026-11-06T08:30:00-05:00", forecast="55K", previous="29K"),
+            row("Unemployment Rate", "USD", "2026-11-06T08:30:00-05:00", impact="High"),  # not asked for
+            row("Average Hourly Earnings m/m", "USD", "2026-11-06T08:30:00-05:00", impact="High")]
+
+
+def test_non_farm_employment_change_is_kept_and_grouped():
+    ev = mc.parse_feed(NFP_FEED)
+    assert [(e["title"], e["group"], e["impact"], e["forecast"], e["previous"]) for e in ev] == [("Non-Farm Employment Change", "NFP", "high", "55K", "29K")]
+    assert mc.parse_feed([row("Non-Farm Employment Change", "USD", "2026-11-06T08:30:00-05:00")])[0]["start"] == datetime(2026, 11, 6, 13, 30, tzinfo=UTC)
+    assert 'mc-chip-nfp">NFP' in mc.build_html(ev, datetime(2026, 11, 6, 12, 0, tzinfo=UTC))
+    assert mc.next_event(ev, datetime(2026, 11, 6, 12, 0, tzinfo=UTC))["title"] == "Non-Farm Employment Change"
+
+
+def test_nfp_actual_is_the_change_in_thousands():
+    from decimal import Decimal as D
+
+    levels = {"nfp": {(2026, 9): D("159044"), (2026, 8): D("159015"), (2025, 12): D("158000"), (2026, 1): D("157950")}}
+    assert mc.nfp_from_levels(levels, 2026, 9) == "29K"
+    assert mc.nfp_from_levels(levels, 2026, 1) == "-50K"  # year boundary, negative
+    assert mc.nfp_from_levels(levels, 2026, 10) == ""  # not published yet
+    assert mc.nfp_from_levels({}, 2026, 9) == ""
+
+
+def test_nfp_is_filled_from_bls_after_the_release_and_the_key_is_optional(monkeypatch):
+    from decimal import Decimal as D
+
+    ev = mc.parse_feed(NFP_FEED)
+    levels = {"nfp": {(2026, 10): D("159300"), (2026, 9): D("159044")}}
+    monkeypatch.setattr(mc, "_fetch_bls_levels", lambda: levels)
+    monkeypatch.setattr(mc, "_last_free", 0.0)
+    assert mc.refresh_free_actuals(ev, datetime(2026, 11, 6, 12, 0, tzinfo=UTC)) == 0  # before the release
+    assert mc.refresh_free_actuals(ev, datetime(2026, 11, 6, 13, 40, tzinfo=UTC)) == 1  # October's jobs, released 08:30 ET on Nov 6
+    assert ev[0]["actual"] == "256K" and "▲" in mc.build_html(ev, datetime(2026, 11, 6, 14, 0, tzinfo=UTC))  # 256K vs 55K forecast
+
+
+def test_bls_uses_v2_only_when_a_key_is_set(monkeypatch):
+    posts = []
+
+    class Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"status": "REQUEST_SUCCEEDED", "Results": {"series": [{"seriesID": "CES0000000001", "data": [{"year": "2026", "period": "M09", "value": "159044"}, {"year": "2026", "period": "M08", "value": "-"}]}]}}
+
+    monkeypatch.setattr(mc.requests, "post", lambda url, **k: (posts.append((url, k["json"])), Resp())[1])
+    monkeypatch.setattr(mc.settings, "bls_api_key", "")
+    levels = mc._fetch_bls_levels()
+    assert posts[0][0] == mc.BLS_URL and "registrationkey" not in posts[0][1]
+    assert levels["nfp"] == {(2026, 9): __import__("decimal").Decimal("159044")}  # "-" (unpublished) is skipped
+    monkeypatch.setattr(mc.settings, "bls_api_key", "abc123")
+    mc._fetch_bls_levels()
+    assert posts[1][0] == mc.BLS_V2_URL and posts[1][1]["registrationkey"] == "abc123" and "CES0000000001" in posts[1][1]["seriesid"]

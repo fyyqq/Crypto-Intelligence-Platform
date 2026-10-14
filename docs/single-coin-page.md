@@ -209,6 +209,13 @@ The 1-second header price falls back, when no supported exchange lists the coin,
 The coin page's X section (and links) needs the coin metadata from CMC's `/v2/info` (`sync_contracts`), which only the never-running FastAPI scheduler used to call, so the live server had no X links or contracts at all. It now runs weekly from the hot-sync loop (`jobs.run_metadata_sync`, behind the CMC credit guard).
 </details>
 
+<details><summary>Chart header gap, empty-news height and tablet width (2026-10-15)</summary>
+
+- **Gap under the chart header.** The hidden timeframe strip (below) was a direct child of the chart column, which has a 25px row gap, so even at zero size it added a second 25px gap between "<Coin> Live Chart" and the chart. It now sits **inside the chart box** (`coin_detail.py::_chart_column`), `position: absolute`, 0x0, opacity 0, `pointer-events: none`; it is still inside the `[data-tv-chart]` column, so `tradingview_timeframes.js` still works (verified: clicking a hidden button changes the iframe interval). Measured: header-to-chart gap 25px at every width.
+- **Empty news box.** "Targeted narrative news" is a fixed 585px box (it lines up with the sentiment column beside it on desktop). With no news it left a big blank area on tablet and mobile, so the box now gets the class `coin-news-empty` when `NewsState.has_coin_news` is false and `@media (max-width: 1279px)` sets `height: max-content` (`styles.css`): 47-67px instead of 585px below 1280px, still 585px on desktop and whenever there is news. Applies to every coin page (one component).
+- **Sideways scroll on tablets in landscape.** The centre (chart) column wrapper was `width: auto` from `md` (1024px) although the three columns only sit side by side from `lg` (1280px), so between 1024 and 1279px the stacked column was as wide as its widest unbroken text (the About paragraph, 2540px) and the page scrolled sideways. It is now `width: 100%` until `lg` (`width=["100%","100%","100%","100%","auto"]`). Verified at 1440 / 1280 / 1180 / 1100 / 1024 / 834 / 375, light and dark, on a coin with and without news: no horizontal scroll.
+</details>
+
 <details><summary>Chart symbol: TradingView's Crypto tab, name first, no wait (2026-10-15)</summary>
 
 Some coins (e.g. `/coin/si`, Super Inu) never showed a chart: the loading state stayed forever. Two causes, both fixed:

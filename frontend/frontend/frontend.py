@@ -1543,7 +1543,7 @@ app.add_page(
 app.add_page(
     cpi_fomc_page,
     route="/tools/cpi-fomc",
-    title="Repace — CPI & FOMC Calendar",
+    title="Repace — Forex Factory Calendar",
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, MacroCalendarState.load],
 )
 app.add_page(

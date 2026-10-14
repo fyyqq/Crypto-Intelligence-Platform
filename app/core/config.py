@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # per run) for whatever those cannot fill (app/services/macro_calendar_service.py).
     apify_token: str = ""
     macro_actuals_max_runs_per_day: int = 40
+    # Free BLS registration key (https://data.bls.gov/registrationEngine/). Optional: without it the BLS v1
+    # API is used (25 requests a day), with it v2 (500 a day).
+    bls_api_key: str = ""
     macro_free_actuals_max_per_day: int = 20  # BLS public API v1 allows 25 requests a day
 
     app_env: str = "development"

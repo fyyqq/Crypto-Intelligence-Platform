@@ -1981,8 +1981,13 @@ def _chart_column() -> rx.Component:
             # sit flush left.
             width="100%",
         ),
-        rx.cond(CoinState.has_tradingview_chart, timeframe_controls("60", hidden=True)),
         rx.box(
+            # The hidden timeframe strip (opacity 0, 0x0) lives INSIDE this box, not as its own child of
+            # the chart column: that column has a 25px row gap, so even a zero-size child there added a
+            # second 25px gap under the chart header (2026-10-15). Here it is absolutely positioned and
+            # takes no space; it is still inside the [data-tv-chart] column that tradingview_timeframes.js
+            # looks for. A hidden strip needs no layout; it only has to exist.
+            rx.cond(CoinState.has_tradingview_chart, timeframe_controls("60", hidden=True)),
             # This box has a genuinely definite height at every breakpoint
             # (a plain fixed value, not flex-derived), so the iframe's own
             # height="100%" below resolves correctly against it.
@@ -2327,7 +2332,11 @@ def _targeted_news_section() -> rx.Component:
             overflow_y="auto",
             # See _sentiment_column's identical box for why this is explicit.
             overflow_x="hidden",
-            class_name="hide-scrollbar",
+            # With no news ("No recent news mentions ...") the box fits its message below the lg breakpoint,
+            # where the page stacks its columns, instead of keeping 585px of blank space
+            # (.coin-news-empty in styles.css). On desktop it keeps 585px to line up with the sentiment
+            # column beside it.
+            class_name=rx.cond(NewsState.has_coin_news, "hide-scrollbar", "hide-scrollbar coin-news-empty"),
             width="100%",
         ),
         spacing="3",
@@ -2412,7 +2421,11 @@ def coin_detail_page() -> rx.Component:
                                 _chart_column(),
                                 flex="1",
                                 min_width="0",
-                                width=["100%", "100%", "100%", "auto", "auto"],
+                                # "auto" only from lg (1280px), where the three columns sit side by side. It used to start
+                                # at md (1024px) while the page was still stacked, so between 1024 and 1279px this column
+                                # was as wide as its widest unbroken text (the About paragraph: 2540px) and the page
+                                # scrolled sideways on tablets in landscape.
+                                width=["100%", "100%", "100%", "100%", "auto"],
                             ),
                             rx.box(
                                 rx.vstack(

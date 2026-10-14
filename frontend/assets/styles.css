@@ -1519,6 +1519,7 @@ svg.wl-star-force-off {
 .mc-chip { padding: 1px 7px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; }
 .mc-chip-cpi { background: var(--blue-a4); color: var(--blue-11); }
 .mc-chip-fomc { background: var(--violet-a4); color: var(--violet-11); }
+.mc-chip-nfp { background: var(--green-a4); color: var(--green-11); }
 .mc-num { text-align: right; font-variant-numeric: tabular-nums; color: var(--gray-12); }
 .mc-actual { font-weight: 700; }
 .mc-dash { color: var(--gray-8); }
@@ -1543,3 +1544,11 @@ svg.wl-star-force-off {
   .mc-row > .mc-num:nth-child(7) { grid-area: prev; }
 }
 .mc-vs { margin-left: 4px; font-size: 0.65rem; color: var(--gray-10); vertical-align: 1px; }
+
+/* Coin page "Targeted narrative news" box: 585px tall to match the sentiment column beside it on desktop.
+   Where the columns stack (below lg = 1280px) and there is no news, just fit the "No recent news" message. */
+@media (max-width: 1279px) {
+  .coin-news-empty {
+    height: max-content !important;
+  }
+}

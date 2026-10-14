@@ -15,7 +15,7 @@ def timeframe_controls(default_interval: str, hidden: bool = False) -> rx.Compon
     """The 1m..W buttons under a TradingView chart. `hidden` keeps them in the page (their click
     handler, tradingview_timeframes.js, still works) but invisible: opacity 0, width 0, height 0, as
     requested for the coin page (2026-10-15); overflow hidden so the zero-size box also clips and
-    cannot be clicked."""
+    cannot be clicked, and position absolute so it takes no room in whatever stack it sits in."""
     return rx.hstack(
         *[
             rx.el.button(
@@ -34,5 +34,5 @@ def timeframe_controls(default_interval: str, hidden: bool = False) -> rx.Compon
         class_name="tv-timeframe-controls",
         spacing="1",
         wrap="wrap",
-        **({"style": {"opacity": 0, "width": 0, "height": 0, "overflow": "hidden"}} if hidden else {}),
+        **({"style": {"opacity": 0, "width": 0, "height": 0, "overflow": "hidden", "position": "absolute", "pointerEvents": "none"}} if hidden else {}),
     )

@@ -1,4 +1,4 @@
-"""State for /tools/cpi-fomc: this week's CPI and FOMC events (app/services/macro_calendar_service.py).
+"""State for /tools/cpi-fomc ("Forex Factory"): this week's CPI, FOMC and Non-Farm Employment events (app/services/macro_calendar_service.py).
 While the page is open it re-reads every 30 s (the service itself fetches the free feed at most once a
 minute for everyone, and asks Apify for actual values only after a release); the table, the "next
 event" countdown and the Today/past/soon styling all follow the clock without a reload."""
