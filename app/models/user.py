@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy import BigInteger, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -20,3 +20,5 @@ class User(Base):
     # Brute-force protection: consecutive failures lock the account for a while.
     failed_login_attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Telegram chat the bot sends this account's notifications to (NULL = not connected).
+    telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

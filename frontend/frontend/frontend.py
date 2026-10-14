@@ -1349,6 +1349,12 @@ async def _alert_watch():
 
 
 app.register_lifespan_task(_alert_watch)
+
+# Every notification (triggered price alerts) is also sent to the account's
+# Telegram when connected (app/services/telegram_notify_service.py).
+from frontend.state.notification_state import _service as _notification_service, _telegram  # noqa: E402
+
+_notification_service().register_channel(_telegram().send_channel)
 # Dynamic routes must be registered before static ones (Reflex route-matching
 # order), so /coin/[symbol] is added ahead of the "/" index page below.
 # Ticker-based (not cmc_id-based) per explicit request — CoinState.

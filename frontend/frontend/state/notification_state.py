@@ -25,6 +25,14 @@ def _service():
     return notification_service
 
 
+def _telegram():
+    if _ROOT not in sys.path:
+        sys.path.append(_ROOT)
+    from app.services import telegram_notify_service
+
+    return telegram_notify_service
+
+
 POPUP_LIMIT = 6
 
 
@@ -44,6 +52,12 @@ class NotificationState(rx.State):
     bell_open: bool = False
     recent: list[dict] = []
     recent_loading: bool = True
+    # Telegram delivery card on /notifications.
+    tg_available: bool = False  # bot token configured
+    tg_connected: bool = False
+    tg_waiting: bool = False  # link opened, waiting for the user to press Start
+    tg_link: str = ""
+    tg_message: str = ""
 
     @rx.var
     def unread_badge(self) -> str:
@@ -107,6 +121,73 @@ class NotificationState(rx.State):
         self.items = [_row(r) for r in rows]
         self.unread = sum(1 for r in rows if not r["read"])
         self.loading = False
+        tg = _telegram()
+        self.tg_available = tg.configured()
+        self.tg_connected = await asyncio.to_thread(tg.chat_id_for, uid) is not None
+        self.tg_waiting, self.tg_link, self.tg_message = False, "", ""
+
+    @rx.event
+    async def connect_telegram(self):
+        """Makes a one-time link, opens the bot, then watches for Start."""
+        uid = await self._user_id()
+        if not uid:
+            return
+        try:
+            _code, link = await asyncio.to_thread(_telegram().start_link, uid)
+        except Exception:  # noqa: BLE001
+            self.tg_message = "Could not reach Telegram. Try again in a moment."
+            return
+        self.tg_link, self.tg_waiting, self.tg_message = link, True, ""
+        yield rx.call_script(f"window.open({json.dumps(link)}, '_blank')")
+        yield NotificationState.watch_telegram_link
+
+    @rx.event(background=True)
+    async def watch_telegram_link(self):
+        """Checks the bot every 3s (up to 2 minutes) for the Start press."""
+        for _ in range(40):
+            async with self:
+                if not self.tg_waiting:
+                    return
+                uid = await self._user_id()
+            if not uid:
+                return
+            try:
+                done = await asyncio.to_thread(_telegram().poll_link, uid)
+            except Exception:  # noqa: BLE001
+                done = False
+            if done:
+                async with self:
+                    self.tg_connected, self.tg_waiting, self.tg_link = True, False, ""
+                    self.tg_message = "Connected. A confirmation was sent to your Telegram."
+                return
+            await asyncio.sleep(3)
+        async with self:
+            if self.tg_waiting:
+                self.tg_waiting = False
+                self.tg_message = "Timed out waiting for Start. Press Connect again."
+
+    @rx.event
+    def cancel_telegram_link(self):
+        self.tg_waiting, self.tg_link = False, ""
+
+    @rx.event
+    async def disconnect_telegram(self):
+        uid = await self._user_id()
+        if not uid:
+            return
+        await asyncio.to_thread(_telegram().disconnect, uid)
+        self.tg_connected, self.tg_message = False, "Telegram disconnected."
+
+    @rx.event
+    async def test_telegram(self):
+        uid = await self._user_id()
+        if not uid:
+            return
+        try:
+            ok = await asyncio.to_thread(_telegram().send_test, uid)
+            self.tg_message = "Test message sent." if ok else "Not connected."
+        except Exception:  # noqa: BLE001
+            self.tg_message = "Sending failed. Open the bot in Telegram and press Start again."
 
     @rx.event
     async def mark_read(self, notification_id: int):

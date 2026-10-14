@@ -248,6 +248,81 @@ def _row(item: rx.Var[dict]) -> rx.Component:
     )
 
 
+def _telegram_card() -> rx.Component:
+    """Connect / disconnect the Telegram bot that mirrors every notification."""
+    return rx.cond(
+        N.tg_available,
+        rx.vstack(
+            rx.hstack(
+                rx.icon("send", size=18, color="var(--accent-11)"),
+                rx.vstack(
+                    rx.text("Telegram alerts", size="3", weight="bold", color="var(--gray-12)"),
+                    rx.text(
+                        rx.cond(
+                            N.tg_connected,
+                            "Connected: triggered price alerts are also sent to your Telegram.",
+                            "Get triggered price alerts as a Telegram message.",
+                        ),
+                        size="2",
+                        color="var(--gray-11)",
+                    ),
+                    spacing="0",
+                    align="start",
+                    flex="1",
+                    min_width="0",
+                ),
+                rx.cond(
+                    N.tg_connected,
+                    rx.hstack(
+                        rx.button("Send test", on_click=N.test_telegram, variant="soft", size="2", cursor="pointer"),
+                        rx.button(
+                            "Disconnect", on_click=N.disconnect_telegram, variant="soft", color_scheme="gray",
+                            size="2", cursor="pointer",
+                        ),
+                        spacing="2",
+                        wrap="wrap",
+                    ),
+                    rx.button(
+                        rx.cond(N.tg_waiting, "Waiting for Start...", "Connect Telegram"),
+                        on_click=N.connect_telegram,
+                        disabled=N.tg_waiting,
+                        size="2",
+                        cursor="pointer",
+                    ),
+                ),
+                spacing="3",
+                align="center",
+                width="100%",
+                wrap="wrap",
+            ),
+            rx.cond(
+                N.tg_waiting,
+                rx.hstack(
+                    rx.text(
+                        "Telegram should have opened. Press Start in the bot. If nothing opened, ",
+                        rx.link("open the bot here", href=N.tg_link, is_external=True),
+                        ".",
+                        size="2",
+                        color="var(--gray-11)",
+                    ),
+                    rx.button("Cancel", on_click=N.cancel_telegram_link, variant="ghost", size="1", cursor="pointer"),
+                    spacing="2",
+                    align="center",
+                    wrap="wrap",
+                ),
+            ),
+            rx.cond(N.tg_message != "", rx.text(N.tg_message, size="2", color="var(--gray-11)")),
+            spacing="2",
+            align="start",
+            width="100%",
+            padding="0.9em 1em",
+            border_radius="10px",
+            background="var(--gray-a2)",
+            border="1px solid var(--gray-a4)",
+        ),
+    )
+
+
 def notifications_content() -> rx.Component:
     return rx.vstack(
         rx.hstack(
@@ -286,6 +361,7 @@ def notifications_content() -> rx.Component:
             width="100%",
             wrap="wrap",
         ),
+        rx.cond(~N.loading, _telegram_card()),
         rx.cond(
             N.loading,
             rx.vstack(

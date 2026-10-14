@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     # secret is not needed for this flow and is never sent anywhere.
     google_client_id: str = ""
 
+    # Telegram bot (@BotFather) that delivers triggered price alerts to a
+    # connected account (app/services/telegram_notify_service.py), and the
+    # public site URL used for the "Open on Repace" link in those messages.
+    telegram_bot_token: str = ""
+    public_site_url: str = "https://repace.fyqqflow.com"
+
     app_env: str = "development"
     app_host: str = "0.0.0.0"
     app_port: int = 8000
