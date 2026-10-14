@@ -604,27 +604,36 @@ def _primary_key(row: dict) -> tuple:
     return (-(row.get("market_cap_usd") or 0), row["cmc_id"])
 
 
+def _slugify_name(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+
+
 def assign_slugs(rows: list[dict]) -> dict[int, str]:
-    """Unique coin-page path for every coin (sets row["slug"], returns {cmc_id: slug}). Tickers are not unique
-    (two coins named MEME), so the biggest coin of a ticker keeps /coin/meme and the others get
-    /coin/meme-<cmc_id>; existing links to /coin/<ticker> keep working."""
-    owner: dict[str, dict] = {}
-    for r in rows:
-        k = r["symbol"].lower()
-        if k not in owner or _primary_key(r) < _primary_key(owner[k]):
-            owner[k] = r
-    slugs = {}
-    for r in rows:
-        k = r["symbol"].lower()
-        r["slug"] = k if owner[k] is r else f"{k}-{r['cmc_id']}"
-        slugs[r["cmc_id"]] = r["slug"]
+    """Unique coin-page path for every coin (sets row["slug"], returns {cmc_id: slug}): the coin's name
+    ("A Meme Coin" -> /coins/a-meme-coin). When several coins have the same name the biggest (market cap,
+    then lowest CMC id) keeps the plain name and the others get -2, -3... A name with no Latin letters or digits
+    falls back to the ticker."""
+    taken: set[str] = set()
+    slugs: dict[int, str] = {}
+    for r in sorted(rows, key=_primary_key):
+        base = _slugify_name(r.get("name")) or _slugify_name(r.get("symbol")) or "coin"
+        slug, n = base, 1
+        while slug in taken:
+            n += 1
+            slug = f"{base}-{n}"
+        taken.add(slug)
+        r["slug"] = slugs[r["cmc_id"]] = slug
     return slugs
 
 
-def pick_coin(slug: str, rows: list[dict], by_id: dict) -> dict | None:
-    """The row a /coin/<slug> path means: "meme-1234" is the coin with that CMC id (when its ticker matches),
-    otherwise the coin owning the ticker."""
+def pick_coin(slug: str, rows: list[dict], by_id: dict, by_slug: dict | None = None) -> dict | None:
+    """The row a /coins/<slug> path means. Older link shapes still resolve (and the page redirects to the new
+    path): "meme-1234" (ticker-cmc_id) and a bare ticker, which opens the coin that owns that ticker."""
     slug = slug.strip().lower()
+    if by_slug is None:
+        by_slug = {r["slug"]: r for r in rows if r.get("slug")}
+    if slug in by_slug:
+        return by_slug[slug]
     m = _SLUG_ID_RE.match(slug)
     if m:
         row = by_id.get(int(m.group(2)))
@@ -641,7 +650,8 @@ def route_ticker(slug: str) -> str:
 
 
 def coin_slug(cmc_id, symbol: str) -> str:
-    """/coin/<slug> for a coin known by CMC id (movers, alerts); the ticker alone when the list is not loaded."""
+    """/coins/<slug> for a coin known by CMC id (movers); the ticker when the list is not loaded yet (that old
+    link shape still redirects to the right page)."""
     return _UNIVERSE.get("slugs", {}).get(int(cmc_id or 0)) or (symbol or "").lower()
 
 
@@ -1409,6 +1419,7 @@ def ensure_universe(force: bool = False) -> None:
             at=time.time(),
             rows=rows,
             slugs=slugs,
+            by_slug={r["slug"]: r for r in rows},
             by_id={r["cmc_id"]: r for r in rows},
             narratives=[name for name, _ in narrative_counts.most_common()],
             chains=[name for name, _ in chain_counts.most_common()],
@@ -2090,8 +2101,18 @@ class CoinState(rx.State):
         self.coin_overrides = {**self.coin_overrides, cmc_id: {**self.coin_overrides.get(cmc_id, {}), **patch}}
 
     @rx.event
+    def redirect_legacy_coin(self):
+        """/coin/<ticker> and /coin/<ticker>-<id> (old links, notifications) -> the coin's /coins/<name> page."""
+        path = self.router.url.path.rstrip("/")
+        if not path.startswith("/coin/"):
+            return
+        coin = self.selected_coin
+        if coin:
+            return rx.redirect(f"/coins/{coin['slug']}" + ("/similar" if path.endswith("/similar") else ""))
+
+    @rx.event
     def go_to_coin(self, symbol: str):
-        return rx.call_script(f"window.location.assign({json.dumps('/coin/' + symbol.lower())})")
+        return rx.call_script(f"window.location.assign({json.dumps('/coins/' + symbol.lower())})")
 
     @rx.event
     def set_global_search_query(self, value: str):
@@ -2110,7 +2131,7 @@ class CoinState(rx.State):
     def go_to_coin_from_search(self, symbol: str):
         self.global_search_query = ""
         self.global_search_limit = 5
-        return rx.call_script(f"window.location.assign({json.dumps('/coin/' + symbol.lower())})")
+        return rx.call_script(f"window.location.assign({json.dumps('/coins/' + symbol.lower())})")
 
     @rx.event
     def reset_global_search(self):
@@ -2530,7 +2551,7 @@ class CoinState(rx.State):
                 out.append({
                     "id": a["id"], "cmc_id": row["cmc_id"], "name": row["name"], "symbol": row["symbol"],
                     "icon_url": row["icon_url"], "direction": a["direction"], "display": a["display"],
-                    "current_display": row["price_display"], "coin_url": "/coin/" + row.get("slug", row["symbol"].lower()),
+                    "current_display": row["price_display"], "coin_url": "/coins/" + row.get("slug", row["symbol"].lower()),
                 })
         return sorted(out, key=lambda x: (x["symbol"], x["id"]))
 
@@ -2645,14 +2666,14 @@ class CoinState(rx.State):
         docs describe for a `[pid]`-style route.
 
         Tickers aren't unique on CMC — plenty of low-cap/scam tokens reuse a
-        popular symbol — so "/coin/eth" is the biggest coin with that ticker (Ethereum, not an
-        obscure same-ticker micro-cap) and every other one has its own "/coin/<ticker>-<cmc_id>"
-        path (assign_slugs / pick_coin).
+        popular symbol — so a coin's path is its NAME ("/coins/ethereum", "/coins/a-meme-coin"), numbered
+        when names repeat (assign_slugs / pick_coin). The older "/coin/<ticker>" and
+        "/coin/<ticker>-<cmc_id>" links still resolve and redirect (redirect_legacy_coin).
         """
         symbol = self.symbol.strip().lower()
         if not symbol:
             return {}
-        row = pick_coin(symbol, self._all_coins, _UNIVERSE["by_id"])
+        row = pick_coin(symbol, self._all_coins, _UNIVERSE["by_id"], _UNIVERSE.get("by_slug"))
         return self._row_with_overrides(row) if row else {}
 
     def _similar_coin_rows(self) -> list[dict]:

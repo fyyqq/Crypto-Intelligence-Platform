@@ -105,7 +105,7 @@ def _display_row(position: int, c: dict) -> dict:
         "rank": str(c["rank"]),
         "name": c["name"],
         "symbol": c["symbol"],
-        "href": "/coin/" + _coin_slug(c["coin_id"], c["symbol"]),
+        "href": "/coins/" + _coin_slug(c["coin_id"], c["symbol"]),
         "icon_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{c['coin_id']}.png",
         "price_now": _fmt_usd(c["price_now"]),
         "price_then": _fmt_usd(c["price_then"]),

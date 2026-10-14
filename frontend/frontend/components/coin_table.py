@@ -203,7 +203,7 @@ def coin_href(row) -> rx.Var:
     """The coin page's real URL ("/coin/btc") — every coin row/result links
     here with a plain <a href>, not a click handler, so middle-click, Ctrl/Cmd-
     click and "open in new tab" work."""
-    return "/coin/" + row["slug"].to(str)
+    return "/coins/" + row["slug"].to(str)
 
 
 def _watchlist_star_cell(row: dict) -> rx.Component:

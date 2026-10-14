@@ -380,7 +380,7 @@ def _header_bar() -> rx.Component:
         rx.cond(
             ~CoinState.is_logged_in,
             rx.center(
-                rx.spinner(size="3"),
+                rx.image(src="/loading-logo.gif", width="min(360px, 70vw)", height="auto"),
                 class_name="private-mode-cover",
             ),
         ),
@@ -630,7 +630,7 @@ def _watchlist_popup_row(row: rx.Var[dict]) -> rx.Component:
             align="center",
             width="100%",
         ),
-        href="/coin/" + row["slug"].to(str),
+        href="/coins/" + row["slug"].to(str),
         underline="none",
         color="inherit",
         display="block",
@@ -1373,6 +1373,7 @@ app = rx.App(
     frontend_exception_handler=frontend_exception_handler,
     # Raw <script>: rx.script wraps it in Helmet, which never runs inside the document head.
     head_components=[
+        rx.el.script(src="/loading_overlay.js"),  # first: the 5-second GIF loading screen on every page load
         rx.el.script(src="/alert_voice.js"),
         rx.el.script(src="/instant_ui.js"),
         rx.el.script(src="/tradingview_timeframes.js"),
@@ -1467,12 +1468,12 @@ async def _telegram_macro_reminders():
 
 app.register_lifespan_task(_telegram_macro_reminders)
 # Dynamic routes must be registered before static ones (Reflex route-matching
-# order), so /coin/[symbol] is added ahead of the "/" index page below.
-# Ticker-based (not cmc_id-based) per explicit request — CoinState.
-# selected_coin breaks ties by market cap since tickers aren't unique on CMC.
+# order), so /coins/[symbol] is added ahead of the "/" index page below.
+# The path is the coin's NAME ("/coins/a-meme-coin", a number when names repeat),
+# CoinState.assign_slugs; the [symbol] arg name is kept for CoinState.symbol.
 app.add_page(
     coin_detail,
-    route="/coin/[symbol]",
+    route="/coins/[symbol]",
     # Dynamic — the coin's real name, not its ticker (e.g. "Repace —
     # Fartcoin"), per explicit request. See CoinState.page_title; falls back
     # to a generic title before all_coins has loaded.
@@ -1496,10 +1497,24 @@ app.add_page(
 )
 app.add_page(
     similar_coins_page,
-    route="/coin/[symbol]/similar",
+    route="/coins/[symbol]/similar",
     title=CoinState.similar_page_title,
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
 )
+
+
+def _legacy_coin_page() -> rx.Component:
+    return rx.center(rx.spinner(size="3"), min_height="100vh", width="100%")
+
+
+# Old links (/coin/eth, /coin/meme-42007, saved notifications) land here and move to /coins/<name>.
+for _legacy_route in ("/coin/[symbol]", "/coin/[symbol]/similar"):
+    app.add_page(
+        _legacy_coin_page,
+        route=_legacy_route,
+        title="Repace",
+        on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.redirect_legacy_coin],
+    )
 app.add_page(
     news_category_page,
     route="/news/[news_category]",

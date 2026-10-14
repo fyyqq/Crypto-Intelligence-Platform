@@ -37,7 +37,7 @@ def _row(position: int, c: dict) -> dict:
     return {
         "position": str(position),
         "symbol": c["symbol"],
-        "href": "/coin/" + _coin_slug(c["coin_id"], c["symbol"]),
+        "href": "/coins/" + _coin_slug(c["coin_id"], c["symbol"]),
         "icon_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{c['coin_id']}.png",
         "price": _fmt_usd(c["price_now"]),
         "change": f"{'▲' if up else '▼'} {abs(c['pct_change']):.2f}%",
