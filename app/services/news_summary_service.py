@@ -91,7 +91,7 @@ def _related_headlines(title: str, own_url: str) -> list[str]:
 
 
 # Free-tier models are often overloaded upstream; try these in turn.
-_FALLBACK_MODELS = ["google/gemma-4-31b-it:free", "qwen/qwen3.8-27b:free"]
+_FALLBACK_MODELS = ["google/gemma-4-31b-it:free", "nvidia/nemotron-3-super-120b-a12b:free"]  # the old qwen3.8 id no longer exists (404)
 
 
 def _call_openrouter(prompt: str, system: str | None = None, max_tokens: int = 600) -> tuple[str, str] | None:
@@ -99,6 +99,8 @@ def _call_openrouter(prompt: str, system: str | None = None, max_tokens: int = 6
         result = _call_model(prompt, model, system, max_tokens)
         if result is not None:
             return result
+        if ai_budget.blocked():  # daily limit: the other models share it
+            break
     return None
 
 
@@ -125,6 +127,9 @@ def _call_model(prompt: str, model: str, system: str | None = None, max_tokens: 
                 },
                 timeout=40,
             )
+            if ai_budget.note_response(response.status_code, response.text):
+                logger.warning("OpenRouter daily free-tier limit reached — AI calls paused until it resets")
+                return None
             if response.status_code == 429 and attempt < _MAX_ATTEMPTS:
                 time.sleep(_RETRY_DELAY_SECONDS)
                 continue

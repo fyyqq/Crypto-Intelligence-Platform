@@ -35,13 +35,43 @@ def _more_narratives_pill() -> rx.Component:
     )
 
 
+def _search_box(placeholder: str, value, on_change) -> rx.Component:
+    return rx.input(
+        rx.input.slot(rx.icon("search", size=13)),
+        value=value,
+        on_change=on_change,
+        placeholder=placeholder,
+        debounce_timeout=200,
+        size="1",
+        radius="full",
+        variant="surface",
+        width="150px",
+        class_name="filter-search",
+    )
+
+
+def _section_head(title: str, search: rx.Component) -> rx.Component:
+    # Full width: the title on the left, the search box pushed to the right edge.
+    return rx.hstack(
+        rx.text(title, size="2", color_scheme="gray"),
+        search,
+        justify="between",
+        align="center",
+        width="100%",
+    )
+
+
+def _no_match(text: str, shown: rx.Var[bool]) -> rx.Component:
+    return rx.cond(shown, rx.text(text, size="1", color_scheme="gray"), rx.fragment())
+
+
 def _narrative_pills() -> rx.Component:
     # Wrapped onto multiple lines, no drag/arrow slider — this filter now
     # lives in the narrower 1st-column sidebar (see frontend.py) instead of
     # a full-width top bar, so a horizontal slider no longer fits.
     return rx.box(
         rx.foreach(CoinState.displayed_categories, _narrative_pill),
-        _more_narratives_pill(),
+        rx.cond(CoinState.narrative_query == "", _more_narratives_pill(), rx.fragment()),
         class_name="filter-pills-wrap",
     )
 
@@ -77,7 +107,7 @@ def _chain_filter_pills() -> rx.Component:
     # filter (AND) — just wrapped instead of slider-scrolled now too.
     return rx.box(
         rx.foreach(CoinState.displayed_chains, _chain_filter_pill),
-        _more_chains_pill(),
+        rx.cond(CoinState.chain_query == "", _more_chains_pill(), rx.fragment()),
         class_name="filter-pills-wrap",
     )
 
@@ -89,18 +119,28 @@ def filter_bar() -> rx.Component:
             rx.text("Filters", weight="bold"),
             spacing="2",
             align="center",
+            width="100%",
+            justify="between",
         ),
         rx.vstack(
-            rx.text("Group by narrative", size="2", color_scheme="gray"),
+            _section_head(
+                "Group by narrative",
+                _search_box("Search narrative", CoinState.narrative_query, CoinState.set_narrative_query),
+            ),
             _narrative_pills(),
+            _no_match("No narrative matches.", (CoinState.narrative_query != "") & (CoinState.displayed_categories.length() == 0)),
             spacing="2",
             width="100%",
             align_items="start",
             id="narrative-filters",
         ),
         rx.vstack(
-            rx.text("Filter by chain", size="2", color_scheme="gray"),
+            _section_head(
+                "Filter by chain",
+                _search_box("Search chain", CoinState.chain_query, CoinState.set_chain_query),
+            ),
             _chain_filter_pills(),
+            _no_match("No chain matches.", (CoinState.chain_query != "") & (CoinState.displayed_chains.length() == 0)),
             spacing="2",
             width="100%",
             align_items="start",

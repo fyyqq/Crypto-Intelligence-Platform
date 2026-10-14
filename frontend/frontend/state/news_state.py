@@ -23,7 +23,7 @@ from urllib.parse import urlparse
 
 import reflex as rx
 
-from frontend.state.coin_state import _format_model_badge
+from frontend.state.coin_state import _format_model_badge, fix_ai
 
 _TELEGRAM_MEDIA_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "telegram_media"
 
@@ -1104,7 +1104,7 @@ class NewsState(rx.State):
                 (a["target_narrative_label"] for a in articles if a["narrative_slug"] == slug),
                 "",
             ) or next((a["target_group"] for a in articles if _slugify(a["target_group"]) == slug), "")
-            label = label or slug.replace("-", " ").title()
+            label = fix_ai(label or slug.replace("-", " ").title())
         total_pages = max(1, -(-len(articles) // _VIEW_ALL_LIMIT))
         page = max(1, min(self.narrative_page, total_pages))
         start = (page - 1) * _VIEW_ALL_LIMIT

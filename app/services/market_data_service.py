@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
@@ -418,4 +419,4 @@ class MarketDataService:
 
     @staticmethod
     def _humanize(slug: str) -> str:
-        return slug.replace("-", " ").replace("_", " ").title()
+        return re.sub(r"\bAi\b", "AI", slug.replace("-", " ").replace("_", " ").title())  # AI is an acronym

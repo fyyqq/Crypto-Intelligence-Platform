@@ -98,7 +98,8 @@ def refresh_batch() -> int:
         coins = _due_coins(db, _BATCH_SIZE)
         if not coins:
             return 0
-        result = _call_openrouter(_prompt(coins), system=_SYSTEM, max_tokens=300)
+        with ai_budget.background():  # never uses the calls reserved for page-visit summaries
+            result = _call_openrouter(_prompt(coins), system=_SYSTEM, max_tokens=300)
         if result is None:
             ai_budget.mark_failed(_COOLDOWN_KEY)
             return 0

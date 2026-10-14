@@ -346,11 +346,12 @@ def _target_batch(limit: int = _BATCH_SIZE) -> tuple[int, int]:
     nmap = _narrative_map()
     listing = "\n".join(f"{n}: {', '.join(nmap['narratives'][n])}" for n in nmap["order"])
     items = "\n".join(f"[{i}] {a['title']} — {a['body'][:300]}" for i, a in enumerate(articles, 1))
-    result = _call_openrouter(
-        f"Narratives (top coins by market cap):\n{listing}\n\nNews items:\n{items}",
-        system=_SYSTEM_PROMPT,
-        max_tokens=60 * len(articles),
-    )
+    with ai_budget.background():  # never uses the calls reserved for page-visit summaries
+        result = _call_openrouter(
+            f"Narratives (top coins by market cap):\n{listing}\n\nNews items:\n{items}",
+            system=_SYSTEM_PROMPT,
+            max_tokens=60 * len(articles),
+        )
     if result is None:
         ai_budget.mark_failed("news-targeting")
         logger.info("News targeting: AI unavailable, using rules until it is back")

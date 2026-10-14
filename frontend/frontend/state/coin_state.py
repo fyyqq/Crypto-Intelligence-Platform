@@ -596,12 +596,25 @@ def _resolve_unlock_source_url(symbol: str, defillama_slug: str | None) -> str:
     return f"https://defillama.com/token/{symbol.upper()}"
 
 
+def _search_names(names: list[str], skip: str, query: str) -> list[str]:
+    """Filter-sidebar search: names containing the query, those with a word STARTING with it first ("ai" lists
+    "AI Agents" before "Binance Chain"), otherwise in the list's own (most coins first) order."""
+    q = query.strip().lower()
+    hits = [n for n in names if n != skip and q in n.lower()]
+    return sorted(hits, key=lambda n: 0 if any(w.startswith(q) for w in re.split(r"[^a-z0-9]+", n.lower())) else 1)
+
+
+def fix_ai(text: str) -> str:
+    """Category labels are title-cased from CMC slugs ("ai-big-data" -> "Ai Big Data"); AI is an acronym."""
+    return re.sub(r"\bAi\b", "AI", text or "")
+
+
 def _build_row(coin: Coin) -> dict:
     """Builds one table row dict from a Coin (with categories/contracts
     eager-loaded). Shared by load_coins (full load) and the view-driven
     live sync (refreshes just the coins on whichever page is on screen).
     """
-    names = sorted(category.name for category in coin.categories)
+    names = sorted(fix_ai(category.name) for category in coin.categories)
     trend_24h_data, trend_24h_color, trend_24h_shine = _trend_line(coin.percent_change_24h or 0.0)
     trend_7d_data, trend_7d_color, trend_7d_shine = _trend_line(coin.percent_change_7d or 0.0)
     primary_narrative = _pick_primary_narrative(names)
@@ -1325,7 +1338,7 @@ def ensure_universe(force: bool = False) -> None:
             narrative_counts: Counter[str] = Counter()
             chain_counts: Counter[str] = Counter()
             for coin in coins:
-                narrative_counts.update(category.name for category in coin.categories)
+                narrative_counts.update(fix_ai(category.name) for category in coin.categories)
                 row = _build_row(coin)
                 chain_counts.update([row["main_chain"]])
                 rows.append(row)
@@ -1423,6 +1436,10 @@ class CoinState(rx.State):
     # set instead of firing a second query for the rest.
     all_categories: list[str] = []
     narratives_expanded: bool = False
+    # Filter-sidebar search boxes: while one has text, its pill list shows the matching names from the FULL
+    # list (not only the default top 20) and the "More" pill is hidden.
+    narrative_query: str = ""
+    chain_query: str = ""
     selected_category: str = "All narratives"
     # Drives just the pill's active/blue highlight. Kept separate from
     # selected_category (which drives the actual re-filter/re-sort of up to
@@ -1689,6 +1706,14 @@ class CoinState(rx.State):
         # and every narrative (all_categories), no re-query either way since
         # both were already computed once in load_coins.
         self.narratives_expanded = not self.narratives_expanded
+
+    @rx.event
+    def set_narrative_query(self, value: str):
+        self.narrative_query = value
+
+    @rx.event
+    def set_chain_query(self, value: str):
+        self.chain_query = value
 
     @rx.event
     def toggle_chains_expanded(self):
@@ -3355,10 +3380,14 @@ class CoinState(rx.State):
 
     @rx.var(cache=True)
     def displayed_categories(self) -> list[str]:
+        if self.narrative_query.strip():
+            return _search_names(self.all_categories, "All narratives", self.narrative_query)
         return self.all_categories if self.narratives_expanded else self.categories
 
     @rx.var(cache=True)
     def displayed_chains(self) -> list[str]:
+        if self.chain_query.strip():
+            return _search_names(self.all_chains, "All chains", self.chain_query)
         return self.all_chains if self.chains_expanded else self.chains
 
     @rx.var(cache=True)

@@ -16,3 +16,4 @@ paths:
 - Prompts must forbid inventing facts beyond the provided text.
 - Existing labels written by Claude Code (`target_model='claude-code'`, `category_source='claude-code'`, summary model `claude-code`) are judgments, not facts; clear the row's timestamp to let the AI redo it.
 - AI-generated text must be theme-aware (`var(--gray-12)`), never hardcoded white.
+- Daily free-tier cap (50/day, UTC reset, shared by local + live): `ai_budget` reserves the last `openrouter_visit_reserve` calls for page-visit summaries; wrap any new background caller in `with ai_budget.background():`. A "free-models-per-day" 429 pauses all calls until the reset (`note_response`). Spell the acronym AI (never "Ai") in labels.

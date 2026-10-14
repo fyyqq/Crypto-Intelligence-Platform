@@ -141,6 +141,9 @@ def _fetch_from_openrouter(coin: Coin, website_text: str, tweet_texts: list[str]
                 },
                 timeout=30,
             )
+            if ai_budget.note_response(response.status_code, response.text):
+                logger.warning("OpenRouter daily free-tier limit reached — AI calls paused until it resets")
+                return None
             if response.status_code == 429 and attempt < _MAX_ATTEMPTS:
                 logger.info(
                     "OpenRouter rate-limited for %s (attempt %d/%d) — retrying",

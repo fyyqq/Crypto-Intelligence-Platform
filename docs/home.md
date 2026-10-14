@@ -30,6 +30,8 @@ New leftmost column, before Rank — same toggle design as the coin-detail page'
 <details>
 <summary><strong>🏷️ Narrative & chain filters</strong></summary>
 
+**Search (2026-10-15):** each list has its own heading row (title left, search box right, full width of the sidebar): typing filters that list by name over the FULL list (not only the default top 20) with names that have a word starting with the text first, hides the "More" pill while there is text and shows "No narrative/chain matches." when empty (`CoinState.narrative_query` / `chain_query`, `filters.py`). Narrative names show the acronym as **AI** (CMC slugs were title-cased to "Ai"; `coin_state.fix_ai`, also in `MarketDataService._humanize` and the narrative page label).
+
 Two pill rows in the left sidebar — top 20 narratives and top 20 chains, each ranked by how many coins on the platform carry that tag (recomputed on every full sync, not a fixed list). AND-combined (e.g. "Memes" + "BNB Smart Chain" narrows to memecoins on BNB specifically). "More Narrative"/"More Chain" expands to *every* narrative/chain that exists (574 / 819 respectively as of this writing) with no second query — both the top-20 and full lists are computed once, up front — and the same pill becomes "Show less" to collapse back to the default view.
 </details>
 

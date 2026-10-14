@@ -120,6 +120,11 @@ class Settings(BaseSettings):
     # Cost guards for every OpenRouter call (see app/services/ai_budget.py).
     openrouter_max_calls_per_hour: int = 60
     openrouter_failure_cooldown_minutes: int = 30
+    # Free-tier daily request cap (50 a day, per account, reset 00:00 UTC; 0 = unlimited, set it once credits are
+    # added). Background AI work stops `openrouter_visit_reserve` calls early so page-visit summaries always
+    # have room (app/services/ai_budget.py).
+    openrouter_daily_limit: int = 50
+    openrouter_visit_reserve: int = 30
     # Weekly coin business-model category check (app/services/
     # coin_category_service.py): one OpenRouter call (8 coins) per interval.
     # 120 min = 12 calls/day, sized for the free tier's ~50 requests/day;

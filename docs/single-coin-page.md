@@ -53,6 +53,8 @@ Neither defillama.com nor tokenomist.ai's page-existence can be live-checked fro
 <summary><strong>🤖 AI business summary</strong></summary>
 
 On first visit, an on-demand call to OpenRouter (a free nemotron model — not Claude 3.5 Sonnet as originally planned, since that model is retired from OpenRouter and this project's OpenRouter account is free-tier) generates 3–4 titled paragraphs (the first is "Problem It Solves"). Re-generated periodically (60-day cache), not one-time, since a project's real business model can drift. Its CATEGORY: line only fills the badge for coins with no curated category (see below).
+
+**Free-tier daily limit (2026-10-15):** OpenRouter's free models allow 50 requests a day per account (reset 00:00 UTC), shared by live, local dev and the background jobs. When it is used up every summary (coin and news pages) silently shows nothing. `app/services/ai_budget.py` now keeps a daily counter on disk (`logs/ai_budget.json`, `OPENROUTER_DAILY_LIMIT` 50, 0 = unlimited): page-visit summaries own the last `OPENROUTER_VISIT_RESERVE` (30) calls of the day while background work (Telegram post classification, news targeting, the weekly category check) stops earlier; the first "free-models-per-day" 429 pauses all calls until OpenRouter's reset (no wasted retries/fallback calls, no 30-minute item cooldown). The dead `qwen/qwen3.8-27b:free` fallback (404) was replaced. Adding 10 OpenRouter credits lifts the account to 1000 free-model requests a day (then set `OPENROUTER_DAILY_LIMIT=0` or 1000).
 </details>
 
 <details>
