@@ -196,3 +196,16 @@ def test_past_day_board_and_missing_day(env):
     assert "No saved 7D board for 13 Oct 2026" in sent[2][1]
     assert "No saved 24H board for 1 Jan 2020. Saved boards exist from 13 Oct 2026 to 13 Oct 2026" in sent[3][1]
     assert "not a valid date" in sent[4][1]
+
+
+def test_view_all_command_lists_everything_even_for_unlinked_chats(env):
+    sent, _ = env
+    for text in ("/view_all_command", "/view_all_commands", "/help"):
+        tg.handle_message({"text": text, "chat": {"id": 999, "type": "private"}})  # 999 is not linked
+    assert len(sent) == 3 and sent[0][1] == sent[1][1] == sent[2][1]
+    text = sent[0][1]
+    for part in ("/alerts", "/alert {coin}", "/gainers_losers_24h", "/gainers_losers_7d", "/gainers_losers_1m",
+                 "_top200", "/gainers_losers_{date}", "/gainers_losers_7d_top200_{date}", "13_10_2026"):
+        assert part in text
+    assert tg.COMMANDS[0]["command"] == "view_all_command"
+    assert "{" not in "".join(c["command"] for c in tg.menu_commands())  # menu names stay valid
