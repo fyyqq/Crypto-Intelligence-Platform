@@ -176,6 +176,7 @@ def _fng_result(points: list[tuple[int, int, str]], source: str) -> dict:
         "week": at(7),
         "month": at(30),
         "source": source,
+        "ts": ts,  # unix time of the newest value (the Telegram digest checks it is today's)
     }
 
 

@@ -1,11 +1,12 @@
 """Gainers & Losers in Telegram: on demand (/gainers_losers_24h, _7d, _1m [band])
 and as an automatic digest to every account with Telegram connected.
 
-Digest schedule (Kuala Lumpur time, the app's display zone), 08:00:
-  24H board every day, 7D board on Mondays, 1 Month board on the 1st.
-A board is only sent once its window has enough history ("ready"); a window
-still collecting is skipped silently (no "collecting" spam). Each period is
-sent once: the last sent period per window is kept in
+Digest schedule (Kuala Lumpur time, the app's display zone): every day at 08:00
+the 24H Top 100 board and the Fear & Greed Index. Nothing else is sent
+automatically (7D, 1 Month, other bands and past days are on-demand only).
+A board is only sent once its window has enough history ("ready"); the Fear &
+Greed message only once the index shows today's value (it is published at
+00:00 UTC = 08:00 KL). Each period is sent once: the last sent day per item is kept in
 logs/telegram_digest_sent.json, so a restart never repeats or double-sends.
 It runs in the Reflex process only where settings.telegram_digest is true
 (live); local and live share one bot, so a second sender would duplicate.
@@ -15,7 +16,7 @@ import html
 import json
 import logging
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -178,20 +179,16 @@ def handle_command(chat_id: int, window: str, arg: str = "", band: int | None = 
 
 # ---- Automatic digest ----------------------------------------------------------------------
 
-def _period_key(window: str, now: datetime) -> str:
-    if window == "24h":
-        return now.date().isoformat()
-    if window == "7d":
-        iso = now.isocalendar()
-        return f"{iso.year}-W{iso.week:02d}"
-    return f"{now.year}-{now.month:02d}"
+def _period_key(now: datetime) -> str:
+    return now.date().isoformat()
 
 
-def is_due(window: str, now: datetime) -> bool:
-    """08:00 KL (up to GRACE later) on the window's day: every day / Monday / the 1st."""
-    if window == "7d" and now.weekday() != 0:
-        return False
-    if window == "30d" and now.day != 1:
+AUTO_ITEMS = ("24h", "fng")  # the only things sent automatically, once a day
+
+
+def is_due(item: str, now: datetime) -> bool:
+    """08:00 KL (up to GRACE later), every day, for the items in AUTO_ITEMS only."""
+    if item not in AUTO_ITEMS:
         return False
     at = now.replace(hour=SEND_HOUR, minute=0, second=0, microsecond=0)
     return at <= now < at + GRACE
@@ -217,13 +214,7 @@ def connected_chats() -> list[int]:
         db.close()
 
 
-def send_digest(window: str, chats: list[int] | None = None) -> int:
-    """Sends the window's Top 100 board now (ignoring the schedule) to every
-    connected account; returns how many chats got it. Nothing is sent while
-    the window is still collecting."""
-    text, ready = build_message(window)
-    if not ready:
-        return 0
+def _deliver(text: str, chats: list[int] | None) -> int:
     sent = 0
     for chat_id in connected_chats() if chats is None else chats:
         try:
@@ -234,21 +225,84 @@ def send_digest(window: str, chats: list[int] | None = None) -> int:
     return sent
 
 
+def send_digest(window: str, chats: list[int] | None = None) -> int:
+    """Sends the window's Top 100 board now (ignoring the schedule) to every
+    connected account; returns how many chats got it. Nothing is sent while
+    the window is still collecting."""
+    text, ready = build_message(window)
+    return _deliver(text, chats) if ready else 0
+
+
+# ---- Fear & Greed Index ----------------------------------------------------------------------
+# Same free source and labels as the /tools page (Alternative.me), fetched fresh every time.
+
+def fetch_fng() -> dict:
+    from app.services import market_tools_service as mts
+
+    mts._cache.pop("fng:alternative", None)  # the command is a manual refresh: skip the 15-minute cache
+    return mts.get_fear_greed("alternative_me")
+
+
+def _fng_dot(value: int) -> str:
+    return "🔴" if value < 25 else "🟠" if value < 45 else "🟡" if value < 55 else "🟢"  # the /tools gauge zones
+
+
+def fng_message(data: dict) -> str:
+    now, yesterday = data["value"], data["yesterday"]
+    lines = [
+        "🧭 <b>Fear &amp; Greed Index</b>",
+        "",
+        f"{_fng_dot(now)} <b>Now: {now}</b> · {html.escape(data['label'])}",
+    ]
+    if yesterday["value"] >= 0:
+        delta = now - yesterday["value"]
+        arrow = "▲" if delta > 0 else "▼" if delta < 0 else "="
+        change = f"  ({arrow} {abs(delta)})" if delta else "  (no change)"
+        lines.append(f"{_fng_dot(yesterday['value'])} Yesterday: {yesterday['value']} · {html.escape(yesterday['label'])}{change}")
+    lines += ["", f"<i>{html.escape(data['source'])} · updated {data['updated']} (UTC)</i>"]
+    return "\n".join(lines)
+
+
+def handle_fng(chat_id: int) -> None:
+    try:
+        text = fng_message(fetch_fng())
+    except Exception:  # noqa: BLE001
+        log.exception("fear & greed fetch failed")
+        text = "Could not load the Fear & Greed Index right now. Try again in a moment."
+    tg._send(chat_id, text)
+
+
+def send_fng_digest(now: datetime, chats: list[int] | None = None) -> int:
+    """Sends the index to every connected account, but only once it shows
+    today's (UTC) value, so a lagging source never sends yesterday's number as
+    "now". Returns how many chats got it."""
+    data = fetch_fng()
+    if datetime.fromtimestamp(data["ts"], timezone.utc).date() != now.astimezone(timezone.utc).date():
+        return 0
+    return _deliver(fng_message(data), chats)
+
+
 def check_and_send(now: datetime | None = None) -> list[str]:
-    """One scheduler pass: sends every due, ready, not-yet-sent window. Returns
-    the windows sent. A due window that is still collecting is retried on the
-    next pass (until its grace period ends)."""
+    """One scheduler pass: sends every due, ready, not-yet-sent item of
+    AUTO_ITEMS (the 24H board and the Fear & Greed Index). Returns the items
+    sent. An item that is not ready yet is retried on the next pass (until its
+    grace period ends)."""
     now = now or datetime.now(TZ)
     state = _load_sent()
+    key = _period_key(now)
     done = []
-    for window in ps.WINDOWS:
-        key = _period_key(window, now)
-        if not is_due(window, now) or state.get(window) == key:
+    for item in AUTO_ITEMS:
+        if not is_due(item, now) or state.get(item) == key:
             continue
-        if send_digest(window) or not connected_chats():
-            state[window] = key
+        try:
+            sent = send_fng_digest(now) if item == "fng" else send_digest(item)
+        except Exception:  # noqa: BLE001  (one failing source must not block the other item)
+            log.exception("telegram digest item %s failed", item)
+            continue
+        if sent or not connected_chats():
+            state[item] = key
             _save_sent(state)
-            done.append(window)
+            done.append(item)
     return done
 
 

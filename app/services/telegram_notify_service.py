@@ -154,6 +154,7 @@ def send_channel(user_id: int, payload: dict) -> None:
 
 COMMANDS = [
     {"command": "view_all_command", "description": "Show all commands, incl. the ones that need a {coin} or {date}"},
+    {"command": "fear_greed_index", "description": "Fear & Greed Index: now and yesterday"},
     {"command": "alerts", "description": "Show list of active alerts"},
     {"command": "alert", "description": "Show active alerts for one coin, e.g. /alert ETH"},
 ]
@@ -171,6 +172,9 @@ def commands_overview() -> str:
         "/alerts - all your active alerts",
         "<code>/alert {coin}</code> - active alerts of one coin, e.g. /alert ETH",
         "",
+        "<b>Market</b>",
+        "/fear_greed_index - Fear &amp; Greed Index, now and yesterday",
+        "",
         "<b>Gainers &amp; Losers</b> (Top 100, 10 gainers + 10 losers)",
         "/gainers_losers_24h",
         "/gainers_losers_7d",
@@ -186,7 +190,7 @@ def commands_overview() -> str:
         "<code>/gainers_losers_7d_top200_{date}</code> - timeframe (24h, 7d, 1m) and band (top100...top500) are optional, the date is always last",
         "{date} = day_month_year, e.g. 13_10_2026",
         "",
-        "Boards update once an hour. The digest of the 24H board arrives every day at 08:00 (Kuala Lumpur).",
+        "Boards update once an hour. Sent automatically every day at 08:00 (Kuala Lumpur): the 24H Top 100 board and the Fear &amp; Greed Index. Everything else only when you ask.",
     ])
 
 
@@ -257,11 +261,13 @@ def handle_message(msg: dict) -> None:
         return
     parsed = digest.parse_command(cmd)
     past = digest.parse_date_command(cmd)
-    if cmd not in ("alerts", "command1", "alert") and not parsed and not past:
+    if cmd not in ("alerts", "command1", "alert", "fear_greed_index") and not parsed and not past:
         return
     user_id = _user_for_chat(chat["id"])
     if not user_id:
         _send(chat["id"], "This chat is not connected. Open Repace > Notifications > Connect Telegram.")
+    elif cmd == "fear_greed_index":
+        digest.handle_fng(chat["id"])
     elif parsed:
         digest.handle_command(chat["id"], parsed[0], arg, parsed[1])
     elif past:

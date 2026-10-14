@@ -93,30 +93,89 @@ def test_commands_via_handle_message(env):
     assert "not connected" in sent[3][1]
 
 
+def fng_data(value=23, yesterday=28, ts=None):
+    ts = ts if ts is not None else int(at(2026, 6, 1, 8, 1).timestamp())  # 00:01 UTC on 1 Jun
+    return {"value": value, "label": "Extreme Fear", "updated": "01 Jun 2026", "ts": ts, "source": "Alternative.me",
+            "yesterday": {"value": yesterday, "label": "Fear"}}
+
+
+@pytest.fixture
+def fng(monkeypatch):
+    box = {"data": fng_data(), "calls": 0}
+
+    def fake():
+        box["calls"] += 1
+        if isinstance(box["data"], Exception):
+            raise box["data"]
+        return box["data"]
+
+    monkeypatch.setattr(dg, "fetch_fng", fake)
+    return box
+
+
 def test_schedule_rules():
     assert dg.is_due("24h", at(2026, 10, 14)) and dg.is_due("24h", at(2026, 10, 14, 19, 59))
+    assert dg.is_due("fng", at(2026, 10, 14))
     assert not dg.is_due("24h", at(2026, 10, 14, 7, 59)) and not dg.is_due("24h", at(2026, 10, 14, 20, 0))
-    assert dg.is_due("7d", at(2026, 10, 12)) and not dg.is_due("7d", at(2026, 10, 14))  # Monday only
-    assert dg.is_due("30d", at(2026, 11, 1)) and not dg.is_due("30d", at(2026, 11, 2))  # 1st only
+    # only the 24H board and the index are automatic: never 7D (even on a Monday) or 1 Month (even on the 1st)
+    assert not dg.is_due("7d", at(2026, 10, 12)) and not dg.is_due("30d", at(2026, 11, 1))
 
 
-def test_digest_sent_once_per_period_and_only_to_connected(env):
+def test_only_24h_and_fng_are_sent_automatically(env, fng):
     sent, _ = env
-    monday_first = at(2026, 6, 1)  # a Monday and the 1st: all three boards due
-    assert dg.check_and_send(monday_first) == ["24h", "7d", "30d"]
-    assert len(sent) == 3 and all(chat == 42 for chat, _ in sent)  # user 2 has no Telegram
-    assert dg.check_and_send(at(2026, 6, 1, 9)) == []  # same period: nothing again
-    assert dg.check_and_send(at(2026, 6, 2)) == ["24h"]  # next day: only the daily board
+    monday_first = at(2026, 6, 1)  # a Monday and the 1st: 7D and 1M would have been due before
+    assert dg.check_and_send(monday_first) == ["24h", "fng"]
+    texts = [t for _, t in sent]
+    assert len(texts) == 2 and "24H · Top 100" in texts[0] and "Fear &amp; Greed" in texts[1]
+    assert all(chat == 42 for chat, _ in sent)  # user 2 has no Telegram
+    assert not any("7D" in t or "1 Month" in t for t in texts)
+
+
+def test_digest_sent_once_per_day(env, fng):
+    sent, _ = env
+    assert dg.check_and_send(at(2026, 6, 1)) == ["24h", "fng"]
+    assert dg.check_and_send(at(2026, 6, 1, 9)) == []  # same day: nothing again
+    assert len(sent) == 2
+    fng["data"] = fng_data(ts=int(at(2026, 6, 2, 8, 1).timestamp()))
+    assert dg.check_and_send(at(2026, 6, 2)) == ["24h", "fng"]  # next day
     assert len(sent) == 4
 
 
-def test_collecting_window_is_skipped_then_retried(env):
+def test_collecting_board_is_skipped_then_retried(env, fng):
     sent, ready = env
-    ready["7d"] = False
-    assert dg.check_and_send(at(2026, 6, 1)) == ["24h", "30d"]
-    assert dg.check_and_send(at(2026, 6, 1, 10)) == []  # 7d still collecting
-    ready["7d"] = True
-    assert dg.check_and_send(at(2026, 6, 1, 11)) == ["7d"]  # sent once it is ready, inside the grace period
+    ready["24h"] = False
+    assert dg.check_and_send(at(2026, 6, 1)) == ["fng"]
+    assert dg.check_and_send(at(2026, 6, 1, 10)) == []  # still collecting
+    ready["24h"] = True
+    assert dg.check_and_send(at(2026, 6, 1, 11)) == ["24h"]  # sent once ready, inside the grace period
+
+
+def test_fng_waits_for_todays_value_and_survives_failures(env, fng):
+    sent, _ = env
+    fng["data"] = fng_data(ts=int(at(2026, 5, 31, 8, 1).timestamp()))  # source still shows yesterday's value
+    assert dg.check_and_send(at(2026, 6, 1)) == ["24h"]
+    assert dg.check_and_send(at(2026, 6, 1, 8, 30)) == []  # retried, still stale: nothing sent
+    fng["data"] = RuntimeError("source down")
+    assert dg.check_and_send(at(2026, 6, 1, 9)) == []  # a failing source never raises or blocks
+    fng["data"] = fng_data()
+    assert dg.check_and_send(at(2026, 6, 1, 9, 30)) == ["fng"]
+    assert sum("Fear &amp; Greed" in t for _, t in sent) == 1
+
+
+def test_fng_message_and_command(env, fng):
+    sent, _ = env
+    text = dg.fng_message(fng_data(value=23, yesterday=28))
+    assert "Now: 23" in text and "Extreme Fear" in text and "Yesterday: 28" in text and "▼ 5" in text
+    assert "🔴" in text and "Alternative.me" in text
+    assert "▲ 7" in dg.fng_message(fng_data(value=35, yesterday=28)) and "no change" in dg.fng_message(fng_data(28, 28))
+    assert "Yesterday" not in dg.fng_message(fng_data(yesterday=-1))  # source without a yesterday value
+    tg.handle_message({"text": "/fear_greed_index", "chat": {"id": 42, "type": "private"}})
+    tg.handle_message({"text": "/fear_greed_index", "chat": {"id": 999, "type": "private"}})
+    assert "Now: 23" in sent[0][1] and fng["calls"] == 1  # every command is a fresh fetch
+    assert "not connected" in sent[1][1]
+    fng["data"] = RuntimeError("down")
+    tg.handle_message({"text": "/fear_greed_index", "chat": {"id": 42, "type": "private"}})
+    assert "Could not load" in sent[2][1]
 
 
 def test_band_commands():
