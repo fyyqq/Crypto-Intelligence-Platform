@@ -149,3 +149,52 @@ def test_start_with_code_links_through_handle_message(env):
     code, _ = tg.start_link(1)
     tg.handle_message(_msg(f"/start {code}", chat_id=88))
     assert tg.chat_id_for(1) == 88
+
+
+# ---- /clear_chat ----------------------------------------------------------------------------
+
+def test_clear_chat_deletes_ids_downwards_in_batches_of_100(env, monkeypatch):
+    calls, _ = env
+    monkeypatch.setattr(tg.time, "sleep", lambda s: None)
+    tried = tg.clear_chat(42, 250)
+    deletes = [p for m, p in calls if m == "deleteMessages"]
+    assert [(p["message_ids"][0], p["message_ids"][-1], len(p["message_ids"])) for p in deletes] == [(250, 151, 100), (150, 51, 100), (50, 1, 50)]
+    assert all(p["chat_id"] == 42 for p in deletes) and tried == 250  # never below message id 1
+
+
+def test_clear_chat_is_capped_and_survives_a_failing_batch(env, monkeypatch):
+    calls, _ = env
+    monkeypatch.setattr(tg.time, "sleep", lambda s: None)
+    real = tg._api
+
+    def flaky(method, **params):
+        if method == "deleteMessages" and params["message_ids"][0] == 4900:
+            raise RuntimeError("Too Many Requests")
+        return real(method, **params)
+
+    monkeypatch.setattr(tg, "_api", flaky)
+    tried = tg.clear_chat(42, 5000, max_ids=300)
+    ids = [i for m, p in calls if m == "deleteMessages" for i in p["message_ids"]]
+    assert tried == 300 and max(ids) == 5000 and min(ids) == 4701
+    assert not set(range(4801, 4901)) & set(ids)  # the batch that failed (4900..4801) was skipped, the others ran
+    assert {4900 + 100, 4800 - 99} <= set(ids)
+
+
+def test_clear_chat_command_works_in_any_private_chat_and_confirms(env, monkeypatch):
+    calls, _ = env
+    monkeypatch.setattr(tg.time, "sleep", lambda s: None)
+    monkeypatch.setattr(tg, "CLEAR_MAX_IDS", 120)
+    tg.handle_message({"message_id": 500, "text": "/clear_chat", "chat": {"id": 999, "type": "private"}})  # 999 is not linked
+    deletes = [p for m, p in calls if m == "deleteMessages"]
+    assert [p["message_ids"][0] for p in deletes] == [500, 400] and deletes[0]["chat_id"] == 999
+    assert 500 in deletes[0]["message_ids"]  # the command message itself goes too
+    confirm = [p for m, p in calls if m == "sendMessage"]
+    assert len(confirm) == 1 and "Chat cleared" in confirm[0]["text"] and "48 hours" in confirm[0]["text"]
+    n = len(calls)
+    tg.handle_message({"message_id": 9, "text": "/clear_chat", "chat": {"id": 7, "type": "group"}})  # groups are ignored
+    assert len(calls) == n
+
+
+def test_clear_chat_is_in_the_menu_and_the_overview():
+    assert any(c["command"] == "clear_chat" for c in tg.COMMANDS)
+    assert "/clear_chat" in tg.commands_overview()

@@ -154,6 +154,7 @@ def send_channel(user_id: int, payload: dict) -> None:
 
 COMMANDS = [
     {"command": "view_all_command", "description": "Show all commands, incl. the ones that need a {coin} or {date}"},
+    {"command": "clear_chat", "description": "Delete this chat's messages (last 48 hours)"},
     {"command": "site_health", "description": "Site and data health check"},
     {"command": "fear_greed_index", "description": "Fear & Greed Index: now and yesterday"},
     {"command": "alerts", "description": "Show list of active alerts"},
@@ -178,6 +179,7 @@ def commands_overview() -> str:
         "",
         "<b>System</b>",
         "/site_health - is the site and its data (prices, news, CoinMarketCap, alerts, server) healthy?",
+        "/clear_chat - deletes this chat's messages (Telegram lets a bot delete only the last 48 hours)",
         "",
         "<b>Gainers &amp; Losers</b> (Top 100, 10 gainers + 10 losers)",
         "/gainers_losers_24h",
@@ -196,6 +198,34 @@ def commands_overview() -> str:
         "",
         "Boards update once an hour. Sent automatically every day at 08:00 (Kuala Lumpur): the 24H Top 100 board and the Fear &amp; Greed Index. Everything else only when you ask.",
     ])
+
+
+# /clear_chat: Telegram's deleteMessages takes up to 100 message ids per call and silently skips ids that do
+# not exist or cannot be deleted. A bot may delete a message only if it is under 48 hours old (its own
+# messages anywhere, and the user's messages in a private chat); older ones stay, Telegram's own "Clear
+# history" removes those. Ids in a private chat are sequential, so the command walks back from its own id.
+CLEAR_MAX_IDS = 3000
+CLEAR_BATCH = 100
+
+
+def clear_chat(chat_id: int, from_message_id: int, max_ids: int | None = None) -> int:
+    """Deletes message ids from_message_id, from_message_id-1, ... (up to max_ids of them) in this chat,
+    newest first, 100 per request. Returns the number of ids tried (Telegram does not say how many
+    existed). A failing batch (e.g. a rate limit) is skipped, never raised."""
+    low = max(1, from_message_id - (max_ids or CLEAR_MAX_IDS) + 1)
+    tried = 0
+    top = from_message_id
+    while top >= low:
+        ids = list(range(top, max(low, top - CLEAR_BATCH + 1) - 1, -1))
+        try:
+            _api("deleteMessages", chat_id=chat_id, message_ids=ids)
+        except Exception:  # noqa: BLE001
+            log.warning("deleteMessages batch %s..%s failed", ids[0], ids[-1], exc_info=True)
+        tried += len(ids)
+        top -= CLEAR_BATCH
+        if top >= low:
+            time.sleep(0.15)  # stay well inside Telegram's rate limits
+    return tried
 
 
 def menu_commands() -> list[dict]:
@@ -257,6 +287,11 @@ def handle_message(msg: dict) -> None:
             _handle_start(msg)
         else:
             _send(chat["id"], "Repace price alerts. Connect your account from Repace > Notifications > Connect Telegram.")
+        return
+    if cmd == "clear_chat":  # acts only on the chat that sent it, so it needs no linked account
+        clear_chat(chat["id"], int(msg.get("message_id") or 0))
+        _send(chat["id"], "🧹 Chat cleared. Telegram lets a bot delete only messages from the last 48 hours; "
+                          "for anything older use Telegram's own Clear history.")
         return
     from app.services import telegram_digest_service as digest
 

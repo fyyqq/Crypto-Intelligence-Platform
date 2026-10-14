@@ -1789,20 +1789,14 @@ def _chart_placeholder(icon: rx.Component, title: str, subtitle: str = "") -> rx
     )
 
 
-# The report icon (red warning triangle with a white "!", transparent
-# background), 18px like the watchlist star.
-_REPORT_ICON_SVG = (
-    '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">'
-    '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" fill="#EF404B"/>'
-    '<rect x="11" y="8" width="2" height="6.6" rx="1" fill="#FFF6EE"/>'
-    '<circle cx="12" cy="17.6" r="1.25" fill="#FFF6EE"/></svg>'
-)
+# The chart-fix icon: the gradient "edit" image supplied on 2026-10-15 (assets/chart-edit-icon.png,
+# 96px for a 20px slot, so it is sharp on retina); it replaced the red warning triangle.
 
 
 def _chart_report_button() -> rx.Component:
     """Opens the chart picker: fix a wrong TradingView chart for this coin."""
     return rx.box(
-        rx.html(_REPORT_ICON_SVG),
+        rx.image(src="/chart-edit-icon.png", alt="", width="20px", height="20px", display="block"),
         on_click=CoinState.open_chart_dialog,
         cursor="pointer",
         display="flex",
@@ -1987,7 +1981,7 @@ def _chart_column() -> rx.Component:
             # sit flush left.
             width="100%",
         ),
-        rx.cond(CoinState.has_tradingview_chart, timeframe_controls("60")),
+        rx.cond(CoinState.has_tradingview_chart, timeframe_controls("60", hidden=True)),
         rx.box(
             # This box has a genuinely definite height at every breakpoint
             # (a plain fixed value, not flex-derived), so the iframe's own
