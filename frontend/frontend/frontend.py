@@ -630,7 +630,7 @@ def _watchlist_popup_row(row: rx.Var[dict]) -> rx.Component:
             align="center",
             width="100%",
         ),
-        href="/coin/" + row["symbol"].to(str).lower(),
+        href="/coin/" + row["slug"].to(str),
         underline="none",
         color="inherit",
         display="block",
@@ -1287,7 +1287,7 @@ async def _coin_index(request):
     rows = sorted(_UNIVERSE["rows"], key=lambda r: r.get("market_cap_usd") or 0, reverse=True)
     data = [
         [r["cmc_id"], r["symbol"], r["name"], r.get("price_display", ""), r.get("change_24h_display", ""),
-         r.get("change_24h_color", "")]
+         r.get("change_24h_color", ""), r.get("slug") or r["symbol"].lower()]
         for r in rows
     ]
     body = _json.dumps(data, separators=(",", ":")).encode()

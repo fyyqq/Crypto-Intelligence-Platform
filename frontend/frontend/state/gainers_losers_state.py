@@ -92,6 +92,12 @@ def _load_day(day_iso: str) -> dict[str, list[dict]]:
         db.close()
 
 
+def _coin_slug(cmc_id, symbol):
+    from frontend.state.coin_state import coin_slug  # lazy: the coin list may not be loaded yet
+
+    return coin_slug(cmc_id, symbol)
+
+
 def _display_row(position: int, c: dict) -> dict:
     up = c["pct_change"] > 0
     return {
@@ -99,7 +105,7 @@ def _display_row(position: int, c: dict) -> dict:
         "rank": str(c["rank"]),
         "name": c["name"],
         "symbol": c["symbol"],
-        "href": f"/coin/{c['symbol'].lower()}",
+        "href": "/coin/" + _coin_slug(c["coin_id"], c["symbol"]),
         "icon_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{c['coin_id']}.png",
         "price_now": _fmt_usd(c["price_now"]),
         "price_then": _fmt_usd(c["price_then"]),

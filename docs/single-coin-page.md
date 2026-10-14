@@ -3,6 +3,8 @@
 **Route:** `/coin/[symbol]` (ticker-based, e.g. `/coin/btc` — ties broken by market cap since tickers aren't unique on CMC) · **Status:** Live, actively evolving
 **Source:** `frontend/frontend/components/coin_detail.py`, `state/coin_state.py`, `app/services/business_summary_service.py`, `description_ai_service.py`, `market_pairs_service.py`, `tradingview_symbol_service.py`
 
+**Unique URLs (2026-10-15):** tickers are not unique (four coins are called MEME), so the coin with the largest market cap (then the lowest CMC id) keeps `/coin/<ticker>` and every other one is `/coin/<ticker>-<cmc_id>` (e.g. `/coin/meme-42007`), so a click always opens the clicked coin. Old `/coin/<ticker>` links keep working (they open the ticker's owner). `coin_state.assign_slugs` sets `row["slug"]` when the coin list is built, `pick_coin` resolves the route, and every link (table rows, header search incl. the instant results from `/api/coin-index`, watchlist, similar coins, Gainers & Losers, home movers, alerts, notifications via `alert_service.coin_path`) uses it. Tests: `tests/test_coin_slugs.py`.
+
 This page corresponds to the original "Feature 2: Knowledge Base & AI Business Model Agent" plan and the "Single Page Coin" idea sketched in this project's Notion workspace — but **the real implementation deviates from both in two structural ways**, by deliberate choice partway through building it:
 - **No side-drawer/modal** — the AI content lives inline in the page itself, in the same layout position a "dummy sentiment" placeholder originally sketched for the right column.
 - **No scheduled background worker** — every AI/data step below runs **on-demand**, triggered the first time a visitor opens that specific coin's page, not proactively for the whole Top 500 on a schedule.

@@ -42,7 +42,7 @@ def _global_search_result_row(row: rx.Var[dict]) -> rx.Component:
             align="center",
             width="100%",
         ),
-        href="/coin/" + row["symbol"].to(str).lower(),
+        href="/coin/" + row["slug"].to(str),
         # Read by assets/chain_pills.js to record the click in the history.
         custom_attrs={"data-cmc-id": row["cmc_id"].to(str)},
         underline="none",

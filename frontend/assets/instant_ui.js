@@ -186,7 +186,7 @@
     }
     var html = matches.length
       ? matches.map(function (r) {
-          return '<a class="global-search-result-row gs-row" data-cmc-id="' + esc(r[0]) + '" href="/coin/' + esc(String(r[1]).toLowerCase()) + '">' +
+          return '<a class="global-search-result-row gs-row" data-cmc-id="' + esc(r[0]) + '" href="/coin/' + esc(String(r[6] || String(r[1]).toLowerCase())) + '">' +
             '<img src="https://s2.coinmarketcap.com/static/img/coins/64x64/' + esc(r[0]) + '.png" alt="">' +
             '<span class="gs-names"><span class="gs-name">' + esc(r[2]) + '</span><span class="gs-sym">' + esc(r[1]) + "</span></span>" +
             '<span class="gs-price"><span>' + esc(r[3]) + '</span><span class="gs-chg" style="color:' + esc(r[5]) + '">' + esc(r[4]) + "</span></span></a>";

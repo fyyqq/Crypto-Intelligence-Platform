@@ -26,12 +26,18 @@ def _service():
     return price_snapshot_service
 
 
+def _coin_slug(cmc_id, symbol):
+    from frontend.state.coin_state import coin_slug  # lazy: the coin list may not be loaded yet
+
+    return coin_slug(cmc_id, symbol)
+
+
 def _row(position: int, c: dict) -> dict:
     up = c["pct_change"] > 0
     return {
         "position": str(position),
         "symbol": c["symbol"],
-        "href": f"/coin/{c['symbol'].lower()}",
+        "href": "/coin/" + _coin_slug(c["coin_id"], c["symbol"]),
         "icon_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{c['coin_id']}.png",
         "price": _fmt_usd(c["price_now"]),
         "change": f"{'▲' if up else '▼'} {abs(c['pct_change']):.2f}%",

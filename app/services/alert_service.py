@@ -3,8 +3,27 @@ logged-in session state, never from the browser)."""
 from datetime import datetime, timezone
 
 from app.core.database import SessionLocal
+from sqlalchemy import func
+
+from app.models.coin import Coin
 from app.models.price_alert import PriceAlert
 from app.services import notification_service
+
+
+def coin_path(db, cmc_id: int, symbol: str) -> str:
+    """The coin page's unique path: "eth" for the coin that owns the ticker (largest market cap, then lowest id),
+    "meme-<cmc_id>" for any other coin sharing it (same rule as the site's coin_state.assign_slugs)."""
+    key = symbol.lower()
+    try:
+        owner = (
+            db.query(Coin.cmc_id)
+            .filter(func.lower(Coin.symbol) == key)
+            .order_by(Coin.market_cap_usd.desc().nullslast(), Coin.cmc_id)
+            .first()
+        )
+    except Exception:  # noqa: BLE001  (a notification link must never fail the alert)
+        return key
+    return key if owner is None or owner[0] == cmc_id else f"{key}-{cmc_id}"
 
 
 def list_active(user_id: int) -> list[dict]:
@@ -94,7 +113,7 @@ def mark_triggered(
                 "kind": "price_alert",
                 "title": f"{alert.symbol} {'rose above' if above else 'fell below'} {target_text}",
                 "body": f"{alert.coin_name} ({alert.symbol}) crossed {'above' if above else 'below'} {target_text}, now at {price_text}.",
-                "link_url": f"/coin/{alert.symbol.lower()}",
+                "link_url": "/coin/" + coin_path(db, alert.cmc_id, alert.symbol),
                 "image_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{alert.cmc_id}.png",
                 "tone": "up" if above else "down",
             }

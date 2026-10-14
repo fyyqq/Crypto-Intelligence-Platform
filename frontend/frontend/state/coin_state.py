@@ -596,6 +596,55 @@ def _resolve_unlock_source_url(symbol: str, defillama_slug: str | None) -> str:
     return f"https://defillama.com/token/{symbol.upper()}"
 
 
+_SLUG_ID_RE = re.compile(r"^(.+)-(\d+)$")
+
+
+def _primary_key(row: dict) -> tuple:
+    """Which coin owns a shared ticker: the largest market cap, then the lowest CMC id."""
+    return (-(row.get("market_cap_usd") or 0), row["cmc_id"])
+
+
+def assign_slugs(rows: list[dict]) -> dict[int, str]:
+    """Unique coin-page path for every coin (sets row["slug"], returns {cmc_id: slug}). Tickers are not unique
+    (two coins named MEME), so the biggest coin of a ticker keeps /coin/meme and the others get
+    /coin/meme-<cmc_id>; existing links to /coin/<ticker> keep working."""
+    owner: dict[str, dict] = {}
+    for r in rows:
+        k = r["symbol"].lower()
+        if k not in owner or _primary_key(r) < _primary_key(owner[k]):
+            owner[k] = r
+    slugs = {}
+    for r in rows:
+        k = r["symbol"].lower()
+        r["slug"] = k if owner[k] is r else f"{k}-{r['cmc_id']}"
+        slugs[r["cmc_id"]] = r["slug"]
+    return slugs
+
+
+def pick_coin(slug: str, rows: list[dict], by_id: dict) -> dict | None:
+    """The row a /coin/<slug> path means: "meme-1234" is the coin with that CMC id (when its ticker matches),
+    otherwise the coin owning the ticker."""
+    slug = slug.strip().lower()
+    m = _SLUG_ID_RE.match(slug)
+    if m:
+        row = by_id.get(int(m.group(2)))
+        if row and row["symbol"].lower() == m.group(1):
+            return row
+    matches = [r for r in rows if r["symbol"].lower() == slug]
+    return min(matches, key=_primary_key) if matches else None
+
+
+def route_ticker(slug: str) -> str:
+    """The ticker part of a /coin/<slug> route ("meme-1234" -> "meme"); only a fallback while the coin list loads."""
+    m = _SLUG_ID_RE.match((slug or "").strip())
+    return m.group(1) if m else (slug or "").strip()
+
+
+def coin_slug(cmc_id, symbol: str) -> str:
+    """/coin/<slug> for a coin known by CMC id (movers, alerts); the ticker alone when the list is not loaded."""
+    return _UNIVERSE.get("slugs", {}).get(int(cmc_id or 0)) or (symbol or "").lower()
+
+
 FILTER_PAGE_SIZE = 50  # pills per page in the homepage sidebar's expanded narrative / chain lists
 
 
@@ -1048,7 +1097,7 @@ def _page_coin(old_db, OldCoin, symbol: str, cmc_id: int | None, *options):
             return coin
     query = sa_select(OldCoin).where(OldCoin.symbol.ilike(symbol))
     matches = old_db.scalars(query.options(*options) if options else query).all()
-    return max(matches, key=lambda c: c.market_cap_usd or 0.0) if matches else None
+    return min(matches, key=lambda c: (-(c.market_cap_usd or 0.0), c.cmc_id)) if matches else None
 
 
 def _fetch_better_description(symbol: str, cmc_id: int | None = None) -> tuple[int, str] | None:
@@ -1355,9 +1404,11 @@ def ensure_universe(force: bool = False) -> None:
             overrides = {}
         for row in rows:
             row["chart_symbol_override"] = overrides.get(row["cmc_id"], "")
+        slugs = assign_slugs(rows)
         _UNIVERSE.update(
             at=time.time(),
             rows=rows,
+            slugs=slugs,
             by_id={r["cmc_id"]: r for r in rows},
             narratives=[name for name, _ in narrative_counts.most_common()],
             chains=[name for name, _ in chain_counts.most_common()],
@@ -1387,7 +1438,7 @@ def _private_mode() -> bool:
 # Its match list stays server-side (_global_search_matches): it used to send
 # every matching coin's full row (descriptions, summaries...) on each
 # keystroke, e.g. thousands of rows for "b".
-_SEARCH_FIELDS = ("cmc_id", "name", "symbol", "icon_url", "price_display", "change_24h_display", "change_24h_color")
+_SEARCH_FIELDS = ("cmc_id", "slug", "name", "symbol", "icon_url", "price_display", "change_24h_display", "change_24h_color")
 
 
 def _search_fields(row: dict) -> dict:
@@ -1396,7 +1447,7 @@ def _search_fields(row: dict) -> dict:
 
 # Fields components/coin_table.py::_row reads from sorted_paged_coins.
 _TABLE_FIELDS = (
-    "cmc_id", "rank", "name", "symbol", "icon_url", "price_display", "market_cap_display", "volume_display",
+    "cmc_id", "slug", "rank", "name", "symbol", "icon_url", "price_display", "market_cap_display", "volume_display",
     "change_1h_display", "change_1h_color", "change_24h_display", "change_24h_color",
     "change_7d_display", "change_7d_color", "trend_24h_data", "trend_24h_color", "trend_24h_shine",
     "trend_7d_data", "trend_7d_color", "trend_7d_shine", "main_chain", "has_other_chains",
@@ -2479,7 +2530,7 @@ class CoinState(rx.State):
                 out.append({
                     "id": a["id"], "cmc_id": row["cmc_id"], "name": row["name"], "symbol": row["symbol"],
                     "icon_url": row["icon_url"], "direction": a["direction"], "display": a["display"],
-                    "current_display": row["price_display"], "coin_url": f"/coin/{row['symbol'].lower()}",
+                    "current_display": row["price_display"], "coin_url": "/coin/" + row.get("slug", row["symbol"].lower()),
                 })
         return sorted(out, key=lambda x: (x["symbol"], x["id"]))
 
@@ -2594,21 +2645,15 @@ class CoinState(rx.State):
         docs describe for a `[pid]`-style route.
 
         Tickers aren't unique on CMC — plenty of low-cap/scam tokens reuse a
-        popular symbol — so ties are broken by market cap. Someone visiting
-        "/coin/eth" almost always means Ethereum, not an obscure same-ticker
-        micro-cap.
+        popular symbol — so "/coin/eth" is the biggest coin with that ticker (Ethereum, not an
+        obscure same-ticker micro-cap) and every other one has its own "/coin/<ticker>-<cmc_id>"
+        path (assign_slugs / pick_coin).
         """
         symbol = self.symbol.strip().lower()
         if not symbol:
             return {}
-        matches = [
-            self._row_with_overrides(row)
-            for row in self._all_coins
-            if row["symbol"].lower() == symbol
-        ]
-        if not matches:
-            return {}
-        return max(matches, key=lambda r: r["market_cap_usd"])
+        row = pick_coin(symbol, self._all_coins, _UNIVERSE["by_id"])
+        return self._row_with_overrides(row) if row else {}
 
     def _similar_coin_rows(self) -> list[dict]:
         """Every coin with the same use case as the open coin (its peer
@@ -3020,7 +3065,7 @@ class CoinState(rx.State):
         boilerplate on its own, and every later visitor benefits from
         whichever description that attempt produced.
         """
-        symbol = self.symbol.strip()
+        symbol = route_ticker(self.symbol)
         if not symbol:
             return
         async with self:
@@ -3045,7 +3090,7 @@ class CoinState(rx.State):
         regenerates once per settings.business_summary_ttl_days (60d
         default), or immediately skips if OPENROUTER_API_KEY isn't set.
         """
-        symbol = self.symbol.strip()
+        symbol = route_ticker(self.symbol)
         if not symbol:
             return
         async with self:
@@ -3081,7 +3126,7 @@ class CoinState(rx.State):
         market_pairs_service only re-hits CoinGecko once per settings.
         market_pairs_cache_ttl_hours (1h default).
         """
-        symbol = self.symbol.strip()
+        symbol = route_ticker(self.symbol)
         if not symbol:
             return
         async with self:
@@ -3118,7 +3163,7 @@ class CoinState(rx.State):
         common case — this only ever does real work for a coin like zKML
         with zero CEX listings anywhere).
         """
-        symbol = self.symbol.strip()
+        symbol = route_ticker(self.symbol)
         if not symbol:
             return
         async with self:
@@ -3140,7 +3185,7 @@ class CoinState(rx.State):
         unlock_source_url in place once a real slug resolves (or confirms
         there's none), rather than waiting on a fresh full-row rebuild.
         """
-        symbol = self.symbol.strip()
+        symbol = route_ticker(self.symbol)
         if not symbol:
             return
         async with self:
@@ -3229,7 +3274,7 @@ class CoinState(rx.State):
         so this stays a fast, purely-local lookup either way — no network
         call inside a cached var.
         """
-        return _resolve_chart_symbol(self.symbol, self.selected_coin)
+        return _resolve_chart_symbol(self.selected_coin.get("symbol") or route_ticker(self.symbol), self.selected_coin)
 
     @rx.var(cache=True)
     def has_tradingview_chart(self) -> bool:
