@@ -188,7 +188,7 @@ def _mover_row(row: rx.Var[dict]) -> rx.Component:
     return rx.link(
         rx.hstack(
             rx.text(row["position"], size="2", color="var(--gray-10)", width="1.1em", flex_shrink="0"),
-            rx.image(src=row["icon_url"], width="24px", height="24px", border_radius="50%", flex_shrink="0"),
+            rx.image(src=row["icon_url"], width="21px", height="21px", border_radius="50%", flex_shrink="0"),
             rx.text(row["symbol"], size="2", weight="medium", color="var(--gray-12)", class_name="line-clamp-1", min_width="0"),
             rx.spacer(),
             rx.text(row["price"], size="2", color="var(--gray-12)", white_space="nowrap"),
