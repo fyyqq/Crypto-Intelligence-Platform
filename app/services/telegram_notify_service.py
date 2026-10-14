@@ -36,8 +36,15 @@ def configured() -> bool:
     return bool(_token())
 
 
+# IPv4 only: from the live server (Contabo) Telegram's IPv6 address is flaky
+# (TLS handshakes hang 10s+ or time out) while IPv4 answers in ~0.1s, and
+# Python tries IPv6 first. Binding the local address to 0.0.0.0 forces IPv4.
+_sync_client = httpx.Client(transport=httpx.HTTPTransport(local_address="0.0.0.0"), timeout=10)
+_async_client = httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(local_address="0.0.0.0"), timeout=40)
+
+
 def _api(method: str, **params) -> dict:
-    r = httpx.post(f"https://api.telegram.org/bot{_token()}/{method}", json=params, timeout=10)
+    r = _sync_client.post(f"https://api.telegram.org/bot{_token()}/{method}", json=params)
     data = r.json()
     if not data.get("ok"):
         raise RuntimeError(f"Telegram {method}: {data.get('description')}")
@@ -238,8 +245,7 @@ async def run_poller() -> None:
             params = {"timeout": 25, "allowed_updates": ["message"]}
             if offset is not None:
                 params["offset"] = offset
-            async with httpx.AsyncClient(timeout=40) as client:
-                r = await client.post(f"https://api.telegram.org/bot{_token()}/getUpdates", json=params)
+            r = await _async_client.post(f"https://api.telegram.org/bot{_token()}/getUpdates", json=params)
             data = r.json()
             if not data.get("ok"):
                 raise RuntimeError(data.get("description"))
