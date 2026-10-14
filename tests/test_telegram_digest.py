@@ -169,10 +169,14 @@ def _save_day(maker, day, window="24h"):
 
 def test_date_command_parsing():
     assert dg.parse_date_command("gainers_losers_13_10_2026") == (date(2026, 10, 13), "24h", None)
-    assert dg.parse_date_command("gainers_losers_13_10_2026_7d_top200") == (date(2026, 10, 13), "7d", 200)
-    assert dg.parse_date_command("gainer-losers-1-2-2026-1M") == (date(2026, 2, 1), "30d", None)
+    assert dg.parse_date_command("gainers_losers_7d_top200_13_10_2026") == (date(2026, 10, 13), "7d", 200)
+    assert dg.parse_date_command("gainers_losers_1m_top300_13_10_2026") == (date(2026, 10, 13), "30d", 300)
+    assert dg.parse_date_command("gainers_losers_24h_13_10_2026") == (date(2026, 10, 13), "24h", None)
+    assert dg.parse_date_command("gainers_losers_top200_13_10_2026") == (date(2026, 10, 13), "24h", 200)
+    assert dg.parse_date_command("gainer-losers-1M-1-2-2026") == (date(2026, 2, 1), "30d", None)
     assert dg.parse_date_command("gainers_losers_31_02_2026") == (None, "24h", None)  # not a real day
-    assert dg.parse_date_command("gainers_losers_13_10_2026_top150") is None
+    assert dg.parse_date_command("gainers_losers_top150_13_10_2026") is None
+    assert dg.parse_date_command("gainers_losers_13_10_2026_7d") is None  # the old order (date before the window)
     assert dg.parse_date_command("gainers_losers_24h") is None and dg.parse_command("gainers_losers_13_10_2026") is None
 
 
@@ -181,8 +185,8 @@ def test_past_day_board_and_missing_day(env):
     _save_day(tg.SessionLocal, date(2026, 10, 13))
     msg = lambda t: {"text": t, "chat": {"id": 42, "type": "private"}}  # noqa: E731
     tg.handle_message(msg("/gainers_losers_13_10_2026"))
-    tg.handle_message(msg("/gainers_losers_13_10_2026_24h_top200"))
-    tg.handle_message(msg("/gainers_losers_13_10_2026_7d"))  # nothing saved for that window
+    tg.handle_message(msg("/gainers_losers_24h_top200_13_10_2026"))
+    tg.handle_message(msg("/gainers_losers_7d_13_10_2026"))  # nothing saved for that window
     tg.handle_message(msg("/gainers_losers_01_01_2020"))
     tg.handle_message(msg("/gainers_losers_31_02_2026"))
     top100, top200 = sent[0][1], sent[1][1]

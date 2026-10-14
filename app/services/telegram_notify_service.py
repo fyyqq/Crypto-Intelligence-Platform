@@ -235,7 +235,7 @@ def handle_message(msg: dict) -> None:
         _send(chat["id"], "/alerts - all active alerts\n/alert ETH - active alerts for one coin\n"
                           "/gainers_losers_24h, _7d, _1m - top gainers & losers (Top 100)\n"
                           "/gainers_losers_24h_top200 (also _top300, _top400, _top500, and _7d / _1m) - other rank bands\n"
-                          "/gainers_losers_13_10_2026 - saved board of a past day (add _7d, _1m, _top200...)")
+                          "/gainers_losers_13_10_2026 - saved board of a past day; with a timeframe/band before the date: /gainers_losers_7d_top200_13_10_2026")
     elif cmd == "alert":
         sym = arg.lstrip("$").strip()
         if not re.fullmatch(r"[A-Za-z0-9]{1,20}", sym):

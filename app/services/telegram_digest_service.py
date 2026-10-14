@@ -120,20 +120,21 @@ def build_message(window: str, bucket: int = DEFAULT_BAND, rows: int = ROWS) -> 
 # ---- Past days: /gainers_losers_13_10_2026[_7d][_top200] ------------------------------------
 
 def parse_date_command(cmd: str) -> tuple[date | None, str, int | None] | None:
-    """/gainers_losers_13_10_2026 -> (date(2026,10,13), "24h", None);
-    .._13_10_2026_7d_top200 -> (.., "7d", 200). The date is None when it is not
-    a real calendar day. Hyphens work too (13-10-2026). None if not this command."""
+    """The date comes last: /gainers_losers_13_10_2026 -> (date(2026,10,13), "24h", None);
+    /gainers_losers_7d_top200_13_10_2026 -> (.., "7d", 200); the window and the
+    band are optional (default 24H, Top 100). The date is None when it is not a
+    real calendar day. Hyphens work too (13-10-2026). None if not this command."""
     m = re.fullmatch(
-        r"gainers?_losers?_(\d{1,2})_(\d{1,2})_(\d{4})(?:_(24h|7d|1m))?(?:_top(\d+))?", cmd.lower().replace("-", "_")
+        r"gainers?_losers?(?:_(24h|7d|1m))?(?:_top(\d+))?_(\d{1,2})_(\d{1,2})_(\d{4})", cmd.lower().replace("-", "_")
     )
     if not m:
         return None
-    window = _CMD_WINDOWS[m.group(4) or "24h"]
-    band = int(m.group(5)) if m.group(5) else None
+    window = _CMD_WINDOWS[m.group(1) or "24h"]
+    band = int(m.group(2)) if m.group(2) else None
     if band is not None and band not in ps.BUCKETS:
         return None
     try:
-        day = date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        day = date(int(m.group(5)), int(m.group(4)), int(m.group(3)))
     except ValueError:
         day = None
     return day, window, band
