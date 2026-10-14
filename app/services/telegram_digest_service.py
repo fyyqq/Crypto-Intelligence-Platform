@@ -15,7 +15,7 @@ import html
 import json
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -94,6 +94,12 @@ def _rows(coins: list[dict]) -> list[str]:
     ]
 
 
+def _compose(label: str, bucket: int, gainers: list[dict], losers: list[dict], suffix: str = "", note: str = "") -> str:
+    head = f"📊 <b>Top Gainers &amp; Losers · {label} · {_band_label(bucket)}{suffix}</b>"
+    lines = [head, *([note] if note else []), "", "🟢 <b>Gainers</b>", *_rows(gainers), "", "🔴 <b>Losers</b>", *_rows(losers)]
+    return "\n".join(lines)
+
+
 def build_message(window: str, bucket: int = DEFAULT_BAND, rows: int = ROWS) -> tuple[str, bool]:
     """(HTML text, ready). When the window is still collecting, the text says
     how long is left and ready is False."""
@@ -108,9 +114,55 @@ def build_message(window: str, bucket: int = DEFAULT_BAND, rows: int = ROWS) -> 
         left = gainers["days_remaining"]
         eta = f"about {left} day(s)" if left >= 1 else f"about {gainers['hours_remaining']} hour(s)"
         return f"⏳ The {label} board is still collecting data, ready in {eta}.", False
-    head = f"📊 <b>Top Gainers &amp; Losers · {label} · {_band_label(bucket)}</b>"
-    lines = [head, "", "🟢 <b>Gainers</b>", *_rows(gainers["coins"]), "", "🔴 <b>Losers</b>", *_rows(losers["coins"])]
-    return "\n".join(lines), True
+    return _compose(label, bucket, gainers["coins"], losers["coins"]), True
+
+
+# ---- Past days: /gainers_losers_13_10_2026[_7d][_top200] ------------------------------------
+
+def parse_date_command(cmd: str) -> tuple[date | None, str, int | None] | None:
+    """/gainers_losers_13_10_2026 -> (date(2026,10,13), "24h", None);
+    .._13_10_2026_7d_top200 -> (.., "7d", 200). The date is None when it is not
+    a real calendar day. Hyphens work too (13-10-2026). None if not this command."""
+    m = re.fullmatch(
+        r"gainers?_losers?_(\d{1,2})_(\d{1,2})_(\d{4})(?:_(24h|7d|1m))?(?:_top(\d+))?", cmd.lower().replace("-", "_")
+    )
+    if not m:
+        return None
+    window = _CMD_WINDOWS[m.group(4) or "24h"]
+    band = int(m.group(5)) if m.group(5) else None
+    if band is not None and band not in ps.BUCKETS:
+        return None
+    try:
+        day = date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+    except ValueError:
+        day = None
+    return day, window, band
+
+
+def build_past_message(day: date, window: str, bucket: int = DEFAULT_BAND, rows: int = ROWS) -> str:
+    """A saved daily board (the site's calendar, UTC days)."""
+    db = SessionLocal()
+    try:
+        saved = ps.load_daily_movers(db, day).get(window)
+        first, last = ps.saved_days(db)
+    finally:
+        db.close()
+    label, pretty = LABELS[window], f"{day.day} {day.strftime('%b %Y')}"
+    if not saved:
+        have = f" Saved boards exist from {first.day} {first.strftime('%b %Y')} to {last.day} {last.strftime('%b %Y')}." if first else ""
+        return f"No saved {label} board for {pretty}.{have}"
+    as_of = max(c["now_at"] for c in saved).strftime("%d %b %H:%M UTC")
+    return _compose(
+        label, bucket, ps.rank_movers(saved, bucket, "gainers", rows), ps.rank_movers(saved, bucket, "losers", rows),
+        suffix=f" · {pretty}", note=f"<i>Saved board, as of {as_of}</i>",
+    )
+
+
+def handle_past(chat_id: int, day: date | None, window: str, band: int | None) -> None:
+    if day is None:
+        tg._send(chat_id, "That is not a valid date. Use /gainers_losers_13_10_2026 (day_month_year).")
+        return
+    tg._send(chat_id, build_past_message(day, window, band or DEFAULT_BAND))
 
 
 def handle_command(chat_id: int, window: str, arg: str = "", band: int | None = None) -> None:

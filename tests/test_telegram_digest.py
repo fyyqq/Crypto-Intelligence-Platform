@@ -144,3 +144,51 @@ def test_band_command_replies_with_that_band(env):
     assert "24H · Rank 101-200" in sent[0][1]
     assert "7D · Rank 401-500" in sent[1][1]
     assert "1 Month · Top 100" in sent[2][1]
+
+
+# ---- past days -----------------------------------------------------------------------------
+
+from datetime import date  # noqa: E402
+
+from app.models.movers_daily import MoversDaily  # noqa: E402
+
+
+def _save_day(maker, day, window="24h"):
+    rows = [
+        ("SOL", 5, 10.0, 150.0), ("DOGE", 150, 4.0, 0.2),  # gainers in Top 100 / 101-200
+        ("ETH", 2, -6.0, 2500.0), ("ADA", 120, -3.0, 0.5),  # losers
+    ]
+    db = maker()
+    for i, (sym, rank, pct, price) in enumerate(rows):
+        db.add(MoversDaily(day=day, window=window, coin_id=i + 1, symbol=sym, name=sym, cmc_rank=rank, price_now=price,
+                           price_then=price / (1 + pct / 100), pct_change=pct, volume_24h=1e6,
+                           then_at=datetime(2026, 10, 12, 23, 42), now_at=datetime(2026, 10, 13, 23, 42)))
+    db.commit()
+    db.close()
+
+
+def test_date_command_parsing():
+    assert dg.parse_date_command("gainers_losers_13_10_2026") == (date(2026, 10, 13), "24h", None)
+    assert dg.parse_date_command("gainers_losers_13_10_2026_7d_top200") == (date(2026, 10, 13), "7d", 200)
+    assert dg.parse_date_command("gainer-losers-1-2-2026-1M") == (date(2026, 2, 1), "30d", None)
+    assert dg.parse_date_command("gainers_losers_31_02_2026") == (None, "24h", None)  # not a real day
+    assert dg.parse_date_command("gainers_losers_13_10_2026_top150") is None
+    assert dg.parse_date_command("gainers_losers_24h") is None and dg.parse_command("gainers_losers_13_10_2026") is None
+
+
+def test_past_day_board_and_missing_day(env):
+    sent, _ = env
+    _save_day(tg.SessionLocal, date(2026, 10, 13))
+    msg = lambda t: {"text": t, "chat": {"id": 42, "type": "private"}}  # noqa: E731
+    tg.handle_message(msg("/gainers_losers_13_10_2026"))
+    tg.handle_message(msg("/gainers_losers_13_10_2026_24h_top200"))
+    tg.handle_message(msg("/gainers_losers_13_10_2026_7d"))  # nothing saved for that window
+    tg.handle_message(msg("/gainers_losers_01_01_2020"))
+    tg.handle_message(msg("/gainers_losers_31_02_2026"))
+    top100, top200 = sent[0][1], sent[1][1]
+    assert "24H · Top 100 · 13 Oct 2026" in top100 and "Saved board, as of 13 Oct 23:42 UTC" in top100
+    assert "SOL" in top100 and "+10.00%" in top100 and "ETH" in top100 and "DOGE" not in top100
+    assert "Rank 101-200" in top200 and "DOGE" in top200 and "ADA" in top200 and "SOL" not in top200
+    assert "No saved 7D board for 13 Oct 2026" in sent[2][1]
+    assert "No saved 24H board for 1 Jan 2020. Saved boards exist from 13 Oct 2026 to 13 Oct 2026" in sent[3][1]
+    assert "not a valid date" in sent[4][1]
