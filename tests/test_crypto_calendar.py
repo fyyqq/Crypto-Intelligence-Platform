@@ -127,10 +127,57 @@ def test_post_month_detection():
     assert cc.post_month("Crypto + Market Calendar", "no hashtag", datetime(2026, 3, 2)) == (2026, 3)
 
 
+def _months(*keys):
+    return {k: {"events": [{"date": f"{k}-05", "who": "", "ticker": "", "desc": "x", "kind": "crypto", "hot": False}], "url": "u", "posted": None} for k in keys}
+
+
 def test_month_keys_run_from_january_to_the_current_month():
-    assert cc.month_keys(date(2026, 10, 14)) == [f"2026-{m:02d}" for m in range(1, 11)]
-    assert cc.month_keys(date(2026, 1, 3)) == ["2026-01"]
-    assert len(cc.month_keys(date(2027, 2, 1))) == 12 and cc.month_keys(date(2025, 12, 1)) == []
+    ms = _months(*[f"2026-{m:02d}" for m in range(1, 11)])
+    assert cc.month_keys(date(2026, 10, 14), ms) == [f"2026-{m:02d}" for m in range(1, 11)]
+    assert cc.month_keys(date(2026, 1, 3), _months("2026-01")) == ["2026-01"]
+    assert cc.month_keys(date(2026, 10, 14), {}) == [f"2026-{m:02d}" for m in range(1, 11)]  # no posts yet: still this year
+
+
+def test_next_months_post_shows_as_soon_as_it_is_out():
+    # posts often come out the day before the month: Nov 1's post on Oct 31 already adds a November chip
+    ms = _months("2026-09", "2026-10", "2026-11")
+    assert cc.month_keys(date(2026, 10, 31), ms)[-1] == "2026-11"
+    assert cc.month_keys(date(2026, 10, 31), _months("2026-09", "2026-10"))[-1] == "2026-10"
+
+
+def test_a_new_year_replaces_the_old_one_once_its_first_post_exists():
+    only_2026 = _months(*[f"2026-{m:02d}" for m in range(1, 13)])
+    # January 2027 but no 2027 post yet: 2026 stays (all twelve months)
+    assert cc.view_year(only_2026, date(2027, 1, 3)) == 2026
+    assert cc.month_keys(date(2027, 1, 3), only_2026) == [f"2026-{m:02d}" for m in range(1, 13)]
+    # the January 2027 post arrives (even published on 31 Dec): only 2027 is shown, from January
+    with_jan = {**only_2026, **_months("2027-01")}
+    assert cc.view_year(with_jan, date(2027, 1, 3)) == 2027
+    assert cc.month_keys(date(2027, 1, 3), with_jan) == ["2027-01"]
+    assert cc.month_keys(date(2026, 12, 31), with_jan) == ["2027-01"]  # published a day early
+    # later in 2027: January to the current month
+    feb = {**with_jan, **_months("2027-02", "2027-03")}
+    assert cc.month_keys(date(2027, 3, 20), feb) == ["2027-01", "2027-02", "2027-03"]
+
+
+def test_a_far_future_or_empty_post_does_not_change_the_year():
+    ms = {**_months("2026-10"), "2029-01": {"events": [{"date": "2029-01-02"}], "url": "u", "posted": None}}
+    assert cc.view_year(ms, date(2026, 10, 1)) == 2026  # more than a year ahead: ignored
+    ms = {**_months("2026-10"), "2027-01": {"events": [], "url": "u", "posted": None}}
+    assert cc.view_year(ms, date(2026, 12, 31)) == 2026  # a post that parsed to no events does not switch the year
+
+
+def test_load_months_keeps_every_year():
+    from types import SimpleNamespace
+
+    class FakeDB:
+        def execute(self, q):
+            rows = [("🗓 2026 October Crypto + Market Calendar", "Noteworthy events\n10-03 - $HYPE - x", datetime(2026, 10, 3), "u1"),
+                    ("🗓 2027 Crypto January Calendar", "Noteworthy events\n01-04 - $BTC - y", datetime(2026, 12, 31), "u2")]
+            return SimpleNamespace(all=lambda: rows)
+
+    months = cc.load_months(FakeDB())
+    assert sorted(months) == ["2026-10", "2027-01"] and months["2027-01"]["events"][0]["date"] == "2027-01-04"
 
 
 def _month_html(**kw):

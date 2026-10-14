@@ -22,7 +22,6 @@ from functools import lru_cache
 
 from sqlalchemy import text
 
-YEAR = 2026
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 _MON_ABBR = {m[:3].lower(): i + 1 for i, m in enumerate(MONTHS)}
 
@@ -169,7 +168,7 @@ _POSTS_SQL = text(
     """
     SELECT title, full_body_text, published_date, url FROM news_articles
     WHERE source_type = 'telegram' AND source_name ILIKE 'Layergg%'
-      AND (title ILIKE '%Market%Calendar%' OR title ILIKE '%캘린더%' OR title ILIKE '%Crypto%Calendar%')
+      AND (title ILIKE '%calendar%' OR title ILIKE '%캘린더%')
       AND title NOT ILIKE '%weekly%'
     ORDER BY published_date
     """
@@ -178,14 +177,22 @@ _POSTS_SQL = text(
 
 def load_months(db) -> dict[str, dict]:
     """{"2026-10": {"events": [...], "url": post url, "posted": datetime}} for every
-    stored calendar post of YEAR (the latest post wins if a month has two)."""
+    stored calendar post of every year (the latest post wins if a month has two)."""
     months: dict[str, dict] = {}
     for title, body, posted, url in db.execute(_POSTS_SQL).all():
         ym = post_month(title or "", body or "", posted)
-        if not ym or ym[0] != YEAR:
+        if not ym:
             continue
         months[f"{ym[0]}-{ym[1]:02d}"] = {"events": parse_post(body or "", *ym), "url": url, "posted": posted}
     return months
+
+
+def view_year(months: dict[str, dict], today: date | None = None) -> int:
+    """The year the page shows: the latest year that has a calendar post (capped at next year). So
+    2026 stays up until the first 2027 post exists, and from then on only 2027 is shown."""
+    today = today or date.today()
+    years = [int(k[:4]) for k, v in months.items() if v["events"] and int(k[:4]) <= today.year + 1]
+    return max(years) if years else today.year
 
 
 def symbol_icons(db, symbols: set[str]) -> dict[str, int]:
@@ -204,11 +211,19 @@ def symbol_icons(db, symbols: set[str]) -> dict[str, int]:
 
 # ---- rendering --------------------------------------------------------------------------------
 
-def month_keys(today: date | None = None) -> list[str]:
-    """January of YEAR up to the current month (or all 12 when YEAR is over)."""
+def month_keys(today: date | None = None, months: dict[str, dict] | None = None) -> list[str]:
+    """January of the shown year up to the current month, or up to a later month whose post is
+    already out (a post is often published the day before its month starts). A past year shows
+    all 12 months."""
     today = today or date.today()
-    last = 12 if today.year > YEAR else (today.month if today.year == YEAR else 0)
-    return [f"{YEAR}-{m:02d}" for m in range(1, last + 1)]
+    months = months or {}
+    year = view_year(months, today)
+    if year < today.year:
+        last = 12
+    else:
+        posted = [int(k[5:]) for k, v in months.items() if int(k[:4]) == year and v["events"]]
+        last = max(today.month if year == today.year else 0, max(posted, default=0))
+    return [f"{year}-{m:02d}" for m in range(1, last + 1)]
 
 
 def _esc(s: str) -> str:

@@ -7,7 +7,7 @@ store_message (same row format as the listener). Read-only on Telegram.
 
 Stop the Telegram listener first (one process may hold telegram_session.session),
 run from the repo root, then start the listener again:
-    python -m scripts.backfill_layergg_calendar [YYYY-MM-DD]     # default 2026-01-01
+    python -m scripts.backfill_layergg_calendar [YYYY-MM-DD]     # default 2025-12-01
 """
 import asyncio
 import datetime
@@ -18,7 +18,17 @@ import sys
 from app.services import telegram_pipeline as tp
 
 USERNAME = "layergg"
-_CALENDAR = re.compile(r"calendar|캘린더", re.I)
+_CALENDAR = re.compile(r"calendar|캘린더|달력", re.I)
+
+
+def is_monthly_calendar_post(text: str) -> bool:
+    """What every monthly post of the group shares: it starts with the 🗓 emoji and is a calendar
+    (the word in its title, or the #Calendar hashtag). The title wording varies ("2026 Crypto January
+    Calendar", "2026 Market May Calendar", "2026 June Crypto + Market Calendar", Korean "캘린더"), so no
+    "Crypto"/"Market" requirement. Weekly highlights start with 🤡 instead and are skipped."""
+    text = (text or "").strip()
+    first = text.split("\n", 1)[0]
+    return text.startswith("🗓") and bool(_CALENDAR.search(first) or re.search(r"#calendar", text, re.I))
 
 
 async def main(since: datetime.datetime) -> None:
@@ -33,7 +43,7 @@ async def main(since: datetime.datetime) -> None:
                 break
             seen += 1
             first_line = (message.raw_text or "").strip().split("\n", 1)[0]
-            if not (_CALENDAR.search(first_line) and re.search(r"crypto|크립토", first_line, re.I)):
+            if not is_monthly_calendar_post(message.raw_text):
                 continue
             found += 1
             new = await tp.store_message(client, db, message, USERNAME, "Crypto", title)
@@ -48,5 +58,5 @@ async def main(since: datetime.datetime) -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    start = sys.argv[1] if len(sys.argv) > 1 else "2026-01-01"
+    start = sys.argv[1] if len(sys.argv) > 1 else "2025-12-01"  # a January post can be published on 31 Dec
     asyncio.run(main(datetime.datetime.fromisoformat(start).replace(tzinfo=datetime.timezone.utc)))
