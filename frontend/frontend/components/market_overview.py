@@ -2,7 +2,7 @@
 1. Market Status (Fear & Greed, total market cap, top 20, Altcoin Season; MarketStatusState)
 2. Gainers & Losers (top 5 gainers / top 5 losers of the Top 100 over 24h, two pages; HomeMoversState)
 3. still an empty placeholder
-4. Community (sample posts for now: static dummy data, no real accounts).
+4. Incoming News (sample items for now: static dummy data, no real accounts; was titled "Community").
 
 Layout spec (matched to CoinMarketCap's cards, 2026-10-14): every card is 244px
 tall with 16px padding and a one-line, 24px title row. Market Status is a 2 x 3
@@ -271,7 +271,7 @@ def _movers_card() -> rx.Component:
     )
 
 
-# ---- Community (sample posts) -------------------------------------------------------------------
+# ---- Incoming News (sample items) -------------------------------------------------------------------
 # Placeholder content: invented handles and headlines, no real accounts. Replace with real data later.
 _POSTS = [
     {"name": "CryptoNova", "initial": "C", "color": "#7c5cff", "time": "2h", "score": "101.78", "coin": "$BTC",
@@ -329,7 +329,7 @@ def _post(p: dict) -> rx.Component:
 
 def _community_card() -> rx.Component:
     return rx.box(
-        _card_title("Community"),
+        _card_title("Incoming News"),
         rx.vstack(*[_post(p) for p in _POSTS], spacing="2", width="100%", margin_top="8px", flex="1", min_height="0"),
         class_name="market-overview-card community-card",
         **_CARD,

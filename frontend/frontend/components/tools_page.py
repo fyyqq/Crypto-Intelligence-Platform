@@ -6,6 +6,7 @@
   (data via ToolsState; each has a "data source" popup that also asks for an
   API key when needed) and the BTC / ETH rainbow chart (log-regression bands
   drawn server-side as SVG).
+- /tools/crypto-calendar: an empty "coming soon" page (placeholder for a future events calendar).
 - /tools/market-charts: TradingView embeds: DXY, total crypto market cap,
   Bitcoin dominance, ETH/BTC, total market cap excluding BTC.
 """
@@ -499,6 +500,13 @@ TOOL_PAGES = [
         "description": "The biggest movers by rank band over 24 hours, 7 days and 1 month, with saved daily boards you can browse by date.",
         "chips": ["Top Gainers", "Top Losers", "24h · 7d · 1 Month", "Top 100 - 500"],
     },
+    {
+        "title": "Crypto Calendar",
+        "href": "/tools/crypto-calendar",
+        "icon": "calendar-days",
+        "description": "Upcoming token unlocks, launches and market events in one calendar. Coming soon.",
+        "chips": ["Coming soon"],
+    },
 ]
 
 
@@ -627,6 +635,26 @@ def market_charts_content() -> rx.Component:
             columns=rx.breakpoints(initial="1", lg="2"),
             spacing="4",
             width="100%",
+        ),
+        spacing="5",
+        width="100%",
+        padding=_PAGE_PADDING,
+    )
+
+
+def crypto_calendar_content() -> rx.Component:
+    """/tools/crypto-calendar: an empty placeholder page for now."""
+    return rx.vstack(
+        _page_header("Crypto Calendar", "Upcoming token unlocks, launches and market events."),
+        rx.center(
+            rx.vstack(
+                rx.icon("calendar-days", size=32, color="var(--gray-9)"),
+                rx.text("Coming soon", size="3", weight="medium"),
+                spacing="2",
+                align="center",
+            ),
+            width="100%",
+            min_height="40vh",
         ),
         spacing="5",
         width="100%",

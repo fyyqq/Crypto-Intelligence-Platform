@@ -24,6 +24,7 @@ from frontend.components import (
     news_category_content,
     news_page_content,
     TOOL_PAGES,
+    crypto_calendar_content,
     market_charts_content,
     market_indicators_content,
     tools_home_content,
@@ -1126,6 +1127,11 @@ def market_charts_page() -> rx.Component:
     return _tools_shell(market_charts_content())
 
 
+def crypto_calendar_page() -> rx.Component:
+    # /tools/crypto-calendar: empty placeholder for now.
+    return _tools_shell(crypto_calendar_content())
+
+
 def gainers_losers_page() -> rx.Component:
     # /gainers-losers — top gainers and losers from the app's own price snapshots.
     return rx.box(
@@ -1527,6 +1533,12 @@ app.add_page(
     route="/tools/market-indicators",
     title="Repace — Market Indicators",
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, ToolsState.refresh_fng, ToolsState.refresh_season, ToolsState.refresh_rainbow],
+)
+app.add_page(
+    crypto_calendar_page,
+    route="/tools/crypto-calendar",
+    title="Repace — Crypto Calendar",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
 )
 app.add_page(
     market_charts_page,

@@ -11,6 +11,7 @@ from frontend.components.news_detail import news_detail_content
 from frontend.components.news_page import news_category_content, news_page_content
 from frontend.components.tools_page import (
     TOOL_PAGES,
+    crypto_calendar_content,
     market_charts_content,
     market_indicators_content,
     tools_home_content,
@@ -33,6 +34,7 @@ __all__ = [
     "news_category_content",
     "news_page_content",
     "TOOL_PAGES",
+    "crypto_calendar_content",
     "market_charts_content",
     "market_indicators_content",
     "tools_home_content",
