@@ -1,7 +1,7 @@
 """/tools and its two sub-pages (2026-10-14 split):
 
-- /tools: a landing page with one card per sub-page (TOOL_PAGES, also the list
-  behind the header's "Tools" dropdown).
+- /tools: a landing page with one card per tool (TOOL_PAGES, also the list
+  behind the header's "Tools" dropdown): the two sub-pages below and Gainers & Losers.
 - /tools/market-indicators: Fear & Greed gauge, Altcoin/Bitcoin Season index
   (data via ToolsState; each has a "data source" popup that also asks for an
   API key when needed) and the BTC / ETH rainbow chart (log-regression bands
@@ -475,7 +475,8 @@ def _source_dialog() -> rx.Component:
     )
 
 
-# One entry per sub-page: the landing cards and the header dropdown are both built from this.
+# One entry per tool: the landing cards and the header's Tools dropdown are both built from this
+# (Gainers & Losers is its own page at /gainers-losers and also keeps its own nav link).
 TOOL_PAGES = [
     {
         "title": "Market Indicators",
@@ -490,6 +491,13 @@ TOOL_PAGES = [
         "icon": "chart-line",
         "description": "Live macro and market-structure charts with your own timeframe: dollar strength, total market cap, Bitcoin dominance and more.",
         "chips": ["DXY", "Total Market Cap", "BTC Dominance", "ETH / BTC", "TOTAL2"],
+    },
+    {
+        "title": "Gainers & Losers",
+        "href": "/gainers-losers",
+        "icon": "arrow-up-down",
+        "description": "The biggest movers by rank band over 24 hours, 7 days and 1 month, with saved daily boards you can browse by date.",
+        "chips": ["Top Gainers", "Top Losers", "24h · 7d · 1 Month", "Top 100 - 500"],
     },
 ]
 
