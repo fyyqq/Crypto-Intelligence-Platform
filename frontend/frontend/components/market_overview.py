@@ -144,7 +144,7 @@ def _market_status_card() -> rx.Component:
                 spacing="1",
                 align="center",
             ),
-            href="/tools",
+            href="/tools/market-indicators",
             underline="none",
         ),
         rx.grid(

@@ -23,7 +23,10 @@ from frontend.components import (
     news_feed,
     news_category_content,
     news_page_content,
-    tools_page_content,
+    TOOL_PAGES,
+    market_charts_content,
+    market_indicators_content,
+    tools_home_content,
     watchlist_table,
 )
 from frontend.components.alerts_page import alerts_content
@@ -285,16 +288,14 @@ _NEWS_CATEGORIES = [
 ]
 
 
-def _news_nav_item(label: str, href: str) -> rx.Component:
-    """The "News" nav link with a hover dropdown listing the news categories."""
+def _dropdown_nav_item(label: str, href: str, entries: list[tuple[str, str]]) -> rx.Component:
+    """A nav link with a hover dropdown listing (name, href) entries: News (its
+    categories) and Tools (its sub-pages)."""
     return rx.box(
         rx.hstack(_nav_link(label, href), rx.icon("chevron-down", size=14, color="var(--gray-10)"), spacing="1", align="center"),
         rx.box(
             rx.box(
-                *[
-                    rx.link(name, href=f"/news/{slug}", underline="none", class_name="nav-dropdown-item")
-                    for name, slug in _NEWS_CATEGORIES
-                ],
+                *[rx.link(name, href=entry_href, underline="none", class_name="nav-dropdown-item") for name, entry_href in entries],
                 class_name="nav-dropdown-inner",
             ),
             class_name="nav-dropdown",
@@ -302,6 +303,13 @@ def _news_nav_item(label: str, href: str) -> rx.Component:
         class_name="nav-menu",
         flex_shrink="0",
     )
+
+
+# Dropdown entries by nav link: News categories, Tools sub-pages.
+_NAV_DROPDOWNS = {
+    "/news": [(name, f"/news/{slug}") for name, slug in _NEWS_CATEGORIES],
+    "/tools": [(p["title"], p["href"]) for p in TOOL_PAGES],
+}
 
 
 def _nav_link(label: str, href: str) -> rx.Component:
@@ -320,7 +328,10 @@ def _nav_link(label: str, href: str) -> rx.Component:
 
 def _nav_links() -> rx.Component:
     return rx.hstack(
-        *[_news_nav_item(label, href) if href == "/news" else _nav_link(label, href) for label, href in _NAV_LINKS],
+        *[
+            _dropdown_nav_item(label, href, _NAV_DROPDOWNS[href]) if href in _NAV_DROPDOWNS else _nav_link(label, href)
+            for label, href in _NAV_LINKS
+        ],
         align="center",
         justify="center",
         # Tighter gap at phone/small-tablet widths, where the grid column
@@ -1076,11 +1087,10 @@ def chains_page() -> rx.Component:
     return _placeholder_page("Chains")
 
 
-def tools_page() -> rx.Component:
-    # /tools — Fear & Greed, Altcoin Season, rainbow charts and TradingView embeds.
+def _tools_shell(content: rx.Component, *scripts: str) -> rx.Component:
     return rx.box(
         _header_bar(),
-        tools_page_content(),
+        content,
         footer(),
         _floating_logo(),
         _chat_widget(),
@@ -1088,10 +1098,25 @@ def tools_page() -> rx.Component:
         _watchlist_widget(),
         _alert_popups(),
         rx.script(src="/chain_pills.js"),
-        rx.script(src="/rainbow_hover.js"),
+        *[rx.script(src=src) for src in scripts],
         min_height="100vh",
         width="100%",
     )
+
+
+def tools_page() -> rx.Component:
+    # /tools: the landing page, one card per sub-page.
+    return _tools_shell(tools_home_content())
+
+
+def market_indicators_page() -> rx.Component:
+    # /tools/market-indicators: Fear & Greed, Altcoin Season and the rainbow chart.
+    return _tools_shell(market_indicators_content(), "/rainbow_hover.js")
+
+
+def market_charts_page() -> rx.Component:
+    # /tools/market-charts: the five TradingView embeds.
+    return _tools_shell(market_charts_content())
 
 
 def gainers_losers_page() -> rx.Component:
@@ -1488,7 +1513,19 @@ app.add_page(
     tools_page,
     route="/tools",
     title="Repace — Market Tools",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
+)
+app.add_page(
+    market_indicators_page,
+    route="/tools/market-indicators",
+    title="Repace — Market Indicators",
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, ToolsState.refresh_fng, ToolsState.refresh_season, ToolsState.refresh_rainbow],
+)
+app.add_page(
+    market_charts_page,
+    route="/tools/market-charts",
+    title="Repace — Market Charts",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
 )
 for _route, _page_fn in [
     ("/chains", chains_page),

@@ -1,10 +1,13 @@
-"""/tools: market-indicator widgets, each in its own card section.
+"""/tools and its two sub-pages (2026-10-14 split):
 
-- Fear & Greed gauge, Altcoin/Bitcoin Season index (data via ToolsState; each
-  has a "data source" popup that also asks for an API key when needed).
-- BTC / ETH rainbow chart (log-regression bands drawn server-side as SVG).
-- TradingView embeds: DXY, total crypto market cap, Bitcoin dominance,
-  ETH/BTC, total market cap excluding BTC.
+- /tools: a landing page with one card per sub-page (TOOL_PAGES, also the list
+  behind the header's "Tools" dropdown).
+- /tools/market-indicators: Fear & Greed gauge, Altcoin/Bitcoin Season index
+  (data via ToolsState; each has a "data source" popup that also asks for an
+  API key when needed) and the BTC / ETH rainbow chart (log-regression bands
+  drawn server-side as SVG).
+- /tools/market-charts: TradingView embeds: DXY, total crypto market cap,
+  Bitcoin dominance, ETH/BTC, total market cap excluding BTC.
 """
 
 from urllib.parse import urlencode
@@ -472,20 +475,122 @@ def _source_dialog() -> rx.Component:
     )
 
 
-def tools_page_content() -> rx.Component:
-    return rx.vstack(
+# One entry per sub-page: the landing cards and the header dropdown are both built from this.
+TOOL_PAGES = [
+    {
+        "title": "Market Indicators",
+        "href": "/tools/market-indicators",
+        "icon": "gauge",
+        "description": "Sentiment and cycle gauges: how fearful or greedy the market is, who is winning (Bitcoin or altcoins), and where Bitcoin sits on its long-term curve.",
+        "chips": ["Fear & Greed", "Altcoin Season", "Rainbow Chart"],
+    },
+    {
+        "title": "Market Charts",
+        "href": "/tools/market-charts",
+        "icon": "chart-line",
+        "description": "Live macro and market-structure charts with your own timeframe: dollar strength, total market cap, Bitcoin dominance and more.",
+        "chips": ["DXY", "Total Market Cap", "BTC Dominance", "ETH / BTC", "TOTAL2"],
+    },
+]
+
+
+def _tool_card(page: dict) -> rx.Component:
+    """A whole-card link (a real <a>, so middle-click / new tab work)."""
+    return rx.link(
         rx.vstack(
-            rx.heading("Market Tools", size="6"),
-            rx.text(
-                "Sentiment, season and macro indicators in one place.",
-                size="2",
-                color_scheme="gray",
+            rx.hstack(
+                rx.center(
+                    rx.icon(page["icon"], size=26),
+                    width="52px",
+                    height="52px",
+                    border_radius="14px",
+                    background="var(--accent-a3)",
+                    color="var(--accent-11)",
+                ),
+                rx.spacer(),
+                rx.icon("arrow-up-right", size=20, color="var(--gray-10)", class_name="tool-card-arrow"),
+                width="100%",
+                align="start",
+            ),
+            rx.heading(page["title"], size="5", color="var(--gray-12)", margin_top="0.4em"),
+            rx.text(page["description"], size="2", color="var(--gray-11)", line_height="1.55"),
+            rx.hstack(
+                *[rx.badge(c, variant="soft", color_scheme="gray", size="1") for c in page["chips"]],
+                wrap="wrap",
+                spacing="2",
+                margin_top="0.4em",
+            ),
+            rx.spacer(),
+            rx.hstack(
+                rx.text("Open", size="2", weight="medium"),
+                rx.icon("arrow-right", size=16, class_name="tool-card-go"),
+                spacing="1",
+                align="center",
+                color="var(--accent-11)",
+                margin_top="0.6em",
             ),
             spacing="2",
-            align="center",
-            text_align="center",
-            width="100%",
+            align="start",
+            height="100%",
         ),
+        href=page["href"],
+        underline="none",
+        color="inherit",
+        class_name="tool-card",
+        display="block",
+        width="100%",
+    )
+
+
+def _page_header(title: str, subtitle: str, back: bool = True) -> rx.Component:
+    return rx.vstack(
+        *(
+            [
+                rx.link(
+                    rx.hstack(rx.icon("arrow-left", size=14), rx.text("Market Tools", size="2"), spacing="1", align="center"),
+                    href="/tools",
+                    underline="none",
+                    color="var(--gray-11)",
+                    _hover={"color": "var(--gray-12)"},
+                )
+            ]
+            if back
+            else []
+        ),
+        rx.heading(title, size="6"),
+        rx.text(subtitle, size="2", color_scheme="gray"),
+        spacing="2",
+        align="center" if not back else "start",
+        text_align="center" if not back else "left",
+        width="100%",
+    )
+
+
+_PAGE_PADDING = ["1em", "1em", "1.5em", "2em", "2em"]
+
+
+def tools_home_content() -> rx.Component:
+    """/tools: just the way into the sub-pages."""
+    return rx.vstack(
+        _page_header("Market Tools", "Sentiment, season and macro indicators, grouped by what you need.", back=False),
+        rx.grid(
+            *[_tool_card(p) for p in TOOL_PAGES],
+            columns=rx.breakpoints(initial="1", sm="2"),  # two columns from tablet width
+            spacing="4",
+            width="100%",
+            max_width="980px",
+        ),
+        spacing="6",
+        align="center",
+        width="100%",
+        padding=_PAGE_PADDING,
+    )
+
+
+def market_indicators_content() -> rx.Component:
+    """/tools/market-indicators: Fear & Greed + Altcoin Season side by side, then the rainbow chart."""
+    return rx.vstack(
+        _page_header("Market Indicators", "Fear & Greed, Altcoin / Bitcoin Season and the Bitcoin rainbow chart."),
         rx.grid(
             fear_greed_section(),
             altcoin_season_section(),
@@ -494,6 +599,17 @@ def tools_page_content() -> rx.Component:
             width="100%",
         ),
         rainbow_section(),
+        _source_dialog(),
+        spacing="5",
+        width="100%",
+        padding=_PAGE_PADDING,
+    )
+
+
+def market_charts_content() -> rx.Component:
+    """/tools/market-charts: the five TradingView embeds."""
+    return rx.vstack(
+        _page_header("Market Charts", "Dollar index, total market cap, Bitcoin dominance, ETH/BTC and TOTAL2, with your own timeframe."),
         rx.grid(
             _tv_section("US Dollar Index (DXY)", "Dollar strength against a basket of major currencies.", "CAPITALCOM:DXY"),
             _tv_section("Total Crypto Market Cap", "Value of the whole crypto market.", "CRYPTOCAP:TOTAL"),
@@ -504,8 +620,7 @@ def tools_page_content() -> rx.Component:
             spacing="4",
             width="100%",
         ),
-        _source_dialog(),
         spacing="5",
         width="100%",
-        padding=["1em", "1em", "1.5em", "2em", "2em"],
+        padding=_PAGE_PADDING,
     )

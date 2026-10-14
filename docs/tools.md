@@ -1,9 +1,14 @@
 # Tools
 
-**Route:** `/tools` · **Status:** Live (2026-10-05)
-**Source:** `app/services/market_tools_service.py`, `frontend/frontend/state/tools_state.py`, `frontend/frontend/components/tools_page.py`, `frontend/frontend/frontend.py::tools_page`
+**Routes:** `/tools` (landing) · `/tools/market-indicators` · `/tools/market-charts` · **Status:** Live (2026-10-05); split into sub-pages 2026-10-14 (**local only, not deployed**).
+**Source:** `app/services/market_tools_service.py`, `frontend/frontend/state/tools_state.py`, `frontend/frontend/components/tools_page.py` (`TOOL_PAGES`, `tools_home_content`, `market_indicators_content`, `market_charts_content`), `frontend/frontend/frontend.py` (`tools_page`, `market_indicators_page`, `market_charts_page`, `_dropdown_nav_item`), card styles `.tool-card` in `assets/styles.css`.
 
-"Market Tools": eight market-indicator sections, each in its own card section. Layout: Fear & Greed and Altcoin/Bitcoin Season side by side, the rainbow chart full width, then the five TradingView embeds in a 2-column grid (1 column on phones/tablets). No horizontal overflow at 375px.
+**Structure (2026-10-14).** `/tools` used to hold everything on one long page; it is now a clean landing page: the title "Market Tools" and a two-column grid (stacked on phones) with one large link card per sub-page. Each card (a real `<a>`) has an accent-tinted icon tile, the title, a one-sentence description, chips naming what is inside, and an "Open ->" footer; on hover it lifts, gets an accent border and the arrows nudge. The list of sub-pages is the single `TOOL_PAGES` list, which also feeds the header's **Tools dropdown** (hover, like News). "Tools" stays highlighted on every sub-page, and each sub-page has a "<- Market Tools" back link above its title.
+- **`/tools/market-indicators`** (Market Indicators): Fear & Greed and Altcoin / Bitcoin Season side by side (one column below 1280px), then the full-width BTC / ETH Rainbow Chart, with the data-source popup. Loads `ToolsState.refresh_fng`, `refresh_season`, `refresh_rainbow` (which starts the rainbow live loop) and `rainbow_hover.js`; the landing page and the charts page load none of that.
+- **`/tools/market-charts`** (Market Charts): the five TradingView embeds in a 2-column grid (DXY, total market cap, BTC dominance, ETH/BTC, TOTAL2), each with its own 1m-W timeframe buttons (`tradingview_timeframes.js` is global). No ToolsState events.
+The homepage Market Status card's title now links to `/tools/market-indicators`. Verified in light and dark at 1440 / 1024 / 834 / 375: no overflow, no horizontal scroll, zero console errors; the old content is gone from `/tools` (no iframes, gauge or rainbow there).
+
+The sections below describe each widget (they now live on the sub-pages above).
 
 ## Features
 

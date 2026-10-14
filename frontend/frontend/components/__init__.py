@@ -9,7 +9,12 @@ from frontend.components.narrative_alerts import narrative_alerts, narrative_pag
 from frontend.components.news_feed import news_feed
 from frontend.components.news_detail import news_detail_content
 from frontend.components.news_page import news_category_content, news_page_content
-from frontend.components.tools_page import tools_page_content
+from frontend.components.tools_page import (
+    TOOL_PAGES,
+    market_charts_content,
+    market_indicators_content,
+    tools_home_content,
+)
 from frontend.components.watchlist_table import watchlist_table
 
 __all__ = [
@@ -27,6 +32,9 @@ __all__ = [
     "news_detail_content",
     "news_category_content",
     "news_page_content",
-    "tools_page_content",
+    "TOOL_PAGES",
+    "market_charts_content",
+    "market_indicators_content",
+    "tools_home_content",
     "watchlist_table",
 ]

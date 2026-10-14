@@ -1003,6 +1003,43 @@
   background: var(--gray-a4);
 }
 
+/* /tools landing: one big link card per sub-page. */
+.tool-card {
+  display: block;
+  padding: 1.4em 1.5em;
+  min-height: 250px;
+  border: 1px solid var(--gray-a5);
+  border-radius: 16px;
+  background: var(--gray-a2);
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tool-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent-a8);
+  background: var(--gray-a3);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+.tool-card:focus-visible {
+  outline: 2px solid var(--accent-9);
+  outline-offset: 2px;
+}
+
+.tool-card .tool-card-arrow,
+.tool-card .tool-card-go {
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.tool-card:hover .tool-card-arrow {
+  transform: translate(2px, -2px);
+  color: var(--accent-11);
+}
+
+.tool-card:hover .tool-card-go {
+  transform: translateX(4px);
+}
+
 /* Targeted Narrative + Coin cards: keep long titles/excerpts to 3 lines. */
 .line-clamp-3 {
   display: -webkit-box;
