@@ -1395,3 +1395,84 @@ svg.wl-star-force-off {
 #google-signin-btn iframe {
   color-scheme: light;
 }
+
+/* /tools/crypto-calendar: month grid (HTML built in app/services/crypto_calendar_service.py). */
+.cal-chips { padding-bottom: 2px; }
+.cal-chip {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--gray-a5);
+  background: var(--gray-a2);
+  color: var(--gray-11);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.cal-chip:hover { background: var(--gray-a4); color: var(--gray-12); }
+.cal-chip[data-data="0"] { opacity: 0.55; }
+.cal-chip[data-active="1"] { background: var(--accent-9); border-color: var(--accent-9); color: var(--accent-contrast); opacity: 1; }
+
+.cal-dot { width: 10px; height: 10px; border-radius: 3px; }
+.cal-dot-crypto { background: var(--green-9); }
+.cal-dot-macro { background: var(--orange-9); }
+.cal-dot-earnings { background: var(--blue-9); }
+
+.cal-board { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.cal-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.cal-wd {
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--accent-9);
+  color: var(--accent-contrast);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.cal-day {
+  min-width: 0;
+  min-height: 118px;
+  padding: 6px;
+  border: 1px solid var(--gray-a5);
+  border-radius: 10px;
+  background: var(--gray-a2);
+}
+.cal-out { background: transparent; border-style: dashed; border-color: var(--gray-a3); }
+.cal-today { border-color: var(--accent-9); box-shadow: 0 0 0 1px var(--accent-9); }
+.cal-num { font-size: 0.85rem; font-weight: 700; color: var(--gray-12); padding: 0 2px 2px; }
+.cal-dow { display: none; color: var(--gray-11); font-weight: 500; }
+
+.cal-ev {
+  min-width: 0;
+  margin-top: 5px;
+  padding: 5px 7px;
+  border-left: 3px solid var(--gray-9);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.cal-ev-crypto { background: var(--green-a3); border-left-color: var(--green-9); }
+.cal-ev-macro { background: var(--orange-a3); border-left-color: var(--orange-9); }
+.cal-ev-earnings { background: var(--blue-a3); border-left-color: var(--blue-9); }
+.cal-ev-head { display: flex; align-items: center; gap: 5px; margin-bottom: 1px; min-width: 0; }
+.cal-logo { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
+.cal-ev-who { font-weight: 700; font-size: 0.74rem; overflow-wrap: anywhere; }
+.cal-ev-crypto .cal-ev-who { color: var(--green-11); }
+.cal-ev-macro .cal-ev-who { color: var(--orange-11); }
+.cal-ev-earnings .cal-ev-who { color: var(--blue-11); }
+.cal-ev-when { margin-left: auto; color: var(--gray-11); font-size: 0.72rem; white-space: nowrap; }
+.cal-hot { font-size: 0.72rem; }
+.cal-ev-desc { color: var(--gray-12); overflow-wrap: anywhere; }
+
+.cal-section { margin-top: 10px; font-size: 0.85rem; font-weight: 700; color: var(--gray-11); text-transform: uppercase; letter-spacing: 0.04em; }
+.cal-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.cal-cards .cal-ev { margin-top: 0; padding: 8px 10px; font-size: 0.82rem; }
+.cal-empty { padding: 4em 1em; text-align: center; color: var(--gray-11); border: 1px dashed var(--gray-a5); border-radius: 12px; }
+
+@media (max-width: 767px) {
+  .cal-weekdays, .cal-out, .cal-quiet { display: none; }
+  .cal-grid { grid-template-columns: minmax(0, 1fr); }
+  .cal-day { min-height: 0; }
+  .cal-dow { display: inline; }
+}

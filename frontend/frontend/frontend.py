@@ -33,7 +33,7 @@ from frontend.components import (
 from frontend.components.alerts_page import alerts_content
 from frontend.components.notifications_page import notification_popup, notifications_content
 from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
-from frontend.state import CoinState, GainersLosersState, HomeMoversState, MarketStatusState, NewsDetailState, NewsState, NotificationState, ToolsState
+from frontend.state import CalendarState, CoinState, GainersLosersState, HomeMoversState, MarketStatusState, NewsDetailState, NewsState, NotificationState, ToolsState
 
 
 def _alerts_menu_item() -> rx.Component:
@@ -1538,7 +1538,7 @@ app.add_page(
     crypto_calendar_page,
     route="/tools/crypto-calendar",
     title="Repace — Crypto Calendar",
-    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CalendarState.load],
 )
 app.add_page(
     market_charts_page,

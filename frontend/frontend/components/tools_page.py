@@ -6,7 +6,7 @@
   (data via ToolsState; each has a "data source" popup that also asks for an
   API key when needed) and the BTC / ETH rainbow chart (log-regression bands
   drawn server-side as SVG).
-- /tools/crypto-calendar: an empty "coming soon" page (placeholder for a future events calendar).
+- /tools/crypto-calendar: the monthly @layergg events calendar (see calendar_state / crypto_calendar_service).
 - /tools/market-charts: TradingView embeds: DXY, total crypto market cap,
   Bitcoin dominance, ETH/BTC, total market cap excluding BTC.
 """
@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 import reflex as rx
 
 from frontend.components.tradingview_controls import timeframe_controls
+from frontend.state.calendar_state import CalendarState as Cal
 from frontend.state.tools_state import ToolsState
 
 _CARD = dict(
@@ -504,8 +505,8 @@ TOOL_PAGES = [
         "title": "Crypto Calendar",
         "href": "/tools/crypto-calendar",
         "icon": "calendar-days",
-        "description": "Upcoming token unlocks, launches and market events in one calendar. Coming soon.",
-        "chips": ["Coming soon"],
+        "description": "A month-by-month calendar of token unlocks, launches, macro releases and earnings, taken from the Layergg calendar posts.",
+        "chips": ["Crypto", "Macro", "Earnings", "2026"],
     },
 ]
 
@@ -642,21 +643,70 @@ def market_charts_content() -> rx.Component:
     )
 
 
+def _chip(chip: rx.Var[dict]) -> rx.Component:
+    """A month chip (Jan, Feb ...): accent when it is the open month, dimmed when it has no events."""
+    return rx.box(
+        rx.text(chip["label"], size="2", weight="medium"),
+        class_name="cal-chip",
+        custom_attrs={"data-active": chip["active"], "data-data": chip["has_data"]},
+        on_click=Cal.go(chip["index"]),
+    )
+
+
 def crypto_calendar_content() -> rx.Component:
-    """/tools/crypto-calendar: an empty placeholder page for now."""
+    """/tools/crypto-calendar: the @layergg monthly calendar, a month at a time (full width)."""
+    arrow = dict(variant="soft", color_scheme="gray", size="2", cursor="pointer")
+    legend = rx.hstack(
+        *[
+            rx.hstack(rx.box(class_name=f"cal-dot cal-dot-{k}"), rx.text(label, size="1", color="var(--gray-11)"), spacing="1", align="center")
+            for k, label in (("crypto", "Crypto"), ("macro", "Macro"), ("earnings", "Stocks & earnings"))
+        ],
+        spacing="3",
+        wrap="wrap",
+    )
     return rx.vstack(
-        _page_header("Crypto Calendar", "Upcoming token unlocks, launches and market events."),
-        rx.center(
-            rx.vstack(
-                rx.icon("calendar-days", size=32, color="var(--gray-9)"),
-                rx.text("Coming soon", size="3", weight="medium"),
-                spacing="2",
+        _page_header("Crypto Calendar", "Dated crypto, macro and earnings events from the monthly calendar post of @layergg."),
+        rx.hstack(
+            rx.hstack(
+                rx.icon_button(rx.icon("chevron-left", size=18), on_click=Cal.prev_month, disabled=Cal.index <= 0, aria_label="Previous month", **arrow),
+                rx.heading(Cal.month_title, size="5", min_width="9em", text_align="center"),
+                rx.icon_button(rx.icon("chevron-right", size=18), on_click=Cal.next_month, disabled=Cal.index >= Cal.keys.length() - 1, aria_label="Next month", **arrow),
+                spacing="3",
                 align="center",
             ),
+            rx.spacer(),
+            legend,
+            align="center",
             width="100%",
-            min_height="40vh",
+            wrap="wrap",
+            spacing="3",
         ),
-        spacing="5",
+        rx.box(
+            rx.hstack(rx.foreach(Cal.chips, _chip), spacing="2", class_name="cal-chips"),
+            width="100%",
+            overflow_x="auto",
+            class_name="hide-scrollbar",
+        ),
+        rx.cond(
+            Cal.loaded,
+            rx.cond(
+                Cal.keys.length() > 0,
+                rx.html(Cal.month_html, width="100%"),
+                rx.center(rx.text("No calendar yet.", size="2", color="var(--gray-11)"), min_height="30vh", width="100%"),
+            ),
+            rx.skeleton(height="520px", width="100%", border_radius="12px"),
+        ),
+        rx.cond(
+            Cal.post_url != "",
+            rx.link(
+                rx.hstack(rx.icon("send", size=14), rx.text("Source: this month's post on t.me/layergg", size="1"), spacing="1", align="center"),
+                href=Cal.post_url,
+                is_external=True,
+                color="var(--gray-11)",
+                underline="hover",
+            ),
+        ),
+        spacing="4",
         width="100%",
         padding=_PAGE_PADDING,
     )
