@@ -1,9 +1,9 @@
 # Narrative
 
-**Route:** `/narrative` · **Status:** Blank placeholder — shell only, no real content yet
-**Source:** `frontend/frontend/frontend.py::narrative_page` / `_placeholder_page`
+**Route:** `/narrative` · **Status:** Index of every narrative (2026-10-15)
+**Source:** `frontend/frontend/frontend.py::narratives_page`, `components/index_pages.py`
 
-Currently renders just the shared header/footer and a "Narrative / Coming soon" message.
+`/narrative` now shows only a "Narratives" heading with a count and **every narrative as a pill, all on one page (no pagination, no search)**, the same list the homepage "More Narrative" pages through (`CoinState.narrative_links`). The old Narrative Radar article grid (100 articles per page, "Showing 1–100 of N") was removed from this URL. Each pill opens `/narrative/<slug>`, which still lists that narrative's AI-targeted articles (below) with a "← All narratives" link back.
 
 **Not to be confused with:** the [Home](./home.md) page's own narrative pill filter (left sidebar) — that's a Home feature that filters the existing coin table, not this page. An early planning note in this project's Notion workspace called this idea the "Narrative & Effected Coin Page" — scope not yet decided.
 

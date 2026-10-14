@@ -4,6 +4,7 @@ from frontend.components.filters import filter_bar
 from frontend.components.footer import footer
 from frontend.components.gainers_losers_page import gainers_losers_content
 from frontend.components.global_search import global_search
+from frontend.components.index_pages import chains_index_content, narratives_index_content
 from frontend.components.market_overview import market_overview
 from frontend.components.narrative_alerts import narrative_alerts, narrative_page_content
 from frontend.components.news_feed import news_feed
@@ -20,6 +21,8 @@ from frontend.components.tools_page import (
 from frontend.components.watchlist_table import watchlist_table
 
 __all__ = [
+    "chains_index_content",
+    "narratives_index_content",
     "coin_detail_page",
     "similar_coins_page_content",
     "coin_table",

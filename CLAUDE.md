@@ -19,7 +19,7 @@ Reflex (Python) frontend in `frontend/`, FastAPI backend + scheduler in `app/`, 
 
 ## Pages and status (details in `docs/README.md`)
 
-Notifications `/notifications` · Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symbol]` · News `/news`, `/news/<cat>`, reader · Narrative `/narrative[/<slug>]` · Gainers & Losers `/gainers-losers` (under Tools) · Tools `/tools` (landing) + `/tools/market-indicators` + `/tools/market-charts` · Watchlist `/watchlist` · Alerts `/alerts` · `/login`, `/signup` · Chains `/chains` (placeholder).
+Memecoin `/memecoin` (blank, navbar link after Tools) · Notifications `/notifications` · Home `/` (coin table, filters, news strip, Narrative Radar) · Coin `/coin/[symbol]` · News `/news`, `/news/<cat>`, reader · Narrative `/narrative` (all narrative pills) `/narrative/<slug>` (that narrative's articles) · Gainers & Losers `/gainers-losers` (under Tools) · Tools `/tools` (landing) + `/tools/market-indicators` + `/tools/market-charts` · Watchlist `/watchlist` · Alerts `/alerts` · `/login`, `/signup` · Chains `/chains` (all chain pills).
 
 ## Current State (2026-10-05)
 
@@ -37,7 +37,7 @@ Notifications `/notifications` · Home `/` (coin table, filters, news strip, Nar
 - Login wall + Google sign-in (2026-10-14): every page needs a login (logout lands on /login); Google Identity Services button -> `/api/auth/google` (google-auth ID-token verification, allowed existing accounts only). Deployed and verified 2026-10-14 (button loads without errors locally and on live; origins localhost:3000, localhost, repace.fyqqflow.com); `GOOGLE_CLIENT_ID` is in both `.env` files (never the secret).
 - Alerts and the coin information panel follow the live price (alert dialog, 24/7 server checker with DEX/contract fallback, market cap/FDV re-based, Liq/Mkt Cap from DexScreener) instead of the stale stored CMC price (2026-10-14).
 - Coin pages: red report icon next to "<Coin> Live Chart" opens a chart picker; a hand-picked TradingView symbol is saved permanently per coin (`chart_symbol_overrides`, migration `d5e8f1a3b7c9`) (2026-10-13).
-- AI summaries + filters (2026-10-15, **local only until deployed**): live summaries were blank because OpenRouter's free 50/day cap was used up (shared key, background jobs); `ai_budget` now reserves 30 calls/day for page visits and pauses on the daily-limit 429; homepage narrative/chain filters have search boxes; "Ai" -> "AI" in category names. Details: `docs/single-coin-page.md`, `docs/home.md`.
+- AI summaries + filters (2026-10-15, **local only until deployed**): live summaries were blank because OpenRouter's free 50/day cap was used up (shared key, background jobs); `ai_budget` now reserves 30 calls/day for page visits and pauses on the daily-limit 429; homepage narrative/chain filters have search boxes (no icon) and "More" pages 50 pills at a time; `/narrative` and `/chains` list every pill; blank `/memecoin` page + navbar link; "Ai" -> "AI" in category names. Details: `docs/single-coin-page.md`, `docs/home.md`.
 - Coin-page charts (2026-10-15): fallback chart search uses TradingView's Crypto tab by coin name first (CEX spot > perp > own-chain DEX > first listing naming the coin), no CoinGecko wait; per-coin lookups use the page coin's cmc_id (fixed `/coin/si` loading forever: two coins share the ticker); the report-icon picker lists the whole Crypto tab incl. perpetuals and saves permanently. Homepage Incoming News card shows skeleton rows. Details: `docs/single-coin-page.md`.
 - Coin-page TradingView charts now fill the available center column on desktop and the full padded content width on tablet/mobile; the iframe remains width-constrained by its responsive parent on every coin route (2026-10-14).
 - TradingView charts now have independent 1m/5m/15m/1h/4h/D/W presets on coin pages and all five `/tools` embeds.
@@ -66,6 +66,5 @@ Notifications `/notifications` · Home `/` (coin table, filters, news strip, Nar
 - News dedup is planned but deferred until the user decides which copy to keep (memory: `project_news_dedup_plan`).
 - Feature 2 (`ai-instructions.md`) still says LOCKED / Claude 3.5 Sonnet / side-drawer; the build is inline and on-demand with OpenRouter free models. Decide whether to update the spec.
 - Optional: remove the 8 artificial `asyncio.sleep(0.25)` skeleton delays; move `telegram_session.session` out of `~/Documents`; add the `Secure` cookie flag over HTTPS.
-- `/chains` is still a placeholder page.
 - Notion pages for Tools, Single Coin Page and Narrative were requested but not updated: the Notion tools were unavailable in the session of 2026-10-05 (mirror from `docs/`).
 - Untracked scratch images at the repo root (`before-click.png`, `chat-open-light.png`) are not committed.

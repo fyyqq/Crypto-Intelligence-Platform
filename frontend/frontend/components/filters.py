@@ -37,7 +37,6 @@ def _more_narratives_pill() -> rx.Component:
 
 def _search_box(placeholder: str, value, on_change) -> rx.Component:
     return rx.input(
-        rx.input.slot(rx.icon("search", size=13)),
         value=value,
         on_change=on_change,
         placeholder=placeholder,
@@ -58,6 +57,23 @@ def _section_head(title: str, search: rx.Component) -> rx.Component:
         justify="between",
         align="center",
         width="100%",
+    )
+
+
+def _pager(page, count, on_prev, on_next) -> rx.Component:
+    """Prev / "page x of y" / next under an expanded or searched list (50 pills a page); hidden for one page."""
+    return rx.cond(
+        count > 1,
+        rx.hstack(
+            rx.icon_button(rx.icon("chevron-left", size=14), on_click=on_prev, disabled=page <= 1, size="1", variant="soft", color_scheme="gray", cursor="pointer"),
+            rx.text("Page ", page, " of ", count, size="1", color_scheme="gray"),
+            rx.icon_button(rx.icon("chevron-right", size=14), on_click=on_next, disabled=page >= count, size="1", variant="soft", color_scheme="gray", cursor="pointer"),
+            spacing="3",
+            align="center",
+            justify="center",
+            width="100%",
+        ),
+        rx.fragment(),
     )
 
 
@@ -128,6 +144,7 @@ def filter_bar() -> rx.Component:
                 _search_box("Search narrative", CoinState.narrative_query, CoinState.set_narrative_query),
             ),
             _narrative_pills(),
+            _pager(CoinState.narrative_page_shown, CoinState.narrative_page_count, CoinState.narrative_page_prev, CoinState.narrative_page_next),
             _no_match("No narrative matches.", (CoinState.narrative_query != "") & (CoinState.displayed_categories.length() == 0)),
             spacing="2",
             width="100%",
@@ -140,6 +157,7 @@ def filter_bar() -> rx.Component:
                 _search_box("Search chain", CoinState.chain_query, CoinState.set_chain_query),
             ),
             _chain_filter_pills(),
+            _pager(CoinState.chain_page_shown, CoinState.chain_page_count, CoinState.chain_page_prev, CoinState.chain_page_next),
             _no_match("No chain matches.", (CoinState.chain_query != "") & (CoinState.displayed_chains.length() == 0)),
             spacing="2",
             width="100%",

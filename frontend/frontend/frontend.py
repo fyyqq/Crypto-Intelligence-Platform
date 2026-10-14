@@ -19,6 +19,8 @@ from frontend.components import (
     market_overview,
     narrative_alerts,
     narrative_page_content,
+    narratives_index_content,
+    chains_index_content,
     news_detail_content,
     news_feed,
     news_category_content,
@@ -276,6 +278,7 @@ _NAV_LINKS = [
     ("Narrative", "/narrative"),
     ("Chains", "/chains"),
     ("Tools", "/tools"),
+    ("Memecoin", "/memecoin"),
 ]
 
 
@@ -1092,8 +1095,34 @@ def narrative_page() -> rx.Component:
     )
 
 
+def _index_shell(content: rx.Component) -> rx.Component:
+    return rx.box(
+        _header_bar(),
+        content,
+        footer(),
+        _floating_logo(),
+        _chat_widget(),
+        _watchlist_button(),
+        _watchlist_widget(),
+        _alert_popups(),
+        rx.script(src="/chain_pills.js"),
+        min_height="100vh",
+        width="100%",
+    )
+
+
+def narratives_page() -> rx.Component:
+    # /narrative — every narrative as a pill (each opens /narrative/<slug>); no articles, no pagination.
+    return _index_shell(narratives_index_content())
+
+
 def chains_page() -> rx.Component:
-    return _placeholder_page("Chains")
+    # /chains — every chain as a pill (each shows that chain's coins on the homepage).
+    return _index_shell(chains_index_content())
+
+
+def memecoin_page() -> rx.Component:
+    return _placeholder_page("Memecoin")
 
 
 def _tools_shell(content: rx.Component, *scripts: str) -> rx.Component:
@@ -1521,10 +1550,10 @@ app.add_page(
 # header's own search bar works even when one of these is the very first
 # page a session visits (a direct/bookmarked link, not navigated to from "/").
 app.add_page(
-    narrative_page,
+    narratives_page,
     route="/narrative",
-    title=NewsState.narrative_page_title,
-    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, NewsState.watch_new_articles],
+    title="Repace — Narratives",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
 )
 app.add_page(
     narrative_page,
@@ -1570,6 +1599,7 @@ app.add_page(
 )
 for _route, _page_fn in [
     ("/chains", chains_page),
+    ("/memecoin", memecoin_page),
     ("/watchlist", watchlist_page),
 ]:
     # /watchlist also runs the live price loop (shared exchange prices every 30s).

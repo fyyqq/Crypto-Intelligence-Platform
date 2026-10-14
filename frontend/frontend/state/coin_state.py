@@ -596,6 +596,9 @@ def _resolve_unlock_source_url(symbol: str, defillama_slug: str | None) -> str:
     return f"https://defillama.com/token/{symbol.upper()}"
 
 
+FILTER_PAGE_SIZE = 50  # pills per page in the homepage sidebar's expanded narrative / chain lists
+
+
 def _search_names(names: list[str], skip: str, query: str) -> list[str]:
     """Filter-sidebar search: names containing the query, those with a word STARTING with it first ("ai" lists
     "AI Agents" before "Binance Chain"), otherwise in the list's own (most coins first) order."""
@@ -1440,6 +1443,9 @@ class CoinState(rx.State):
     # list (not only the default top 20) and the "More" pill is hidden.
     narrative_query: str = ""
     chain_query: str = ""
+    # Page (1-based) of the expanded / searched narrative and chain lists, FILTER_PAGE_SIZE pills each.
+    narrative_page: int = 1
+    chain_page: int = 1
     selected_category: str = "All narratives"
     # Drives just the pill's active/blue highlight. Kept separate from
     # selected_category (which drives the actual re-filter/re-sort of up to
@@ -1706,18 +1712,43 @@ class CoinState(rx.State):
         # and every narrative (all_categories), no re-query either way since
         # both were already computed once in load_coins.
         self.narratives_expanded = not self.narratives_expanded
+        self.narrative_page = 1
 
     @rx.event
     def set_narrative_query(self, value: str):
         self.narrative_query = value
+        self.narrative_page = 1
 
     @rx.event
     def set_chain_query(self, value: str):
         self.chain_query = value
+        self.chain_page = 1
+
+    @rx.event
+    def narrative_page_prev(self):
+        self.narrative_page = max(1, self.narrative_page - 1)
+
+    @rx.event
+    def narrative_page_next(self):
+        self.narrative_page = min(self.narrative_page_count, self.narrative_page + 1)
+
+    @rx.event
+    def chain_page_prev(self):
+        self.chain_page = max(1, self.chain_page - 1)
+
+    @rx.event
+    def chain_page_next(self):
+        self.chain_page = min(self.chain_page_count, self.chain_page + 1)
+
+    @rx.event
+    def open_chain(self, name: str):
+        """/chains page: show that chain's coins on the homepage table."""
+        return [CoinState.set_chain(name), rx.redirect("/")]
 
     @rx.event
     def toggle_chains_expanded(self):
         self.chains_expanded = not self.chains_expanded
+        self.chain_page = 1
 
     @rx.event
     async def toggle_search(self):
@@ -3379,16 +3410,60 @@ class CoinState(rx.State):
         return len(self._filtered_coins)
 
     @rx.var(cache=True)
-    def displayed_categories(self) -> list[str]:
+    def _narrative_pool(self) -> list[str]:
+        """The narrative list being paged: search matches, or every narrative once expanded; [] while collapsed."""
         if self.narrative_query.strip():
             return _search_names(self.all_categories, "All narratives", self.narrative_query)
-        return self.all_categories if self.narratives_expanded else self.categories
+        return self.all_categories if self.narratives_expanded else []
+
+    @rx.var(cache=True)
+    def displayed_categories(self) -> list[str]:
+        pool = self._narrative_pool
+        if not pool and not self.narrative_query.strip() and not self.narratives_expanded:
+            return self.categories
+        start = (min(self.narrative_page, max(1, -(-len(pool) // FILTER_PAGE_SIZE))) - 1) * FILTER_PAGE_SIZE
+        return pool[start:start + FILTER_PAGE_SIZE]
+
+    @rx.var(cache=True)
+    def narrative_page_count(self) -> int:
+        return max(1, -(-len(self._narrative_pool) // FILTER_PAGE_SIZE))
+
+    @rx.var(cache=True)
+    def narrative_page_shown(self) -> int:
+        return min(self.narrative_page, self.narrative_page_count)
+
+    @rx.var(cache=True)
+    def _chain_pool(self) -> list[str]:
+        if self.chain_query.strip():
+            return _search_names(self.all_chains, "All chains", self.chain_query)
+        return self.all_chains if self.chains_expanded else []
 
     @rx.var(cache=True)
     def displayed_chains(self) -> list[str]:
-        if self.chain_query.strip():
-            return _search_names(self.all_chains, "All chains", self.chain_query)
-        return self.all_chains if self.chains_expanded else self.chains
+        pool = self._chain_pool
+        if not pool and not self.chain_query.strip() and not self.chains_expanded:
+            return self.chains
+        start = (min(self.chain_page, max(1, -(-len(pool) // FILTER_PAGE_SIZE))) - 1) * FILTER_PAGE_SIZE
+        return pool[start:start + FILTER_PAGE_SIZE]
+
+    @rx.var(cache=True)
+    def chain_page_count(self) -> int:
+        return max(1, -(-len(self._chain_pool) // FILTER_PAGE_SIZE))
+
+    @rx.var(cache=True)
+    def chain_page_shown(self) -> int:
+        return min(self.chain_page, self.chain_page_count)
+
+    @rx.var(cache=True)
+    def narrative_links(self) -> list[dict]:
+        """/narrative page: every narrative with its /narrative/<slug> link."""
+        return [{"name": n, "href": "/narrative/" + (re.sub(r"[^a-z0-9]+", "-", n.lower()).strip("-") or "narrative")}
+                for n in self.all_categories if n != "All narratives"]
+
+    @rx.var(cache=True)
+    def chain_names(self) -> list[str]:
+        """/chains page: every chain."""
+        return [c for c in self.all_chains if c != "All chains"]
 
     @rx.var(cache=True)
     def _global_search_matches(self) -> list[dict]:
