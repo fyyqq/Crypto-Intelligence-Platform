@@ -107,28 +107,51 @@ def narrative_alerts() -> rx.Component:
     )
 
 
-def narrative_page_content() -> rx.Component:
-    """/narrative: every AI-targeted Cryptocurrency article as cards, 100 per
-    page, in the same grid and pagination as a /news/<category> page."""
+def _sector_coin_card(view, noun: str) -> rx.Component:
+    """The card box above the article grid: the narrative's / chain's coins (largest first) as logo + ticker pills."""
+    from frontend.components.index_pages import _badge
+
+    return rx.cond(
+        view["coin_count"].to(int) > 0,
+        rx.box(
+            rx.hstack(
+                rx.heading("Coins in ", view["label"], size="3"),
+                rx.badge(view["coin_count"], color_scheme="gray", variant="soft", size="2"),
+                align="center",
+                spacing="2",
+                wrap="wrap",
+            ),
+            rx.box(rx.foreach(view["coins"].to(list[dict]), _badge), class_name="coin-badges", margin_top="0.75em"),
+            rx.cond(
+                view["can_expand"],
+                rx.button(
+                    rx.cond(NewsState.sector_coins_expanded, "Show fewer", "Show all coins"),
+                    on_click=NewsState.toggle_sector_coins,
+                    variant="ghost",
+                    size="1",
+                    cursor="pointer",
+                    margin_top="0.75em",
+                ),
+            ),
+            padding="1em 1.25em",
+            border_radius="10px",
+            border="1px solid var(--gray-a5)",
+            background="var(--gray-a2)",
+            width="100%",
+        ),
+    )
+
+
+def sector_page_content(view, noun: str, back_href: str, back_label: str) -> rx.Component:
+    """/narrative/<slug> and /chains/<slug>: title, a card box with the sector's coins, then every story tied to the
+    sector or mentioning its biggest coins, 100 per page, same grid and pagination as a /news/<category> page."""
     from frontend.components.news_page import _GRID_COLUMNS, _pagination_row
 
-    view = NewsState.narrative_view
     return rx.vstack(
         rx.flex(
-            rx.heading(rx.cond(view["has_slug"], view["label"], "Narrative Radar"), size="6"),
-            rx.text(
-                rx.cond(
-                    view["has_slug"],
-                    "Crypto news in this category, with the coin each story moves, picked by AI.",
-                    "Crypto news with the coin and narrative each story moves, picked by AI.",
-                ),
-                size="2",
-                color_scheme="gray",
-            ),
-            rx.cond(
-                view["has_slug"],
-                rx.link(rx.text("← All narratives", size="2"), href="/narrative", underline="none", color_scheme="indigo"),
-            ),
+            rx.heading(view["label"], size="6"),
+            rx.text(f"Crypto news about this {noun} and its coins: stories the AI tied to it and any story mentioning one of its biggest coins by name or ticker.", size="2", color_scheme="gray"),
+            rx.link(rx.text(back_label, size="2"), href=back_href, underline="none", color_scheme="indigo"),
             rx.badge(view["article_count"], " articles", color_scheme="gray", variant="soft", size="2"),
             direction="column",
             spacing="3",
@@ -136,6 +159,7 @@ def narrative_page_content() -> rx.Component:
             text_align="center",
             width="100%",
         ),
+        _sector_coin_card(view, noun),
         rx.cond(
             NewsState.is_loading,
             rx.grid(
@@ -175,3 +199,11 @@ def narrative_page_content() -> rx.Component:
         width="100%",
         padding=["1em", "1em", "1.5em", "2em", "2em"],
     )
+
+
+def narrative_page_content() -> rx.Component:
+    return sector_page_content(NewsState.narrative_view, "narrative", "/narrative", "← All narratives")
+
+
+def chain_page_content() -> rx.Component:
+    return sector_page_content(NewsState.chain_view, "chain", "/chains", "← All chains")

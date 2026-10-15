@@ -19,6 +19,7 @@ from frontend.components import (
     market_overview,
     narrative_alerts,
     narrative_page_content,
+    chain_page_content,
     narratives_index_content,
     profile_content,
     chains_index_content,
@@ -1144,6 +1145,11 @@ def narratives_page() -> rx.Component:
     return _index_shell(narratives_index_content())
 
 
+def chain_detail_page() -> rx.Component:
+    # /chains/<slug> — the chain's coins and the stories mentioning them.
+    return _index_shell(chain_page_content())
+
+
 def chains_page() -> rx.Component:
     # /chains — every chain as a pill (each shows that chain's coins on the homepage).
     return _index_shell(chains_index_content())
@@ -1612,6 +1618,12 @@ app.add_page(
     narrative_page,
     route="/narrative/[narrative_slug]",
     title=NewsState.narrative_page_title,
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, NewsState.watch_new_articles],
+)
+app.add_page(
+    chain_detail_page,
+    route="/chains/[chain_slug]",
+    title=NewsState.chain_page_title,
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, NewsState.watch_new_articles],
 )
 app.add_page(

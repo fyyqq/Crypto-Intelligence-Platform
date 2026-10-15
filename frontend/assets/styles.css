@@ -1608,3 +1608,4 @@ svg.wl-star-force-off {
 .sector-sort { user-select: none; }
 .sector-search { width: 100%; }
 @media (min-width: 768px) { .sector-search { width: 280px; flex-shrink: 0; } }
+.sector-search input { padding-left: 5px; }

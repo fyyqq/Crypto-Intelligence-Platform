@@ -46,3 +46,10 @@ Every AI-targeted article gets an accurate label and, when the story is about a 
 
 `/narrative/<slug>` (e.g. `/narrative/ai-agents`, `/narrative/proof-of-work-currencies`) lists every AI-targeted Cryptocurrency article whose narrative label, or shared peer group, slugs to it, in the same 5/3/2-column grid with 100 per page and pagination as `/narrative`; heading is the category name, with a "← All narratives" link and an article count. It reuses the same page and state as `/narrative`: `NewsState.narrative_view` filters by the route's `narrative_slug` when present (`has_slug`, `label`), and `narrative_page_title` sets the tab title. An unknown slug shows 0 articles. Coin pages link here via "Related News". Like other dynamic routes, a hard load returns the known HTTP 404 status but renders.
 </details>
+
+
+## Single narrative page `/narrative/<slug>` (2026-10-15)
+
+Title, then a **card box with the narrative's coins** ("Coins in <name> (N)": logo + ticker pills, largest first, 30 shown, "Show all coins" up to 200), then **every Cryptocurrency story about it**, newest first, 100 per page: the stories the AI tied to the narrative (as before) **plus every story whose headline or snippet mentions one of the narrative's 40 biggest coins by name or ticker** (whole words; tickers must match as written and have 3+ characters, names 4+ letters and not a generic word like "coin"; `news_state.mention_finder` / `sector_articles`). Stories matched this way show that coin's ticker and the narrative in their badges. Tests: `tests/test_sector_news.py`.
+
+The `/narrative` table now opens sorted by **biggest gainer** (every visit and refresh), 20 rows a page; its search box has 5px left padding.

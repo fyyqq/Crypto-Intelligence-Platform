@@ -687,7 +687,7 @@ def sector_boards() -> dict:
     return _SECTORS
 
 
-SECTOR_PAGE_SIZE = 10  # table rows per page on /narrative and /chains
+SECTOR_PAGE_SIZE = 20  # table rows per page on /narrative and /chains
 
 
 def _pct_color(pct) -> str:
@@ -758,6 +758,10 @@ def _next_sort(current: str, column: str) -> str:
 
 def _sector_pages(total: int) -> int:
     return max(1, -(-total // SECTOR_PAGE_SIZE))
+
+
+def _chain_href(n: str) -> str:
+    return "/chains/" + (re.sub(r"[^a-z0-9]+", "-", n.lower()).strip("-") or "chain")
 
 
 def _narrative_href(n: str) -> str:
@@ -1621,8 +1625,8 @@ class CoinState(rx.State):
     # Full tables stay on the server (leading underscore); the browser gets one page of SECTOR_PAGE_SIZE rows.
     _narrative_base: list[dict] = []
     _chain_base: list[dict] = []
-    narrative_sort: str = ""  # "" = 24h score, else gainer_desc / gainer_asc / loser_desc / loser_asc
-    chain_sort: str = ""
+    narrative_sort: str = "gainer_desc"  # "" = 24h score, else gainer_desc / gainer_asc / loser_desc / loser_asc
+    chain_sort: str = "gainer_desc"
     narrative_search: str = ""
     chain_search: str = ""
     narrative_board: list[dict] = []
@@ -1666,6 +1670,7 @@ class CoinState(rx.State):
     # render before "Show more" is clicked; reset to the default every time
     # the query changes so a new search always starts collapsed.
     global_search_query: str = ""
+    global_search_articles: list[dict] = []  # header search: stories mentioning the matching coins (articles_for_search)
     global_search_limit: int = 5
     # Recently opened coins from the search dropdown (newest first, max 5),
     # comma-separated cmc_ids in the browser's localStorage so it survives the
@@ -1943,8 +1948,8 @@ class CoinState(rx.State):
         names_n = [c for c in self.all_categories if c != "All narratives"] or list(_UNIVERSE["narratives"])
         names_c = [c for c in self.all_chains if c != "All chains"] or list(_UNIVERSE["chains"])
         self._narrative_base = _board(names_n, data["narratives"], _narrative_href, drop=_is_stablecoin)
-        self._chain_base = _board(names_c, data["chains"])
-        self.narrative_sort = self.chain_sort = ""
+        self._chain_base = _board(names_c, data["chains"], _chain_href)
+        self.narrative_sort = self.chain_sort = "gainer_desc"  # every visit / refresh starts with the biggest gainer first
         self.narrative_search = self.chain_search = ""
         self.narrative_table_page = self.chain_table_page = 1  # a new visit starts on page 1
         self._sector_page("narrative")
@@ -2335,9 +2340,21 @@ class CoinState(rx.State):
         return rx.call_script(f"window.location.assign({json.dumps('/coins/' + symbol.lower())})")
 
     @rx.event
-    def set_global_search_query(self, value: str):
+    async def set_global_search_query(self, value: str):
         self.global_search_query = value
         self.global_search_limit = 5
+        query = value.strip()
+        if len(query) < 2:
+            self.global_search_articles = []
+            return
+        top = list(self._global_search_matches[:3])  # the coins the text matches, largest first
+        yield  # the coin results show at once; the stories follow
+        from frontend.state.news_state import article_index, articles_for_search
+
+        articles = await asyncio.to_thread(article_index)
+        found = articles_for_search(query, top, articles)
+        if self.global_search_query.strip() == query:  # the box has not moved on
+            self.global_search_articles = found
 
     @rx.event
     def focus_global_search(self):

@@ -523,6 +523,80 @@ def _build_article_rows(rows: list[dict]) -> list[dict]:
     return articles
 
 
+# ---- /narrative/<slug> and /chains/<slug>: the sector's coins and every story that mentions them --------
+SECTOR_NEWS_COINS = 40  # the sector's largest coins whose name / ticker are looked for in headlines
+SECTOR_COINS_SHOWN = 30  # coin pills shown before "Show all"
+SECTOR_COINS_MAX = 200
+_GENERIC_NAMES = {"coin", "token", "network", "protocol", "chain", "finance", "money", "world", "swap", "the", "meme"}
+
+
+def sector_members(kind: str, slug: str) -> tuple[str, list[dict]]:
+    """(display label, its coin rows by market cap) for /narrative/<slug> (kind "narrative") or /chains/<slug>
+    ("chain"), from the shared coin list; ("", []) when no sector has that slug."""
+    from frontend.state.coin_state import _UNIVERSE
+
+    names = _UNIVERSE["narratives"] if kind == "narrative" else _UNIVERSE["chains"]
+    label = next((n for n in names if _slugify(n) == slug), "")
+    if not label:
+        return "", []
+    if kind == "narrative":
+        rows = [r for r in _UNIVERSE["rows"] if label in (r.get("narrative_list") or [])]
+    else:
+        rows = [r for r in _UNIVERSE["rows"] if r.get("main_chain") == label]
+    rows.sort(key=lambda r: -(r.get("market_cap_usd") or 0))
+    return label, rows
+
+
+def mention_finder(rows: list[dict], extra_name: str = "", extra_symbol: str = ""):
+    """A function text -> the ticker of the first sector coin that text mentions, else "". Tickers (3+ letters/digits)
+    must match exactly as written (ETH, not "eth" in a word); names (4+ letters, not a generic word) match
+    case-insensitively; both only as whole words. `extra_name` (a chain's own name) counts for `extra_symbol`."""
+    by_name: dict[str, str] = {}
+    symbols: set[str] = set()
+    for r in rows[:SECTOR_NEWS_COINS]:
+        sym, name = (r.get("symbol") or "").strip(), (r.get("name") or "").strip()
+        if len(sym) >= 3 and sym.isalnum():
+            symbols.add(sym)
+        if len(name) >= 4 and name.lower() not in _GENERIC_NAMES:
+            by_name.setdefault(name.lower(), sym)
+    if extra_name and len(extra_name) >= 4:
+        by_name.setdefault(extra_name.lower(), extra_symbol)
+    edge = r"(?<![A-Za-z0-9])(?:%s)(?![A-Za-z0-9])"
+    name_re = re.compile(edge % "|".join(re.escape(n) for n in sorted(by_name, key=len, reverse=True)), re.I) if by_name else None
+    sym_re = re.compile(edge % "|".join(re.escape(x) for x in sorted(symbols, key=len, reverse=True))) if symbols else None
+
+    def find(text: str) -> str:
+        if sym_re:
+            m = sym_re.search(text)
+            if m:
+                return m.group(0)
+        if name_re:
+            m = name_re.search(text)
+            if m:
+                return by_name.get(m.group(0).lower(), "")
+        return ""
+
+    return find
+
+
+def sector_articles(articles: list[dict], kind: str, slug: str, label: str, rows: list[dict]) -> list[dict]:
+    """The Cryptocurrency stories of a sector, newest first: those the AI tied to it (narrative label / peer group
+    slug) plus every other story whose headline or snippet mentions one of its largest coins."""
+    find = mention_finder(rows, label if kind == "chain" else "", rows[0]["symbol"] if rows and kind == "chain" else "")
+    out = []
+    for a in articles:
+        if a["news_type"] != "Cryptocurrency":
+            continue
+        tied = kind == "narrative" and a["has_target"] and (a["narrative_slug"] == slug or _slugify(a["target_group"]) == slug)
+        if tied:
+            out.append(a)
+            continue
+        sym = find(f"{a['title']} {a['snippet']}")
+        if sym:
+            out.append({**a, "target_symbol": sym, "target_narrative": label.upper()})
+    return out
+
+
 def _is_source_heading(line: str) -> bool:
     return 2 <= len(line.split()) <= 14 and len(line) <= 110 and not line.endswith((".", "!", "?", ":", ";"))
 
@@ -799,6 +873,40 @@ def _load_display_articles(enrich_after_id: int) -> tuple[list[dict], int]:
     return _merge_image_updates(articles, updates), max_id
 
 
+# Shared by every session: the displayable articles (no image lookups), rebuilt at most every 5 minutes, for the header
+# search's "Articles" results, which must work on pages that never load the news list.
+_ARTICLE_INDEX: dict = {"at": 0.0, "articles": []}
+ARTICLE_INDEX_TTL = 300
+
+
+def article_index() -> list[dict]:
+    """Blocking. Newest-first display rows of every displayable article."""
+    import time
+
+    if _ARTICLE_INDEX["articles"] and time.time() - _ARTICLE_INDEX["at"] < ARTICLE_INDEX_TTL:
+        return _ARTICLE_INDEX["articles"]
+    articles = _build_article_rows(_fetch_articles())
+    if articles:
+        _ARTICLE_INDEX.update(at=time.time(), articles=articles)
+    return articles or _ARTICLE_INDEX["articles"]
+
+
+def articles_for_search(query: str, coin_rows: list[dict], articles: list[dict], limit: int = 4) -> list[dict]:
+    """The stories for a header-search query, newest first: those whose headline or snippet mention one of the matching
+    coins by name or ticker (whole words; tickers exactly as written, 3+ characters), or contain the typed text
+    itself (4+ characters). Each result is {title, detail_url, time_display, source_name}."""
+    find = mention_finder(coin_rows) if coin_rows else None
+    q = (query or "").strip().lower()
+    out = []
+    for a in articles:
+        text = f"{a['title']} {a['snippet']}"
+        if (find and find(text)) or (len(q) >= 4 and q in text.lower()):
+            out.append({k: a[k] for k in ("title", "detail_url", "time_display", "source_name")})
+            if len(out) >= limit:
+                break
+    return out
+
+
 class NewsState(rx.State):
     # Backend-only (underscore prefix — never sent to the browser). The page
     # only renders news_sections' current page slices, so keeping the full
@@ -823,6 +931,7 @@ class NewsState(rx.State):
     view_all_page: int = 1
     # Current page of /narrative (Narrative Radar, 100 per page).
     narrative_page: int = 1
+    sector_coins_expanded: bool = False  # "Show all" in the coin card of /narrative/<slug> and /chains/<slug>
     # "Summarize What Happened Today" popup on /news/<category>.
     summary_open: bool = False
     summary_loading: bool = False
@@ -1089,25 +1198,25 @@ class NewsState(rx.State):
         and same live refresh as the /news Cryptocurrency section)."""
         return [a for a in self._all_articles if a["news_type"] == "Cryptocurrency"][:_HOME_NEWS_LIMIT]
 
-    @rx.var(cache=True)
-    def narrative_view(self) -> dict:
-        """/narrative: every AI-targeted Cryptocurrency article, newest first,
-        _VIEW_ALL_LIMIT (100) per page. On /narrative/[narrative_slug] only the
-        articles of that category (their narrative label or shared peer group
-        slugs to it); `label` is then the category's display name."""
-        slug = (self.narrative_slug or "").strip().lower()
-        articles = [a for a in self._all_articles if a["news_type"] == "Cryptocurrency" and a["has_target"]]
-        label = ""
+    def _sector_view(self, kind: str, slug: str) -> dict:
+        slug = (slug or "").strip().lower()
+        label, rows = sector_members(kind, slug) if slug else ("", [])
         if slug:
-            articles = [a for a in articles if a["narrative_slug"] == slug or _slugify(a["target_group"]) == slug]
-            label = next(
-                (a["target_narrative_label"] for a in articles if a["narrative_slug"] == slug),
-                "",
-            ) or next((a["target_group"] for a in articles if _slugify(a["target_group"]) == slug), "")
-            label = fix_ai(label or slug.replace("-", " ").title())
+            articles = sector_articles(self._all_articles, kind, slug, label, rows)
+            label = label or fix_ai(
+                next((a["target_narrative_label"] for a in articles if a.get("narrative_slug") == slug), "") or slug.replace("-", " ").title()
+            )
+        else:  # /narrative without a slug is its own page now; kept for completeness
+            articles = [a for a in self._all_articles if a["news_type"] == "Cryptocurrency" and a["has_target"]]
         total_pages = max(1, -(-len(articles) // _VIEW_ALL_LIMIT))
         page = max(1, min(self.narrative_page, total_pages))
         start = (page - 1) * _VIEW_ALL_LIMIT
+        shown = SECTOR_COINS_MAX if self.sector_coins_expanded else SECTOR_COINS_SHOWN
+        coins = [
+            {"symbol": r["symbol"], "icon_url": r["icon_url"], "href": "/coins/" + r.get("slug", r["symbol"].lower()),
+             "name": r["name"], "pct": "", "color": "var(--gray-11)"}
+            for r in rows[:shown]
+        ]
         return {
             "has_slug": bool(slug),
             "label": label,
@@ -1118,7 +1227,30 @@ class NewsState(rx.State):
             "total_pages": total_pages,
             "has_pagination": total_pages > 1,
             "articles": articles[start : start + _VIEW_ALL_LIMIT],
+            "coins": coins,
+            "coin_count": len(rows),
+            "can_expand": len(rows) > SECTOR_COINS_SHOWN,
         }
+
+    @rx.var(cache=True)
+    def narrative_view(self) -> dict:
+        """/narrative/[narrative_slug]: the narrative's coins and every Cryptocurrency story tied to it by the AI or
+        mentioning one of its biggest coins by name / ticker, newest first, _VIEW_ALL_LIMIT (100) per page."""
+        return self._sector_view("narrative", self.narrative_slug)
+
+    @rx.var(cache=True)
+    def chain_view(self) -> dict:
+        """/chains/[chain_slug]: the same for a chain."""
+        return self._sector_view("chain", self.chain_slug)
+
+    @rx.var(cache=True)
+    def chain_page_title(self) -> str:
+        label = self.chain_view["label"]
+        return f"Repace — {label}" if label else "Repace — Chains"
+
+    @rx.event
+    def toggle_sector_coins(self):
+        self.sector_coins_expanded = not self.sector_coins_expanded
 
     @rx.var(cache=True)
     def narrative_page_title(self) -> str:
@@ -1128,6 +1260,7 @@ class NewsState(rx.State):
     @rx.event
     def reset_narrative_page(self):
         self.narrative_page = 1
+        self.sector_coins_expanded = False
 
     @rx.event
     def narrative_first(self):

@@ -87,15 +87,32 @@ def _global_search_coin_section() -> rx.Component:
     )
 
 
+def _global_search_article_row(article: rx.Var[dict]) -> rx.Component:
+    return rx.link(
+        rx.vstack(
+            rx.text(article["title"], size="2", weight="medium", class_name="line-clamp-2"),
+            rx.text(article["source_name"], " · ", article["time_display"], size="1", color_scheme="gray"),
+            spacing="0",
+            align_items="start",
+        ),
+        href=article["detail_url"],
+        underline="none",
+        color="inherit",
+        display="block",
+        width="100%",
+        class_name="global-search-result-row",
+    )
+
+
 def _global_search_articles_section() -> rx.Component:
-    # No news backend exists yet (see CLAUDE.md's Feature 2 notes) — this
-    # section renders the real "Articles" heading now so the dropdown's
-    # structure is already in place, with an honest empty state instead of
-    # fabricated results, matching this codebase's placeholder-link
-    # convention in filters.py's "More Narrative"/"More Chain" pills.
+    # Stories that mention the matching coins by name or ticker (NewsState article_index / articles_for_search).
     return rx.box(
         rx.text("Articles", size="1", weight="bold", color_scheme="gray", class_name="global-search-section-label"),
-        rx.text("News search isn't available yet", size="1", color_scheme="gray", class_name="global-search-empty"),
+        rx.cond(
+            CoinState.global_search_articles.length() > 0,
+            rx.foreach(CoinState.global_search_articles, _global_search_article_row),
+            rx.text("No articles found", size="1", color_scheme="gray", class_name="global-search-empty"),
+        ),
         class_name="global-search-articles-section",
     )
 

@@ -10,3 +10,8 @@ Shows a "Chains" heading with a count and **every chain as a pill, all on one pa
 **Sorting, search and stablecoins (2026-10-15):** the *Biggest gainer* and *Biggest loser* headers have a sort arrow (click: biggest first (down arrow) -> smallest first (up arrow) -> back to the 24h ranking; a loser counts by the size of its fall; rows without a gainer/loser go last); a search box on the right of the explanatory line (that line is a full-width row, text left, box right, stacked on phones) filters by chain name, keeps each row's number and shows "No chain matches". No chain is removed. Sort and search reset on every visit (`CoinState.cycle_chain_sort`, `set_chain_search`, `coin_state.sector_view`).
 
 **Not to be confused with:** the [Home](./home.md) page's own chain pill filter — that's a Home feature. An early planning note in this project's Notion workspace called this idea the "Blockchain Page" — scope not yet decided.
+
+
+## Single chain page `/chains/<slug>` (2026-10-15)
+
+Each chain name in the `/chains` table now links to `/chains/<chain-name>` (new route): title, a card box with the chain's coins (logo + ticker pills, largest first; "Show all coins"), then every Cryptocurrency story that mentions the chain's own name or one of its 40 biggest coins by name / ticker, newest first, 100 per page (same code as the narrative page: `components/narrative_alerts.py::sector_page_content`, `NewsState.chain_view`). The table opens sorted by biggest gainer on every visit and shows 20 rows a page.

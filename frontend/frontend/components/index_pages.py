@@ -1,4 +1,4 @@
-"""/narrative and /chains: a table of every narrative / chain (10 rows a page), ranked by its 24h score (the average 24h
+"""/narrative and /chains: a table of every narrative / chain (20 rows a page), ranked by its 24h score (the average 24h
 change of its top 20 coins by market cap): # | name | top 10 coins | 3 biggest gainers | 3 biggest losers, the coins as
 logo + ticker pills (CoinState.load_sector_boards)."""
 
@@ -53,7 +53,7 @@ def _narrative_name(item) -> rx.Component:
 
 def _chain_name(item) -> rx.Component:
     return rx.vstack(
-        rx.text(item["name"], size="2", weight="medium", cursor="pointer", on_click=CoinState.open_chain(item["name"]), _hover={"text_decoration": "underline"}),
+        rx.link(rx.text(item["name"], size="2", weight="medium"), href=item["href"], underline="hover", color="inherit"),
         _score(item),
         spacing="1",
         align_items="start",
