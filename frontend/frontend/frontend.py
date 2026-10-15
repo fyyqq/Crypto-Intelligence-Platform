@@ -254,14 +254,10 @@ def _profile_pill() -> rx.Component:
                 spacing="1",
                 align="start",
                 padding_left="0.75em",
-                # Hidden below the iPad-portrait breakpoint (md, 768px) — on
-                # a phone-width header there isn't room for this text column
-                # too, so the pill collapses to just the avatar there.
-                display=rx.cond(
-                    CoinState.is_logged_in,
-                    rx.breakpoints(initial="none", sm="none", md="flex", lg="flex", xl="flex"),
-                    "none",
-                ),
+                # Phones (under 768 px): no room for the name next to the avatar, so the pill is only the round profile
+                # picture (styles.css .profile-pill-name: hidden on phones, shown from 768 px; a CSS rule because a
+                # responsive `display` inside an rx.cond never reached the page). Hidden while logged out.
+                class_name=rx.cond(CoinState.is_logged_in, "profile-pill-name", "profile-pill-name profile-pill-name-off"),
             ),
             rx.box(
                 rx.cond(

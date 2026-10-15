@@ -1654,3 +1654,8 @@ svg.wl-star-force-off {
 .tag-link { display: inline-flex; }
 .tag-link:hover span { background: var(--blue-a4); text-decoration: none; }
 .sector-select-small { min-width: 130px; }
+
+/* The name in the profile pill (frontend.py::_profile_pill): only the round profile picture on phones. */
+.profile-pill-name { display: none; }
+.profile-pill-name-off { display: none !important; }
+@media (min-width: 768px) { .profile-pill-name { display: flex; } }
