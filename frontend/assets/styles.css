@@ -1589,6 +1589,55 @@ svg.wl-star-force-off {
 }
 @media (min-width: 1024px) { .profile-banner { height: 230px; } }
 
+/* /profile sidebar (profile_page.py::_sidebar): 25% of the width beside the page (sticky, never over it); collapsed =
+   a narrow icon strip. Phones (< 768 px): it stacks above the page instead (full width, not sticky). */
+.profile-layout { display: flex; align-items: flex-start; width: 100%; }
+.profile-main { flex: 1 1 0; min-width: 0; }
+.profile-sidebar {
+  flex: 0 0 25%; width: 25%; box-sizing: border-box; align-self: stretch; padding: 12px;
+  background: var(--gray-a2); border-right: 1px solid var(--gray-a5); transition: flex-basis 0.2s ease, width 0.2s ease;
+}
+/* The column is as tall as the page; its content stays in view while scrolling (below the sticky header on tablets). */
+.profile-sidebar-inner { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; overflow-x: hidden; }
+@media (max-width: 1023px) { .profile-sidebar-inner { top: 76px; max-height: calc(100vh - 88px); } }
+.profile-side-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.profile-side-user { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.profile-side-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.profile-side-avatar-empty { background: var(--gray-a4); display: flex; align-items: center; justify-content: center; }
+.profile-side-who { display: flex; flex-direction: column; min-width: 0; }
+.profile-side-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-sidebar-toggle {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px; border: 1px solid var(--gray-a6); background: transparent;
+  color: var(--gray-12); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.profile-sidebar-toggle:hover { background: var(--gray-a4); }
+.profile-side-icon-open { display: none; }
+.profile-side-nav { display: flex; flex-direction: column; gap: 4px; }
+.profile-side-link {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: var(--gray-12); cursor: pointer;
+}
+.profile-side-link:hover { background: var(--gray-a4); text-decoration: none; }
+.profile-side-link-active { background: var(--accent-a4); color: var(--accent-11); font-weight: 600; }
+.profile-side-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profile-layout.profile-collapsed .profile-sidebar { flex-basis: 64px; width: 64px; padding: 12px 8px; }
+.profile-layout.profile-collapsed .profile-side-label,
+.profile-layout.profile-collapsed .profile-side-user { display: none; }
+.profile-layout.profile-collapsed .profile-side-top { justify-content: center; }
+.profile-layout.profile-collapsed .profile-side-link { justify-content: center; padding: 9px 0; }
+.profile-layout.profile-collapsed .profile-side-icon-close { display: none; }
+.profile-layout.profile-collapsed .profile-side-icon-open { display: block; }
+@media (max-width: 767px) {
+  .profile-layout { flex-direction: column; align-items: stretch; }
+  .profile-sidebar, .profile-layout.profile-collapsed .profile-sidebar {
+    flex: 0 0 auto; width: 100%; border-right: none; border-bottom: 1px solid var(--gray-a5); padding: 10px 16px;
+  }
+  .profile-sidebar-inner { position: static; max-height: none; overflow: visible; }
+  .profile-layout.profile-collapsed .profile-side-nav { display: none; }
+  .profile-layout.profile-collapsed .profile-side-user, .profile-layout.profile-collapsed .profile-side-who { display: flex; }
+  .profile-layout.profile-collapsed .profile-side-top { justify-content: space-between; }
+  .profile-layout.profile-collapsed .profile-side-top { margin-bottom: 0; }
+}
+
 /* /narrative and /chains: name + 24h score inside one pill (components/index_pages.py). */
 .sector-pill { display: inline-flex; align-items: center; gap: 6px; }
 .sector-pill .sector-pct { font-variant-numeric: tabular-nums; }

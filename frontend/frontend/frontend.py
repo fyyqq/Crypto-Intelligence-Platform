@@ -1437,6 +1437,7 @@ app = rx.App(
         rx.el.script(src="/alert_voice.js"),
         rx.el.script(src="/instant_ui.js"),
         rx.el.script(src="/profile_upload.js"),  # /profile: pictures become WebP in the browser before uploading
+        rx.el.script(src="/profile_sidebar.js"),  # /profile: minimize / open the account sidebar
         rx.el.script(src="/tradingview_timeframes.js"),
     ],
 )

@@ -1,6 +1,6 @@
 """/profile: edit the account's details and pictures — banner on top, profile picture overlapping it, then a
 "Personal details" form (first/last name, mobile, e-mail read-only, address). Two columns from the md breakpoint,
-one column on phones. Colours use the theme tokens so it follows light/dark mode."""
+one column on phones. An account sidebar (25% of the width, sticky, minimizable) sits beside the page. Colours use the theme tokens so it follows light/dark mode."""
 
 import reflex as rx
 
@@ -114,7 +114,68 @@ def _form() -> rx.Component:
     )
 
 
+_SIDE_LINKS = [
+    ("Profile", "user", "/profile"),
+    ("Notifications", "bell", "/notifications"),
+    ("Alerts", "bell-ring", "/alerts"),
+    ("Watchlist", "star", "/watchlist"),
+]
+
+
+def _sidebar() -> rx.Component:
+    """Account sidebar: 25% of the width next to the page (sticky, never over it). The toggle shrinks it to an icon
+    strip and back (assets/profile_sidebar.js flips `profile-collapsed` on .profile-layout and remembers the choice)."""
+    return rx.el.aside(
+        rx.box(
+            rx.box(
+                rx.box(
+                    rx.cond(
+                        ProfileState.avatar_url != "",
+                        rx.image(src=ProfileState.avatar_url, alt="", class_name="profile-side-avatar"),
+                        rx.box(rx.icon("user", size=18, color="var(--gray-10)"), class_name="profile-side-avatar profile-side-avatar-empty"),
+                    ),
+                    rx.box(
+                        rx.text(rx.cond(ProfileState.user_name != "", ProfileState.user_name, "Your account"), size="2", weight="bold", class_name="profile-side-name"),
+                        rx.text(ProfileState.email, size="1", color="var(--gray-10)", class_name="profile-side-name"),
+                        class_name="profile-side-who profile-side-label",
+                    ),
+                    class_name="profile-side-user",
+                ),
+                rx.el.button(
+                    rx.icon("panel-left-close", size=18, class_name="profile-side-icon-close"),
+                    rx.icon("panel-left-open", size=18, class_name="profile-side-icon-open"),
+                    type="button",
+                    title="Minimize / open the sidebar",
+                    aria_label="Minimize or open the sidebar",
+                    class_name="profile-sidebar-toggle",
+                ),
+                class_name="profile-side-top",
+            ),
+            rx.el.nav(
+                *[
+                    rx.link(
+                        rx.icon(icon, size=18, flex_shrink="0"),
+                        rx.text(label, size="2", class_name="profile-side-label"),
+                        href=href,
+                        underline="none",
+                        title=label,
+                        class_name="profile-side-link" + (" profile-side-link-active" if href == "/profile" else ""),
+                    )
+                    for label, icon, href in _SIDE_LINKS
+                ],
+                class_name="profile-side-nav",
+            ),
+            class_name="profile-sidebar-inner",
+        ),
+        class_name="profile-sidebar",
+    )
+
+
 def profile_content() -> rx.Component:
+    return rx.box(_sidebar(), _profile_main(), class_name="profile-layout")
+
+
+def _profile_main() -> rx.Component:
     return rx.box(
         _banner(),
         rx.box(
@@ -168,5 +229,5 @@ def profile_content() -> rx.Component:
             ),
             class_name="profile-body",
         ),
-        class_name="profile-page",
+        class_name="profile-page profile-main",
     )
