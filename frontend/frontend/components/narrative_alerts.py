@@ -149,9 +149,9 @@ def _coin_card(c: rx.Var[dict]) -> rx.Component:
 
 
 def _sector_controls() -> rx.Component:
-    """Sort (market cap / 24h change, high to low or low to high) and how many coins the list holds in total."""
+    """Sort (market cap / 24h change, high to low or low to high) and how many coins to show per page."""
     from frontend.state import CoinState
-    from frontend.state.coin_state import SECTOR_LIMITS, SECTOR_SORTS
+    from frontend.state.coin_state import SECTOR_PAGE_SIZES, SECTOR_SORTS
 
     return rx.flex(
         rx.hstack(
@@ -169,10 +169,10 @@ def _sector_controls() -> rx.Component:
         rx.hstack(
             rx.text("Show", size="2", color_scheme="gray"),
             rx.select.root(
-                rx.select.trigger(class_name="sector-select"),
-                rx.select.content(*[rx.select.item("All coins" if key == "All" else f"Top {key}", value=key) for key in SECTOR_LIMITS]),
-                value=CoinState.sector_limit,
-                on_change=CoinState.set_sector_limit,
+                rx.select.trigger(class_name="sector-select sector-select-small"),
+                rx.select.content(*[rx.select.item(f"{n} per page", value=str(n)) for n in SECTOR_PAGE_SIZES]),
+                value=CoinState.sector_page_size.to_string(),
+                on_change=CoinState.set_sector_page_size,
                 size="2",
             ),
             align="center",
@@ -185,8 +185,8 @@ def _sector_controls() -> rx.Component:
 
 
 def _sector_coin_card(view, noun: str) -> rx.Component:
-    """The narrative's / chain's coins as cards: sortable, cut to a chosen total, 10 a page (5 columns x 2 rows on
-    desktop) with a pager."""
+    """The narrative's / chain's coins as cards: every coin, sortable, 10 a page by default (5 columns x 2 rows on
+    desktop; 20, 50, 100 or 200 a page can be chosen) with a pager."""
     from frontend.components.news_page import _pagination_row
     from frontend.state import CoinState
 

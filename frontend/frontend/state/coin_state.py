@@ -687,7 +687,8 @@ def sector_boards() -> dict:
     return _SECTORS
 
 
-SECTOR_PAGE_SIZE = 20  # table rows per page on /narrative and /chains
+SECTOR_PAGE_SIZES = (10, 20, 50, 100, 200)  # "Show" choices: coin cards per page on /narrative/<slug> and /chains/<slug>
+SECTOR_TABLE_PAGE_SIZES = (20, 50, 100)  # table rows per page on /narrative and /chains (20 by default)
 
 
 def _pct_color(pct) -> str:
@@ -756,8 +757,8 @@ def _next_sort(current: str, column: str) -> str:
     return {f"{column}_desc": f"{column}_asc", f"{column}_asc": ""}.get(current, f"{column}_desc")
 
 
-def _sector_pages(total: int) -> int:
-    return max(1, -(-total // SECTOR_PAGE_SIZE))
+def _sector_pages(total: int, size: int = 20) -> int:
+    return max(1, -(-total // max(1, size)))
 
 
 def sector_members(kind: str, slug: str) -> tuple[str, list[dict]]:
@@ -779,9 +780,7 @@ SECTOR_SORTS = {
     "mcap_desc": "Market cap: high to low", "mcap_asc": "Market cap: low to high",
     "pct_desc": "24h change: high to low", "pct_asc": "24h change: low to high",
 }
-SECTOR_LIMITS = {"20": 20, "50": 50, "100": 100, "All": 0}  # 0 = no limit
-SECTOR_LIMIT_DEFAULT = "100"
-SECTOR_CARDS_PER_PAGE = 10  # coin cards per page on /narrative/<slug> and /chains/<slug>: 5 columns x 2 rows
+SECTOR_CARDS_PER_PAGE = 10  # default coin cards per page (the "Show" choice changes it)  # coin cards per page on /narrative/<slug> and /chains/<slug>: 5 columns x 2 rows
 
 
 def _chain_href(n: str) -> str:
@@ -1682,7 +1681,7 @@ class CoinState(rx.State):
     tag_groups_open: list[str] = []
     sector_card_page: int = 1  # page of the coin cards on /narrative/<slug> and /chains/<slug>
     sector_sort: str = "mcap_desc"  # mcap_desc (default) | mcap_asc | pct_desc | pct_asc
-    sector_limit: str = "100"  # how many coins the list holds in total: a SECTOR_LIMITS key
+    sector_page_size: int = 10  # coin cards per page, chosen with "Show": one of SECTOR_PAGE_SIZES
     # /narrative and /chains boards: every name with its 24h score, best first (load_sector_boards).
     # Full tables stay on the server (leading underscore); the browser gets one page of SECTOR_PAGE_SIZE rows.
     _narrative_base: list[dict] = []
@@ -1697,6 +1696,8 @@ class CoinState(rx.State):
     chain_total: int = 0
     narrative_table_page: int = 1
     chain_table_page: int = 1
+    narrative_table_size: int = 20  # rows per page, one of SECTOR_TABLE_PAGE_SIZES
+    chain_table_size: int = 20
     sector_status: str = ""
     sector_updated: str = ""
     selected_category: str = "All narratives"
@@ -1999,9 +2000,10 @@ class CoinState(rx.State):
         base = self._narrative_base if kind == "narrative" else self._chain_base
         view = sector_view(base, getattr(self, f"{kind}_sort"), getattr(self, f"{kind}_search"))
         setattr(self, f"{kind}_total", len(view))
-        page = min(max(1, getattr(self, f"{kind}_table_page")), _sector_pages(len(view)))
+        size = getattr(self, f"{kind}_table_size")
+        page = min(max(1, getattr(self, f"{kind}_table_page")), _sector_pages(len(view), size))
         setattr(self, f"{kind}_table_page", page)
-        setattr(self, f"{kind}_board", view[(page - 1) * SECTOR_PAGE_SIZE: page * SECTOR_PAGE_SIZE])
+        setattr(self, f"{kind}_board", view[(page - 1) * size: page * size])
 
     @rx.event
     async def load_sector_boards(self):
@@ -2015,9 +2017,22 @@ class CoinState(rx.State):
         self.narrative_sort = self.chain_sort = "gainer_desc"  # every visit / refresh starts with the biggest gainer first
         self.narrative_search = self.chain_search = ""
         self.narrative_table_page = self.chain_table_page = 1  # a new visit starts on page 1
+        self.narrative_table_size = self.chain_table_size = 20
         self._sector_page("narrative")
         self._sector_page("chain")
         self.sector_status, self.sector_updated = data["status"], data["updated"]
+
+    @rx.event
+    def set_narrative_table_size(self, value: str):
+        if value.isdigit() and int(value) in SECTOR_TABLE_PAGE_SIZES:
+            self.narrative_table_size, self.narrative_table_page = int(value), 1
+            self._sector_page("narrative")
+
+    @rx.event
+    def set_chain_table_size(self, value: str):
+        if value.isdigit() and int(value) in SECTOR_TABLE_PAGE_SIZES:
+            self.chain_table_size, self.chain_table_page = int(value), 1
+            self._sector_page("chain")
 
     @rx.event
     def set_narrative_search(self, value: str):
@@ -2059,7 +2074,7 @@ class CoinState(rx.State):
 
     @rx.event
     def narrative_table_last(self):
-        self.narrative_table_page = _sector_pages(self.narrative_total)
+        self.narrative_table_page = _sector_pages(self.narrative_total, self.narrative_table_size)
         self._sector_page("narrative")
 
     @rx.event
@@ -2079,7 +2094,7 @@ class CoinState(rx.State):
 
     @rx.event
     def chain_table_last(self):
-        self.chain_table_page = _sector_pages(self.chain_total)
+        self.chain_table_page = _sector_pages(self.chain_total, self.chain_table_size)
         self._sector_page("chain")
 
     @rx.var(cache=True)
@@ -2093,25 +2108,24 @@ class CoinState(rx.State):
 
     @rx.var(cache=True)
     def _sector_live_rows(self) -> list[dict]:
-        """The sector's coins with the live overrides applied (price, 24h change), in the chosen order and cut to the
-        chosen limit. Market cap order is the sector's own (largest first); 24h % sorts by the live change."""
+        """All the sector's coins with the live overrides applied (price, 24h change), in the chosen order. Market cap
+        order is the sector's own (largest first); 24h % sorts by the live change."""
         rows = [self._row_with_overrides(r) for r in self._sector_member_rows]  # already largest market cap first
         key, _, direction = self.sector_sort.partition("_")
         if key == "pct":
             rows.sort(key=lambda r: r.get("pct_24h_raw") or 0.0, reverse=direction == "desc")
         elif direction == "asc":
             rows.reverse()
-        limit = SECTOR_LIMITS.get(self.sector_limit)
-        return rows[:limit] if limit else rows
+        return rows
 
     @rx.var(cache=True)
     def sector_card_total(self) -> int:
-        """How many coins the cards list (after the limit) holds."""
+        """How many coins the cards list holds."""
         return len(self._sector_live_rows)
 
     @rx.var(cache=True)
     def sector_card_pages(self) -> int:
-        return max(1, -(-self.sector_card_total // SECTOR_CARDS_PER_PAGE))
+        return max(1, -(-self.sector_card_total // self.sector_page_size))
 
     @rx.var(cache=True)
     def sector_card_page_shown(self) -> int:
@@ -2121,9 +2135,9 @@ class CoinState(rx.State):
     def sector_cards(self) -> list[dict]:
         """One page of coin cards: live price and 24h change (the same overrides the tables use) and the table's trend
         line; the star state comes from CoinState.watchlist_ids in the component."""
-        start = (self.sector_card_page_shown - 1) * SECTOR_CARDS_PER_PAGE
+        start = (self.sector_card_page_shown - 1) * self.sector_page_size
         out = []
-        for r in self._sector_live_rows[start:start + SECTOR_CARDS_PER_PAGE]:
+        for r in self._sector_live_rows[start:start + self.sector_page_size]:
             pct = r.get("pct_24h_raw") or 0.0
             out.append({
                 "cmc_id": r["cmc_id"], "name": r["name"], "symbol": r["symbol"], "icon_url": r["icon_url"],
@@ -2140,10 +2154,10 @@ class CoinState(rx.State):
 
     @rx.event
     def reset_sector_cards(self):
-        """Every visit / reload: highest market cap first, the default limit, page 1."""
+        """Every visit / reload: highest market cap first, 10 cards a page, page 1."""
         self.sector_card_page = 1
         self.sector_sort = "mcap_desc"
-        self.sector_limit = SECTOR_LIMIT_DEFAULT
+        self.sector_page_size = SECTOR_CARDS_PER_PAGE
 
     @rx.event
     def set_sector_sort(self, value: str):
@@ -2151,9 +2165,9 @@ class CoinState(rx.State):
             self.sector_sort, self.sector_card_page = value, 1
 
     @rx.event
-    def set_sector_limit(self, value: str):
-        if value in SECTOR_LIMITS:
-            self.sector_limit, self.sector_card_page = value, 1
+    def set_sector_page_size(self, value: str):
+        if value.isdigit() and int(value) in SECTOR_PAGE_SIZES:
+            self.sector_page_size, self.sector_card_page = int(value), 1
 
     @rx.event
     def sector_cards_first(self):
@@ -2173,11 +2187,11 @@ class CoinState(rx.State):
 
     @rx.var(cache=True)
     def narrative_table_pages(self) -> int:
-        return _sector_pages(self.narrative_total)
+        return _sector_pages(self.narrative_total, self.narrative_table_size)
 
     @rx.var(cache=True)
     def chain_table_pages(self) -> int:
-        return _sector_pages(self.chain_total)
+        return _sector_pages(self.chain_total, self.chain_table_size)
 
     @rx.event
     def open_chain(self, name: str):

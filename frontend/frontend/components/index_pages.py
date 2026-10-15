@@ -5,6 +5,7 @@ logo + ticker pills (CoinState.load_sector_boards)."""
 import reflex as rx
 
 from frontend.state import CoinState
+from frontend.state.coin_state import SECTOR_TABLE_PAGE_SIZES
 
 
 def _badge(b: rx.Var[dict]) -> rx.Component:
@@ -112,7 +113,7 @@ def _pager(first, prev, nxt, last, page, pages) -> rx.Component:
     return rx.cond(pages > 1, _pagination_row(first, prev, nxt, last, page, pages))
 
 
-def _page(title: str, kind: str, label: str, top_label: str, total, rows, name_cell, pager, sort_var, on_sort, search_var, on_search) -> rx.Component:
+def _page(title: str, kind: str, label: str, top_label: str, total, rows, name_cell, pager, sort_var, on_sort, search_var, on_search, size_var, on_size) -> rx.Component:
     return rx.vstack(
         rx.hstack(
             rx.heading(title, size="6"),
@@ -122,7 +123,15 @@ def _page(title: str, kind: str, label: str, top_label: str, total, rows, name_c
         ),
         rx.flex(
             _note(kind),
-            rx.input(
+            rx.hstack(
+                rx.select.root(
+                    rx.select.trigger(class_name="sector-select sector-select-small"),
+                    rx.select.content(*[rx.select.item(f"{n} per page", value=str(n)) for n in SECTOR_TABLE_PAGE_SIZES]),
+                    value=size_var.to_string(),
+                    on_change=on_size,
+                    size="2",
+                ),
+                rx.input(
                 value=search_var,
                 on_change=on_search,
                 placeholder=f"Search {kind}",
@@ -131,6 +140,11 @@ def _page(title: str, kind: str, label: str, top_label: str, total, rows, name_c
                 radius="full",
                 variant="surface",
                 class_name="sector-search",
+                ),
+                align="center",
+                spacing="2",
+                flex_shrink="0",
+                width=rx.breakpoints(initial="100%", sm="auto"),
             ),
             justify="between",
             align="center",
@@ -183,6 +197,7 @@ def narratives_index_content() -> rx.Component:
         _pager(CoinState.narrative_table_first, CoinState.narrative_table_prev, CoinState.narrative_table_next, CoinState.narrative_table_last,
                CoinState.narrative_table_page, CoinState.narrative_table_pages),
         CoinState.narrative_sort, CoinState.cycle_narrative_sort, CoinState.narrative_search, CoinState.set_narrative_search,
+        CoinState.narrative_table_size, CoinState.set_narrative_table_size,
     )
 
 
@@ -192,4 +207,5 @@ def chains_index_content() -> rx.Component:
         _pager(CoinState.chain_table_first, CoinState.chain_table_prev, CoinState.chain_table_next, CoinState.chain_table_last,
                CoinState.chain_table_page, CoinState.chain_table_pages),
         CoinState.chain_sort, CoinState.cycle_chain_sort, CoinState.chain_search, CoinState.set_chain_search,
+        CoinState.chain_table_size, CoinState.set_chain_table_size,
     )

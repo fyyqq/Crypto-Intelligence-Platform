@@ -598,12 +598,14 @@ TAG_LIMIT = 20  # tags shown per group before "View more"
 
 
 def _tag_badge(tag: rx.Var[dict]) -> rx.Component:
-    """A tag; one that has a narrative page (/narrative/<slug>) opens it."""
-    badge = rx.badge(tag["name"], variant="surface", color_scheme="gray", size="2", white_space="nowrap")
+    """A tag; one that has a narrative page (/narrative/<slug>) is a blue link to it."""
+    plain = rx.badge(tag["name"], variant="surface", color_scheme="gray", size="2", white_space="nowrap")
+    # A badge that opens a page is blue (a plain gray one is just a label).
+    linked = rx.badge(tag["name"], variant="surface", color_scheme="blue", size="2", white_space="nowrap", cursor="pointer")
     return rx.cond(
         tag["href"] != "",
-        rx.link(badge, href=tag["href"], underline="none", class_name="tag-link"),
-        badge,
+        rx.link(linked, href=tag["href"], underline="none", class_name="tag-link"),
+        plain,
     )
 
 

@@ -1652,4 +1652,5 @@ svg.wl-star-force-off {
 }
 .sector-select { min-width: 190px; }
 .tag-link { display: inline-flex; }
-.tag-link:hover span { background: var(--gray-a4); }
+.tag-link:hover span { background: var(--blue-a4); text-decoration: underline; }
+.sector-select-small { min-width: 130px; }
