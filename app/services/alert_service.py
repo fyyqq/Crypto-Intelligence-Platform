@@ -1,10 +1,8 @@
 """Per-account price alerts. Every call is scoped by the server-side user_id (taken from the
 logged-in session state, never from the browser)."""
-from datetime import datetime, timezone
-
-from app.core.database import SessionLocal
 from sqlalchemy import func
 
+from app.core.database import SessionLocal
 from app.models.coin import Coin
 from app.models.price_alert import PriceAlert
 from app.services import notification_service
@@ -36,33 +34,6 @@ def list_active(user_id: int) -> list[dict]:
             .all()
         )
         return [{"id": r.id, "cmc_id": r.cmc_id, "price": r.target_price, "direction": r.direction} for r in rows]
-    finally:
-        db.close()
-
-
-def list_history(user_id: int, limit: int = 200) -> list[dict]:
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(PriceAlert)
-            .filter(PriceAlert.user_id == user_id, PriceAlert.triggered_at.is_not(None))
-            .order_by(PriceAlert.triggered_at.desc())
-            .limit(limit)
-            .all()
-        )
-        return [
-            {
-                "id": r.id,
-                "cmc_id": r.cmc_id,
-                "name": r.coin_name,
-                "symbol": r.symbol,
-                "direction": r.direction,
-                "target": r.target_price,
-                "price": r.triggered_price or r.target_price,
-                "at": r.triggered_at,
-            }
-            for r in rows
-        ]
     finally:
         db.close()
 
@@ -100,21 +71,27 @@ def mark_triggered(
     plain numbers are the fallback."""
     db = SessionLocal()
     try:
-        n = db.query(PriceAlert).filter(
+        alert = db.query(PriceAlert).filter(
             PriceAlert.user_id == user_id, PriceAlert.id == alert_id, PriceAlert.triggered_at.is_(None)
-        ).update({"triggered_at": datetime.now(timezone.utc), "triggered_price": price})
+        ).first()
+        # A triggered alert is deleted, not kept: nothing inactive stays in the table (the notification is the record).
+        # Only the caller whose delete removes the row adds the notification (a second tab/watcher deletes 0 rows).
+        n = 0
+        if alert is not None:
+            fields = (alert.direction, alert.target_price, alert.symbol, alert.coin_name, alert.cmc_id)
+            n = db.query(PriceAlert).filter(PriceAlert.id == alert_id, PriceAlert.user_id == user_id).delete()
         payload = None
         if n > 0:
-            alert = db.query(PriceAlert).filter(PriceAlert.id == alert_id).one()
-            above = alert.direction == "above"
-            target_text = target_display or f"${alert.target_price:g}"
+            direction, target_price, a_symbol, a_name, a_cmc_id = fields
+            above = direction == "above"
+            target_text = target_display or f"${target_price:g}"
             price_text = price_display or f"${price:g}"
             payload = {
                 "kind": "price_alert",
-                "title": f"{alert.symbol} {'rose above' if above else 'fell below'} {target_text}",
-                "body": f"{alert.coin_name} ({alert.symbol}) crossed {'above' if above else 'below'} {target_text}, now at {price_text}.",
-                "link_url": "/coin/" + coin_path(db, alert.cmc_id, alert.symbol),
-                "image_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{alert.cmc_id}.png",
+                "title": f"{a_symbol} {'rose above' if above else 'fell below'} {target_text}",
+                "body": f"{a_name} ({a_symbol}) crossed {'above' if above else 'below'} {target_text}, now at {price_text}.",
+                "link_url": "/coin/" + coin_path(db, a_cmc_id, a_symbol),
+                "image_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{a_cmc_id}.png",
                 "tone": "up" if above else "down",
             }
             notification_service.add_in_session(

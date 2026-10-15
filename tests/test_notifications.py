@@ -84,6 +84,19 @@ def test_triggered_alert_creates_exactly_one_notification(factory):
     assert "now at $4,012.50" in n["body"] and n["image_url"].endswith("/1027.png")
 
 
+def test_a_triggered_alert_is_deleted_not_kept_inactive(factory):
+    keep = alert_service.add_alert(7, 1, "Bitcoin", "BTC", "above", 90000.0)
+    hit = alert_service.add_alert(7, 1027, "Ethereum", "ETH", "above", 4000.0)
+    assert alert_service.mark_triggered(7, hit, 4100.0) is True
+    assert [a["id"] for a in alert_service.list_active(7)] == [keep]  # the other alert is untouched
+    db = factory()
+    from app.models.price_alert import PriceAlert
+
+    assert [a.id for a in db.query(PriceAlert).all()] == [keep]  # no inactive row left in the table
+    db.close()
+    assert len(ns.list_for_user(7)) == 1  # the notification stays as the record
+
+
 def test_below_alert_is_a_down_notification(factory):
     alert_id = alert_service.add_alert(7, 1, "Bitcoin", "BTC", "below", 50000.0)
     alert_service.mark_triggered(7, alert_id, 49000.0, "$50,000", "$49,000")

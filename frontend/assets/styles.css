@@ -1055,6 +1055,11 @@
 .coin-row-linked { position: relative; }
 .coin-row-linked .row-link::after { content: ""; position: absolute; inset: 0; z-index: 0; }
 .coin-row-linked .row-interactive { position: relative; z-index: 1; }
+/* The star always wins over the row-link overlay, whatever else the cell has. */
+.coin-row-linked .wl-star { position: relative; z-index: 2; }
+
+/* Narrative / chain filter search boxes (components/filters.py). */
+.filter-search input { padding-left: 5px; }
 
 /* Similar Coins slider (coin page): long category badges wrap inside the card. */
 .similar-coin-badge {

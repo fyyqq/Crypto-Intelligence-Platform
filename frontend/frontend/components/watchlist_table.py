@@ -38,7 +38,7 @@ def _watchlist_star_cell(row: dict) -> rx.Component:
         ),
         on_click=[CoinState.toggle_watchlist(row["cmc_id"]), rx.stop_propagation],
         vertical_align="middle",
-        class_name="wl-star",  # instant fill toggle: assets/instant_ui.js
+        class_name="row-interactive wl-star",  # above the row-link overlay (else the click opens the coin page); instant fill toggle: assets/instant_ui.js
     )
 
 

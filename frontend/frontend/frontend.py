@@ -1525,7 +1525,7 @@ app.add_page(
     alerts_page,
     route="/alerts",
     title="Repace — Alerts",
-    on_load=[CoinState.restore_session, CoinState.require_login, CoinState.load_coins, CoinState.start_alert_watch, CoinState.load_alert_history],
+    on_load=[CoinState.restore_session, CoinState.require_login, CoinState.load_coins, CoinState.start_alert_watch],
 )
 app.add_page(
     notifications_page,

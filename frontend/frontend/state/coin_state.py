@@ -1592,7 +1592,6 @@ class CoinState(rx.State):
     # the top) and the history list shown on /alerts.
     alert_popups: list[dict] = []
     alert_popup_visible: bool = False
-    alert_history: list[dict] = []
     _alert_popup_deadline: float = 0.0
     _alert_watch_running: bool = False
     _dev_auto_login_off: bool = False  # set by logout; see restore_session
@@ -2238,7 +2237,6 @@ class CoinState(rx.State):
         self.user_id = 0
         self.watchlist_ids = []
         self.price_alerts = {}
-        self.alert_history = []
         self.alert_popups = []
         self.alert_popup_visible = False
         self.profile_menu_open = False
@@ -2388,29 +2386,6 @@ class CoinState(rx.State):
             return rx.call_script("window.location.assign('/login')")
 
     @rx.event
-    @_login_required
-    async def load_alert_history(self):
-        """/alerts on_load: this account's saved history of triggered alerts."""
-        if _ROOT_FOR_APP not in sys.path:
-            sys.path.insert(0, _ROOT_FOR_APP)
-        from app.services import alert_service
-
-        rows = await asyncio.to_thread(alert_service.list_history, self.user_id)
-        self.alert_history = [
-            {
-                "id": r["id"],
-                "name": r["name"],
-                "symbol": r["symbol"],
-                "icon_url": f"https://s2.coinmarketcap.com/static/img/coins/64x64/{r['cmc_id']}.png",
-                "direction": r["direction"],
-                "target_display": _fmt_usd(r["target"]),
-                "price_display": _fmt_usd(r["price"]),
-                "time_display": _fmt_alert_time(r["at"]),
-            }
-            for r in rows
-        ]
-
-    @rx.event
     def dismiss_alert_popup(self, alert_id: int):
         self.alert_popups = [p for p in self.alert_popups if p["id"] != alert_id]
         if not self.alert_popups:
@@ -2460,7 +2435,6 @@ class CoinState(rx.State):
                     now_ts = time.time()
                     new_alerts = dict(self.price_alerts)
                     popups = list(self.alert_popups)
-                    history = list(self.alert_history)
                     for key, alerts in self.price_alerts.items():
                         row = self._merged_row(int(key)) if alerts else None
                         if not row:
@@ -2481,7 +2455,6 @@ class CoinState(rx.State):
                                 "time_display": _fmt_alert_time(None),
                             }
                             popups.append(entry)
-                            history.insert(0, entry)
                             triggered.append((self.user_id, a["id"], price, a["display"]))
                             spoken[a["id"]] = (
                                 f"{row['name']} ({row['symbol']}) crossed {a['direction']} {a['display']}, "
@@ -2491,7 +2464,6 @@ class CoinState(rx.State):
                     if triggered:
                         self.price_alerts = new_alerts
                         self.alert_popups = popups[-5:]
-                        self.alert_history = history[:200]
                         self.alert_popup_visible = True
                         self._alert_popup_deadline = now_ts + 60
                     elif self.alert_popup_visible and now_ts > self._alert_popup_deadline:
