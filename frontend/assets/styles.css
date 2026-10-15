@@ -1644,6 +1644,8 @@ svg.wl-star-force-off {
   .site-header > div { grid-template-columns: auto minmax(0, 1fr) auto !important; }
   .site-header .header-actions { grid-column: 3; grid-row: 1; }
   .site-header .global-search-container { display: none; }
+  /* The suggestions are exactly as wide as the search bar above them. */
+  .site-header .global-search-dropdown { left: -1px; right: -1px; width: auto; max-width: none; } /* -1px: the bar's border */
   .site-header.mobile-search-open .global-search-container {
     display: flex; grid-column: 1 / -1; grid-row: 2; justify-self: center; width: 100%; max-width: 520px; margin-top: 0.6em;
   }
