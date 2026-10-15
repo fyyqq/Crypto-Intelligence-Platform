@@ -2956,12 +2956,12 @@ class CoinState(rx.State):
 
     @rx.var(cache=True)
     def coin_alerts_above(self) -> list[dict]:
-        """This coin's "price above" alerts, the nearest (lowest) target first."""
-        return sorted((a for a in self.coin_alerts if a["direction"] == "above"), key=lambda a: a["price"])
+        """This coin's "price above" alerts, highest target first."""
+        return sorted((a for a in self.coin_alerts if a["direction"] == "above"), key=lambda a: -a["price"])
 
     @rx.var(cache=True)
     def coin_alerts_below(self) -> list[dict]:
-        """This coin's "price below" alerts, the nearest (highest) target first."""
+        """This coin's "price below" alerts, highest target first."""
         return sorted((a for a in self.coin_alerts if a["direction"] == "below"), key=lambda a: -a["price"])
 
     @rx.event
