@@ -26,3 +26,6 @@ frontend/assets/telegram_media/
 
 # Backend exception log (frontend/error_log.py)
 logs/
+
+# User-uploaded profile pictures and banners (served at /user_uploads/, see app/services/profile_service.py)
+user_uploads/

@@ -20,6 +20,7 @@ from frontend.components import (
     narrative_alerts,
     narrative_page_content,
     narratives_index_content,
+    profile_content,
     chains_index_content,
     news_detail_content,
     news_feed,
@@ -36,7 +37,7 @@ from frontend.components import (
 from frontend.components.alerts_page import alerts_content
 from frontend.components.notifications_page import notification_popup, notifications_content
 from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
-from frontend.state import CalendarState, CoinState, MacroCalendarState, GainersLosersState, HomeMoversState, MarketStatusState, NewsDetailState, NewsState, NotificationState, ToolsState
+from frontend.state import CalendarState, CoinState, MacroCalendarState, GainersLosersState, HomeMoversState, MarketStatusState, NewsDetailState, NewsState, NotificationState, ProfileState, ToolsState
 
 
 def _alerts_menu_item() -> rx.Component:
@@ -52,6 +53,27 @@ def _alerts_menu_item() -> rx.Component:
                 class_name="profile-menu-item",
             ),
             href="/alerts",
+            underline="none",
+            display="block",
+            width="100%",
+            color="var(--gray-12)",
+        ),
+    )
+
+
+def _profile_menu_item() -> rx.Component:
+    """"Profile" — the first row of the dropdown while logged in; opens /profile (edit details and pictures)."""
+    return rx.cond(
+        CoinState.is_logged_in,
+        rx.link(
+            rx.hstack(
+                rx.icon("user", size=16),
+                rx.text("Profile", size="2"),
+                spacing="2",
+                align="center",
+                class_name="profile-menu-item",
+            ),
+            href="/profile",
             underline="none",
             display="block",
             width="100%",
@@ -160,6 +182,7 @@ def _auth_menu_items() -> rx.Component:
 
 def _profile_dropdown() -> rx.Component:
     return rx.box(
+        _profile_menu_item(),
         _auth_menu_items(),
         _nav_menu_items(),
         _watchlist_menu_item(),
@@ -237,7 +260,11 @@ def _profile_pill() -> rx.Component:
                 ),
             ),
             rx.box(
-                rx.icon("user", size=22, color="var(--gray-9)"),
+                rx.cond(
+                    CoinState.user_avatar != "",
+                    rx.image(src=CoinState.user_avatar, alt="", width="100%", height="100%", object_fit="cover"),
+                    rx.icon("user", size=22, color="var(--gray-9)"),
+                ),
                 # Fixed equal width/height (not aspect_ratio + align="stretch")
                 # — that combination rendered as an oval in practice, not a
                 # circle. A fixed size plus the default center alignment below
@@ -250,6 +277,7 @@ def _profile_pill() -> rx.Component:
                 align_items="center",
                 justify_content="center",
                 flex_shrink="0",
+                overflow="hidden",
             ),
             spacing="3",
             align="center",
@@ -1121,6 +1149,11 @@ def chains_page() -> rx.Component:
     return _index_shell(chains_index_content())
 
 
+def profile_page() -> rx.Component:
+    # /profile — edit details, profile picture and banner (full-bleed banner, so no outer padding).
+    return _index_shell(profile_content())
+
+
 def memecoin_page() -> rx.Component:
     return _placeholder_page("Memecoin")
 
@@ -1269,6 +1302,9 @@ def watchlist_page() -> rx.Component:
 # app.py already uses internally for rx.upload's uploaded-files route.
 _telegram_media_dir = Path(__file__).resolve().parent.parent / "assets" / "telegram_media"
 _telegram_media_dir.mkdir(parents=True, exist_ok=True)
+# Profile pictures/banners uploaded on /profile (app/services/profile_service.py), served live from disk.
+_user_uploads_dir = Path(__file__).resolve().parent.parent.parent / "user_uploads"
+_user_uploads_dir.mkdir(parents=True, exist_ok=True)
 async def _coin_index(request):
     """Compact list of every coin for the header search's instant results
     (assets/instant_ui.js filters it in the browser while the server's own
@@ -1359,6 +1395,7 @@ async def _google_login(request):
 _api_transformer = Starlette(
     routes=[
         Mount("/telegram_media", app=StaticFiles(directory=str(_telegram_media_dir)), name="telegram_media"),
+        Mount("/user_uploads", app=StaticFiles(directory=str(_user_uploads_dir)), name="user_uploads"),
         Route("/api/coin-index", _coin_index),
         Route("/api/auth/google/config", _google_config),
         Route("/api/auth/google", _google_login, methods=["POST"]),
@@ -1611,6 +1648,12 @@ app.add_page(
     route="/tools/market-charts",
     title="Repace — Market Charts",
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
+)
+app.add_page(
+    profile_page,
+    route="/profile",
+    title="Repace — Profile",
+    on_load=[CoinState.restore_session, CoinState.require_login, CoinState.load_coins, CoinState.start_alert_watch, ProfileState.load_profile],
 )
 for _route, _page_fn in [
     ("/chains", chains_page),

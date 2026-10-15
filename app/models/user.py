@@ -22,3 +22,9 @@ class User(Base):
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Telegram chat the bot sends this account's notifications to (NULL = not connected).
     telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # Profile page (/profile): contact details and the two pictures (files under user_uploads/profile/,
+    # served at /user_uploads/...; NULL = none set).
+    phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    banner_url: Mapped[str | None] = mapped_column(String(255), nullable=True)

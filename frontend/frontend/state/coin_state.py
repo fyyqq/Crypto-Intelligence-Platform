@@ -1561,6 +1561,7 @@ class CoinState(rx.State):
     is_logged_in: bool = False
     user_name: str = ""
     user_email: str = ""
+    user_avatar: str = ""  # /user_uploads/... URL of the profile picture ("" = none)
     # DB id of the logged-in account; set server-side at login, never from the browser.
     user_id: int = 0
     # "Stay logged in" cookie: a random token whose SHA-256 is stored in user_sessions (30 days).
@@ -2186,7 +2187,7 @@ class CoinState(rx.State):
             # site). Logging out turns it off for this tab until Reflex restarts.
             if _ROOT_FOR_APP not in sys.path:
                 sys.path.insert(0, _ROOT_FOR_APP)
-            from app.services import auth_service, watchlist_service
+            from app.services import auth_service, profile_service, watchlist_service
 
             dev = await asyncio.to_thread(auth_service.dev_auto_login, self.router.headers.host)
             if dev.ok:
@@ -2194,6 +2195,7 @@ class CoinState(rx.State):
                 self.user_id = dev.user_id
                 self.user_name = dev.user_name
                 self.user_email = dev.user_email
+                self.user_avatar = await asyncio.to_thread(profile_service.avatar_url, dev.user_id)
                 self.watchlist_ids = await asyncio.to_thread(watchlist_service.get_watchlist_ids, dev.user_id)
                 await self._load_user_alerts()
                 if self.router.url.path.rstrip("/") in ("/login", "/signup"):
@@ -2205,7 +2207,7 @@ class CoinState(rx.State):
             return
         if _ROOT_FOR_APP not in sys.path:
             sys.path.insert(0, _ROOT_FOR_APP)
-        from app.services import auth_service, watchlist_service
+        from app.services import auth_service, profile_service, watchlist_service
 
         result = await asyncio.to_thread(auth_service.resume_session, self.session_token)
         if not result.ok:
@@ -2215,6 +2217,7 @@ class CoinState(rx.State):
         self.user_id = result.user_id
         self.user_name = result.user_name
         self.user_email = result.user_email
+        self.user_avatar = await asyncio.to_thread(profile_service.avatar_url, result.user_id)
         self.watchlist_ids = await asyncio.to_thread(watchlist_service.get_watchlist_ids, result.user_id)
         await self._load_user_alerts()
         if self.router.url.path.rstrip("/") in ("/login", "/signup"):
@@ -2234,6 +2237,7 @@ class CoinState(rx.State):
         self.is_logged_in = False
         self.user_name = ""
         self.user_email = ""
+        self.user_avatar = ""
         self.user_id = 0
         self.watchlist_ids = []
         self.price_alerts = {}

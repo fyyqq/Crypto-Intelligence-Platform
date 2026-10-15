@@ -8,6 +8,7 @@ from frontend.components.index_pages import chains_index_content, narratives_ind
 from frontend.components.market_overview import market_overview
 from frontend.components.narrative_alerts import narrative_alerts, narrative_page_content
 from frontend.components.news_feed import news_feed
+from frontend.components.profile_page import profile_content
 from frontend.components.news_detail import news_detail_content
 from frontend.components.news_page import news_category_content, news_page_content
 from frontend.components.tools_page import (
@@ -21,6 +22,7 @@ from frontend.components.tools_page import (
 from frontend.components.watchlist_table import watchlist_table
 
 __all__ = [
+    "profile_content",
     "chains_index_content",
     "narratives_index_content",
     "coin_detail_page",

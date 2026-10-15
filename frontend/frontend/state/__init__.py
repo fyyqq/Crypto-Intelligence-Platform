@@ -6,6 +6,7 @@ from frontend.state.home_movers_state import HomeMoversState
 from frontend.state.macro_calendar_state import MacroCalendarState
 from frontend.state.market_status_state import MarketStatusState
 from frontend.state.news_state import NewsDetailState, NewsState
+from frontend.state.profile_state import ProfileState
 from frontend.state.tools_state import ToolsState
 
-__all__ = ["CalendarState", "CoinState", "GainersLosersState", "HomeMoversState", "MacroCalendarState", "MarketStatusState", "NewsDetailState", "NewsState", "NotificationState", "ToolsState"]
+__all__ = ["CalendarState", "CoinState", "GainersLosersState", "HomeMoversState", "MacroCalendarState", "MarketStatusState", "NewsDetailState", "NewsState", "NotificationState", "ProfileState", "ToolsState"]
