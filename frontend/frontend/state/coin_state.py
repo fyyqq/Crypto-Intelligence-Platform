@@ -694,6 +694,8 @@ def _board(names: list[str], scores: dict, href_of=None) -> list[dict]:
     for n in ranked(names, scores):
         sc = scores.get(n)
         pct = sc["pct"] if sc else None
+        if pct is not None and abs(pct) < 0.005:
+            pct = 0.0  # no "-0.00%"
         out.append({
             "name": n,
             "href": href_of(n) if href_of else "",
