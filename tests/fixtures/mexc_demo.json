@@ -1,0 +1,65 @@
+{
+  "_comment": "Made-up MEXC Spot v3 responses (same field names as the real API) for tests and local UI checks: MEXC_FIXTURE_FILE=tests/fixtures/mexc_demo.json. Not anyone's real account.",
+  "account": {
+    "canTrade": false,
+    "canWithdraw": false,
+    "canDeposit": false,
+    "accountType": "SPOT",
+    "permissions": ["SPOT"],
+    "balances": [
+      {"asset": "USDT", "free": "850.50", "locked": "393.00"},
+      {"asset": "BTC", "free": "0.0214", "locked": "0"},
+      {"asset": "ETH", "free": "0.449", "locked": "0"},
+      {"asset": "SUI", "free": "520", "locked": "300"},
+      {"asset": "SOL", "free": "3.2", "locked": "3"},
+      {"asset": "PEPE", "free": "15000000", "locked": "0"},
+      {"asset": "LINK", "free": "40", "locked": "0"},
+      {"asset": "DOGE", "free": "2.1", "locked": "0"},
+      {"asset": "MX", "free": "0.03", "locked": "0"}
+    ]
+  },
+  "ticker24hr": [
+    {"symbol": "BTCUSDT", "lastPrice": "112450.10", "openPrice": "110200.00"},
+    {"symbol": "ETHUSDT", "lastPrice": "4120.55", "openPrice": "4188.00"},
+    {"symbol": "SUIUSDT", "lastPrice": "1.0412", "openPrice": "0.9980"},
+    {"symbol": "SOLUSDT", "lastPrice": "168.40", "openPrice": "171.90"},
+    {"symbol": "PEPEUSDT", "lastPrice": "0.000009120", "openPrice": "0.000008700"},
+    {"symbol": "LINKUSDT", "lastPrice": "17.85", "openPrice": "17.60"},
+    {"symbol": "DOGEUSDT", "lastPrice": "0.1932", "openPrice": "0.1950"},
+    {"symbol": "MXUSDT", "lastPrice": "3.05", "openPrice": "3.01"}
+  ],
+  "openOrders": {
+    "SUIUSDT": [
+      {"symbol": "SUIUSDT", "orderId": "C02__100000000000001", "price": "1.3500", "origQty": "300", "executedQty": "0", "status": "NEW", "type": "LIMIT", "side": "SELL", "stopPrice": "0", "time": 1792000000000}
+    ],
+    "SOLUSDT": [
+      {"symbol": "SOLUSDT", "orderId": "C02__100000000000002", "price": "149.00", "origQty": "3", "executedQty": "0", "status": "NEW", "type": "STOP_LOSS_LIMIT", "side": "SELL", "stopPrice": "150.00", "time": 1791900000000}
+    ],
+    "BTCUSDT": [
+      {"symbol": "BTCUSDT", "orderId": "C02__100000000000003", "price": "95000.00", "origQty": "0.002", "executedQty": "0", "status": "NEW", "type": "LIMIT", "side": "BUY", "stopPrice": "0", "time": 1792050000000}
+    ],
+    "ETHUSDT": [
+      {"symbol": "ETHUSDT", "orderId": "C02__100000000000004", "price": "2900.00", "origQty": "0.07", "executedQty": "0.00", "status": "NEW", "type": "LIMIT", "side": "BUY", "stopPrice": "0", "time": 1792060000000}
+    ]
+  },
+  "myTrades": {
+    "BTCUSDT": [
+      {"symbol": "BTCUSDT", "id": "1", "orderId": "a1", "price": "104000.00", "qty": "0.0100", "quoteQty": "1040.00", "commission": "0.00001", "commissionAsset": "BTC", "time": 1790500000000, "isBuyer": true, "isMaker": true},
+      {"symbol": "BTCUSDT", "id": "2", "orderId": "a2", "price": "109800.00", "qty": "0.0115", "quoteQty": "1262.70", "commission": "0.00001", "commissionAsset": "BTC", "time": 1791300000000, "isBuyer": true, "isMaker": false}
+    ],
+    "ETHUSDT": [
+      {"symbol": "ETHUSDT", "id": "3", "orderId": "b1", "price": "3700.00", "qty": "0.5", "quoteQty": "1850.00", "commission": "0.001", "commissionAsset": "ETH", "time": 1790600000000, "isBuyer": true, "isMaker": true},
+      {"symbol": "ETHUSDT", "id": "4", "orderId": "b2", "price": "4050.00", "qty": "0.05", "quoteQty": "202.50", "commission": "0.2", "commissionAsset": "USDT", "time": 1791700000000, "isBuyer": false, "isMaker": true}
+    ],
+    "SUIUSDT": [
+      {"symbol": "SUIUSDT", "id": "5", "orderId": "c1", "price": "1.2200", "qty": "1000", "quoteQty": "1220.00", "commission": "0", "commissionAsset": "USDT", "time": 1790800000000, "isBuyer": true, "isMaker": true},
+      {"symbol": "SUIUSDT", "id": "6", "orderId": "c2", "price": "1.1500", "qty": "180", "quoteQty": "207.00", "commission": "0", "commissionAsset": "USDT", "time": 1791800000000, "isBuyer": false, "isMaker": false}
+    ],
+    "SOLUSDT": [
+      {"symbol": "SOLUSDT", "id": "7", "orderId": "d1", "price": "175.00", "qty": "6.2", "quoteQty": "1085.00", "commission": "0", "commissionAsset": "USDT", "time": 1791000000000, "isBuyer": true, "isMaker": true}
+    ],
+    "PEPEUSDT": [
+      {"symbol": "PEPEUSDT", "id": "8", "orderId": "e1", "price": "0.000008100", "qty": "15000000", "quoteQty": "121.50", "commission": "0", "commissionAsset": "USDT", "time": 1791500000000, "isBuyer": true, "isMaker": true}
+    ]
+  }
+}

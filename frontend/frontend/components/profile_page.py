@@ -4,6 +4,7 @@ one column on phones. An account sidebar (25% of the width, sticky, minimizable)
 
 import reflex as rx
 
+from frontend.components.portfolio_page import portfolio_view
 from frontend.state import ProfileState
 
 _ACCEPT = {"image/png": [".png"], "image/jpeg": [".jpg", ".jpeg"], "image/webp": [".webp"], "image/gif": [".gif"]}
@@ -174,23 +175,10 @@ def _sidebar() -> rx.Component:
     )
 
 
-def _portfolio_view() -> rx.Component:
-    return rx.center(
-        rx.vstack(
-            rx.heading("Portfolio", size="7"),
-            rx.text("Coming soon", size="3", color_scheme="gray"),
-            spacing="2",
-            align="center",
-        ),
-        min_height="60vh",
-        width="100%",
-        class_name="profile-main profile-view-portfolio",
-    )
-
-
 def profile_content(view: str = "portfolio") -> rx.Component:
-    """`view` is the one shown first: "portfolio" (/portfolio) or "edit" (/profile/edit-profile)."""
-    return rx.box(_sidebar(), _portfolio_view(), _profile_main(), class_name="profile-layout", custom_attrs={"data-view": view})
+    """`view` is the one shown first: "portfolio" (/portfolio, the MEXC dashboard in components/portfolio_page.py)
+    or "edit" (/profile/edit-profile)."""
+    return rx.box(_sidebar(), portfolio_view(), _profile_main(), class_name="profile-layout", custom_attrs={"data-view": view})
 
 
 def _profile_main() -> rx.Component:

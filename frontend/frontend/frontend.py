@@ -39,7 +39,7 @@ from frontend.components import (
 from frontend.components.alerts_page import alerts_content
 from frontend.components.notifications_page import notification_popup, notifications_content
 from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
-from frontend.state import CalendarState, CoinState, MacroCalendarState, GainersLosersState, HomeMoversState, MarketStatusState, NewsDetailState, NewsState, NotificationState, ProfileState, ToolsState
+from frontend.state import CalendarState, CoinState, MacroCalendarState, GainersLosersState, HomeMoversState, MarketStatusState, NewsDetailState, NewsState, NotificationState, PortfolioState, ProfileState, ToolsState
 
 
 def _alerts_menu_item() -> rx.Component:
@@ -1605,6 +1605,8 @@ app.add_page(
         CoinState.refresh_tradingview_dex_symbol,
         CoinState.refresh_launch_date,
         CoinState.refresh_defillama_unlocks_slug,
+        # "Your MEXC" box above Alerts (MEXC_VIEWER_EMAILS accounts only).
+        PortfolioState.coin_mexc_loop,
         # Real news for the "<Coin> News" section: load the (shared) article
         # list, then tell NewsState which coin this page is showing.
         NewsState.load_news,
@@ -1750,7 +1752,8 @@ for _route, _page_fn, _title in [
         _page_fn,
         route=_route,
         title=_title,
-        on_load=[CoinState.restore_session, CoinState.require_login, CoinState.load_coins, CoinState.start_alert_watch, ProfileState.load_profile],
+        # PortfolioState.portfolio_loop: the MEXC dashboard (Portfolio view; the sidebar swaps views in the browser).
+        on_load=[CoinState.restore_session, CoinState.require_login, CoinState.load_coins, CoinState.start_alert_watch, ProfileState.load_profile, PortfolioState.portfolio_loop],
     )
 for _route, _page_fn in [
     ("/chains", chains_page),

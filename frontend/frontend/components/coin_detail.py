@@ -16,6 +16,7 @@ Per explicit scope for this pass — only the middle chart is real:
 import reflex as rx
 
 from frontend.components.footer import _BRAND_ICON_PATHS
+from frontend.components.portfolio_page import coin_mexc_section
 from frontend.components.tradingview_controls import timeframe_controls
 from frontend.state import CoinState, NewsState
 
@@ -1062,6 +1063,8 @@ def _info_column() -> rx.Component:
             background="var(--gray-a2)",
             width="100%",
         ),
+        # The viewer's MEXC holding + open limit/stop orders for this coin (MEXC_VIEWER_EMAILS accounts only).
+        coin_mexc_section(),
         _alerts_section(),
         rx.divider(),
         _links_section(coin),

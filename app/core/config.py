@@ -57,6 +57,17 @@ class Settings(BaseSettings):
     fred_api_key: str = ""
     macro_free_actuals_max_per_day: int = 20  # BLS public API v1 allows 25 requests a day
 
+    # MEXC portfolio (/portfolio and the coin page's "Your MEXC orders"), app/services/mexc_service.py. A
+    # READ-ONLY key (Spot: View Account Details + View Order Details only) linked to the server's IP; the
+    # service only ever sends signed GETs to a fixed list of read endpoints. The key and secret stay on the
+    # server: never logged, never put in page state. Only the logged-in accounts in MEXC_VIEWER_EMAILS
+    # (comma-separated) see the data; empty = nobody. MEXC_FIXTURE_FILE (local UI testing only) serves a JSON
+    # file of MEXC-shaped responses instead of calling MEXC, and the page shows a "Demo data" badge.
+    mexc_api_key: str = ""
+    mexc_api_secret: str = ""
+    mexc_viewer_emails: str = ""
+    mexc_fixture_file: str = ""
+
     app_env: str = "development"
     app_host: str = "0.0.0.0"
     app_port: int = 8000

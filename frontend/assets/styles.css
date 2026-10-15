@@ -1728,3 +1728,44 @@ svg.wl-star-force-off {
 .profile-pill-name { display: none; }
 .profile-pill-name-off { display: none !important; }
 @media (min-width: 768px) { .profile-pill-name { display: flex; } }
+
+/* /portfolio: the MEXC dashboard (components/portfolio_page.py). Theme tokens only, so it follows light/dark mode. */
+.pf-page { box-sizing: border-box; padding: 24px 28px 40px; }
+@media (max-width: 767px) { .pf-page { padding: 16px 12px 32px; } }
+.pf-card {
+  box-sizing: border-box; width: 100%; min-width: 0; padding: 20px; border-radius: 14px;
+  background: var(--gray-a2); border: 1px solid var(--gray-a4);
+}
+@media (max-width: 767px) { .pf-card { padding: 14px; } }
+.pf-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; width: 100%; }
+@media (min-width: 1024px) { .pf-top { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
+.pf-hero { background: linear-gradient(135deg, var(--accent-a3), var(--gray-a2) 60%); }
+.pf-total { font-size: clamp(30px, 4.2vw, 44px); font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; color: var(--gray-12); margin: 4px 0 8px; }
+.pf-num { font-variant-numeric: tabular-nums; }
+.pf-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: var(--gray-a3); }
+.pf-stat { min-width: 0; padding: 12px; border-radius: 10px; background: var(--gray-a2); border: 1px solid var(--gray-a3); }
+.pf-stat p { overflow-wrap: anywhere; }
+.pf-ring { position: relative; width: 168px; height: 168px; flex-shrink: 0; border-radius: 50%; }
+.pf-ring-hole {
+  position: absolute; inset: 26px; border-radius: 50%; background: var(--color-panel-solid);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.pf-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+/* Wide tables scroll inside their card, never the page. */
+.pf-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.pf-scroll table { min-width: 760px; }
+.pf-th { color: var(--gray-11) !important; font-weight: 500 !important; font-size: 12px !important; white-space: nowrap; }
+.pf-td { vertical-align: middle !important; white-space: nowrap; }
+.pf-tr:hover { background: var(--gray-a2); }
+.pf-coin-link { color: inherit; }
+.pf-coin-link:hover p:first-child { color: var(--accent-11); }
+.pf-ellipsis { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-coin-initial {
+  border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--gray-a4); color: var(--gray-12);
+}
+.pf-bar { width: 72px; height: 4px; border-radius: 2px; background: var(--gray-a4); overflow: hidden; }
+.pf-bar-fill { height: 100%; border-radius: 2px; background: var(--accent-9); }
+.pf-empty-icon { width: 56px; height: 56px; border-radius: 50%; background: var(--gray-a3); display: flex; align-items: center; justify-content: center; }
+@keyframes pf-spin { to { transform: rotate(360deg); } }
+.pf-spin { animation: pf-spin 0.8s linear infinite; }
