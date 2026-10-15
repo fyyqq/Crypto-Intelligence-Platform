@@ -1181,6 +1181,11 @@ def memecoin_page() -> rx.Component:
     return _placeholder_page("Memecoin")
 
 
+def portfolio_page() -> rx.Component:
+    # /portfolio — blank for now; reached from the /profile sidebar.
+    return _placeholder_page("Portfolio")
+
+
 def _tools_shell(content: rx.Component, *scripts: str) -> rx.Component:
     return rx.box(
         _header_bar(),
@@ -1696,6 +1701,7 @@ app.add_page(
 for _route, _page_fn in [
     ("/chains", chains_page),
     ("/memecoin", memecoin_page),
+    ("/portfolio", portfolio_page),
     ("/watchlist", watchlist_page),
 ]:
     # /watchlist also runs the live price loop (shared exchange prices every 30s); /chains loads its 24h board.

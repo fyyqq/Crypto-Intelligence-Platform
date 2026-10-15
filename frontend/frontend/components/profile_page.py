@@ -116,9 +116,7 @@ def _form() -> rx.Component:
 
 _SIDE_LINKS = [
     ("Profile", "user", "/profile"),
-    ("Notifications", "bell", "/notifications"),
-    ("Alerts", "bell-ring", "/alerts"),
-    ("Watchlist", "star", "/watchlist"),
+    ("Portfolio", "wallet", "/portfolio"),
 ]
 
 
