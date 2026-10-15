@@ -86,13 +86,33 @@ def _note(kind: str) -> rx.Component:
     )
 
 
+def _sort_header(label: str, column: str, sort_var, on_click) -> rx.Component:
+    """Column title with an arrow: arrow-down = biggest first (desc), arrow-up = smallest first (asc), both = unsorted."""
+    return rx.table.column_header_cell(
+        rx.hstack(
+            rx.text(label),
+            rx.icon(
+                rx.cond(sort_var == f"{column}_desc", "arrow-down", rx.cond(sort_var == f"{column}_asc", "arrow-up", "arrow-up-down")),
+                size=15,
+                color=rx.cond(sort_var.startswith(column), "var(--accent-10)", "var(--gray-9)"),
+            ),
+            spacing="2",
+            align="center",
+            cursor="pointer",
+            on_click=on_click(column),
+            title="Sort: biggest first, smallest first, then back to the 24h ranking",
+            class_name="sector-sort",
+        )
+    )
+
+
 def _pager(first, prev, nxt, last, page, pages) -> rx.Component:
     from frontend.components.news_page import _pagination_row
 
     return rx.cond(pages > 1, _pagination_row(first, prev, nxt, last, page, pages))
 
 
-def _page(title: str, kind: str, label: str, top_label: str, total, rows, name_cell, pager) -> rx.Component:
+def _page(title: str, kind: str, label: str, top_label: str, total, rows, name_cell, pager, sort_var, on_sort, search_var, on_search) -> rx.Component:
     return rx.vstack(
         rx.hstack(
             rx.heading(title, size="6"),
@@ -100,10 +120,30 @@ def _page(title: str, kind: str, label: str, top_label: str, total, rows, name_c
             align="center",
             spacing="3",
         ),
-        _note(kind),
+        rx.flex(
+            _note(kind),
+            rx.input(
+                value=search_var,
+                on_change=on_search,
+                placeholder=f"Search {kind}",
+                debounce_timeout=250,
+                size="2",
+                radius="full",
+                variant="surface",
+                class_name="sector-search",
+            ),
+            justify="between",
+            align="center",
+            gap="1em",
+            width="100%",
+            direction=rx.breakpoints(initial="column", sm="row"),
+        ),
         rx.cond(
-            rows.length() == 0,
+            (rows.length() == 0) & (search_var == "") & (total == 0),
             rx.vstack(*[rx.skeleton(height="64px", width="100%", border_radius="8px") for _ in range(6)], spacing="2", width="100%"),
+            rx.cond(
+                rows.length() == 0,
+                rx.text("No ", kind, " matches \"", search_var, "\".", size="2", color="var(--gray-11)"),
             rx.vstack(
                 rx.box(
                     rx.table.root(
@@ -112,8 +152,8 @@ def _page(title: str, kind: str, label: str, top_label: str, total, rows, name_c
                                 rx.table.column_header_cell("#"),
                                 rx.table.column_header_cell(label),
                                 rx.table.column_header_cell(top_label),
-                                rx.table.column_header_cell("Biggest gainer"),
-                                rx.table.column_header_cell("Biggest loser"),
+                                _sort_header("Biggest gainer", "gainer", sort_var, on_sort),
+                                _sort_header("Biggest loser", "loser", sort_var, on_sort),
                             )
                         ),
                         rx.table.body(rx.foreach(rows, lambda item: _row(item, name_cell))),
@@ -128,6 +168,7 @@ def _page(title: str, kind: str, label: str, top_label: str, total, rows, name_c
                 spacing="4",
                 width="100%",
             ),
+            ),
         ),
         spacing="4",
         width="100%",
@@ -141,6 +182,7 @@ def narratives_index_content() -> rx.Component:
         "Narratives", "narrative", "Narrative", "Top coins", CoinState.narrative_total, CoinState.narrative_board, _narrative_name,
         _pager(CoinState.narrative_table_first, CoinState.narrative_table_prev, CoinState.narrative_table_next, CoinState.narrative_table_last,
                CoinState.narrative_table_page, CoinState.narrative_table_pages),
+        CoinState.narrative_sort, CoinState.cycle_narrative_sort, CoinState.narrative_search, CoinState.set_narrative_search,
     )
 
 
@@ -149,4 +191,5 @@ def chains_index_content() -> rx.Component:
         "Chains", "chain", "Chain", "Top coins", CoinState.chain_total, CoinState.chain_board, _chain_name,
         _pager(CoinState.chain_table_first, CoinState.chain_table_prev, CoinState.chain_table_next, CoinState.chain_table_last,
                CoinState.chain_table_page, CoinState.chain_table_pages),
+        CoinState.chain_sort, CoinState.cycle_chain_sort, CoinState.chain_search, CoinState.set_chain_search,
     )

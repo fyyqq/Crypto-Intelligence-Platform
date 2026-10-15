@@ -704,18 +704,18 @@ def _coin_badge(cmc_id: int, pct=None) -> dict | None:
     }
 
 
-def _board(names: list[str], table: dict, href_of=None) -> list[dict]:
-    """The whole /narrative or /chains table, best 24h score first: id, name, score and the coin badges."""
+def _board(names: list[str], table: dict, href_of=None, drop=None) -> list[dict]:
+    """The whole /narrative or /chains table, best 24h score first: name, score and the coin badges (ids are
+    assigned by sector_view). `drop(name)` removes a row."""
     from app.services.sector_performance_service import ranked
 
     out = []
-    for i, n in enumerate(ranked(names, table), 1):
+    for n in ranked([n for n in names if not (drop and drop(n))], table):
         t = table.get(n)
         pct = t["pct"] if t else None
         if pct is not None and abs(pct) < 0.005:
             pct = 0.0  # no "-0.00%"
         out.append({
-            "id": i,
             "name": n,
             "href": href_of(n) if href_of else "",
             "pct": "" if pct is None else f"{pct:+.2f}%",
@@ -724,8 +724,36 @@ def _board(names: list[str], table: dict, href_of=None) -> list[dict]:
             "top": [b for b in (_coin_badge(c) for c in (t["top"] if t else [])) if b],
             "gainers": [b for b in (_coin_badge(c, p) for c, p in (t["gainers"] if t else [])) if b],
             "losers": [b for b in (_coin_badge(c, p) for c, p in (t["losers"] if t else [])) if b],
+            "gain": t["gainers"][0][1] if t and t["gainers"] else None,  # raw values for the column sort
+            "loss": t["losers"][0][1] if t and t["losers"] else None,
         })
     return out
+
+
+def _is_stablecoin(name: str) -> bool:
+    return "stablecoin" in name.lower()
+
+
+def sector_view(base: list[dict], sort: str = "", query: str = "") -> list[dict]:
+    """The table as shown: `base` (best 24h score first) sorted by the gainer / loser column when `sort` is
+    "gainer_desc|gainer_asc|loser_desc|loser_asc" (desc = the biggest rise / fall first, rows without one last),
+    numbered by position (#), then filtered by a case-insensitive name search (numbers keep their sorted position)."""
+    rows = list(base)
+    col, _, direction = sort.partition("_")
+    if col in ("gainer", "loser") and direction in ("desc", "asc"):
+        key = "gain" if col == "gainer" else "loss"
+        size = (lambda r: r[key]) if col == "gainer" else (lambda r: -r[key])  # a fall counts by its size
+        have = [r for r in rows if r[key] is not None]
+        have.sort(key=size, reverse=direction == "desc")
+        rows = have + [r for r in rows if r[key] is None]
+    rows = [{**r, "id": i} for i, r in enumerate(rows, 1)]
+    q = query.strip().lower()
+    return [r for r in rows if q in r["name"].lower()] if q else rows
+
+
+def _next_sort(current: str, column: str) -> str:
+    """"" -> <column>_desc -> <column>_asc -> ""; a different column starts at desc."""
+    return {f"{column}_desc": f"{column}_asc", f"{column}_asc": ""}.get(current, f"{column}_desc")
 
 
 def _sector_pages(total: int) -> int:
@@ -1591,8 +1619,12 @@ class CoinState(rx.State):
     chain_page: int = 1
     # /narrative and /chains boards: every name with its 24h score, best first (load_sector_boards).
     # Full tables stay on the server (leading underscore); the browser gets one page of SECTOR_PAGE_SIZE rows.
-    _narrative_full: list[dict] = []
-    _chain_full: list[dict] = []
+    _narrative_base: list[dict] = []
+    _chain_base: list[dict] = []
+    narrative_sort: str = ""  # "" = 24h score, else gainer_desc / gainer_asc / loser_desc / loser_asc
+    chain_sort: str = ""
+    narrative_search: str = ""
+    chain_search: str = ""
     narrative_board: list[dict] = []
     chain_board: list[dict] = []
     narrative_total: int = 0
@@ -1896,24 +1928,51 @@ class CoinState(rx.State):
         self.chain_page = min(self.chain_page_count, self.chain_page + 1)
 
     def _sector_page(self, kind: str) -> None:
-        full = self._narrative_full if kind == "narrative" else self._chain_full
-        page = min(max(1, getattr(self, f"{kind}_table_page")), _sector_pages(len(full)))
+        base = self._narrative_base if kind == "narrative" else self._chain_base
+        view = sector_view(base, getattr(self, f"{kind}_sort"), getattr(self, f"{kind}_search"))
+        setattr(self, f"{kind}_total", len(view))
+        page = min(max(1, getattr(self, f"{kind}_table_page")), _sector_pages(len(view)))
         setattr(self, f"{kind}_table_page", page)
-        setattr(self, f"{kind}_board", full[(page - 1) * SECTOR_PAGE_SIZE: page * SECTOR_PAGE_SIZE])
+        setattr(self, f"{kind}_board", view[(page - 1) * SECTOR_PAGE_SIZE: page * SECTOR_PAGE_SIZE])
 
     @rx.event
     async def load_sector_boards(self):
-        """/narrative and /chains on_load: the 24h-ranked tables (cached hourly for every session)."""
+        """/narrative and /chains on_load: the 24h-ranked tables (cached hourly for every session). Stablecoin
+        narratives are left out of /narrative."""
         data = await asyncio.to_thread(sector_boards)
         names_n = [c for c in self.all_categories if c != "All narratives"] or list(_UNIVERSE["narratives"])
         names_c = [c for c in self.all_chains if c != "All chains"] or list(_UNIVERSE["chains"])
-        self._narrative_full = _board(names_n, data["narratives"], _narrative_href)
-        self._chain_full = _board(names_c, data["chains"])
-        self.narrative_total, self.chain_total = len(self._narrative_full), len(self._chain_full)
+        self._narrative_base = _board(names_n, data["narratives"], _narrative_href, drop=_is_stablecoin)
+        self._chain_base = _board(names_c, data["chains"])
+        self.narrative_sort = self.chain_sort = ""
+        self.narrative_search = self.chain_search = ""
         self.narrative_table_page = self.chain_table_page = 1  # a new visit starts on page 1
         self._sector_page("narrative")
         self._sector_page("chain")
         self.sector_status, self.sector_updated = data["status"], data["updated"]
+
+    @rx.event
+    def set_narrative_search(self, value: str):
+        self.narrative_search, self.narrative_table_page = value, 1
+        self._sector_page("narrative")
+
+    @rx.event
+    def set_chain_search(self, value: str):
+        self.chain_search, self.chain_table_page = value, 1
+        self._sector_page("chain")
+
+    @rx.event
+    def cycle_narrative_sort(self, column: str):
+        """Header arrow of "gainer" / "loser": biggest first -> smallest first -> back to the 24h score order."""
+        self.narrative_sort = _next_sort(self.narrative_sort, column)
+        self.narrative_table_page = 1
+        self._sector_page("narrative")
+
+    @rx.event
+    def cycle_chain_sort(self, column: str):
+        self.chain_sort = _next_sort(self.chain_sort, column)
+        self.chain_table_page = 1
+        self._sector_page("chain")
 
     @rx.event
     def narrative_table_first(self):

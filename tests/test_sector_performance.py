@@ -44,3 +44,27 @@ def test_a_small_sector_still_gets_a_row_without_a_score_and_ranking_puts_it_las
     t = sp.sector_table(rows, {1: 2.0, 2: -1.0}, lambda r: r["narrative_list"])
     assert t["Tiny"]["pct"] is None and t["Tiny"]["top"] == [1, 2] and t["Tiny"]["gainers"] == [(1, 2.0)]
     assert sp.ranked(["Tiny", "Big"], {"Tiny": t["Tiny"], "Big": {"pct": 1.0}}) == ["Big", "Tiny"]
+
+
+def test_sector_view_sorts_by_gainer_or_loser_numbers_rows_and_searches_by_name(monkeypatch):
+    import sys
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parent.parent / "frontend"))
+    from frontend.state import coin_state as cs
+
+    base = [
+        {"name": "Alpha", "gain": 5.0, "loss": -2.0}, {"name": "Beta", "gain": None, "loss": -9.0},
+        {"name": "Gamma", "gain": 12.0, "loss": None}, {"name": "Usd Stablecoin", "gain": 0.1, "loss": -0.1},
+    ]
+    names = lambda v: [r["name"] for r in v]
+    assert names(cs.sector_view(base)) == ["Alpha", "Beta", "Gamma", "Usd Stablecoin"]
+    assert names(cs.sector_view(base, "gainer_desc")) == ["Gamma", "Alpha", "Usd Stablecoin", "Beta"]  # no gainer: last
+    assert names(cs.sector_view(base, "gainer_asc")) == ["Usd Stablecoin", "Alpha", "Gamma", "Beta"]
+    assert names(cs.sector_view(base, "loser_desc")) == ["Beta", "Alpha", "Usd Stablecoin", "Gamma"]  # biggest fall first
+    assert names(cs.sector_view(base, "loser_asc")) == ["Usd Stablecoin", "Alpha", "Beta", "Gamma"]
+    found = cs.sector_view(base, "gainer_desc", " AL")
+    assert names(found) == ["Alpha"] and found[0]["id"] == 2  # keeps its position in the sorted table
+    assert cs.sector_view(base, "bogus") == [{**r, "id": i} for i, r in enumerate(base, 1)]
+    assert [cs._next_sort(x, "gainer") for x in ("", "gainer_desc", "gainer_asc", "loser_desc")] == ["gainer_desc", "gainer_asc", "", "gainer_desc"]
+    assert [cs._is_stablecoin(n) for n in ("Fiat Stablecoin", "Usd STABLECOIN", "Memes")] == [True, True, False]

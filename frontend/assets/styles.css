@@ -1605,3 +1605,6 @@ svg.wl-star-force-off {
   background: var(--gray-4); border: 1px solid var(--gray-6); white-space: nowrap;
 }
 .coin-badge:hover { background: var(--gray-6); }
+.sector-sort { user-select: none; }
+.sector-search { width: 100%; }
+@media (min-width: 768px) { .sector-search { width: 280px; flex-shrink: 0; } }
