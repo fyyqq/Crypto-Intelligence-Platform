@@ -1548,6 +1548,9 @@ def _telegram_price_format():
     from frontend.state.coin_state import _fmt_usd
 
     _telegram().set_price_formatter(_fmt_usd)  # Core rule 1: every USD price goes through _fmt_usd
+    from frontend.telegram_price import price_message
+
+    _telegram().set_price_command(price_message)  # the /price command (chart-pair live price)
 
 
 _telegram_price_format()

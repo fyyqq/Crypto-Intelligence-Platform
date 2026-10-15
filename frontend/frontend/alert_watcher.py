@@ -66,6 +66,39 @@ def _fetched_price(item: dict) -> float | None:
     return price
 
 
+def chart_items(db, cmc_ids: set[int]) -> dict[int, dict]:
+    """{cmc_id: price item} for fetch_live_prices: each coin's chart pair (hand-picked override, else the pair the
+    coin page picks), its main contract and stored price, plus name/rank for display. Shared with the Telegram
+    /price command so both read the same TradingView pair."""
+    from app.models.coin import Coin
+    from app.models.coin_contract import CoinContract
+    from app.services.chart_override_service import all_overrides
+    from frontend.state.coin_state import _resolve_chart_symbol
+
+    contracts: dict[int, str] = {}
+    for cmc_id, address in (
+        db.query(Coin.cmc_id, CoinContract.contract_address)
+        .join(CoinContract, CoinContract.coin_id == Coin.id)
+        .filter(Coin.cmc_id.in_(cmc_ids), CoinContract.contract_address.is_not(None))
+        .order_by(CoinContract.is_primary.desc(), CoinContract.sort_order)
+    ):
+        contracts.setdefault(cmc_id, address)
+    overrides = all_overrides()
+    items: dict[int, dict] = {}
+    for c in db.query(Coin).filter(Coin.cmc_id.in_(cmc_ids)):
+        ref = float(c.price_usd or 0)
+        row = {
+            "market_pairs": c.cached_market_pairs or [], "price_raw": ref,
+            "tradingview_dex_symbol": c.tradingview_dex_symbol or "",
+            "chart_symbol_override": overrides.get(c.cmc_id, ""),
+        }
+        items[c.cmc_id] = {
+            "cmc_id": c.cmc_id, "symbol": c.symbol or "", "chart_symbol": _resolve_chart_symbol(c.symbol or "", row) or "",
+            "ref_price": ref, "contract": contracts.get(c.cmc_id, ""), "name": c.name, "rank": c.cmc_rank,
+        }
+    return items
+
+
 def check_once() -> int:
     """One pass over every active alert. Returns how many triggered."""
     from frontend.state.coin_state import _fmt_usd
@@ -76,47 +109,17 @@ def check_once() -> int:
         alerts = db.query(PriceAlert).filter(PriceAlert.triggered_at.is_(None)).all()
         if not alerts:
             return 0
-        ids = {a.cmc_id for a in alerts}
-        coins = list(db.query(Coin).filter(Coin.cmc_id.in_(ids)))
-        stored = {c.cmc_id: (c.symbol, float(c.price_usd or 0)) for c in coins}
-        # What CoinState's row carries for the chart pair choice.
-        pair_inputs = {
-            c.cmc_id: {
-                "market_pairs": c.cached_market_pairs or [],
-                "price_raw": float(c.price_usd or 0),
-                "tradingview_dex_symbol": c.tradingview_dex_symbol or "",
-            }
-            for c in coins
-        }
-        # The token's own contract (main chain first) for the DEX price path.
-        from app.models.coin_contract import CoinContract
-        from app.services.chart_override_service import all_overrides
-
-        contracts: dict[int, str] = {}
-        for cmc_id, address in (
-            db.query(Coin.cmc_id, CoinContract.contract_address)
-            .join(CoinContract, CoinContract.coin_id == Coin.id)
-            .filter(Coin.cmc_id.in_(ids), CoinContract.contract_address.is_not(None))
-            .order_by(CoinContract.is_primary.desc(), CoinContract.sort_order)
-        ):
-            contracts.setdefault(cmc_id, address)
-        overrides = all_overrides()
+        items = chart_items(db, {a.cmc_id for a in alerts})
         pending = [(a.user_id, a.id, a.cmc_id, a.direction, float(a.target_price)) for a in alerts]
     finally:
         db.close()
 
-    from frontend.state.coin_state import _resolve_chart_symbol
-
     prices = price_hub.get_prices()
     fired = 0
     for user_id, alert_id, cmc_id, direction, target in pending:
-        symbol, ref = stored.get(cmc_id, ("", 0.0))
-        row = {**pair_inputs.get(cmc_id, {}), "chart_symbol_override": overrides.get(cmc_id, "")}
-        item = {
-            "cmc_id": cmc_id, "symbol": symbol or "", "chart_symbol": _resolve_chart_symbol(symbol or "", row) or "",
-            "ref_price": ref, "contract": contracts.get(cmc_id, ""),
-        }
-        quote = prices.get((symbol or "").upper())
+        item = items.get(cmc_id) or {"cmc_id": cmc_id, "symbol": "", "chart_symbol": "", "ref_price": 0.0, "contract": ""}
+        symbol, ref = item["symbol"], item["ref_price"]
+        quote = prices.get(symbol.upper())
         hub = quote["price"] if quote and price_hub.plausible(quote["price"], ref) else None
         # The chart's own pair first (what the coin page and TradingView show).
         price = _fetched_price(item) or hub or ref

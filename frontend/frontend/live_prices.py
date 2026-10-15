@@ -79,6 +79,12 @@ def _price(client: httpx.Client, exchange: str, pair: str) -> float | None:
 
 
 def _live_price_for(client: httpx.Client, item: dict) -> float | None:
+    return _live_price_source(client, item)[0]
+
+
+def _live_price_source(client: httpx.Client, item: dict) -> tuple[float | None, str]:
+    """(price, where it came from): "chart" (the chart symbol's own exchange pair), "exchange" (a ticker guess on a
+    listed exchange), "dex" (the token's contract on DexScreener) or "" when nothing could price it."""
     ref = float(item.get("ref_price") or 0)
 
     def sane(v: float | None) -> bool:
@@ -97,17 +103,18 @@ def _live_price_for(client: httpx.Client, item: dict) -> float | None:
         # rejected as "a different coin".
         v = _price(client, exchange, pair)
         if v and v > 0 and (ref <= 0 or 0.2 <= v / ref <= 5.0):
-            return v
+            return v, "chart"
     ticker = "".join(c for c in item.get("symbol", "").upper() if c.isalnum())
     if ticker:
         for exchange in _FALLBACK_ORDER:
             v = _price(client, exchange, f"{ticker}USDT")
             if sane(v):
-                return v
+                return v, "exchange"
     # No exchange we can read lists it (e.g. a memecoin only on KCEX or only
     # on DEXes): its own contract's DEX price. A contract address is an exact
     # identity, so no sanity band against the (possibly stale) stored price.
-    return _dex_price(client, item.get("contract") or "")
+    v = _dex_price(client, item.get("contract") or "")
+    return (v, "dex") if v else (None, "")
 
 
 _dex_cache: dict[str, tuple[float, dict | None]] = {}
@@ -165,6 +172,19 @@ def fetch_live_prices(items: list[dict]) -> dict[int, float]:
         for item, price in zip(items, pool.map(lambda it: _live_price_for(client, it), items)):
             if price:
                 out[int(item["cmc_id"])] = price
+    return out
+
+
+def fetch_live_prices_with_source(items: list[dict]) -> dict[int, tuple[float, str]]:
+    """Like fetch_live_prices, but {cmc_id: (price, "chart" | "exchange" | "dex")}."""
+    if not items:
+        return {}
+    out: dict[int, tuple[float, str]] = {}
+    client = _shared_client()
+    with ThreadPoolExecutor(max_workers=min(8, len(items))) as pool:
+        for item, (price, source) in zip(items, pool.map(lambda it: _live_price_source(client, it), items)):
+            if price:
+                out[int(item["cmc_id"])] = (price, source)
     return out
 
 

@@ -173,6 +173,7 @@ COMMANDS = [
     {"command": "forex_factory", "description": "This month's CPI, FOMC, jobs report & Fed speeches"},
     {"command": "alerts", "description": "Show list of active alerts"},
     {"command": "alert", "description": "Show active alerts for one coin, e.g. /alert ETH"},
+    {"command": "price", "description": "Live price of a coin by ticker, e.g. /price $meme"},
 ]
 
 
@@ -189,6 +190,7 @@ def commands_overview() -> str:
         "<code>/alert {coin}</code> - active alerts of one coin, e.g. /alert ETH",
         "",
         "<b>Market</b>",
+        "<code>/price ${ticker}</code> - live price from the TradingView chart pair, every coin with that ticker, e.g. /price $meme",
         "/fear_greed_index - Fear &amp; Greed Index, now and yesterday",
         "/forex_factory - this month's US CPI, FOMC, Non-Farm Employment and Fed speeches (Kuala Lumpur time). /forex-factory works too",
         "",
@@ -257,6 +259,14 @@ def set_price_formatter(fn) -> None:
     _fmt_price = fn
 
 
+_price_command = None  # frontend/telegram_price.py::price_message, registered by frontend.py
+
+
+def set_price_command(fn) -> None:
+    global _price_command
+    _price_command = fn
+
+
 def _user_for_chat(chat_id: int) -> int | None:
     db = SessionLocal()
     try:
@@ -318,7 +328,7 @@ def handle_message(msg: dict) -> None:
         return
     parsed = digest.parse_command(cmd)
     past = digest.parse_date_command(cmd)
-    if cmd not in ("alerts", "command1", "alert", "fear_greed_index", "site_health", "forex_factory") and not parsed and not past:
+    if cmd not in ("alerts", "command1", "alert", "fear_greed_index", "site_health", "forex_factory", "price") and not parsed and not past:
         return
     user_id = _user_for_chat(chat["id"])
     if not user_id:
@@ -329,6 +339,12 @@ def handle_message(msg: dict) -> None:
         _send(chat["id"], site_health_service.build_message())
     elif cmd == "fear_greed_index":
         digest.handle_fng(chat["id"])
+    elif cmd == "price":
+        sym = arg.lstrip("$").strip()
+        if not re.fullmatch(r"[A-Za-z0-9]{1,20}", sym) or _price_command is None:
+            _send(chat["id"], "Usage: /price $meme (a coin's ticker)")
+        else:
+            _send(chat["id"], _price_command(sym))
     elif cmd == "forex_factory":
         from app.services import macro_reminder_service
 
