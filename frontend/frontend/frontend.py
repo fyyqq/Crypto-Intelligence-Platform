@@ -75,7 +75,7 @@ def _profile_menu_item() -> rx.Component:
                 align="center",
                 class_name="profile-menu-item",
             ),
-            href="/profile",
+            href="/profile/edit-profile",
             underline="none",
             display="block",
             width="100%",
@@ -1173,17 +1173,17 @@ def chains_page() -> rx.Component:
 
 
 def profile_page() -> rx.Component:
-    # /profile — edit details, profile picture and banner (full-bleed banner, so no outer padding).
-    return _index_shell(profile_content())
+    # /profile — the account area, opening on Portfolio; the sidebar swaps to the edit view in place.
+    return _index_shell(profile_content("portfolio"))
+
+
+def edit_profile_page() -> rx.Component:
+    # /profile/edit-profile — the same page and sidebar on the edit view (details, profile picture, banner).
+    return _index_shell(profile_content("edit"))
 
 
 def memecoin_page() -> rx.Component:
     return _placeholder_page("Memecoin")
-
-
-def portfolio_page() -> rx.Component:
-    # /portfolio — blank for now; reached from the /profile sidebar.
-    return _placeholder_page("Portfolio")
 
 
 def _tools_shell(content: rx.Component, *scripts: str) -> rx.Component:
@@ -1692,16 +1692,19 @@ app.add_page(
     title="Repace — Market Charts",
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
 )
-app.add_page(
-    profile_page,
-    route="/profile",
-    title="Repace — Profile",
-    on_load=[CoinState.restore_session, CoinState.require_login, CoinState.load_coins, CoinState.start_alert_watch, ProfileState.load_profile],
-)
+for _route, _page_fn, _title in [
+    ("/profile", profile_page, "Repace — Portfolio"),
+    ("/profile/edit-profile", edit_profile_page, "Repace — Edit Profile"),
+]:
+    app.add_page(
+        _page_fn,
+        route=_route,
+        title=_title,
+        on_load=[CoinState.restore_session, CoinState.require_login, CoinState.load_coins, CoinState.start_alert_watch, ProfileState.load_profile],
+    )
 for _route, _page_fn in [
     ("/chains", chains_page),
     ("/memecoin", memecoin_page),
-    ("/portfolio", portfolio_page),
     ("/watchlist", watchlist_page),
 ]:
     # /watchlist also runs the live price loop (shared exchange prices every 30s); /chains loads its 24h board.

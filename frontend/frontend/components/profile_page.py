@@ -114,17 +114,36 @@ def _form() -> rx.Component:
     )
 
 
+# (label, icon, view, path). The two views live in one page: the sidebar swaps the content and the address bar in
+# the browser (assets/profile_sidebar.js), so the sidebar never reloads. Each path is also a real route (frontend.py)
+# so a refresh or a shared link opens the same view.
 _SIDE_LINKS = [
-    ("Profile", "user", "/profile"),
-    ("Portfolio", "wallet", "/portfolio"),
+    ("Portfolio", "wallet", "portfolio", "/profile"),
+    ("Profile", "user", "edit", "/profile/edit-profile"),
 ]
 
 
 def _sidebar() -> rx.Component:
-    """Account sidebar: 25% of the width next to the page (sticky, never over it). The toggle shrinks it to an icon
-    strip and back (assets/profile_sidebar.js flips `profile-collapsed` on .profile-layout and remembers the choice)."""
+    """Account sidebar: 25% of the width next to the page (sticky, never over it). The chevron button at the bottom
+    shrinks it to an icon strip and back (assets/profile_sidebar.js flips `profile-collapsed` on .profile-layout and
+    remembers the choice); the account (avatar, name, e-mail) sits under the links."""
     return rx.el.aside(
         rx.box(
+            rx.el.nav(
+                *[
+                    rx.link(
+                        rx.icon(icon, size=18, flex_shrink="0"),
+                        rx.text(label, size="2", class_name="profile-side-label"),
+                        href=path,
+                        underline="none",
+                        title=label,
+                        class_name="profile-side-link",
+                        custom_attrs={"data-view": view},
+                    )
+                    for label, icon, view, path in _SIDE_LINKS
+                ],
+                class_name="profile-side-nav",
+            ),
             rx.box(
                 rx.box(
                     rx.cond(
@@ -140,8 +159,8 @@ def _sidebar() -> rx.Component:
                     class_name="profile-side-user",
                 ),
                 rx.el.button(
-                    rx.icon("panel-left-close", size=18, class_name="profile-side-icon-close"),
-                    rx.icon("panel-left-open", size=18, class_name="profile-side-icon-open"),
+                    rx.icon("chevron-left", size=18, class_name="profile-side-icon-close"),
+                    rx.icon("chevron-right", size=18, class_name="profile-side-icon-open"),
                     type="button",
                     title="Minimize / open the sidebar",
                     aria_label="Minimize or open the sidebar",
@@ -149,28 +168,29 @@ def _sidebar() -> rx.Component:
                 ),
                 class_name="profile-side-top",
             ),
-            rx.el.nav(
-                *[
-                    rx.link(
-                        rx.icon(icon, size=18, flex_shrink="0"),
-                        rx.text(label, size="2", class_name="profile-side-label"),
-                        href=href,
-                        underline="none",
-                        title=label,
-                        class_name="profile-side-link" + (" profile-side-link-active" if href == "/profile" else ""),
-                    )
-                    for label, icon, href in _SIDE_LINKS
-                ],
-                class_name="profile-side-nav",
-            ),
             class_name="profile-sidebar-inner",
         ),
         class_name="profile-sidebar",
     )
 
 
-def profile_content() -> rx.Component:
-    return rx.box(_sidebar(), _profile_main(), class_name="profile-layout")
+def _portfolio_view() -> rx.Component:
+    return rx.center(
+        rx.vstack(
+            rx.heading("Portfolio", size="7"),
+            rx.text("Coming soon", size="3", color_scheme="gray"),
+            spacing="2",
+            align="center",
+        ),
+        min_height="60vh",
+        width="100%",
+        class_name="profile-main profile-view-portfolio",
+    )
+
+
+def profile_content(view: str = "portfolio") -> rx.Component:
+    """`view` is the one shown first: "portfolio" (/profile) or "edit" (/profile/edit-profile)."""
+    return rx.box(_sidebar(), _portfolio_view(), _profile_main(), class_name="profile-layout", custom_attrs={"data-view": view})
 
 
 def _profile_main() -> rx.Component:
@@ -227,5 +247,5 @@ def _profile_main() -> rx.Component:
             ),
             class_name="profile-body",
         ),
-        class_name="profile-page profile-main",
+        class_name="profile-page profile-main profile-view-edit",
     )

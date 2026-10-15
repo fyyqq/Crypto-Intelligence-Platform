@@ -1594,13 +1594,14 @@ svg.wl-star-force-off {
 .profile-layout { display: flex; align-items: flex-start; width: 100%; }
 .profile-main { flex: 1 1 0; min-width: 0; }
 .profile-sidebar {
-  flex: 0 0 25%; width: 25%; box-sizing: border-box; align-self: stretch; padding: 12px;
+  flex: 0 0 25%; width: 25%; box-sizing: border-box; align-self: stretch; padding: 0;
   background: var(--gray-a2); border-right: 1px solid var(--gray-a5); transition: flex-basis 0.2s ease, width 0.2s ease;
 }
 /* The column is as tall as the page; its content stays in view while scrolling (below the sticky header on tablets). */
-.profile-sidebar-inner { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; overflow-x: hidden; }
-@media (max-width: 1023px) { .profile-sidebar-inner { top: 76px; max-height: calc(100vh - 88px); } }
-.profile-side-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.profile-sidebar-inner { box-sizing: border-box; padding: 12px; position: sticky; top: 0; height: calc(100vh - 84px); display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+.profile-layout { min-height: calc(100vh - 84px); }
+@media (max-width: 1023px) { .profile-sidebar-inner { top: 64px; height: calc(100vh - 150px); } }
+.profile-side-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--gray-a5); }
 .profile-side-user { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .profile-side-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
 .profile-side-avatar-empty { background: var(--gray-a4); display: flex; align-items: center; justify-content: center; }
@@ -1617,9 +1618,13 @@ svg.wl-star-force-off {
   display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: var(--gray-12); cursor: pointer;
 }
 .profile-side-link:hover { background: var(--gray-a4); text-decoration: none; }
-.profile-side-link-active { background: var(--accent-a4); color: var(--accent-11); font-weight: 600; }
+.profile-layout[data-view="portfolio"] .profile-side-link[data-view="portfolio"],
+.profile-layout[data-view="edit"] .profile-side-link[data-view="edit"] { background: var(--accent-a4); color: var(--accent-11); font-weight: 600; }
+/* The two views of /profile: only the one named by data-view shows. */
+.profile-layout[data-view="portfolio"] .profile-view-edit, .profile-layout[data-view="edit"] .profile-view-portfolio { display: none; }
 .profile-side-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.profile-layout.profile-collapsed .profile-sidebar { flex-basis: 64px; width: 64px; padding: 12px 8px; }
+.profile-layout.profile-collapsed .profile-sidebar { flex-basis: 64px; width: 64px; }
+.profile-layout.profile-collapsed .profile-sidebar-inner { padding: 12px 8px; }
 .profile-layout.profile-collapsed .profile-side-label,
 .profile-layout.profile-collapsed .profile-side-user { display: none; }
 .profile-layout.profile-collapsed .profile-side-top { justify-content: center; }
@@ -1631,11 +1636,13 @@ svg.wl-star-force-off {
   .profile-sidebar, .profile-layout.profile-collapsed .profile-sidebar {
     flex: 0 0 auto; width: 100%; border-right: none; border-bottom: 1px solid var(--gray-a5); padding: 10px 16px;
   }
-  .profile-sidebar-inner { position: static; max-height: none; overflow: visible; }
+  .profile-layout { min-height: 0; }
+  .profile-sidebar-inner, .profile-layout.profile-collapsed .profile-sidebar-inner { position: static; height: auto; overflow: visible; padding: 0; }
+  .profile-side-top { margin-top: 12px; }
   .profile-layout.profile-collapsed .profile-side-nav { display: none; }
   .profile-layout.profile-collapsed .profile-side-user, .profile-layout.profile-collapsed .profile-side-who { display: flex; }
   .profile-layout.profile-collapsed .profile-side-top { justify-content: space-between; }
-  .profile-layout.profile-collapsed .profile-side-top { margin-bottom: 0; }
+  .profile-layout.profile-collapsed .profile-side-top { margin-top: 0; padding-top: 0; border-top: none; }
 }
 
 /* /narrative and /chains: name + 24h score inside one pill (components/index_pages.py). */
