@@ -1544,6 +1544,7 @@ app.add_page(
         CoinState.refresh_business_summary,
         CoinState.refresh_market_pairs,
         CoinState.refresh_tradingview_dex_symbol,
+        CoinState.refresh_launch_date,
         CoinState.refresh_defillama_unlocks_slug,
         # Real news for the "<Coin> News" section: load the (shared) article
         # list, then tell NewsState which coin this page is showing.

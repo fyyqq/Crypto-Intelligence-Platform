@@ -2,6 +2,7 @@ from app.models.category import Category, coin_category
 from app.models.chart_symbol_override import ChartSymbolOverride
 from app.models.coin import Coin
 from app.models.coin_contract import CoinContract
+from app.models.coin_launch_date import CoinLaunchDate
 from app.models.movers_daily import MoversDaily
 from app.models.notification import Notification
 from app.models.price_alert import PriceAlert
@@ -16,6 +17,7 @@ __all__ = [
     "ChartSymbolOverride",
     "Coin",
     "CoinContract",
+    "CoinLaunchDate",
     "MoversDaily",
     "Notification",
     "PriceAlert",

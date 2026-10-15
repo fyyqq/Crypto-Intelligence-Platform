@@ -899,6 +899,8 @@ def _build_row(coin: Coin) -> dict:
         "change_7d_display": _fmt_pct(coin.percent_change_7d or 0.0),
         "change_7d_color": _pct_color(coin.percent_change_7d or 0.0),
         "narratives": ", ".join(names),
+        "launch_date": "",  # filled from coin_launch_dates by ensure_universe / refresh_launch_date
+        "age_display": "",
         "narrative_list": names,
         "primary_narrative": primary_narrative,
         # Use-case peer group (app/services/peer_groups.py) for the coin
@@ -1367,6 +1369,21 @@ def _fetch_market_pairs(symbol: str, cmc_id: int | None = None) -> tuple[int, li
     return cmc_id, pairs
 
 
+def _fetch_launch_date(cmc_id: int) -> str:
+    """Blocking work for CoinState.refresh_launch_date: the coin's start date as an ISO string ("" when unknown),
+    looked up once from CoinGecko / DexScreener and remembered (coin_age_service.ensure)."""
+    import sys
+    from pathlib import Path
+
+    _root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    from app.services import coin_age_service
+
+    found = coin_age_service.ensure(cmc_id)
+    return found.isoformat() if found else ""
+
+
 def _fetch_tradingview_dex_symbol(symbol: str, cmc_id: int | None = None) -> tuple[int, str | None] | None:
     """Blocking work for CoinState.refresh_tradingview_dex_symbol — same
     lookup-by-ticker-in-Postgres pattern as _fetch_market_pairs above,
@@ -1544,7 +1561,16 @@ def ensure_universe(force: bool = False) -> None:
             overrides = all_overrides()
         except Exception:  # noqa: BLE001 - charts fall back to the automatic pick
             overrides = {}
+        try:  # start dates (coin_age_service); a failure only leaves the age blank
+            from app.services.coin_age_service import all_dates, format_age
+
+            launches = all_dates()
+        except Exception:  # noqa: BLE001
+            launches, format_age = {}, (lambda d: "")
         for row in rows:
+            d = launches.get(row["cmc_id"])
+            row["launch_date"] = d.isoformat() if d else ""
+            row["age_display"] = format_age(d) if d else ""
             row["chart_symbol_override"] = overrides.get(row["cmc_id"], "")
         slugs = assign_slugs(rows)
         _UNIVERSE.update(
@@ -3574,6 +3600,24 @@ class CoinState(rx.State):
                     "tradingview_dex_symbol": dex_symbol or "",
                     "tradingview_dex_symbol_fetched": True,
             })
+
+    @rx.event(background=True)
+    async def refresh_launch_date(self):
+        """One-shot, on-demand when a coin page opens: finds the coin's start date if it is not known yet (CoinGecko, then
+        its oldest DEX pair; remembered, a miss retried after 3 days) and fills the Age row without a reload."""
+        async with self:
+            cmc_id = (self.selected_coin or {}).get("cmc_id")
+        if not cmc_id:
+            return
+        iso = await asyncio.to_thread(_fetch_launch_date, int(cmc_id))
+        if not iso:
+            return
+        from datetime import date as _date
+
+        from app.services.coin_age_service import format_age
+
+        async with self:
+            self._set_override(cmc_id, {"launch_date": iso, "age_display": format_age(_date.fromisoformat(iso))})
 
     @rx.event(background=True)
     async def refresh_defillama_unlocks_slug(self):

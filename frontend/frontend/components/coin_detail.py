@@ -1008,6 +1008,8 @@ def _info_column() -> rx.Component:
                 _stat_row("Max supply", coin["max_supply_display"]),
                 _stat_row("Circulating supply", coin["circulating_supply_display"]),
                 _stat_row("Holders", "—"),
+                # Start date + how long ago (coin_age_service); "—" until a source knows it.
+                _stat_row("Age", rx.cond(coin["age_display"] != "", coin["age_display"], "—")),
                 spacing="3",
                 width="100%",
             ),

@@ -288,6 +288,10 @@ class MarketDataService:
             coin.categories = coin_categories
 
         self.db.commit()
+        # CMC's listing carries each coin's date_added for free: the last-resort start date (coin_age_service).
+        from app.services import coin_age_service
+
+        coin_age_service.record_cmc_bulk(self.db, {p["id"]: (None, p.get("date_added")) for p in coins if p.get("id")})
         return len(coins)
 
     def _upsert_quotes(self, coins: list[dict]) -> int:
@@ -322,6 +326,12 @@ class MarketDataService:
         return count
 
     def _upsert_contracts(self, info_by_id: dict[int, dict]) -> int:
+        from app.services import coin_age_service
+
+        # /info carries date_launched (the coin's own start, when CMC knows it) and date_added: no extra credits.
+        coin_age_service.record_cmc_bulk(
+            self.db, {cid: (info.get("date_launched"), info.get("date_added")) for cid, info in info_by_id.items()}
+        )
         coins_by_cmc_id = {c.cmc_id: c for c in self.db.scalars(select(Coin)).all()}
         count = 0
         for cmc_id, info in info_by_id.items():

@@ -20,6 +20,7 @@ rate-limited without a key.
 """
 
 import logging
+import time
 from datetime import datetime
 
 import requests
@@ -98,13 +99,17 @@ def is_boilerplate_description(description: str | None) -> bool:
 # that rank tier, so a symbol match there is effectively unambiguous.
 _TOP_COIN_RANK_CUTOFF = 500
 _top_coin_symbol_to_id: dict[str, str] | None = None
+_top_coin_map_failed_at = 0.0
 
 
 def _get_top_coin_symbol_map() -> dict[str, str]:
-    global _top_coin_symbol_to_id
+    global _top_coin_symbol_to_id, _top_coin_map_failed_at
     if _top_coin_symbol_to_id is not None:
         return _top_coin_symbol_to_id
+    if time.time() - _top_coin_map_failed_at < 60:  # a failed fetch (429) is retried after a minute, not on every call
+        return {}
     mapping: dict[str, str] = {}
+    ok = False
     try:
         for page in (1, 2):
             response = requests.get(
@@ -121,9 +126,13 @@ def _get_top_coin_symbol_map() -> dict[str, str]:
                 # smaller same-ticker project appearing later in the list.
                 if symbol and coingecko_id and symbol not in mapping:
                     mapping[symbol] = coingecko_id
+        ok = True
     except (requests.RequestException, ValueError) as exc:
         logger.warning("CoinGecko top-coin symbol map fetch failed: %s", exc)
-    _top_coin_symbol_to_id = mapping
+    if ok:
+        _top_coin_symbol_to_id = mapping  # only a complete fetch is kept for the life of the process
+    else:
+        _top_coin_map_failed_at = time.time()
     return mapping
 
 
