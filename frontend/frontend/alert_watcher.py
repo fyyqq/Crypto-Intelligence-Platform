@@ -2,12 +2,14 @@
 
 Every CHECK_SECONDS: load every account's active alerts; if there are none,
 stop there (no price calls at all). Otherwise price each alerted coin the
-way its coin page does (the price the chart shows): a hand-picked chart
-symbol (chart_symbol_override) first; then the shared exchange price list
-(app/services/price_hub.py, ~30s fresh, free) when it is plausible against
-the coin's stored price; then the token's own DEX pool by contract
-(DexScreener, for coins no exchange lists); and only last the stored price
-(hourly CoinMarketCap sync, which is stale for such coins). Then trigger every alert whose
+way its coin page does, from the very pair the TradingView chart streams:
+the hand-picked chart symbol (chart_symbol_override) or else the same
+CEX/DEX pair CoinState picks for the chart (_resolve_chart_symbol over the
+coin's cached market pairs), read through frontend/live_prices.py (the same
+call as the header price). Only when that cannot be priced: the shared
+exchange price list (app/services/price_hub.py, plausible vs. the stored
+price), then the DEX pool by contract, and last the stored price (hourly
+CoinMarketCap sync). Then trigger every alert whose
 target was crossed through alert_service.mark_triggered, which marks it
 once (atomically, so an open tab's own 4s check and this one never both
 fire) and creates the account's notification (bell + /notifications) and
@@ -75,7 +77,17 @@ def check_once() -> int:
         if not alerts:
             return 0
         ids = {a.cmc_id for a in alerts}
-        stored = {c.cmc_id: (c.symbol, float(c.price_usd or 0)) for c in db.query(Coin).filter(Coin.cmc_id.in_(ids))}
+        coins = list(db.query(Coin).filter(Coin.cmc_id.in_(ids)))
+        stored = {c.cmc_id: (c.symbol, float(c.price_usd or 0)) for c in coins}
+        # What CoinState's row carries for the chart pair choice.
+        pair_inputs = {
+            c.cmc_id: {
+                "market_pairs": c.cached_market_pairs or [],
+                "price_raw": float(c.price_usd or 0),
+                "tradingview_dex_symbol": c.tradingview_dex_symbol or "",
+            }
+            for c in coins
+        }
         # The token's own contract (main chain first) for the DEX price path.
         from app.models.coin_contract import CoinContract
         from app.services.chart_override_service import all_overrides
@@ -93,21 +105,21 @@ def check_once() -> int:
     finally:
         db.close()
 
+    from frontend.state.coin_state import _resolve_chart_symbol
+
     prices = price_hub.get_prices()
     fired = 0
     for user_id, alert_id, cmc_id, direction, target in pending:
         symbol, ref = stored.get(cmc_id, ("", 0.0))
+        row = {**pair_inputs.get(cmc_id, {}), "chart_symbol_override": overrides.get(cmc_id, "")}
         item = {
-            "cmc_id": cmc_id, "symbol": symbol or "", "chart_symbol": overrides.get(cmc_id, ""),
+            "cmc_id": cmc_id, "symbol": symbol or "", "chart_symbol": _resolve_chart_symbol(symbol or "", row) or "",
             "ref_price": ref, "contract": contracts.get(cmc_id, ""),
         }
         quote = prices.get((symbol or "").upper())
         hub = quote["price"] if quote and price_hub.plausible(quote["price"], ref) else None
-        if cmc_id in overrides:
-            # A hand-picked chart wins: price what that chart shows.
-            price = _fetched_price(item) or hub or ref
-        else:
-            price = hub or (_fetched_price(item) if contracts.get(cmc_id) else None) or ref
+        # The chart's own pair first (what the coin page and TradingView show).
+        price = _fetched_price(item) or hub or ref
         if price <= 0:
             continue
         hit = price >= target if direction == "above" else price <= target

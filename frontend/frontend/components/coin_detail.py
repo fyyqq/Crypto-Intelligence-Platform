@@ -895,23 +895,12 @@ def _alert_dialog() -> rx.Component:
     )
 
 
-def _alert_group(title: str, icon: str, color: str, alerts: rx.Var, empty: str) -> rx.Component:
-    """One side of the alert list: a coloured label, then its alerts (or a muted line)."""
-    return rx.vstack(
-        rx.hstack(
-            rx.icon(icon, size=14, color=color),
-            rx.text(title, size="1", weight="bold", color=color),
-            spacing="1",
-            align="center",
-        ),
-        rx.cond(
-            alerts.length() > 0,
-            rx.vstack(rx.foreach(alerts, _alert_row), spacing="2", width="100%"),
-            rx.text(empty, size="1", color_scheme="gray"),
-        ),
-        spacing="2",
-        width="100%",
-        align="start",
+def _alert_group(alerts: rx.Var) -> rx.Component:
+    """One side of the alert list: its alerts, highest price first (no label; the row arrows show the side)."""
+    return rx.cond(
+        alerts.length() > 0,
+        rx.vstack(rx.foreach(alerts, _alert_row), spacing="2", width="100%"),
+        rx.fragment(),
     )
 
 
@@ -928,11 +917,11 @@ def _alerts_section() -> rx.Component:
             rx.fragment(
                 rx.cond(
                     CoinState.has_coin_alerts,
-                    # Above-price alerts (green) and below-price alerts (red), a divider between them.
+                    # Above-price alerts (green) and below-price alerts (red), a divider between them (only when both exist).
                     rx.vstack(
-                        _alert_group("Above price", "trending-up", "var(--green-9)", CoinState.coin_alerts_above, "No alert above the price."),
-                        rx.divider(),
-                        _alert_group("Below price", "trending-down", "var(--red-9)", CoinState.coin_alerts_below, "No alert below the price."),
+                        _alert_group(CoinState.coin_alerts_above),
+                        rx.cond((CoinState.coin_alerts_above.length() > 0) & (CoinState.coin_alerts_below.length() > 0), rx.divider()),
+                        _alert_group(CoinState.coin_alerts_below),
                         spacing="3",
                         width="100%",
                     ),
