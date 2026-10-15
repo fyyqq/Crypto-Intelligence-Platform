@@ -30,6 +30,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import threading
 import time
 import urllib.parse
@@ -47,6 +48,7 @@ ACCOUNT_TTL = 20  # seconds: balances + open orders
 PRICES_TTL = 10  # seconds: public 24h tickers
 TRADES_TTL = 600  # seconds: a coin's trade history (refetched sooner when its balance changes)
 COIN_ORDERS_TTL = 20  # seconds: open orders of a coin you don't hold (coin page)
+KLINES_TTL = 60  # seconds: the coin page mini chart's candles (public market data, shared)
 DUST_USD = 1.0  # holdings worth less than this are summed as "small balances"
 RECENT_FILLS = 50  # latest trades returned (the page shows them 5 at a time)
 _TRADE_PAGES = 5  # up to 5 x 100 trades per coin
@@ -153,6 +155,8 @@ def _from_fixture(fx: dict, path: str, params: dict) -> object:
         return orders.get(params["symbol"], [])
     if path == "/api/v3/myTrades":
         return fx.get("myTrades", {}).get(params.get("symbol", ""), [])
+    if path == "/api/v3/klines":
+        return fx.get("klines", {}).get(params.get("symbol", ""), [])
     raise MexcError("Not available in demo data.")
 
 
@@ -551,6 +555,36 @@ def coin_orders(asset: str) -> list[dict]:
                 _cache["coin_orders"][symbol] = hit
         rows = hit["rows"]
     return sorted((_order_row(o) for o in rows), key=lambda o: o["price"], reverse=True)
+
+
+def klines(asset: str, interval: str = "60m", limit: int = 168) -> list[list[float]]:
+    """Public candles of <asset>USDT on MEXC for the coin page's mini chart: [[open time (s), open, high, low, close],
+    ...] oldest first (default 7 days of 1-hour candles). Cached per pair for KLINES_TTL seconds and shared; [] when
+    MEXC has no such pair or cannot be reached (respects the rate-limit pause like every other call)."""
+    asset = (asset or "").upper()
+    if not asset or not re.fullmatch(r"[A-Z0-9]{1,20}", asset) or not is_configured():
+        return []
+    symbol = f"{asset}USDT"
+    store = _cache.setdefault("klines", {})
+    hit = store.get(symbol)
+    if hit and time.time() - hit["at"] < KLINES_TTL:
+        return hit["rows"]
+    try:
+        raw = _get("/api/v3/klines", {"symbol": symbol, "interval": interval, "limit": limit})
+    except MexcError:
+        raw = hit["rows"] if hit else []  # keep the last candles on a hiccup
+        store[symbol] = {"at": time.time(), "rows": raw}
+        return raw
+    rows = []
+    for k in raw if isinstance(raw, list) else []:
+        try:
+            rows.append([int(float(k[0]) / 1000), _f(k[1]), _f(k[2]), _f(k[3]), _f(k[4])])
+        except (TypeError, ValueError, IndexError):
+            continue
+    rows = [r for r in rows if r[4] > 0]
+    rows.sort(key=lambda r: r[0])
+    store[symbol] = {"at": time.time(), "rows": rows}
+    return rows
 
 
 # ------------------------------------------------------------------------------------------- manual costs

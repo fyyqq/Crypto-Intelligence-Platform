@@ -199,6 +199,166 @@ def _allocation() -> rx.Component:
     )
 
 
+_CHART_BLUE = "#3B82F6"  # readable on light and dark
+# Recharts has no typed prop for these in this Reflex version, so they go in as raw JS functions.
+_USD_TICK = rx.Var("(v) => '$' + Number(v).toLocaleString('en-US', {maximumFractionDigits: 0})")
+_USD_TOOLTIP = rx.Var("(v) => ['$' + Number(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}), 'Total balance']")
+
+
+def _balance_area(data, height, full: bool) -> rx.Component:
+    parts = [
+        rx.el.svg.defs(
+            rx.el.svg.linear_gradient(
+                rx.el.svg.stop(offset="0%", stop_color=_CHART_BLUE, stop_opacity=0.35),
+                rx.el.svg.stop(offset="100%", stop_color=_CHART_BLUE, stop_opacity=0.02),
+                id="pfBalanceFill" + ("Full" if full else "Card"),
+                x1="0", y1="0", x2="0", y2="1",
+            )
+        ),
+        rx.recharts.area(
+            data_key="v",
+            type_="monotone",
+            stroke=_CHART_BLUE,
+            stroke_width=2,
+            fill="url(#pfBalanceFill" + ("Full" if full else "Card") + ")",
+            dot=False,
+            active_dot={"r": 4} if full else False,
+            is_animation_active=False,
+        ),
+    ]
+    if full:
+        parts += [
+            rx.recharts.cartesian_grid(stroke_dasharray="3 3", vertical=False, stroke="rgba(128,128,128,0.25)"),
+            rx.recharts.x_axis(data_key="t", min_tick_gap=56, tick_line=False, axis_line=False, custom_attrs={"tick": {"fontSize": 11, "fill": "#8b8d98"}}),
+            rx.recharts.y_axis(domain=["auto", "auto"], width=72, tick_line=False, axis_line=False, custom_attrs={"tickFormatter": _USD_TICK, "tick": {"fontSize": 11, "fill": "#8b8d98"}}),
+            rx.recharts.graphing_tooltip(
+                content_style={"background": "var(--color-panel-solid)", "border": "1px solid var(--gray-a5)", "borderRadius": "8px", "color": "var(--gray-12)"},
+                label_style={"color": "var(--gray-11)"},
+                custom_attrs={"formatter": _USD_TOOLTIP},
+            ),
+        ]
+    else:
+        parts.append(rx.recharts.y_axis(domain=["dataMin", "dataMax"], hide=True))
+    return rx.recharts.area_chart(*parts, data=data, width="100%", height=height, margin={"top": 6, "right": 4, "left": 4, "bottom": 0})
+
+
+def _balance_card() -> rx.Component:
+    """Under Allocation: the total balance over the last 7 days (recorded every 5 min + the live total). A click
+    opens the full chart."""
+    return rx.box(
+        rx.flex(
+            rx.vstack(
+                rx.text("Total balance · 7D", size="1", color="var(--gray-11)"),
+                rx.text(rx.cond(S.pf_hist_card_info.contains("value"), S.pf_hist_card_info["value"], S.pf_summary["total"]), size="6", weight="bold", color="var(--gray-12)", class_name="pf-num"),
+                rx.cond(
+                    S.pf_hist_card.length() > 1,
+                    rx.text(S.pf_hist_card_info["change"], " (", S.pf_hist_card_info["change_pct"], ")", size="1", weight="medium", color=S.pf_hist_card_info["color"], class_name="pf-num"),
+                ),
+                spacing="0",
+            ),
+            rx.icon("maximize-2", size=15, color="var(--gray-10)"),
+            justify="between",
+            align="start",
+            width="100%",
+        ),
+        rx.cond(
+            S.pf_hist_card.length() > 1,
+            rx.box(_balance_area(S.pf_hist_card, 96, False), margin_top="0.5em", width="100%"),
+            rx.text("Collecting data: the balance is saved every 5 minutes, the line appears after the first two readings.", size="1", color="var(--gray-11)", margin_top="0.75em"),
+        ),
+        on_click=S.open_balance_chart,
+        class_name="pf-card pf-balance-card",
+        role="button",
+        tab_index=0,
+        title="Open the balance chart",
+    )
+
+
+_HIST_RANGE_BUTTONS = [("24h", "24H"), ("7d", "7D"), ("1m", "1M"), ("full", "Full Chart")]
+
+
+def _balance_popup() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.flex(
+                rx.vstack(
+                    rx.dialog.title("Total balance", margin="0", size="4"),
+                    rx.cond(
+                        S.pf_hist_info.contains("value"),
+                        rx.hstack(
+                            rx.text(S.pf_hist_info["value"], size="6", weight="bold", color="var(--gray-12)", class_name="pf-num"),
+                            rx.text(S.pf_hist_info["change"], " (", S.pf_hist_info["change_pct"], ")", size="2", weight="medium", color=S.pf_hist_info["color"], class_name="pf-num"),
+                            spacing="2",
+                            align="baseline",
+                            wrap="wrap",
+                        ),
+                    ),
+                    spacing="1",
+                ),
+                rx.hstack(
+                    rx.box(
+                        *[
+                            rx.el.button(
+                                label,
+                                type="button",
+                                on_click=S.set_pf_hist_range(key),
+                                class_name=rx.cond(S.pf_hist_range == key, "pf-cur-btn pf-cur-active", "pf-cur-btn"),
+                                aria_pressed=rx.cond(S.pf_hist_range == key, "true", "false"),
+                            )
+                            for key, label in _HIST_RANGE_BUTTONS
+                        ],
+                        class_name="pf-cur pf-range",
+                        role="group",
+                        aria_label="Chart range",
+                    ),
+                    rx.dialog.close(rx.icon_button(rx.icon("x", size=16), variant="ghost", color_scheme="gray", aria_label="Close", cursor="pointer")),
+                    spacing="2",
+                    align="center",
+                ),
+                justify="between",
+                align="start",
+                gap="0.75em",
+                wrap="wrap",
+                width="100%",
+            ),
+            rx.box(
+                rx.cond(
+                    S.pf_hist_points.length() > 1,
+                    _balance_area(S.pf_hist_points, 380, True),
+                    rx.center(
+                        rx.text(
+                            rx.cond(S.pf_hist_loading, "Loading…", "Not enough readings in this range yet: the server saves your balance every 5 minutes."),
+                            size="2",
+                            color="var(--gray-11)",
+                            text_align="center",
+                        ),
+                        height="380px",
+                    ),
+                ),
+                margin_top="1em",
+                width="100%",
+                class_name=rx.cond(S.pf_hist_loading, "pf-hist-chart pf-hist-loading", "pf-hist-chart"),
+            ),
+            rx.flex(
+                rx.cond(
+                    S.pf_hist_info.contains("high"),
+                    rx.text("High ", S.pf_hist_info["high"], " · Low ", S.pf_hist_info["low"], size="1", color="var(--gray-11)", class_name="pf-num"),
+                ),
+                rx.cond(S.pf_hist_since != "", rx.text("Recording since ", S.pf_hist_since, " (Kuala Lumpur)", size="1", color="var(--gray-11)")),
+                justify="between",
+                gap="0.5em",
+                wrap="wrap",
+                margin_top="0.5em",
+                width="100%",
+            ),
+            max_width="min(960px, calc(100vw - 32px))",
+            width="100%",
+        ),
+        open=S.pf_hist_open,
+        on_open_change=S.set_pf_hist_open,
+    )
+
+
 # ---------------------------------------------------------------------------------------------- tables
 
 
@@ -444,7 +604,7 @@ def _dashboard() -> rx.Component:
         rx.cond(
             S.pf_summary.contains("total"),
             rx.vstack(
-                rx.box(_hero(), _allocation(), class_name="pf-top"),
+                rx.box(_hero(), rx.vstack(_allocation(), _balance_card(), spacing="4", width="100%", min_width="0"), class_name="pf-top"),
                 _holdings(),
                 _orders(),
                 _trades(),
@@ -460,6 +620,7 @@ def _dashboard() -> rx.Component:
             rx.cond(S.pf_loaded, _message("plug-zap", "MEXC data unavailable", "Nothing could be read from MEXC yet. See the message above."), _skeleton()),
         ),
         _cost_dialog(),
+        _balance_popup(),
         spacing="4",
         width="100%",
     )
@@ -514,6 +675,29 @@ def _coin_order_row(o) -> rx.Component:
     )
 
 
+def _coin_mini_chart() -> rx.Component:
+    """The coin's MEXC candles (7 days, 1 h) with horizontal lines: average buy price (blue) and open limit / stop
+    orders (red). Drawn by assets/mexc_mini_chart.js with TradingView Lightweight Charts from the data-* attributes."""
+    return rx.box(
+        rx.box(
+            rx.box(class_name="pf-mini-canvas"),
+            rx.text("No MEXC chart for this coin.", size="1", color="var(--gray-11)", class_name="pf-mini-empty"),
+            class_name="pf-mini-chart",
+            custom_attrs={"data-candles": S.coin_mexc_candles, "data-lines": S.coin_mexc_lines, "data-symbol": S.selected_coin["symbol"].to(str)},
+        ),
+        rx.hstack(
+            rx.hstack(rx.box(class_name="pf-key", background="#2962FF"), rx.text("Avg buy", size="1", color="var(--gray-11)"), spacing="1", align="center"),
+            rx.hstack(rx.box(class_name="pf-key", background="#EF4444"), rx.text("Limit / stop orders", size="1", color="var(--gray-11)"), spacing="1", align="center"),
+            rx.text("1h · 7 days · MEXC", size="1", color="var(--gray-10)", margin_left="auto"),
+            spacing="3",
+            align="center",
+            width="100%",
+            margin_top="0.35em",
+        ),
+        width="100%",
+    )
+
+
 def coin_mexc_section() -> rx.Component:
     """Coin page, above Alerts, for MEXC viewers only: what you hold of this coin and its open orders."""
     return rx.cond(
@@ -553,6 +737,7 @@ def coin_mexc_section() -> rx.Component:
                             background="var(--gray-a3)",
                         ),
                     ),
+                    _coin_mini_chart(),
                     rx.cond(
                         S.coin_mexc_orders.length() > 0,
                         rx.vstack(rx.foreach(S.coin_mexc_orders, _coin_order_row), spacing="2", width="100%"),

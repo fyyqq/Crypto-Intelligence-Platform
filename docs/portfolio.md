@@ -26,6 +26,14 @@
 - Wide tables scroll inside their card, never the page (checked 1440 / 834 / 375 px, dark and light, no console errors).
 </details>
 
+<details><summary><strong>Balance chart (card under Allocation + popup)</strong></summary>
+
+- MEXC keeps no balance history, so the server records it: a lifespan task in `frontend.py` (`_mexc_balance_recorder`) calls `portfolio_history_service.record_from_mexc()` every 5 minutes, 24/7, into `portfolio_balance_history` (migration `d6f8b0c2e4a6`). Only fresh, real readings are saved: never demo data, never the last-good numbers kept on screen while MEXC is failing. History starts at the first deploy of this feature (2026-10-16); nothing is estimated for the time before.
+- **Card** (`portfolio_page.py::_balance_card`, under Allocation in the right column): "Total balance · 7D", the current total, the 7-day change, and a blue area line (Recharts, built into Reflex, free). The last point is the live total, so the line moves with every 10 s refresh. Until two readings exist it says it is collecting data.
+- **Click -> centred popup** (`_balance_popup`, up to 960 px wide) that opens on **Full Chart**, with **24H / 7D / 1M / Full Chart** buttons, axes in $, a tooltip with the exact time and value, the range's change, high and low, and "Recording since …". Ranges are bucketed to the last reading per bucket (24H: 5 min, 7D: 30 min, 1M: 1 h, Full: sized to ~1,000 points), read through a 60 s shared cache (`portfolio_history_service.series`).
+- In USD only (the MYR switch is for the Total balance card). Tests: `tests/test_portfolio_charts.py`.
+</details>
+
 <details><summary><strong>MYR / USD switch on the Total balance card</strong></summary>
 
 - The "Total balance" row is a space-between row: the label on the left, **MYR** and **USD** buttons on the right (`portfolio_page.py::_currency_toggle`, `.pf-cur*` in `styles.css`). **USD is the default**; the choice lasts for the session and goes back to USD on logout.
@@ -55,6 +63,7 @@
 <details><summary><strong>Coin page: "Your MEXC" box (above Alerts)</strong></summary>
 
 - Viewers only. Shows how much of the coin you hold, its value, average buy price and P/L. Below that, every open order on the coin (Buy/Sell, type, price, amount, trigger, distance from the market price), including a buy order on a coin you don't hold yet. "No open MEXC orders for this coin." when there are none. A "Portfolio →" link goes to `/portfolio`.
+- **Mini chart with your lines** (2026-10-16): under the holding, a 190 px TradingView **Lightweight Charts** view (Apache-2.0, free and permanent, self-hosted at `frontend/assets/vendor/lightweight-charts-4.2.3.standalone.production.js`, loaded only on pages that show it, with TradingView's attribution logo as its licence asks) of the coin's MEXC USDT pair, 7 days of 1-hour candles (public `/api/v3/klines`, read by the server and cached 60 s). Horizontal lines: the **average buy price in blue** and every **open limit / stop order in red** (a stop order's line is its trigger price, dashed), each labelled on the price axis; the scale always includes every line. Drawn by `assets/mexc_mini_chart.js` from the box's `data-candles` / `data-lines` attributes, redrawn when the server updates them and restyled on a light/dark switch. "No MEXC chart for this coin." when MEXC has no USDT pair for it. (The main TradingView chart is an embedded widget that a site cannot draw on, which is why the lines live here.)
 - `coin_mexc_loop` refreshes it every 15 s and follows the coin when the tab moves to another coin page.
 </details>
 

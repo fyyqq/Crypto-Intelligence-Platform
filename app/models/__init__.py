@@ -5,6 +5,7 @@ from app.models.coin_contract import CoinContract
 from app.models.coin_launch_date import CoinLaunchDate
 from app.models.movers_daily import MoversDaily
 from app.models.notification import Notification
+from app.models.portfolio_balance import PortfolioBalance
 from app.models.portfolio_cost import PortfolioCost
 from app.models.price_alert import PriceAlert
 from app.models.price_snapshot import PriceSnapshot
@@ -21,6 +22,7 @@ __all__ = [
     "CoinLaunchDate",
     "MoversDaily",
     "Notification",
+    "PortfolioBalance",
     "PortfolioCost",
     "PriceAlert",
     "PriceSnapshot",

@@ -15,6 +15,7 @@ Rules for this state (Reflex sends every var without a leading underscore to the
 
 import asyncio
 import dataclasses
+import json
 import logging
 import sys
 import time
@@ -30,6 +31,9 @@ _TZ = ZoneInfo("Asia/Kuala_Lumpur")
 _REFRESH_FAILED = "MEXC data could not be refreshed just now. Retrying shortly."
 _PORTFOLIO_VAR_PREFIXES = ("pf_", "coin_mexc_")  # every public var of this state starts with one of these
 _TRADES_PER_PAGE = 5  # Recent fills: rows per page
+_LINE_AVG = "#2962FF"  # coin mini chart: average buy price (TradingView's blue)
+_LINE_ORDER = "#EF4444"  # coin mini chart: limit and stop orders (red)
+_HIST_RANGES = ("24h", "7d", "1m", "full")
 _PAGE_SECONDS = 10  # /portfolio redraw (the service reads MEXC at most every 20 s, prices every 10 s)
 _COIN_SECONDS = 15  # coin page box
 _ACCOUNT_PATHS = {"/portfolio", "/profile", "/profile/edit-profile"}
@@ -52,6 +56,14 @@ def _fx():
     from app.services import fx_service
 
     return fx_service
+
+
+def _history():
+    if _ROOT_FOR_APP not in sys.path:
+        sys.path.insert(0, _ROOT_FOR_APP)
+    from app.services import portfolio_history_service
+
+    return portfolio_history_service
 
 
 def _money(v: float) -> str:
@@ -120,6 +132,47 @@ def _order_view(o: dict) -> dict[str, str]:
     }
 
 
+def _hist_view(rows: list, live_total: float = 0.0, now: float | None = None) -> tuple[list[dict], dict[str, str]]:
+    """Recorded (unix seconds, total USD) points + the current live total as the last point -> recharts rows
+    ({"t": label, "v": value}) and the range's figures (value, change, high, low)."""
+    now = now or time.time()
+    pts = [(float(t), float(v)) for t, v in rows]
+    if live_total > 0 and (not pts or now - pts[-1][0] > 30):
+        pts.append((now, float(live_total)))
+    data = [{"t": datetime.fromtimestamp(t, _TZ).strftime("%d %b %H:%M"), "v": round(v, 2)} for t, v in pts]
+    if not pts:
+        return data, {}
+    first, last = pts[0][1], pts[-1][1]
+    change = last - first
+    info = {
+        "value": _money(last),
+        "change": _signed_money(change),
+        "change_pct": _fmt_pct(change / first * 100) if first else "",
+        "color": _color(change),
+        "high": _money(max(v for _, v in pts)),
+        "low": _money(min(v for _, v in pts)),
+        "points": str(len(pts)),
+    }
+    return data, info
+
+
+def _chart_lines(held: dict | None, orders: list[dict]) -> list[dict]:
+    """Horizontal lines for the coin mini chart: the average buy price (blue) and every open limit / stop order
+    (red; a stop order's line is its trigger price, dashed). {"p": price, "c": colour, "t": label, "s": 0 solid / 2 dashed}."""
+    lines = []
+    if held and held.get("avg_price", 0) > 0:
+        lines.append({"p": held["avg_price"], "c": _LINE_AVG, "t": "Avg buy", "s": 0})
+    for o in orders:
+        stop = o.get("stop_price") or 0
+        price = stop or o.get("price") or 0
+        if price <= 0:
+            continue
+        side = "Buy" if o.get("side") == "BUY" else "Sell"
+        label = f"{side} {o.get('type_label') or 'order'}" + (" trigger" if stop else "")
+        lines.append({"p": price, "c": _LINE_ORDER, "t": label, "s": 2 if stop else 0})
+    return lines
+
+
 def _summary_view(snap: dict, currency: str = "USD", rate: float = 1.0) -> dict[str, str]:
     """The hero card's strings. Only the card's own money amounts are converted (`rate` = USD -> `currency`):
     total, 24h change, unrealized P/L, stablecoins, value in orders and the small-balances note. Percentages,
@@ -174,6 +227,15 @@ class PortfolioState(CoinState):
     pf_fx_note: str = ""  # "1 USD = 4.0824 MYR · <source>" while MYR is shown
     pf_fx_error: str = ""
     _pf_snap: dict = {}  # last raw snapshot (backend-only, emptied by _clear_portfolio)
+    # Balance chart: the 7-day card under Allocation and the full-size popup (24H / 7D / 1M / Full Chart).
+    pf_hist_card: list[dict] = []
+    pf_hist_card_info: dict[str, str] = {}
+    pf_hist_open: bool = False
+    pf_hist_range: str = "full"
+    pf_hist_points: list[dict] = []
+    pf_hist_info: dict[str, str] = {}
+    pf_hist_since: str = ""
+    pf_hist_loading: bool = False
     pf_summary: dict[str, str] = {}
     pf_holdings: list[dict[str, str]] = []
     pf_orders: list[dict[str, str]] = []
@@ -197,6 +259,8 @@ class PortfolioState(CoinState):
     coin_mexc_error: str = ""
     coin_mexc_holding: dict[str, str] = {}
     coin_mexc_orders: list[dict[str, str]] = []
+    coin_mexc_candles: str = "[]"  # mini chart: [[time s, open, high, low, close], ...] of <coin>USDT on MEXC
+    coin_mexc_lines: str = "[]"  # mini chart: avg buy (blue) + limit / stop orders (red), see _chart_lines
     _coin_mexc_running: bool = False
 
     # ------------------------------------------------------------------------------------------ dashboard
@@ -208,6 +272,7 @@ class PortfolioState(CoinState):
         if not snap.get("ok"):
             self.pf_loaded = True
             return
+        total = snap["total_value"]  # (the allocation ring below needs it)
         self._pf_snap = snap  # raw numbers stay on the server: a currency change re-renders the card from them
         self.pf_summary = _summary_view(snap, *self._card_currency())
         holdings = []
@@ -297,6 +362,47 @@ class PortfolioState(CoinState):
         self._clear_portfolio(loaded=True)
         return True
 
+    def _live_total(self) -> float:
+        return float(self._pf_snap.get("total_value") or 0) if self._pf_snap.get("ok") else 0.0
+
+    def _apply_history(self, card_rows: list | None, popup_rows: list | None = None, since: float | None = None) -> None:
+        if card_rows is not None:
+            self.pf_hist_card, self.pf_hist_card_info = _hist_view(card_rows, self._live_total())
+        if popup_rows is not None:
+            self.pf_hist_points, self.pf_hist_info = _hist_view(popup_rows, self._live_total())
+        if since:
+            self.pf_hist_since = datetime.fromtimestamp(since, _TZ).strftime("%d %b %Y, %H:%M")
+
+    async def _load_popup(self, range_key: str):
+        """Reads one range for the popup (shared 60 s cache) and shows it."""
+        hist = _history()
+        try:
+            rows, since = await asyncio.gather(asyncio.to_thread(hist.series, range_key), asyncio.to_thread(hist.first_recorded))
+        except Exception:  # noqa: BLE001
+            _log.exception("Balance history could not be read")
+            rows, since = [], None
+        self._apply_history(None, rows, since)
+        self.pf_hist_loading = False
+
+    @rx.event
+    async def open_balance_chart(self):
+        """The balance card was clicked: the centred popup opens on the Full Chart."""
+        if not (self.is_logged_in and _svc().can_view(self.user_email)):
+            return
+        self.pf_hist_open, self.pf_hist_range, self.pf_hist_loading = True, "full", True
+        await self._load_popup("full")
+
+    @rx.event
+    def set_pf_hist_open(self, value: bool):
+        self.pf_hist_open = value
+
+    @rx.event
+    async def set_pf_hist_range(self, range_key: str):
+        if range_key not in _HIST_RANGES or not (self.is_logged_in and _svc().can_view(self.user_email)):
+            return
+        self.pf_hist_range, self.pf_hist_loading = range_key, True
+        await self._load_popup(range_key)
+
     def _card_currency(self) -> tuple[str, float]:
         """(currency, USD -> currency rate) for the hero card from the shared rate cache (no network). Falls back to
         USD, and says why, when MYR is chosen but no usable rate exists."""
@@ -335,9 +441,10 @@ class PortfolioState(CoinState):
     async def _portfolio_cycle(self) -> bool:
         """One dashboard refresh. Returns False when the loop should stop (the viewer lost access, or the tab left
         the account area). Any other failure only shows a short message and keeps the last data on screen."""
-        snap, error = None, ""
+        snap, error, card_rows, popup_rows = None, "", None, None
         async with self:
             wants_myr = self.pf_currency == "MYR"
+            popup_range = self.pf_hist_range if self.pf_hist_open else ""
         try:
             if wants_myr:
                 await asyncio.to_thread(_fx().get_rate, "MYR")  # cached for 60 s and shared; never raises
@@ -345,6 +452,12 @@ class PortfolioState(CoinState):
         except Exception:  # noqa: BLE001 - network/database/bad reply: log the detail, keep the loop alive
             _log.exception("MEXC portfolio refresh failed")
             error = _REFRESH_FAILED
+        try:  # the balance chart (database, cached 60 s); a failure only leaves the chart as it was
+            card_rows = await asyncio.to_thread(_history().series, "7d")
+            if popup_range:
+                popup_rows = await asyncio.to_thread(_history().series, popup_range)
+        except Exception:  # noqa: BLE001
+            _log.exception("Balance history could not be read")
         async with self:
             if self._viewer_lost():  # logged out / another account in this tab
                 return False
@@ -356,6 +469,9 @@ class PortfolioState(CoinState):
                     error = _REFRESH_FAILED
             if error:
                 self.pf_error, self.pf_loaded = error, True
+            if self.pf_hist_range != popup_range and popup_range:
+                popup_rows = None  # the range changed while reading: the click's own load wins
+            self._apply_history(card_rows, popup_rows)
             # The account sidebar swaps Portfolio/Edit in the browser (no server navigation), so the loop keeps
             # going anywhere in the account area and stops when the tab leaves it.
             return self.router.url.path.rstrip("/") in _ACCOUNT_PATHS
@@ -477,8 +593,10 @@ class PortfolioState(CoinState):
 
     # ----------------------------------------------------------------------------------------- coin page
 
-    def _apply_coin(self, asset: str, snap: dict, orders: list[dict]) -> None:
+    def _apply_coin(self, asset: str, snap: dict, orders: list[dict], candles: list | None = None) -> None:
         held = next((h for h in snap.get("holdings") or [] if h["asset"] == asset), None)
+        self.coin_mexc_candles = json.dumps(candles or [], separators=(",", ":"))
+        self.coin_mexc_lines = json.dumps(_chart_lines(held, orders), separators=(",", ":"))
         self.coin_mexc_error = snap.get("error") or ""
         self.coin_mexc_orders = [_order_view(o) for o in orders]
         self.coin_mexc_holding = (
@@ -502,14 +620,17 @@ class PortfolioState(CoinState):
             on_page = self.router.url.path.startswith("/coins/")
             if asset != shown:
                 self.coin_mexc_loaded, self.coin_mexc_orders, self.coin_mexc_holding = False, [], {}
+                self.coin_mexc_candles, self.coin_mexc_lines = "[]", "[]"
         if not on_page:
             return False, shown
         if not asset:
             return True, shown
         svc = _svc()
-        snap, orders = None, []
+        snap, orders, candles = None, [], []
         try:
-            snap, orders = await asyncio.gather(self._snapshot(), asyncio.to_thread(svc.coin_orders, asset))
+            snap, orders, candles = await asyncio.gather(
+                self._snapshot(), asyncio.to_thread(svc.coin_orders, asset), asyncio.to_thread(svc.klines, asset)
+            )
         except Exception:  # noqa: BLE001 - network/database/bad reply: log the detail, keep the loop alive
             _log.exception("MEXC coin box refresh failed")
         async with self:
@@ -518,7 +639,7 @@ class PortfolioState(CoinState):
             failed = snap is None
             if not failed:
                 try:
-                    self._apply_coin(asset, snap, orders)
+                    self._apply_coin(asset, snap, orders, candles)
                 except Exception:  # noqa: BLE001
                     _log.exception("MEXC coin box could not be displayed")
                     failed = True

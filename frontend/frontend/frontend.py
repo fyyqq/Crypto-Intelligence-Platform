@@ -1490,6 +1490,7 @@ app = rx.App(
         rx.el.script(src="/profile_upload.js"),  # /profile: pictures become WebP in the browser before uploading
         rx.el.script(src="/profile_sidebar.js"),  # /profile: minimize / open the account sidebar
         rx.el.script(src="/tradingview_timeframes.js"),
+        rx.el.script(src="/mexc_mini_chart.js"),  # coin page "Your MEXC" mini chart (loads Lightweight Charts on demand)
     ],
 )
 
@@ -1536,6 +1537,31 @@ async def _alert_watch():
 
 
 app.register_lifespan_task(_alert_watch)
+
+
+async def _mexc_balance_recorder():
+    """Saves the MEXC portfolio's total balance every 5 minutes, 24/7, for the /portfolio balance chart
+    (app/services/portfolio_history_service.py). Skips on its own when there is no MEXC key, in demo mode, or
+    while MEXC is failing (only fresh, real readings are saved)."""
+    import asyncio
+    import logging
+    import sys as _sys
+
+    _root = str(Path(__file__).resolve().parent.parent.parent)
+    if _root not in _sys.path:
+        _sys.path.append(_root)
+    from app.services import portfolio_history_service as history
+
+    await asyncio.sleep(60)  # let the server finish starting
+    while True:
+        try:
+            await asyncio.to_thread(history.record_from_mexc)
+        except Exception:  # noqa: BLE001 - a database hiccup only skips one reading
+            logging.getLogger(__name__).exception("MEXC balance recording failed")
+        await asyncio.sleep(history.RECORD_SECONDS)
+
+
+app.register_lifespan_task(_mexc_balance_recorder)
 
 # Every notification (triggered price alerts) is also sent to the account's
 # Telegram when connected (app/services/telegram_notify_service.py).

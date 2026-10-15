@@ -1778,3 +1778,14 @@ svg.wl-star-force-off {
 }
 .pf-cur-btn:hover { color: var(--gray-12); }
 .pf-cur-btn.pf-cur-active { background: var(--accent-9); color: #fff; }  /* white on the accent fill is allowed (accent badges) */
+
+/* /portfolio balance card (under Allocation) + its popup; coin page "Your MEXC" mini chart. */
+.pf-balance-card { cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
+.pf-balance-card:hover { border-color: var(--accent-a7); background: var(--gray-a3); }
+.pf-balance-card:focus-visible { outline: 2px solid var(--accent-8); outline-offset: 2px; }
+.pf-range .pf-cur-btn { min-width: 44px; }
+.pf-hist-loading { opacity: 0.5; transition: opacity 0.15s ease; }
+.pf-mini-chart { position: relative; width: 100%; height: 190px; border-radius: 8px; background: var(--gray-a2); overflow: hidden; }
+.pf-mini-canvas { position: absolute; inset: 0; }
+.pf-mini-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.pf-key { width: 14px; height: 3px; border-radius: 2px; flex-shrink: 0; }
