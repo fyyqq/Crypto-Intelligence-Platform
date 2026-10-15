@@ -361,6 +361,8 @@ def _tv_src(symbol: str, theme: str, interval: str = "D") -> str:
         "saveimage": "0",
         "withdateranges": "1",
         "studies": "[]",
+        # The volume bars along the bottom of the chart are hidden on every embedded chart.
+        "hide_volume": "1",
         "hideideas": "1",
         "allow_symbol_change": "0",
     }

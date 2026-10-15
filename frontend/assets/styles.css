@@ -1620,3 +1620,14 @@ svg.wl-star-force-off {
 .coin-card .coin-card-star { position: relative; z-index: 2; line-height: 0; }
 .coin-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .coin-card-chart { margin-top: auto; height: 70px; }
+
+/* Add / edit price alert popup (coin_detail.py::_alert_dialog): always rendered, shown instantly by
+   assets/instant_ui.js (.js-open) or by the server (data-open), hidden at once by .js-closed. */
+.alert-overlay { display: none; position: fixed; inset: 0; z-index: 100001; align-items: center; justify-content: center; padding: 16px; }
+.alert-overlay.js-open, .alert-overlay[data-open="true"] { display: flex; }
+.alert-overlay.js-closed { display: none !important; }
+.alert-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); }
+.alert-card {
+  position: relative; width: 100%; max-width: 380px; padding: 24px; border-radius: 12px;
+  background: var(--color-panel-solid); border: 1px solid var(--gray-a6); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}

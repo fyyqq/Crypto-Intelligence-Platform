@@ -2910,7 +2910,8 @@ class CoinState(rx.State):
     @rx.var(cache=True)
     def coin_alerts(self) -> list[dict]:
         coin = self.selected_coin
-        return self.price_alerts.get(str(coin["cmc_id"]), []) if coin else []
+        alerts = self.price_alerts.get(str(coin["cmc_id"]), []) if coin else []
+        return [{**a, "price_plain": _plain_price(a["price"])} for a in alerts]  # price_plain: the edit button's prefill
 
     @rx.var(cache=True)
     def active_alerts_all(self) -> list[dict]:
@@ -3776,6 +3777,8 @@ class CoinState(rx.State):
             "saveimage": "0",
             "withdateranges": "1",
             "studies": "[]",
+            # The volume bars along the bottom of the chart are hidden on every embedded chart.
+            "hide_volume": "1",
             "hideideas": "1",
             "allow_symbol_change": "1",
         }

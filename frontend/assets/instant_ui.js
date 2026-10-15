@@ -135,6 +135,62 @@
     true
   );
 
+  // ---- 3b. price alert popup --------------------------------------------------
+  // The add / edit alert popup (coin_detail.py::_alert_dialog) is always in the page; a click on any .alert-open-btn
+  // shows it at once, prefilled (the coin's price text, or the edited alert's price), while the click's own server
+  // event (which alert is edited, alert_dialog_open) is still on its way. Cancel / backdrop / Escape hide it at once
+  // too. The server stays the authority: it keeps the popup open on an error and closes it after a save.
+  function setNative(input, value) {
+    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true })); // lets the app's own input state follow
+  }
+
+  document.addEventListener(
+    "click",
+    function (e) {
+      var t = e.target;
+      if (!t.closest) return;
+      var ov = document.querySelector(".alert-overlay");
+      if (!ov) return;
+      var btn = t.closest(".alert-open-btn");
+      if (btn) {
+        var edit = btn.getAttribute("data-alert-mode") === "edit";
+        ov.classList.remove("js-closed");
+        ov.classList.add("js-open");
+        var title = ov.querySelector(".alert-title");
+        if (title) title.textContent = edit ? "Edit price alert" : "New price alert";
+        var input = ov.querySelector("input");
+        if (input) {
+          var price = edit ? btn.getAttribute("data-alert-price") || "" : String(ov.getAttribute("data-now") || "").replace(/[$,\s]/g, "");
+          setNative(input, price);
+          setTimeout(function () { input.focus(); input.select(); }, 0);
+        }
+      } else if (t.closest(".alert-close")) {
+        ov.classList.remove("js-open");
+        ov.classList.add("js-closed");
+      }
+    },
+    true
+  );
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    var ov = document.querySelector(".alert-overlay");
+    if (ov && getComputedStyle(ov).display !== "none") {
+      var cancel = ov.querySelector(".alert-cancel");
+      if (cancel) cancel.click(); // hides it now and tells the server
+    }
+  });
+
+  // When the server closes the popup (after a save) drop the instant-open flag, so the next open starts clean.
+  new MutationObserver(function (records) {
+    records.forEach(function (r) {
+      var ov = r.target;
+      if (ov.getAttribute("data-open") === "false") ov.classList.remove("js-open");
+    });
+  }).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["data-open"] });
+
   // ---- 4. header search suggestions -------------------------------------------
   var index = null;
   var loading = null;

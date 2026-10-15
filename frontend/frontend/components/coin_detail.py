@@ -790,6 +790,8 @@ def _alert_row(alert: rx.Var[dict]) -> rx.Component:
             cursor="pointer",
             flex_shrink="0",
             on_click=CoinState.open_edit_alert(alert["id"]),
+            class_name="alert-open-btn",
+            custom_attrs={"data-alert-mode": "edit", "data-alert-price": alert["price_plain"]},
         ),
         rx.icon(
             "x",
@@ -808,10 +810,14 @@ def _alert_row(alert: rx.Var[dict]) -> rx.Component:
 
 
 def _alert_dialog() -> rx.Component:
-    return rx.dialog.root(
-        rx.dialog.content(
-            rx.dialog.title(rx.cond(CoinState.is_editing_alert, "Edit price alert", "New price alert"), margin="0"),
-            rx.dialog.description(
+    """The add / edit price alert popup. It is an always-rendered overlay that assets/instant_ui.js shows the moment a
+    button with class alert-open-btn is clicked (prefilled from its data-* attributes), so it opens at once however far
+    the server is; the server state (alert_dialog_open, which alert is edited) catches up and decides when it closes."""
+    return rx.box(
+        rx.box(on_click=CoinState.set_alert_dialog_open(False), class_name="alert-backdrop alert-close"),
+        rx.box(
+            rx.heading(rx.cond(CoinState.is_editing_alert, "Edit price alert", "New price alert"), size="4", margin="0", class_name="alert-title"),
+            rx.text(
                 "Get an alert for ",
                 CoinState.selected_coin["name"],
                 " when its price reaches the value below. Now: ",
@@ -824,6 +830,7 @@ def _alert_dialog() -> rx.Component:
                 size="2",
                 color_scheme="gray",
                 margin_top="0.25em",
+                as_="p",
             ),
             rx.form(
                 rx.vstack(
@@ -834,7 +841,6 @@ def _alert_dialog() -> rx.Component:
                         on_change=CoinState.set_alert_price_input,
                         placeholder="0.00",
                         input_mode="decimal",
-                        auto_focus=True,
                         size="3",
                         width="100%",
                     ),
@@ -843,7 +849,7 @@ def _alert_dialog() -> rx.Component:
                         rx.text(CoinState.alert_error, size="1", color="var(--red-9)"),
                     ),
                     rx.hstack(
-                        rx.dialog.close(rx.button("Cancel", variant="soft", color_scheme="gray", type="button")),
+                        rx.button("Cancel", variant="soft", color_scheme="gray", type="button", on_click=CoinState.set_alert_dialog_open(False), class_name="alert-close alert-cancel"),
                         rx.button(rx.cond(CoinState.is_editing_alert, "Save alert", "Create alert"), type="submit"),
                         justify="end",
                         spacing="3",
@@ -858,10 +864,14 @@ def _alert_dialog() -> rx.Component:
                 width="100%",
                 margin_top="1em",
             ),
-            max_width="380px",
+            class_name="alert-card",
         ),
-        open=CoinState.alert_dialog_open,
-        on_open_change=CoinState.set_alert_dialog_open,
+        class_name="alert-overlay",
+        custom_attrs={
+            "data-open": rx.cond(CoinState.alert_dialog_open, "true", "false"),
+            # What the coin costs now (same text as the description): the prefill of a new alert.
+            "data-now": rx.cond(CoinState.live_price_display != "", CoinState.live_price_display, CoinState.selected_coin["price_display"]),
+        },
     )
 
 
@@ -888,6 +898,8 @@ def _alerts_section() -> rx.Component:
                     width="100%",
                     cursor="pointer",
                     on_click=CoinState.open_alert_dialog,
+                    class_name="alert-open-btn",
+                    custom_attrs={"data-alert-mode": "new"},
                 ),
             ),
             rx.fragment(
