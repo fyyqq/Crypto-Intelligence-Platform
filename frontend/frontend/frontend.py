@@ -1490,7 +1490,7 @@ app = rx.App(
         rx.el.script(src="/profile_upload.js"),  # /profile: pictures become WebP in the browser before uploading
         rx.el.script(src="/profile_sidebar.js"),  # /profile: minimize / open the account sidebar
         rx.el.script(src="/tradingview_timeframes.js"),
-        rx.el.script(src="/mexc_mini_chart.js"),  # coin page "Your MEXC" mini chart (loads Lightweight Charts on demand)
+        rx.el.script(src="/mexc_lines_chart.js"),  # coin page "My lines" chart (loads Lightweight Charts on demand)
     ],
 )
 

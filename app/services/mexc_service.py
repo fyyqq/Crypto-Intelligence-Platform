@@ -48,7 +48,7 @@ ACCOUNT_TTL = 20  # seconds: balances + open orders
 PRICES_TTL = 10  # seconds: public 24h tickers
 TRADES_TTL = 600  # seconds: a coin's trade history (refetched sooner when its balance changes)
 COIN_ORDERS_TTL = 20  # seconds: open orders of a coin you don't hold (coin page)
-KLINES_TTL = 60  # seconds: the coin page mini chart's candles (public market data, shared)
+KLINES_TTL = 60  # seconds: the coin page lines chart's candles (public market data, shared)
 DUST_USD = 1.0  # holdings worth less than this are summed as "small balances"
 RECENT_FILLS = 50  # latest trades returned (the page shows them 5 at a time)
 _TRADE_PAGES = 5  # up to 5 x 100 trades per coin
@@ -557,23 +557,27 @@ def coin_orders(asset: str) -> list[dict]:
     return sorted((_order_row(o) for o in rows), key=lambda o: o["price"], reverse=True)
 
 
-def klines(asset: str, interval: str = "60m", limit: int = 168) -> list[list[float]]:
-    """Public candles of <asset>USDT on MEXC for the coin page's mini chart: [[open time (s), open, high, low, close],
-    ...] oldest first (default 7 days of 1-hour candles). Cached per pair for KLINES_TTL seconds and shared; [] when
-    MEXC has no such pair or cannot be reached (respects the rate-limit pause like every other call)."""
+KLINE_INTERVALS = {"1m", "5m", "15m", "30m", "60m", "4h", "1d", "1W", "1M"}  # MEXC's names
+
+
+def klines(asset: str, interval: str = "60m", limit: int = 300) -> list[list[float]]:
+    """Public candles of <asset>USDT on MEXC for the coin page's lines chart: [[open time (s), open, high, low,
+    close], ...] oldest first (the last `limit` candles of `interval`). Cached per pair and interval for KLINES_TTL
+    seconds and shared; [] when MEXC has no such pair or cannot be reached (respects the rate-limit pause)."""
     asset = (asset or "").upper()
-    if not asset or not re.fullmatch(r"[A-Z0-9]{1,20}", asset) or not is_configured():
+    if not asset or not re.fullmatch(r"[A-Z0-9]{1,20}", asset) or interval not in KLINE_INTERVALS or not is_configured():
         return []
     symbol = f"{asset}USDT"
     store = _cache.setdefault("klines", {})
-    hit = store.get(symbol)
+    key = f"{symbol}:{interval}"
+    hit = store.get(key)
     if hit and time.time() - hit["at"] < KLINES_TTL:
         return hit["rows"]
     try:
         raw = _get("/api/v3/klines", {"symbol": symbol, "interval": interval, "limit": limit})
     except MexcError:
         raw = hit["rows"] if hit else []  # keep the last candles on a hiccup
-        store[symbol] = {"at": time.time(), "rows": raw}
+        store[key] = {"at": time.time(), "rows": raw}
         return raw
     rows = []
     for k in raw if isinstance(raw, list) else []:
@@ -583,7 +587,7 @@ def klines(asset: str, interval: str = "60m", limit: int = 168) -> list[list[flo
             continue
     rows = [r for r in rows if r[4] > 0]
     rows.sort(key=lambda r: r[0])
-    store[symbol] = {"at": time.time(), "rows": rows}
+    store[key] = {"at": time.time(), "rows": rows}
     return rows
 
 

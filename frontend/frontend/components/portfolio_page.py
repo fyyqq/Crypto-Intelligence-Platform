@@ -686,27 +686,95 @@ def _coin_order_row(o) -> rx.Component:
     )
 
 
-def _coin_mini_chart() -> rx.Component:
-    """The coin's MEXC candles (7 days, 1 h) with horizontal lines: average buy price (blue) and open limit / stop
-    orders (red). Drawn by assets/mexc_mini_chart.js with TradingView Lightweight Charts from the data-* attributes."""
-    return rx.box(
-        rx.box(
-            rx.box(class_name="pf-mini-canvas"),
-            rx.text("No MEXC chart for this coin.", size="1", color="var(--gray-11)", class_name="pf-mini-empty"),
-            class_name="pf-mini-chart",
-            custom_attrs={"data-candles": S.coin_mexc_candles, "data-lines": S.coin_mexc_lines, "data-symbol": S.selected_coin["symbol"].to(str)},
-        ),
-        rx.hstack(
-            rx.hstack(rx.box(class_name="pf-key", background="#2962FF"), rx.text("Avg buy", size="1", color="var(--gray-11)"), spacing="1", align="center"),
-            rx.hstack(rx.box(class_name="pf-key", background="#EF4444"), rx.text("Limit / stop orders", size="1", color="var(--gray-11)"), spacing="1", align="center"),
-            rx.text("1h · 7 days · MEXC", size="1", color="var(--gray-10)", margin_left="auto"),
-            spacing="3",
-            align="center",
-            width="100%",
-            margin_top="0.35em",
-        ),
-        width="100%",
+def _legend_key(color: str, label: str, dashed: bool = False) -> rx.Component:
+    return rx.hstack(
+        rx.box(class_name="pf-key pf-key-dashed" if dashed else "pf-key", style={"background": color} if not dashed else {"borderTopColor": color}),
+        rx.text(label, size="1", color="var(--gray-11)", white_space="nowrap"),
+        spacing="1",
+        align="center",
     )
+
+
+def coin_chart_lines_bar() -> rx.Component:
+    """Above the coin page chart, for MEXC viewers on a coin with a MEXC holding or order: "My lines" (the
+    Lightweight Charts view with your price lines, default) / "TradingView" (the normal widget), the line legend
+    and, in the lines view, its timeframe buttons."""
+    from frontend.state.portfolio_state import CHART_INTERVALS
+
+    return rx.cond(
+        S.coin_mexc_visible & S.coin_mexc_has_lines,
+        rx.flex(
+            rx.box(
+                *[
+                    rx.el.button(
+                        label,
+                        type="button",
+                        on_click=S.set_coin_chart_mode(mode),
+                        class_name=rx.cond(S.coin_mexc_chart_mode == mode, "pf-cur-btn pf-cur-active", "pf-cur-btn"),
+                        aria_pressed=rx.cond(S.coin_mexc_chart_mode == mode, "true", "false"),
+                    )
+                    for mode, label in (("lines", "My lines"), ("tv", "TradingView"))
+                ],
+                class_name="pf-cur pf-chart-mode",
+                role="group",
+                aria_label="Chart view",
+            ),
+            rx.cond(
+                S.coin_mexc_chart_mode == "lines",
+                rx.box(
+                    *[
+                        rx.el.button(
+                            label,
+                            type="button",
+                            on_click=S.set_coin_chart_interval(interval),
+                            class_name=rx.cond(S.coin_mexc_interval == interval, "pf-cur-btn pf-cur-active", "pf-cur-btn"),
+                            aria_pressed=rx.cond(S.coin_mexc_interval == interval, "true", "false"),
+                        )
+                        for label, interval in CHART_INTERVALS
+                    ],
+                    class_name="pf-cur pf-chart-tf",
+                    role="group",
+                    aria_label="Lines chart timeframe",
+                ),
+            ),
+            rx.hstack(
+                _legend_key("#2962FF", "Avg buy"),
+                _legend_key("#22C55E", "Limit"),
+                _legend_key("#EF4444", "Stop-loss", dashed=True),
+                spacing="3",
+                align="center",
+                wrap="wrap",
+                margin_left="auto",
+            ),
+            gap="0.6em",
+            align="center",
+            wrap="wrap",
+            width="100%",
+        ),
+    )
+
+
+def coin_chart_lines_view() -> rx.Component:
+    """The main chart area in "My lines" mode: the coin's MEXC USDT pair (Lightweight Charts, drawn by
+    assets/mexc_lines_chart.js from the data-* attributes) with your average buy (blue), limit (green) and
+    stop-loss (red, dashed) lines. Pan and zoom like a normal chart."""
+    return rx.box(
+        rx.box(class_name="pf-lines-canvas"),
+        rx.text("Loading chart…", size="2", color="var(--gray-11)", class_name="pf-lines-empty"),
+        class_name="pf-lines-chart",
+        custom_attrs={
+            "data-candles": S.coin_mexc_candles,
+            "data-lines": S.coin_mexc_lines,
+            "data-fit": S.selected_coin["symbol"].to(str) + ":" + S.coin_mexc_interval,
+        },
+        width="100%",
+        height="100%",
+    )
+
+
+def coin_chart_lines_active() -> rx.Var:
+    """True when the main chart area shows the lines view instead of the TradingView widget."""
+    return S.coin_mexc_visible & S.coin_mexc_has_lines & (S.coin_mexc_chart_mode == "lines")
 
 
 def coin_mexc_section() -> rx.Component:
@@ -748,7 +816,6 @@ def coin_mexc_section() -> rx.Component:
                             background="var(--gray-a3)",
                         ),
                     ),
-                    _coin_mini_chart(),
                     rx.cond(
                         S.coin_mexc_orders.length() > 0,
                         rx.vstack(rx.foreach(S.coin_mexc_orders, _coin_order_row), spacing="2", width="100%"),

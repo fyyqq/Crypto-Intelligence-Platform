@@ -31,8 +31,12 @@ _TZ = ZoneInfo("Asia/Kuala_Lumpur")
 _REFRESH_FAILED = "MEXC data could not be refreshed just now. Retrying shortly."
 _PORTFOLIO_VAR_PREFIXES = ("pf_", "coin_mexc_")  # every public var of this state starts with one of these
 _TRADES_PER_PAGE = 5  # Recent fills: rows per page
-_LINE_AVG = "#2962FF"  # coin mini chart: average buy price (TradingView's blue)
-_LINE_ORDER = "#EF4444"  # coin mini chart: limit and stop orders (red)
+_LINE_AVG = "#2962FF"  # coin page lines chart: average buy price (TradingView's blue)
+_LINE_LIMIT = "#22C55E"  # limit orders (green)
+_LINE_STOP = "#EF4444"  # stop-loss / stop orders, drawn at the trigger price (red, dashed)
+# Timeframes of the coin page lines chart: (button label, MEXC kline interval).
+CHART_INTERVALS = (("15m", "15m"), ("1h", "60m"), ("4h", "4h"), ("1D", "1d"), ("1W", "1W"))
+_CHART_INTERVAL_SET = {iv for _, iv in CHART_INTERVALS}
 _HIST_RANGES = ("24h", "7d", "1m", "full")
 _PAGE_SECONDS = 10  # /portfolio redraw (the service reads MEXC at most every 20 s, prices every 10 s)
 _COIN_SECONDS = 15  # coin page box
@@ -161,8 +165,9 @@ def _hist_view(
 
 
 def _chart_lines(held: dict | None, orders: list[dict]) -> list[dict]:
-    """Horizontal lines for the coin mini chart: the average buy price (blue) and every open limit / stop order
-    (red; a stop order's line is its trigger price, dashed). {"p": price, "c": colour, "t": label, "s": 0 solid / 2 dashed}."""
+    """Horizontal lines for the coin page lines chart: the average buy price (blue), every open limit order (green)
+    and every stop / stop-loss order (red, dashed, at its trigger price).
+    {"p": price, "c": colour, "t": label, "s": 0 solid / 2 dashed}."""
     lines = []
     if held and held.get("avg_price", 0) > 0:
         lines.append({"p": held["avg_price"], "c": _LINE_AVG, "t": "Avg buy", "s": 0})
@@ -173,7 +178,7 @@ def _chart_lines(held: dict | None, orders: list[dict]) -> list[dict]:
             continue
         side = "Buy" if o.get("side") == "BUY" else "Sell"
         label = f"{side} {o.get('type_label') or 'order'}" + (" trigger" if stop else "")
-        lines.append({"p": price, "c": _LINE_ORDER, "t": label, "s": 2 if stop else 0})
+        lines.append({"p": price, "c": _LINE_STOP if stop else _LINE_LIMIT, "t": label, "s": 2 if stop else 0})
     return lines
 
 
@@ -265,8 +270,12 @@ class PortfolioState(CoinState):
     coin_mexc_error: str = ""
     coin_mexc_holding: dict[str, str] = {}
     coin_mexc_orders: list[dict[str, str]] = []
-    coin_mexc_candles: str = "[]"  # mini chart: [[time s, open, high, low, close], ...] of <coin>USDT on MEXC
-    coin_mexc_lines: str = "[]"  # mini chart: avg buy (blue) + limit / stop orders (red), see _chart_lines
+    # Main chart area: the "My lines" view (Lightweight Charts) for coins with a MEXC holding / order.
+    coin_mexc_candles: str = "[]"  # [[time s, open, high, low, close], ...] of <coin>USDT on MEXC
+    coin_mexc_lines: str = "[]"  # avg buy (blue), limit (green), stop (red): see _chart_lines
+    coin_mexc_has_lines: bool = False  # there are lines AND candles: the main chart offers the lines view
+    coin_mexc_chart_mode: str = "lines"  # "lines" (default when available) or "tv" (the TradingView widget)
+    coin_mexc_interval: str = "60m"
     _coin_mexc_running: bool = False
 
     # ------------------------------------------------------------------------------------------ dashboard
@@ -617,8 +626,10 @@ class PortfolioState(CoinState):
 
     def _apply_coin(self, asset: str, snap: dict, orders: list[dict], candles: list | None = None) -> None:
         held = next((h for h in snap.get("holdings") or [] if h["asset"] == asset), None)
+        lines = _chart_lines(held, orders)
         self.coin_mexc_candles = json.dumps(candles or [], separators=(",", ":"))
-        self.coin_mexc_lines = json.dumps(_chart_lines(held, orders), separators=(",", ":"))
+        self.coin_mexc_lines = json.dumps(lines, separators=(",", ":"))
+        self.coin_mexc_has_lines = bool(lines) and bool(candles)
         self.coin_mexc_error = snap.get("error") or ""
         self.coin_mexc_orders = [_order_view(o) for o in orders]
         self.coin_mexc_holding = (
@@ -640,9 +651,10 @@ class PortfolioState(CoinState):
             coin = self.selected_coin
             asset = str(coin.get("symbol") or "").upper() if coin else ""
             on_page = self.router.url.path.startswith("/coins/")
+            interval = self.coin_mexc_interval
             if asset != shown:
                 self.coin_mexc_loaded, self.coin_mexc_orders, self.coin_mexc_holding = False, [], {}
-                self.coin_mexc_candles, self.coin_mexc_lines = "[]", "[]"
+                self.coin_mexc_candles, self.coin_mexc_lines, self.coin_mexc_has_lines = "[]", "[]", False
         if not on_page:
             return False, shown
         if not asset:
@@ -651,7 +663,7 @@ class PortfolioState(CoinState):
         snap, orders, candles = None, [], []
         try:
             snap, orders, candles = await asyncio.gather(
-                self._snapshot(), asyncio.to_thread(svc.coin_orders, asset), asyncio.to_thread(svc.klines, asset)
+                self._snapshot(), asyncio.to_thread(svc.coin_orders, asset), asyncio.to_thread(svc.klines, asset, interval)
             )
         except Exception:  # noqa: BLE001 - network/database/bad reply: log the detail, keep the loop alive
             _log.exception("MEXC coin box refresh failed")
@@ -659,15 +671,41 @@ class PortfolioState(CoinState):
             if self._viewer_lost():
                 return False, shown
             failed = snap is None
+            if interval != self.coin_mexc_interval:  # the timeframe changed while reading: its own load wins
+                candles = None
             if not failed:
                 try:
-                    self._apply_coin(asset, snap, orders, candles)
+                    self._apply_coin(asset, snap, orders, candles if candles is not None else json.loads(self.coin_mexc_candles))
                 except Exception:  # noqa: BLE001
                     _log.exception("MEXC coin box could not be displayed")
                     failed = True
             if failed:  # keep what was shown, say why it may be stale
                 self.coin_mexc_error, self.coin_mexc_loaded = _REFRESH_FAILED, True
         return True, asset
+
+    @rx.event
+    def set_coin_chart_mode(self, mode: str):
+        """"My lines" / "TradingView" switch above the coin page chart."""
+        if mode in ("lines", "tv") and self.is_logged_in and _svc().can_view(self.user_email):
+            self.coin_mexc_chart_mode = mode
+
+    @rx.event
+    async def set_coin_chart_interval(self, interval: str):
+        """A timeframe button of the lines view: loads that timeframe's candles straight away."""
+        if interval not in _CHART_INTERVAL_SET or not (self.is_logged_in and _svc().can_view(self.user_email)):
+            return
+        self.coin_mexc_interval = interval
+        coin = self.selected_coin
+        asset = str(coin.get("symbol") or "").upper() if coin else ""
+        if not asset:
+            return
+        try:
+            candles = await asyncio.to_thread(_svc().klines, asset, interval)
+        except Exception:  # noqa: BLE001
+            _log.exception("MEXC candles could not be read")
+            return
+        self.coin_mexc_candles = json.dumps(candles, separators=(",", ":"))
+        self.coin_mexc_has_lines = self.coin_mexc_lines != "[]" and bool(candles)
 
     @rx.event(background=True)
     async def coin_mexc_loop(self):

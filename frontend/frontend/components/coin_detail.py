@@ -16,7 +16,7 @@ Per explicit scope for this pass — only the middle chart is real:
 import reflex as rx
 
 from frontend.components.footer import _BRAND_ICON_PATHS
-from frontend.components.portfolio_page import coin_mexc_section
+from frontend.components.portfolio_page import coin_chart_lines_active, coin_chart_lines_bar, coin_chart_lines_view, coin_mexc_section
 from frontend.components.tradingview_controls import timeframe_controls
 from frontend.state import CoinState, NewsState
 
@@ -2042,6 +2042,8 @@ def _chart_column() -> rx.Component:
             # sit flush left.
             width="100%",
         ),
+        # MEXC viewers on a coin they hold / have orders on: "My lines" (their price lines) / "TradingView" switch.
+        coin_chart_lines_bar(),
         rx.box(
             # The hidden timeframe strip (opacity 0, 0x0) lives INSIDE this box, not as its own child of
             # the chart column: that column has a 25px row gap, so even a zero-size child there added a
@@ -2094,24 +2096,30 @@ def _chart_column() -> rx.Component:
             # plain "no chart" message once it's confirmed this coin has no
             # real exchange listing at all (e.g. DEX-only microcaps).
             rx.cond(
-                CoinState.has_tradingview_chart,
-                rx.el.iframe(
-                    src=rx.color_mode_cond(
-                        light=CoinState.tradingview_iframe_src_light,
-                        dark=CoinState.tradingview_iframe_src_dark,
-                    ),
-                    custom_attrs={"allowtransparency": "true", "frameborder": "0"},
-                    style={"width": "100%", "height": "100%", "border": "none"},
-                    width="100%",
-                    height="100%",
-                ),
+                coin_chart_lines_active(),
+                # Your average buy / limit / stop-loss lines on the coin's MEXC pair (the TradingView widget is a
+                # cross-site iframe that a page cannot draw on, so the lines need a chart of our own).
+                coin_chart_lines_view(),
                 rx.cond(
-                    CoinState.tradingview_chart_pending,
-                    _chart_placeholder(rx.spinner(size="3"), "Loading chart…"),
-                    _chart_placeholder(
-                        rx.icon("chart-candlestick", size=28, color="var(--gray-a9)"),
-                        "No live chart available for this coin",
-                        "It has no real listing on a supported exchange yet.",
+                    CoinState.has_tradingview_chart,
+                    rx.el.iframe(
+                        src=rx.color_mode_cond(
+                            light=CoinState.tradingview_iframe_src_light,
+                            dark=CoinState.tradingview_iframe_src_dark,
+                        ),
+                        custom_attrs={"allowtransparency": "true", "frameborder": "0"},
+                        style={"width": "100%", "height": "100%", "border": "none"},
+                        width="100%",
+                        height="100%",
+                    ),
+                    rx.cond(
+                        CoinState.tradingview_chart_pending,
+                        _chart_placeholder(rx.spinner(size="3"), "Loading chart…"),
+                        _chart_placeholder(
+                            rx.icon("chart-candlestick", size=28, color="var(--gray-a9)"),
+                            "No live chart available for this coin",
+                            "It has no real listing on a supported exchange yet.",
+                        ),
                     ),
                 ),
             ),

@@ -100,13 +100,13 @@ def test_klines_are_parsed_oldest_first_and_cached(demo, monkeypatch):
 
 def test_klines_unknown_pair_bad_input_and_errors_give_nothing(demo, monkeypatch):
     assert m.klines("LINK") == []  # no candles in the demo data
-    assert m.klines("") == [] and m.klines("bad/sym") == []
+    assert m.klines("") == [] and m.klines("bad/sym") == [] and m.klines("SUI", "7h") == []  # unknown interval
 
     def down(*a, **k):
         raise m.MexcError("MEXC could not be reached.")
 
     m.klines("SUI")
-    m._cache["klines"]["SUIUSDT"]["at"] = 0  # expired
+    m._cache["klines"]["SUIUSDT:60m"]["at"] = 0  # expired
     monkeypatch.setattr(m, "_get", down)
     assert len(m.klines("SUI")) == 168  # the last candles are kept on a hiccup
 
@@ -121,15 +121,16 @@ def _ps(monkeypatch):
     return portfolio_state
 
 
-def test_chart_lines_avg_is_blue_orders_are_red_and_a_stop_uses_its_trigger(monkeypatch, demo):
+def test_chart_lines_avg_blue_limit_green_stop_red_at_its_trigger(monkeypatch, demo):
     ps = _ps(monkeypatch)
     snap = m.portfolio(1)
     held = next(x for x in snap["holdings"] if x["asset"] == "SOL")
     lines = ps._chart_lines(held, m.coin_orders("SOL"))
     assert lines[0] == {"p": pytest.approx(175.0), "c": ps._LINE_AVG, "t": "Avg buy", "s": 0}
-    assert lines[1] == {"p": 150.0, "c": ps._LINE_ORDER, "t": "Sell Stop-limit trigger", "s": 2}
+    assert lines[1] == {"p": 150.0, "c": ps._LINE_STOP, "t": "Sell Stop-limit trigger", "s": 2}  # stop-loss: red, dashed
     sui = ps._chart_lines(next(x for x in snap["holdings"] if x["asset"] == "SUI"), m.coin_orders("SUI"))
-    assert [(l["t"], l["p"], l["c"]) for l in sui] == [("Avg buy", pytest.approx(1.22), ps._LINE_AVG), ("Sell Limit", 1.35, ps._LINE_ORDER)]
+    assert [(l["t"], l["p"], l["c"], l["s"]) for l in sui] == [("Avg buy", pytest.approx(1.22), ps._LINE_AVG, 0), ("Sell Limit", 1.35, ps._LINE_LIMIT, 0)]
+    assert (ps._LINE_AVG, ps._LINE_LIMIT, ps._LINE_STOP) == ("#2962FF", "#22C55E", "#EF4444")  # blue, green, red
     assert ps._chart_lines(None, []) == [] and ps._chart_lines({"avg_price": 0}, []) == []
 
 
@@ -148,10 +149,11 @@ def test_hist_view_adds_the_live_total_and_the_range_figures(monkeypatch):
 def test_logout_clears_the_chart_state(monkeypatch):
     ps = _ps(monkeypatch)
     names = {n for n in ps.PortfolioState.get_fields() if n.startswith(ps._PORTFOLIO_VAR_PREFIXES)}
-    assert {"pf_hist_card", "pf_hist_points", "pf_hist_info", "coin_mexc_candles", "coin_mexc_lines"} <= names
+    assert {"pf_hist_card", "pf_hist_points", "pf_hist_info", "coin_mexc_candles", "coin_mexc_lines", "coin_mexc_has_lines", "coin_mexc_chart_mode", "coin_mexc_interval"} <= names
     s = types.SimpleNamespace(**{n: "x" for n in names}, _pf_trades_all=[1], _pf_snap={"a": 1})
     ps.PortfolioState._clear_portfolio(s)
     assert s.pf_hist_card == [] and s.coin_mexc_lines == "[]" and s.coin_mexc_candles == "[]" and s.pf_hist_range == "full"
+    assert s.coin_mexc_has_lines is False and s.coin_mexc_chart_mode == "lines" and s.coin_mexc_interval == "60m"
 
 
 def test_apply_runs_to_the_end_on_a_real_snapshot_in_both_currencies(monkeypatch, demo):
@@ -199,3 +201,25 @@ def test_the_balance_chart_follows_the_myr_usd_choice(monkeypatch):
     monkeypatch.setattr(fx_service, "cached", lambda quote: None)  # no rate: the chart stays in USD
     ps.PortfolioState._apply_history(s, None, None)
     assert s.pf_hist_card_info["value"] == "$120.00"
+
+
+def test_klines_are_cached_per_interval_and_the_chart_intervals_are_mexc_ones(monkeypatch, demo):
+    ps = _ps(monkeypatch)
+    assert {iv for _, iv in ps.CHART_INTERVALS} <= m.KLINE_INTERVALS
+    calls = []
+    real = m._get
+    monkeypatch.setattr(m, "_get", lambda path, params=None, **k: calls.append(params.get("interval")) or real(path, params, **k))
+    m.klines("SUI", "60m"), m.klines("SUI", "60m"), m.klines("SUI", "4h"), m.klines("SUI", "4h")
+    assert calls == ["60m", "4h"]  # one request per pair + interval, then the 60 s cache
+
+
+def test_the_lines_view_is_offered_only_with_lines_and_candles(monkeypatch, demo):
+    ps = _ps(monkeypatch)
+    snap = m.portfolio(1)
+    s = types.SimpleNamespace()
+    ps.PortfolioState._apply_coin(s, "SUI", snap, m.coin_orders("SUI"), m.klines("SUI"))
+    assert s.coin_mexc_has_lines is True and json.loads(s.coin_mexc_lines)[1]["c"] == ps._LINE_LIMIT
+    ps.PortfolioState._apply_coin(s, "SUI", snap, m.coin_orders("SUI"), [])  # no MEXC candles: TradingView stays
+    assert s.coin_mexc_has_lines is False
+    ps.PortfolioState._apply_coin(s, "DOGE", snap, [], m.klines("SUI"))  # candles but nothing of yours: no lines view
+    assert s.coin_mexc_has_lines is False

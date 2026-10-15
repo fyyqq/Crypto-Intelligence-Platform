@@ -1,12 +1,15 @@
-// Coin page "Your MEXC" mini chart (components/portfolio_page.py::coin_mexc_section): TradingView Lightweight
-// Charts (Apache-2.0, self-hosted in /vendor, loaded only when a chart is on the page) drawing the coin's MEXC
-// candles with horizontal price lines: the average buy price (blue) and every open limit / stop order (red,
-// dashed for a stop's trigger). The server puts the data on the element (data-candles, data-lines, JSON) and
-// refreshes it; this script redraws whenever those attributes change and follows the light/dark theme.
+// Coin page "My lines" chart (components/portfolio_page.py::coin_chart_lines_view): shown in the main chart area,
+// for MEXC viewers on a coin they hold or have orders on, instead of the TradingView widget (a cross-site iframe
+// a page cannot draw on). TradingView Lightweight Charts (Apache-2.0, self-hosted in /vendor, loaded only when
+// such a chart is on the page) draws the coin's MEXC candles with horizontal price lines: average buy price
+// (blue), limit orders (green) and stop / stop-loss orders (red, dashed, at the trigger price). The server puts
+// the data on the element (data-candles, data-lines: JSON) and refreshes it; this script redraws whenever those
+// attributes change, refits the time axis when the coin or timeframe changes (data-fit), and follows light/dark.
 (function () {
-  if (window.__pfMiniChart) return;
-  window.__pfMiniChart = true;
+  if (window.__pfLinesChart) return;
+  window.__pfLinesChart = true;
   var LIB = "/vendor/lightweight-charts-4.2.3.standalone.production.js";
+  var SEL = ".pf-lines-chart";
   var loading = null;
 
   function lib() {
@@ -16,7 +19,7 @@
         var s = document.createElement("script");
         s.src = LIB;
         s.onload = function () { resolve(window.LightweightCharts); };
-        s.onerror = reject;
+        s.onerror = function (e) { loading = null; reject(e); };
         document.head.appendChild(s);
       });
     }
@@ -27,9 +30,10 @@
 
   function themeOptions() {
     var d = dark();
+    var grid = d ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
     return {
-      layout: { background: { color: "transparent" }, textColor: d ? "#b4b4b4" : "#60646c", fontSize: 11, attributionLogo: true },
-      grid: { vertLines: { visible: false }, horzLines: { color: d ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" } },
+      layout: { background: { color: "transparent" }, textColor: d ? "#b4b4b4" : "#60646c", fontSize: 12, attributionLogo: true },
+      grid: { vertLines: { color: grid }, horzLines: { color: grid } },
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
       crosshair: { horzLine: { labelBackgroundColor: d ? "#3a3a3a" : "#60646c" }, vertLine: { labelBackgroundColor: d ? "#3a3a3a" : "#60646c" } },
@@ -49,23 +53,22 @@
   function render(el) {
     var candles = parse(el, "data-candles");
     var lines = parse(el, "data-lines");
-    var empty = el.querySelector(".pf-mini-empty");
+    var empty = el.querySelector(".pf-lines-empty");
     if (!candles.length) {
       if (empty) empty.style.display = "";
       return;
     }
-    if (empty) empty.style.display = "none";
     lib().then(function (LWC) {
-      var host = el.querySelector(".pf-mini-canvas");
+      var host = el.querySelector(".pf-lines-canvas");
       if (!host) return;
       if (!el.__chart) {
-        el.__chart = LWC.createChart(host, Object.assign({ autoSize: true, handleScale: false, handleScroll: false }, themeOptions()));
+        el.__chart = LWC.createChart(host, Object.assign({ autoSize: true }, themeOptions()));
         el.__series = el.__chart.addCandlestickSeries({ upColor: "#26a69a", downColor: "#ef5350", borderVisible: false, wickUpColor: "#26a69a", wickDownColor: "#ef5350" });
         el.__lines = [];
       }
+      if (empty) empty.style.display = "none";
       var series = el.__series;
-      var last = candles[candles.length - 1][4];
-      var p = precision(last);
+      var p = precision(candles[candles.length - 1][4]);
       series.applyOptions({
         priceFormat: { type: "price", precision: p, minMove: Math.pow(10, -p) },
         // keep every line in view, even an order far from the current price
@@ -82,11 +85,12 @@
       el.__lines = lines.map(function (l) {
         return series.createPriceLine({ price: l.p, color: l.c, lineWidth: 2, lineStyle: l.s, axisLabelVisible: true, title: l.t });
       });
-      if (el.dataset.fitted !== el.getAttribute("data-symbol")) {
+      var fit = el.getAttribute("data-fit") || "";
+      if (el.__fitted !== fit) {
         el.__chart.timeScale().fitContent();
-        el.dataset.fitted = el.getAttribute("data-symbol");
+        el.__fitted = fit;
       }
-    }).catch(function () { if (empty) { empty.textContent = "Chart could not load."; empty.style.display = ""; } });
+    }).catch(function () { if (empty) { empty.textContent = "The chart could not load."; empty.style.display = ""; } });
   }
 
   var pending = new Set();
@@ -101,22 +105,22 @@
     }, 50);
   }
 
-  function scan() { document.querySelectorAll(".pf-mini-chart").forEach(schedule); }
+  function scan() { document.querySelectorAll(SEL).forEach(schedule); }
 
   new MutationObserver(function (records) {
     records.forEach(function (r) {
-      if (r.type === "attributes" && r.target.classList && r.target.classList.contains("pf-mini-chart")) schedule(r.target);
+      if (r.type === "attributes" && r.target.matches && r.target.matches(SEL)) schedule(r.target);
       else if (r.type === "childList") r.addedNodes.forEach(function (n) {
         if (n.nodeType !== 1) return;
-        if (n.classList.contains("pf-mini-chart")) schedule(n);
-        else if (n.querySelectorAll) n.querySelectorAll(".pf-mini-chart").forEach(schedule);
+        if (n.matches(SEL)) schedule(n);
+        else if (n.querySelectorAll) n.querySelectorAll(SEL).forEach(schedule);
       });
     });
-  }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-candles", "data-lines"] });
+  }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-candles", "data-lines", "data-fit"] });
 
   // light/dark switch: restyle every chart
   new MutationObserver(function () {
-    document.querySelectorAll(".pf-mini-chart").forEach(function (el) { if (el.__chart) el.__chart.applyOptions(themeOptions()); });
+    document.querySelectorAll(SEL).forEach(function (el) { if (el.__chart) el.__chart.applyOptions(themeOptions()); });
   }).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", scan);
