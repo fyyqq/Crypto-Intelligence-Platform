@@ -31,7 +31,7 @@
   // The sidebar links swap the view in place (content + address bar) so the sidebar never reloads. Each path is also
   // a real route, so a refresh or a shared link opens the same view; Back/Forward re-apply the view from the path.
   function viewForPath() {
-    return /^\/profile\/edit-profile\/?$/.test(location.pathname) ? "edit" : "portfolio";
+    return /^\/portfolio\/?$/.test(location.pathname) ? "portfolio" : "edit";
   }
 
   document.addEventListener("click", function (e) {
@@ -45,6 +45,8 @@
     var href = link.getAttribute("href");
     if (location.pathname.replace(/\/$/, "") !== href) history.pushState({ profileView: link.getAttribute("data-view") }, "", href);
     window.scrollTo(0, 0);
+    // On a phone the opened sidebar covers the page: close it once a view is chosen (not remembered).
+    if (window.innerWidth < 768) layout.classList.add("profile-collapsed");
   }, true);
 
   window.addEventListener("popstate", function () {
@@ -59,7 +61,6 @@
     queued = false;
     var inner = document.querySelector(".profile-sidebar-inner");
     if (!inner) return;
-    if (window.innerWidth < 768) { inner.style.top = ""; inner.style.height = ""; return; }
     var header = document.querySelector(".site-header");
     var top = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
     inner.style.top = top + "px";

@@ -64,18 +64,19 @@ def _alerts_menu_item() -> rx.Component:
 
 
 def _profile_menu_item() -> rx.Component:
-    """"Profile" — the first row of the dropdown while logged in; opens /profile (edit details and pictures)."""
+    """"Portfolio" — the first row of the dropdown while logged in; opens /portfolio (the account area, whose sidebar
+    also leads to the Profile edit form)."""
     return rx.cond(
         CoinState.is_logged_in,
         rx.link(
             rx.hstack(
-                rx.icon("user", size=16),
-                rx.text("Profile", size="2"),
+                rx.icon("wallet", size=16),
+                rx.text("Portfolio", size="2"),
                 spacing="2",
                 align="center",
                 class_name="profile-menu-item",
             ),
-            href="/profile/edit-profile",
+            href="/portfolio",
             underline="none",
             display="block",
             width="100%",
@@ -139,13 +140,23 @@ def _color_mode_menu_item() -> rx.Component:
     )
 
 
+_NAV_MENU_ICONS = {
+    "News": "newspaper",
+    "Narrative": "book-open",
+    "Narrative Radar": "radar",
+    "Chains": "link",
+    "Tools": "wrench",
+    "Memecoin": "coins",
+}
+
+
 def _nav_menu_items() -> rx.Component:
     """The header's nav links, shown inside the profile dropdown below lg
     (where the centre of the header is taken by the search box instead)."""
     return rx.box(
         *[
             rx.link(
-                rx.hstack(rx.text(label, size="2"), align="center", class_name="profile-menu-item"),
+                rx.hstack(rx.icon(_NAV_MENU_ICONS.get(label, "circle"), size=16), rx.text(label, size="2"), spacing="2", align="center", class_name="profile-menu-item"),
                 href=href,
                 underline="none",
                 display="block",
@@ -1172,13 +1183,13 @@ def chains_page() -> rx.Component:
     return _index_shell(chains_index_content())
 
 
-def profile_page() -> rx.Component:
-    # /profile — the account area, opening on Portfolio; the sidebar swaps to the edit view in place.
+def portfolio_page() -> rx.Component:
+    # /portfolio — the account area, opening on Portfolio; the sidebar swaps to the edit view in place.
     return _index_shell(profile_content("portfolio"))
 
 
 def edit_profile_page() -> rx.Component:
-    # /profile/edit-profile — the same page and sidebar on the edit view (details, profile picture, banner).
+    # /profile/edit-profile (and /profile) — the same page and sidebar on the edit view (details, picture, banner).
     return _index_shell(profile_content("edit"))
 
 
@@ -1693,7 +1704,8 @@ app.add_page(
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
 )
 for _route, _page_fn, _title in [
-    ("/profile", profile_page, "Repace — Portfolio"),
+    ("/portfolio", portfolio_page, "Repace — Portfolio"),
+    ("/profile", edit_profile_page, "Repace — Profile"),
     ("/profile/edit-profile", edit_profile_page, "Repace — Edit Profile"),
 ]:
     app.add_page(

@@ -118,7 +118,7 @@ def _form() -> rx.Component:
 # the browser (assets/profile_sidebar.js), so the sidebar never reloads. Each path is also a real route (frontend.py)
 # so a refresh or a shared link opens the same view.
 _SIDE_LINKS = [
-    ("Portfolio", "wallet", "portfolio", "/profile"),
+    ("Portfolio", "wallet", "portfolio", "/portfolio"),
     ("Profile", "user", "edit", "/profile/edit-profile"),
 ]
 
@@ -189,7 +189,7 @@ def _portfolio_view() -> rx.Component:
 
 
 def profile_content(view: str = "portfolio") -> rx.Component:
-    """`view` is the one shown first: "portfolio" (/profile) or "edit" (/profile/edit-profile)."""
+    """`view` is the one shown first: "portfolio" (/portfolio) or "edit" (/profile/edit-profile)."""
     return rx.box(_sidebar(), _portfolio_view(), _profile_main(), class_name="profile-layout", custom_attrs={"data-view": view})
 
 

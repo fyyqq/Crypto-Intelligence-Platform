@@ -1597,7 +1597,7 @@ svg.wl-star-force-off {
   flex: 0 0 25%; width: 25%; box-sizing: border-box; align-self: stretch; padding: 0;
   background: var(--gray-a2); border-right: 1px solid var(--gray-a5); transition: flex-basis 0.2s ease, width 0.2s ease;
 }
-/* The column is as tall as the page; its content stays in view while scrolling (below the sticky header on tablets). */
+/* The column is as tall as the page; its content stays in view while scrolling (below the sticky header on tablets/phones). */
 .profile-sidebar-inner { box-sizing: border-box; padding: 12px; position: sticky; top: 0; height: calc(100vh - 84px); display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
 .profile-layout { min-height: calc(100vh - 84px); }
 @media (max-width: 1023px) { .profile-sidebar-inner { top: 64px; height: calc(100vh - 150px); } }
@@ -1632,17 +1632,16 @@ svg.wl-star-force-off {
 .profile-layout.profile-collapsed .profile-side-icon-close { display: none; }
 .profile-layout.profile-collapsed .profile-side-icon-open { display: block; }
 @media (max-width: 767px) {
-  .profile-layout { flex-direction: column; align-items: stretch; }
-  .profile-sidebar, .profile-layout.profile-collapsed .profile-sidebar {
-    flex: 0 0 auto; width: 100%; border-right: none; border-bottom: 1px solid var(--gray-a5); padding: 10px 16px;
+  /* Phones: the sidebar stays a 64 px icon strip on the left (the page beside it); opened, the panel covers the whole
+     page at full width (fixed under the header, positioned by assets/profile_sidebar.js) and closes again from its
+     chevron button or after a link is chosen. */
+  .profile-sidebar, .profile-layout:not(.profile-collapsed) .profile-sidebar { flex: 0 0 64px; width: 64px; }
+  .profile-layout:not(.profile-collapsed) .profile-sidebar-inner {
+    position: fixed; left: 0; right: 0; width: auto; z-index: 900; background: var(--color-background);
+    border-top: 1px solid var(--gray-a5); padding: 12px 16px;
   }
-  .profile-layout { min-height: 0; }
-  .profile-sidebar-inner, .profile-layout.profile-collapsed .profile-sidebar-inner { position: static; height: auto; overflow: visible; padding: 0; }
-  .profile-side-top { margin-top: 12px; }
-  .profile-layout.profile-collapsed .profile-side-nav { display: none; }
-  .profile-layout.profile-collapsed .profile-side-user, .profile-layout.profile-collapsed .profile-side-who { display: flex; }
-  .profile-layout.profile-collapsed .profile-side-top { justify-content: space-between; }
-  .profile-layout.profile-collapsed .profile-side-top { margin-top: 0; padding-top: 0; border-top: none; }
+  /* The button moves to the left (where the strip's button was) so the floating widgets on the right never cover it. */
+  .profile-layout:not(.profile-collapsed) .profile-side-top { flex-direction: row-reverse; justify-content: flex-end; gap: 12px; }
 }
 
 /* /narrative and /chains: name + 24h score inside one pill (components/index_pages.py). */

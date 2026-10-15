@@ -2804,14 +2804,20 @@ class CoinState(rx.State):
         (frontend/live_prices.py; falls back to the synced price) and, when one is hit,
         stacks a popup, records it in the history (and in the database when logged in) and
         shows the popup for a minute. Runs for as long as the tab stays open."""
+        from frontend.state.notification_state import NotificationState
+
         async with self:
-            if self._alert_watch_running or not self.user_id:
+            if not self.user_id:
                 return  # alerts are for logged-in accounts only
+            already_running = self._alert_watch_running
             self._alert_watch_running = True
+        if already_running:
+            # A reload keeps the in-memory session (and its loop): still start the page with the bell popup closed.
+            yield NotificationState.page_loaded
+            return
 
         from frontend.frontend import app as reflex_app
         from frontend.live_prices import fetch_live_prices
-        from frontend.state.notification_state import NotificationState
 
         tick = 0
         try:
