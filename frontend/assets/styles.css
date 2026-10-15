@@ -1609,3 +1609,14 @@ svg.wl-star-force-off {
 .sector-search { width: 100%; }
 @media (min-width: 768px) { .sector-search { width: 280px; flex-shrink: 0; } }
 .sector-search input { padding-left: 5px; }
+
+/* Coin cards on /narrative/<slug> and /chains/<slug> (components/narrative_alerts.py::_coin_card). */
+.coin-card {
+  position: relative; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 10px; border-radius: 12px;
+  background: var(--gray-a2); border: 1px solid var(--gray-a6); box-shadow: 0 1px 3px var(--gray-a4); min-width: 0;
+}
+.coin-card:hover { background: var(--gray-a3); }
+.coin-card-link::after { content: ""; position: absolute; inset: 0; z-index: 0; border-radius: 12px; }
+.coin-card .coin-card-star { position: relative; z-index: 2; line-height: 0; }
+.coin-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.coin-card-chart { margin-top: auto; height: 70px; }

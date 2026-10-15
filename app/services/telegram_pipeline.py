@@ -140,6 +140,19 @@ AI_CLASSIFIED_GROUPS = {
     "Coin_Signals",
 }
 
+# @layergg posts a "What happened in DEX in the last ~24h" digest: a post of that group whose HEADLINE (first line)
+# contains the word DEX (any case, also DEXs / DEXes; not a longer word such as "indexed") goes to the Memecoins
+# section instead of Crypto, for both new posts (store_message) and the ones already stored
+# (scripts/reclassify_layergg_dex.py).
+DEX_POST_GROUP = "layergg"
+_DEX_WORD = re.compile(r"\bdex(?:es|s)?\b", re.IGNORECASE)
+
+
+def is_dex_post(username: str, text: str) -> bool:
+    first_line = (text or "").strip().split("\n", 1)[0]
+    return username == DEX_POST_GROUP and bool(_DEX_WORD.search(first_line))
+
+
 # Groups where a post with a photo is always kept, whatever its text — even
 # no text at all (a bare photo used to be dropped) or text the AI would
 # otherwise exclude as chat/opinion/signal. A photo-only post gets the title
@@ -602,6 +615,8 @@ async def store_message(
         from app.services.telegram_classifier import classify_post
 
         category = await asyncio.to_thread(classify_post, username, text, not keep_image_post) or category
+    if text and is_dex_post(username, text):
+        category = "Memecoin"
     if category == "Excluded":
         # Stored (so the incremental fetch doesn't re-classify it) but hidden
         # from /news, without spending any image/media/article downloads.

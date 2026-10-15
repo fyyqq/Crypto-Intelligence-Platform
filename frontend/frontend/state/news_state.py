@@ -23,7 +23,7 @@ from urllib.parse import urlparse
 
 import reflex as rx
 
-from frontend.state.coin_state import _format_model_badge, fix_ai
+from frontend.state.coin_state import _format_model_badge, fix_ai, sector_members
 
 _TELEGRAM_MEDIA_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "telegram_media"
 
@@ -525,26 +525,8 @@ def _build_article_rows(rows: list[dict]) -> list[dict]:
 
 # ---- /narrative/<slug> and /chains/<slug>: the sector's coins and every story that mentions them --------
 SECTOR_NEWS_COINS = 40  # the sector's largest coins whose name / ticker are looked for in headlines
-SECTOR_COINS_SHOWN = 30  # coin pills shown before "Show all"
-SECTOR_COINS_MAX = 200
+SECTOR_ARTICLES_PER_PAGE = 20  # stories per page on /narrative/<slug> and /chains/<slug>
 _GENERIC_NAMES = {"coin", "token", "network", "protocol", "chain", "finance", "money", "world", "swap", "the", "meme"}
-
-
-def sector_members(kind: str, slug: str) -> tuple[str, list[dict]]:
-    """(display label, its coin rows by market cap) for /narrative/<slug> (kind "narrative") or /chains/<slug>
-    ("chain"), from the shared coin list; ("", []) when no sector has that slug."""
-    from frontend.state.coin_state import _UNIVERSE
-
-    names = _UNIVERSE["narratives"] if kind == "narrative" else _UNIVERSE["chains"]
-    label = next((n for n in names if _slugify(n) == slug), "")
-    if not label:
-        return "", []
-    if kind == "narrative":
-        rows = [r for r in _UNIVERSE["rows"] if label in (r.get("narrative_list") or [])]
-    else:
-        rows = [r for r in _UNIVERSE["rows"] if r.get("main_chain") == label]
-    rows.sort(key=lambda r: -(r.get("market_cap_usd") or 0))
-    return label, rows
 
 
 def mention_finder(rows: list[dict], extra_name: str = "", extra_symbol: str = ""):
@@ -931,7 +913,6 @@ class NewsState(rx.State):
     view_all_page: int = 1
     # Current page of /narrative (Narrative Radar, 100 per page).
     narrative_page: int = 1
-    sector_coins_expanded: bool = False  # "Show all" in the coin card of /narrative/<slug> and /chains/<slug>
     # "Summarize What Happened Today" popup on /news/<category>.
     summary_open: bool = False
     summary_loading: bool = False
@@ -1208,28 +1189,21 @@ class NewsState(rx.State):
             )
         else:  # /narrative without a slug is its own page now; kept for completeness
             articles = [a for a in self._all_articles if a["news_type"] == "Cryptocurrency" and a["has_target"]]
-        total_pages = max(1, -(-len(articles) // _VIEW_ALL_LIMIT))
+        per_page = SECTOR_ARTICLES_PER_PAGE if slug else _VIEW_ALL_LIMIT
+        total_pages = max(1, -(-len(articles) // per_page))
         page = max(1, min(self.narrative_page, total_pages))
-        start = (page - 1) * _VIEW_ALL_LIMIT
-        shown = SECTOR_COINS_MAX if self.sector_coins_expanded else SECTOR_COINS_SHOWN
-        coins = [
-            {"symbol": r["symbol"], "icon_url": r["icon_url"], "href": "/coins/" + r.get("slug", r["symbol"].lower()),
-             "name": r["name"], "pct": "", "color": "var(--gray-11)"}
-            for r in rows[:shown]
-        ]
+        start = (page - 1) * per_page
         return {
             "has_slug": bool(slug),
             "label": label,
             "article_count": len(articles),
             "range_start": start + 1 if articles else 0,
-            "range_end": min(start + _VIEW_ALL_LIMIT, len(articles)),
+            "range_end": min(start + per_page, len(articles)),
             "page": page,
             "total_pages": total_pages,
             "has_pagination": total_pages > 1,
-            "articles": articles[start : start + _VIEW_ALL_LIMIT],
-            "coins": coins,
+            "articles": articles[start : start + per_page],
             "coin_count": len(rows),
-            "can_expand": len(rows) > SECTOR_COINS_SHOWN,
         }
 
     @rx.var(cache=True)
@@ -1248,10 +1222,6 @@ class NewsState(rx.State):
         label = self.chain_view["label"]
         return f"Repace — {label}" if label else "Repace — Chains"
 
-    @rx.event
-    def toggle_sector_coins(self):
-        self.sector_coins_expanded = not self.sector_coins_expanded
-
     @rx.var(cache=True)
     def narrative_page_title(self) -> str:
         label = self.narrative_view["label"]
@@ -1260,7 +1230,6 @@ class NewsState(rx.State):
     @rx.event
     def reset_narrative_page(self):
         self.narrative_page = 1
-        self.sector_coins_expanded = False
 
     @rx.event
     def narrative_first(self):

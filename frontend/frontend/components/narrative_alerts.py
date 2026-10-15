@@ -107,36 +107,77 @@ def narrative_alerts() -> rx.Component:
     )
 
 
+def _coin_card(c: rx.Var[dict]) -> rx.Component:
+    """One coin: logo + star, name, price and 24h change, the table's trend line. The whole card opens the coin page
+    (stretched link, assets/styles.css .coin-card); the star toggles the real watchlist (CoinState.toggle_watchlist)."""
+    from frontend.state import CoinState
+
+    watched = CoinState.watchlist_ids.contains(c["cmc_id"])
+    return rx.box(
+        rx.hstack(
+            rx.image(src=c["icon_url"], width="32px", height="32px", border_radius="50%", loading="lazy"),
+            rx.box(
+                rx.icon("star", size=22, color=rx.cond(watched, "var(--amber-9)", "var(--gray-12)"), fill=rx.cond(watched, "var(--amber-9)", "none"), cursor="pointer"),
+                on_click=CoinState.toggle_watchlist(c["cmc_id"]),
+                class_name="wl-star coin-card-star",
+                title="Add to / remove from watchlist",
+            ),
+            justify="between",
+            align="start",
+            width="100%",
+        ),
+        rx.link(rx.text(c["name"], size="3", weight="medium", class_name="coin-card-name"), href=c["href"], underline="none", color="var(--gray-12)", class_name="coin-card-link"),
+        rx.hstack(
+            rx.text(c["price"], size="4", weight="bold"),
+            rx.text(c["arrow"], " ", c["change"], size="2", weight="medium", color=c["color"], white_space="nowrap"),
+            align="center",
+            spacing="2",
+            wrap="wrap",
+        ),
+        rx.box(
+            rx.recharts.line_chart(
+                rx.recharts.line(data_key="v", stroke=c["trend_color"], dot=False, active_dot=False, stroke_width=2, is_animation_active=False),
+                data=c["trend"],
+                width="100%",
+                height=70,
+            ),
+            class_name=c["shine"].to(str) + " coin-card-chart",
+            width="100%",
+        ),
+        class_name="coin-card",
+    )
+
+
 def _sector_coin_card(view, noun: str) -> rx.Component:
-    """The card box above the article grid: the narrative's / chain's coins (largest first) as logo + ticker pills."""
-    from frontend.components.index_pages import _badge
+    """The coins of the narrative / chain as cards, 10 a page (5 columns x 2 rows on desktop)."""
+    from frontend.components.news_page import _pagination_row
+    from frontend.state import CoinState
 
     return rx.cond(
         view["coin_count"].to(int) > 0,
-        rx.box(
+        rx.vstack(
             rx.hstack(
-                rx.heading("Coins in ", view["label"], size="3"),
+                rx.heading("Coins in ", view["label"], size="4"),
                 rx.badge(view["coin_count"], color_scheme="gray", variant="soft", size="2"),
                 align="center",
                 spacing="2",
                 wrap="wrap",
             ),
-            rx.box(rx.foreach(view["coins"].to(list[dict]), _badge), class_name="coin-badges", margin_top="0.75em"),
+            rx.grid(
+                rx.foreach(CoinState.sector_cards, _coin_card),
+                columns=rx.breakpoints(initial="2", sm="3", md="5"),
+                gap="1em",
+                width="100%",
+            ),
             rx.cond(
-                view["can_expand"],
-                rx.button(
-                    rx.cond(NewsState.sector_coins_expanded, "Show fewer", "Show all coins"),
-                    on_click=NewsState.toggle_sector_coins,
-                    variant="ghost",
-                    size="1",
-                    cursor="pointer",
-                    margin_top="0.75em",
+                CoinState.sector_card_pages > 1,
+                _pagination_row(
+                    CoinState.sector_cards_first, CoinState.sector_cards_prev, CoinState.sector_cards_next, CoinState.sector_cards_last,
+                    CoinState.sector_card_page_shown, CoinState.sector_card_pages,
                 ),
             ),
-            padding="1em 1.25em",
-            border_radius="10px",
-            border="1px solid var(--gray-a5)",
-            background="var(--gray-a2)",
+            spacing="3",
+            align_items="start",
             width="100%",
         ),
     )

@@ -760,6 +760,24 @@ def _sector_pages(total: int) -> int:
     return max(1, -(-total // SECTOR_PAGE_SIZE))
 
 
+def sector_members(kind: str, slug: str) -> tuple[str, list[dict]]:
+    """(display label, its coin rows by market cap) for /narrative/<slug> (kind "narrative") or /chains/<slug>
+    ("chain"), from the shared coin list; ("", []) when no sector has that slug."""
+    names = _UNIVERSE["narratives"] if kind == "narrative" else _UNIVERSE["chains"]
+    label = next((n for n in names if re.sub(r"[^a-z0-9]+", "-", n.lower()).strip("-") == slug), "")
+    if not label:
+        return "", []
+    if kind == "narrative":
+        rows = [r for r in _UNIVERSE["rows"] if label in (r.get("narrative_list") or [])]
+    else:
+        rows = [r for r in _UNIVERSE["rows"] if r.get("main_chain") == label]
+    rows.sort(key=lambda r: -(r.get("market_cap_usd") or 0))
+    return label, rows
+
+
+SECTOR_CARDS_PER_PAGE = 10  # coin cards per page on /narrative/<slug> and /chains/<slug>: 5 columns x 2 rows
+
+
 def _chain_href(n: str) -> str:
     return "/chains/" + (re.sub(r"[^a-z0-9]+", "-", n.lower()).strip("-") or "chain")
 
@@ -1621,6 +1639,7 @@ class CoinState(rx.State):
     # Page (1-based) of the expanded / searched narrative and chain lists, FILTER_PAGE_SIZE pills each.
     narrative_page: int = 1
     chain_page: int = 1
+    sector_card_page: int = 1  # page of coin cards on /narrative/<slug> and /chains/<slug>
     # /narrative and /chains boards: every name with its 24h score, best first (load_sector_boards).
     # Full tables stay on the server (leading underscore); the browser gets one page of SECTOR_PAGE_SIZE rows.
     _narrative_base: list[dict] = []
@@ -2018,6 +2037,60 @@ class CoinState(rx.State):
     def chain_table_last(self):
         self.chain_table_page = _sector_pages(self.chain_total)
         self._sector_page("chain")
+
+    @rx.var(cache=True)
+    def _sector_member_rows(self) -> list[dict]:
+        """The coins (largest first) of the narrative or chain the open /narrative/<slug> or /chains/<slug> shows."""
+        if self.narrative_slug:
+            return sector_members("narrative", self.narrative_slug.strip().lower())[1]
+        if self.chain_slug:
+            return sector_members("chain", self.chain_slug.strip().lower())[1]
+        return []
+
+    @rx.var(cache=True)
+    def sector_card_pages(self) -> int:
+        return max(1, -(-len(self._sector_member_rows) // SECTOR_CARDS_PER_PAGE))
+
+    @rx.var(cache=True)
+    def sector_card_page_shown(self) -> int:
+        return min(max(1, self.sector_card_page), self.sector_card_pages)
+
+    @rx.var(cache=True)
+    def sector_cards(self) -> list[dict]:
+        """The current page of coin cards: live price and 24h change (the same overrides the tables use), the
+        table's trend line and whether the coin is in the viewer's watchlist (the star)."""
+        start = (self.sector_card_page_shown - 1) * SECTOR_CARDS_PER_PAGE
+        out = []
+        for base in self._sector_member_rows[start:start + SECTOR_CARDS_PER_PAGE]:
+            r = self._row_with_overrides(base)
+            pct = r.get("pct_24h_raw") or 0.0
+            out.append({
+                "cmc_id": r["cmc_id"], "name": r["name"], "symbol": r["symbol"], "icon_url": r["icon_url"],
+                "href": "/coins/" + r.get("slug", r["symbol"].lower()), "price": r["price_display"],
+                "arrow": "▲" if pct >= 0 else "▼", "change": f"{abs(pct):.1f}%", "color": r["change_24h_color"],
+                "trend": r["trend_24h_data"], "trend_color": r["trend_24h_color"], "shine": r["trend_24h_shine"],
+            })
+        return out
+
+    @rx.event
+    def reset_sector_cards(self):
+        self.sector_card_page = 1
+
+    @rx.event
+    def sector_cards_first(self):
+        self.sector_card_page = 1
+
+    @rx.event
+    def sector_cards_prev(self):
+        self.sector_card_page = max(1, self.sector_card_page_shown - 1)
+
+    @rx.event
+    def sector_cards_next(self):
+        self.sector_card_page = min(self.sector_card_pages, self.sector_card_page_shown + 1)
+
+    @rx.event
+    def sector_cards_last(self):
+        self.sector_card_page = self.sector_card_pages
 
     @rx.var(cache=True)
     def narrative_table_pages(self) -> int:

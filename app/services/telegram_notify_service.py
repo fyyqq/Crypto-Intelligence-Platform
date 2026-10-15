@@ -147,7 +147,20 @@ def send_channel(user_id: int, payload: dict) -> None:
     if link and link.startswith("/"):
         base = settings.public_site_url.rstrip("/")
         lines.append(f'<a href="{html.escape(base + link)}">Open on Repace</a>')
-    _send(chat_id, "\n".join(lines))
+    text = "\n".join(lines)
+    for attempt in range(1, SEND_ATTEMPTS + 1):  # a network hiccup must not lose a triggered alert
+        try:
+            _send(chat_id, text)
+            return
+        except Exception:  # noqa: BLE001
+            if attempt == SEND_ATTEMPTS:
+                raise
+            log.warning("telegram alert to chat %s failed (attempt %d), retrying", chat_id, attempt)
+            time.sleep(SEND_RETRY_SECONDS * attempt)
+
+
+SEND_ATTEMPTS = 3
+SEND_RETRY_SECONDS = 2
 
 
 # ---- Commands (/alerts, /alert ETH) -------------------------------------------------------

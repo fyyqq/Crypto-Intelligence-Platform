@@ -66,3 +66,5 @@ Ideas not built: followed-news alerts, watchlist movers, Gainers & Losers milest
 ## Forex Factory reminders and /forex_factory (2026-10-15)
 
 Telegram reminders 7 days, 3 days and 1 hour before every US CPI release, Non-Farm Employment report, FOMC event and Fed Chair speech (not single members' speeches), sent to every connected account by `app/services/macro_reminder_service.py` (one pass a minute, live only via `TELEGRAM_DIGEST`, once each, state in `logs/macro_reminders_sent.json`). `/forex_factory` (or `/forex-factory`) lists the current month's events. CPI and jobs report dates weeks ahead need a free `FRED_API_KEY`; see `docs/tools.md`.
+
+**Telegram on trigger (2026-10-15 check):** a triggered price alert is sent to the connected account's Telegram automatically (`send_channel`, registered in `frontend.py`; no tab needed because the 24/7 `alert_watcher` triggers it); live had delivered every one (one transient network error in two days). The sender now retries up to 3 times (2 s, 4 s) before giving up, so a hiccup does not lose an alert.

@@ -1618,13 +1618,13 @@ app.add_page(
     narrative_page,
     route="/narrative/[narrative_slug]",
     title=NewsState.narrative_page_title,
-    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, NewsState.watch_new_articles],
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, CoinState.reset_sector_cards, NewsState.watch_new_articles],
 )
 app.add_page(
     chain_detail_page,
     route="/chains/[chain_slug]",
     title=NewsState.chain_page_title,
-    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, NewsState.watch_new_articles],
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_narrative_page, CoinState.reset_sector_cards, NewsState.watch_new_articles],
 )
 app.add_page(
     gainers_losers_page,

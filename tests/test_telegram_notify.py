@@ -198,3 +198,23 @@ def test_clear_chat_command_works_in_any_private_chat_and_confirms(env, monkeypa
 def test_clear_chat_is_in_the_menu_and_the_overview():
     assert any(c["command"] == "clear_chat" for c in tg.COMMANDS)
     assert "/clear_chat" in tg.commands_overview()
+
+
+def test_a_triggered_alert_is_retried_when_telegram_hiccups(monkeypatch):
+    sent, calls = [], []
+    monkeypatch.setattr(tg.settings, "telegram_bot_token", "x")
+    monkeypatch.setattr(tg, "chat_id_for", lambda uid: 42)
+    monkeypatch.setattr(tg.time, "sleep", lambda s: None)
+
+    def flaky(chat_id, text):
+        calls.append(1)
+        if len(calls) < 3:
+            raise RuntimeError("network down")
+        sent.append((chat_id, text))
+
+    monkeypatch.setattr(tg, "_send", flaky)
+    tg.send_channel(1, {"title": "ETH rose above $4,000", "body": "now at $4,012", "tone": "up"})
+    assert len(calls) == 3 and sent[0][0] == 42 and "ETH rose above" in sent[0][1]
+    monkeypatch.setattr(tg, "_send", lambda c, t: (_ for _ in ()).throw(RuntimeError("down for good")))
+    with pytest.raises(RuntimeError):  # after the last attempt it still raises, so notification_service logs it
+        tg.send_channel(1, {"title": "x"})
