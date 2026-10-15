@@ -1592,3 +1592,16 @@ svg.wl-star-force-off {
 /* /narrative and /chains: name + 24h score inside one pill (components/index_pages.py). */
 .sector-pill { display: inline-flex; align-items: center; gap: 6px; }
 .sector-pill .sector-pct { font-variant-numeric: tabular-nums; }
+
+/* /narrative and /chains table (components/index_pages.py). */
+.sector-table { min-width: 860px; }
+.sector-id { width: 48px; color: var(--gray-10); }
+.sector-name { min-width: 180px; max-width: 240px; }
+.sector-top { min-width: 320px; }
+.sector-mover { min-width: 190px; }
+.coin-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.coin-badge {
+  display: inline-flex; align-items: center; padding: 2px 8px 2px 4px; border-radius: 999px;
+  background: var(--gray-4); border: 1px solid var(--gray-6); white-space: nowrap;
+}
+.coin-badge:hover { background: var(--gray-6); }

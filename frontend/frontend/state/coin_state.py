@@ -680,30 +680,56 @@ def sector_boards() -> dict:
     _SECTORS.update(
         at=time.time(),
         status=status,
-        narratives=sp.sector_scores(rows, changes, lambda r: r.get("narrative_list") or []),
-        chains=sp.sector_scores(rows, changes, lambda r: [r.get("main_chain") or ""]),
+        narratives=sp.sector_table(rows, changes, lambda r: r.get("narrative_list") or []),
+        chains=sp.sector_table(rows, changes, lambda r: [r.get("main_chain") or ""]),
         updated=_dt.datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%d %b %H:%M"),
     )
     return _SECTORS
 
 
-def _board(names: list[str], scores: dict, href_of=None) -> list[dict]:
+SECTOR_PAGE_SIZE = 10  # table rows per page on /narrative and /chains
+
+
+def _pct_color(pct) -> str:
+    return "var(--gray-10)" if pct is None else ("var(--green-11)" if pct > 0 else "var(--red-11)" if pct < 0 else "var(--gray-11)")
+
+
+def _coin_badge(cmc_id: int, pct=None) -> dict | None:
+    row = _UNIVERSE["by_id"].get(cmc_id)
+    if not row:
+        return None
+    return {
+        "symbol": row["symbol"], "icon_url": row["icon_url"], "href": "/coins/" + row.get("slug", row["symbol"].lower()),
+        "name": row["name"], "pct": "" if pct is None else f"{pct:+.2f}%", "color": _pct_color(pct),
+    }
+
+
+def _board(names: list[str], table: dict, href_of=None) -> list[dict]:
+    """The whole /narrative or /chains table, best 24h score first: id, name, score and the coin badges."""
     from app.services.sector_performance_service import ranked
 
     out = []
-    for n in ranked(names, scores):
-        sc = scores.get(n)
-        pct = sc["pct"] if sc else None
+    for i, n in enumerate(ranked(names, table), 1):
+        t = table.get(n)
+        pct = t["pct"] if t else None
         if pct is not None and abs(pct) < 0.005:
             pct = 0.0  # no "-0.00%"
         out.append({
+            "id": i,
             "name": n,
             "href": href_of(n) if href_of else "",
             "pct": "" if pct is None else f"{pct:+.2f}%",
-            "color": "var(--gray-10)" if pct is None else ("var(--green-11)" if pct > 0 else "var(--red-11)" if pct < 0 else "var(--gray-11)"),
-            "title": f"Average 24h change of its top {sc['coins']} coins by market cap" if sc else "Not enough coins with 24h data",
+            "color": _pct_color(pct),
+            "title": f"Average 24h change of its top {t['coins']} coins by market cap" if pct is not None else "Not enough coins with 24h data",
+            "top": [b for b in (_coin_badge(c) for c in (t["top"] if t else [])) if b],
+            "gainers": [b for b in (_coin_badge(c, p) for c, p in (t["gainers"] if t else [])) if b],
+            "losers": [b for b in (_coin_badge(c, p) for c, p in (t["losers"] if t else [])) if b],
         })
     return out
+
+
+def _sector_pages(total: int) -> int:
+    return max(1, -(-total // SECTOR_PAGE_SIZE))
 
 
 def _narrative_href(n: str) -> str:
@@ -1564,8 +1590,15 @@ class CoinState(rx.State):
     narrative_page: int = 1
     chain_page: int = 1
     # /narrative and /chains boards: every name with its 24h score, best first (load_sector_boards).
+    # Full tables stay on the server (leading underscore); the browser gets one page of SECTOR_PAGE_SIZE rows.
+    _narrative_full: list[dict] = []
+    _chain_full: list[dict] = []
     narrative_board: list[dict] = []
     chain_board: list[dict] = []
+    narrative_total: int = 0
+    chain_total: int = 0
+    narrative_table_page: int = 1
+    chain_table_page: int = 1
     sector_status: str = ""
     sector_updated: str = ""
     selected_category: str = "All narratives"
@@ -1862,15 +1895,73 @@ class CoinState(rx.State):
     def chain_page_next(self):
         self.chain_page = min(self.chain_page_count, self.chain_page + 1)
 
+    def _sector_page(self, kind: str) -> None:
+        full = self._narrative_full if kind == "narrative" else self._chain_full
+        page = min(max(1, getattr(self, f"{kind}_table_page")), _sector_pages(len(full)))
+        setattr(self, f"{kind}_table_page", page)
+        setattr(self, f"{kind}_board", full[(page - 1) * SECTOR_PAGE_SIZE: page * SECTOR_PAGE_SIZE])
+
     @rx.event
     async def load_sector_boards(self):
-        """/narrative and /chains on_load: the 24h-ranked pill lists (cached hourly for every session)."""
+        """/narrative and /chains on_load: the 24h-ranked tables (cached hourly for every session)."""
         data = await asyncio.to_thread(sector_boards)
         names_n = [c for c in self.all_categories if c != "All narratives"] or list(_UNIVERSE["narratives"])
         names_c = [c for c in self.all_chains if c != "All chains"] or list(_UNIVERSE["chains"])
-        self.narrative_board = _board(names_n, data["narratives"], _narrative_href)
-        self.chain_board = _board(names_c, data["chains"])
+        self._narrative_full = _board(names_n, data["narratives"], _narrative_href)
+        self._chain_full = _board(names_c, data["chains"])
+        self.narrative_total, self.chain_total = len(self._narrative_full), len(self._chain_full)
+        self.narrative_table_page = self.chain_table_page = 1  # a new visit starts on page 1
+        self._sector_page("narrative")
+        self._sector_page("chain")
         self.sector_status, self.sector_updated = data["status"], data["updated"]
+
+    @rx.event
+    def narrative_table_first(self):
+        self.narrative_table_page = 1
+        self._sector_page("narrative")
+
+    @rx.event
+    def narrative_table_prev(self):
+        self.narrative_table_page -= 1
+        self._sector_page("narrative")
+
+    @rx.event
+    def narrative_table_next(self):
+        self.narrative_table_page += 1
+        self._sector_page("narrative")
+
+    @rx.event
+    def narrative_table_last(self):
+        self.narrative_table_page = _sector_pages(self.narrative_total)
+        self._sector_page("narrative")
+
+    @rx.event
+    def chain_table_first(self):
+        self.chain_table_page = 1
+        self._sector_page("chain")
+
+    @rx.event
+    def chain_table_prev(self):
+        self.chain_table_page -= 1
+        self._sector_page("chain")
+
+    @rx.event
+    def chain_table_next(self):
+        self.chain_table_page += 1
+        self._sector_page("chain")
+
+    @rx.event
+    def chain_table_last(self):
+        self.chain_table_page = _sector_pages(self.chain_total)
+        self._sector_page("chain")
+
+    @rx.var(cache=True)
+    def narrative_table_pages(self) -> int:
+        return _sector_pages(self.narrative_total)
+
+    @rx.var(cache=True)
+    def chain_table_pages(self) -> int:
+        return _sector_pages(self.chain_total)
 
     @rx.event
     def open_chain(self, name: str):

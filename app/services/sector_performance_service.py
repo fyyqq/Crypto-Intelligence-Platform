@@ -33,10 +33,42 @@ def sector_scores(rows: list[dict], changes: dict[int, float], names_of, top_n: 
     return out
 
 
+TOP_COINS = 10
+MOVERS = 3
+
+
+def sector_table(rows: list[dict], changes: dict[int, float], names_of, min_coins: int = MIN_COINS) -> dict[str, dict]:
+    """Everything the /narrative and /chains tables show, per sector (every sector, scored or not):
+    {"pct": score or None, "coins": n averaged, "top": [cmc_id] the TOP_COINS largest by market cap,
+     "gainers": [(cmc_id, pct)] the MOVERS biggest risers (only coins that rose), "losers": [(cmc_id, pct)] the biggest
+     fallers (only coins that fell)}. Movers are picked among ALL the sector's coins with a 24h change, the score
+    from its top 20 by market cap (sector_scores)."""
+    scores = sector_scores(rows, changes, names_of, min_coins=min_coins)
+    members: dict[str, list[tuple[float, int]]] = {}
+    for r in rows:
+        for name in names_of(r):
+            if name:
+                members.setdefault(name, []).append((float(r.get("market_cap_usd") or 0), r["cmc_id"]))
+    out = {}
+    for name, coins in members.items():
+        top = [cid for _, cid in sorted(coins, key=lambda c: c[0], reverse=True)[:TOP_COINS]]
+        moved = [(cid, changes[cid]) for _, cid in coins if cid in changes]
+        out[name] = {
+            "pct": scores[name]["pct"] if name in scores else None,
+            "coins": scores[name]["coins"] if name in scores else 0,
+            "top": top,
+            "gainers": sorted((m for m in moved if m[1] > 0), key=lambda m: m[1], reverse=True)[:MOVERS],
+            "losers": sorted((m for m in moved if m[1] < 0), key=lambda m: m[1])[:MOVERS],
+        }
+    return out
+
+
 def ranked(names: list[str], scores: dict[str, dict]) -> list[str]:
-    """Sectors with a score first, biggest gain first; then the rest in their existing order."""
-    scored = sorted((n for n in names if n in scores), key=lambda n: scores[n]["pct"], reverse=True)
-    return scored + [n for n in names if n not in scores]
+    """Sectors with a score first, biggest gain first; then the rest in their existing order. A score is
+    {"pct": number or None}: None counts as unscored."""
+    scored = sorted((n for n in names if scores.get(n, {}).get("pct") is not None), key=lambda n: scores[n]["pct"], reverse=True)
+    done = set(scored)
+    return scored + [n for n in names if n not in done]
 
 
 def changes_24h() -> tuple[dict[int, float], str]:

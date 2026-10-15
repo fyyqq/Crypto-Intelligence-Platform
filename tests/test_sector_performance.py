@@ -26,3 +26,21 @@ def test_chains_use_each_coins_one_chain_and_ranking_puts_unscored_last():
     s = sp.sector_scores(rows, {i: (5.0 if i % 2 else -5.0) for i in range(1, 9)}, lambda r: [r["main_chain"]])
     assert s["Solana"]["pct"] == 5.0 and s["Base"]["pct"] == -5.0
     assert sp.ranked(["Base", "Tron", "Solana", "Sui"], s) == ["Solana", "Base", "Tron", "Sui"]
+
+
+def test_table_rows_have_the_top_coins_and_the_three_biggest_gainers_and_losers():
+    rows = [coin(i, 1000 - i, ["Memes"]) for i in range(1, 16)] + [coin(50, 1, ["Memes"]), coin(51, 0, ["Memes"])]
+    changes = {i: (i - 8.0) for i in range(1, 16)}  # -7 .. +7, coin 8 is 0
+    changes[50] = 90.0  # a tiny coin: not in the top 20 by cap but still the biggest gainer
+    t = sp.sector_table(rows, changes, lambda r: r["narrative_list"])["Memes"]
+    assert t["top"] == list(range(1, 11))  # the 10 largest by market cap
+    assert [c for c, _ in t["gainers"]] == [50, 15, 14] and [c for c, _ in t["losers"]] == [1, 2, 3]
+    assert t["pct"] is not None and t["coins"] == 16
+    assert all(p > 0 for _, p in t["gainers"]) and all(p < 0 for _, p in t["losers"])  # coin 8 (0%) is neither
+
+
+def test_a_small_sector_still_gets_a_row_without_a_score_and_ranking_puts_it_last():
+    rows = [coin(1, 5, ["Tiny"]), coin(2, 4, ["Tiny"])]
+    t = sp.sector_table(rows, {1: 2.0, 2: -1.0}, lambda r: r["narrative_list"])
+    assert t["Tiny"]["pct"] is None and t["Tiny"]["top"] == [1, 2] and t["Tiny"]["gainers"] == [(1, 2.0)]
+    assert sp.ranked(["Tiny", "Big"], {"Tiny": t["Tiny"], "Big": {"pct": 1.0}}) == ["Big", "Tiny"]
