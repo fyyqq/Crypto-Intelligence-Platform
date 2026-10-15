@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     fred_api_key: str = ""
     macro_free_actuals_max_per_day: int = 20  # BLS public API v1 allows 25 requests a day
 
+    # Contabo server subscription reminders (app/services/contabo_reminder_service.py): ONE date the monthly term ends or
+    # renews on (YYYY-MM-DD; any past or future end date works, it rolls forward by CONTABO_TERM_MONTHS). Empty = off.
+    contabo_renewal_date: str = ""
+    contabo_term_months: int = 1
+
     app_env: str = "development"
     app_host: str = "0.0.0.0"
     app_port: int = 8000
