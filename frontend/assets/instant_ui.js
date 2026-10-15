@@ -107,6 +107,22 @@
     true
   );
 
+  // ---- 2b. nav submenus in the tablet/phone dropdown --------------------------
+  // The chevron next to News / Narrative / Tools expands its entries. Handled in the capture phase so the click
+  // never reaches the profile pill's own handler (which would close the dropdown).
+  document.addEventListener(
+    "click",
+    function (e) {
+      var btn = e.target.closest && e.target.closest(".nav-sub-toggle");
+      if (!btn) return;
+      e.stopPropagation();
+      e.preventDefault();
+      var group = btn.closest(".nav-sub-group");
+      if (group) group.classList.toggle("open");
+    },
+    true
+  );
+
   // ---- 3. popups ---------------------------------------------------------------
   var POPUPS = [
     // The watchlist popup only closes from its own X (no click-outside on the server side either).

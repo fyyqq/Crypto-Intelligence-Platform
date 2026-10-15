@@ -150,23 +150,58 @@ _NAV_MENU_ICONS = {
 }
 
 
-def _nav_menu_items() -> rx.Component:
-    """The header's nav links, shown inside the profile dropdown below lg
-    (where the centre of the header is taken by the search box instead)."""
+def _nav_menu_row(label: str, href: str, entries: list[tuple[str, str]]) -> rx.Component:
+    """One nav row of the dropdown. A link that has a submenu on desktop (_NAV_DROPDOWNS: News categories, Narrative
+    Radar, Tools pages) gets a chevron that expands its entries underneath (assets/instant_ui.js toggles `open` on
+    `.nav-sub-group`, without closing the dropdown); the label itself still goes to the link's own page."""
+    link = rx.link(
+        rx.hstack(rx.icon(_NAV_MENU_ICONS.get(label, "circle"), size=16), rx.text(label, size="2"), spacing="2", align="center", class_name="profile-menu-item"),
+        href=href,
+        underline="none",
+        display="block",
+        width="100%",
+        color="var(--gray-12)",
+    )
+    if not entries:
+        return link
     return rx.box(
-        *[
-            rx.link(
-                rx.hstack(rx.icon(_NAV_MENU_ICONS.get(label, "circle"), size=16), rx.text(label, size="2"), spacing="2", align="center", class_name="profile-menu-item"),
-                href=href,
-                underline="none",
-                display="block",
-                width="100%",
-                color="var(--gray-12)",
-            )
-            for label, href in [
-                item for label, href in _NAV_LINKS for item in ([(label, href), ("Narrative Radar", "/narrative-radar")] if href == "/narrative" else [(label, href)])
-            ]
-        ],
+        rx.hstack(
+            rx.box(link, flex="1", min_width="0"),
+            rx.el.button(
+                rx.icon("chevron-down", size=16),
+                type="button",
+                aria_label=f"Show {label} pages",
+                class_name="nav-sub-toggle",
+            ),
+            align="center",
+            spacing="1",
+            width="100%",
+        ),
+        rx.box(
+            *[
+                rx.link(
+                    rx.text(name, size="2"),
+                    href=entry_href,
+                    underline="none",
+                    display="block",
+                    width="100%",
+                    color="var(--gray-12)",
+                    class_name="profile-menu-item nav-sub-item",
+                )
+                for name, entry_href in entries
+            ],
+            class_name="nav-sub-list",
+        ),
+        class_name="nav-sub-group",
+        width="100%",
+    )
+
+
+def _nav_menu_items() -> rx.Component:
+    """The header's nav links, shown inside the profile dropdown below xl (where the centre of the header is taken
+    by the search box instead), with the same submenus the desktop nav has."""
+    return rx.box(
+        *[_nav_menu_row(label, href, _NAV_DROPDOWNS.get(href, [])) for label, href in _NAV_LINKS],
         rx.divider(margin_y="0.25em"),
         display=["block", "block", "block", "block", "none"],
     )

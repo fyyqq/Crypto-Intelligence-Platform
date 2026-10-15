@@ -876,13 +876,15 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 170px;
+  min-width: 230px;
   background: var(--gray-2);
   border: 1px solid var(--gray-a5);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   padding: 0.3em;
   z-index: 20;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
 }
 
 .profile-menu-item {
@@ -895,6 +897,18 @@
 .profile-menu-item:hover {
   background: var(--gray-a3);
 }
+
+/* Nav submenus inside the tablet/phone dropdown (frontend.py::_nav_menu_row): the chevron expands the entries. */
+.nav-sub-toggle {
+  display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0;
+  border: none; border-radius: 6px; background: transparent; color: var(--gray-11); cursor: pointer; padding: 0;
+}
+.nav-sub-toggle:hover { background: var(--gray-a3); }
+.nav-sub-toggle svg { transition: transform 0.15s ease; }
+.nav-sub-group.open .nav-sub-toggle svg { transform: rotate(180deg); }
+.nav-sub-list { display: none; margin: 0 0 0.2em 1.4em; padding-left: 0.5em; border-left: 1px solid var(--gray-a5); }
+.nav-sub-group.open .nav-sub-list { display: block; }
+.nav-sub-item { padding: 0.4em 0.7em; }
 
 /* Coin detail page's info/sentiment side columns: still scrollable
    (overflow-y stays auto/scroll on the element), just without the visible
