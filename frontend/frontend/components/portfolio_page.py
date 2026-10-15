@@ -101,9 +101,33 @@ def _stat(label: str, icon: str, value, sub=None, color="var(--gray-12)") -> rx.
     )
 
 
+def _currency_button(code: str) -> rx.Component:
+    return rx.el.button(
+        code,
+        type="button",
+        on_click=S.set_pf_currency(code),
+        class_name=rx.cond(S.pf_currency == code, "pf-cur-btn pf-cur-active", "pf-cur-btn"),
+        aria_pressed=rx.cond(S.pf_currency == code, "true", "false"),
+        title="Show this card in " + code,
+    )
+
+
+def _currency_toggle() -> rx.Component:
+    """MYR / USD buttons (USD is the default). They change this card only: the live USD -> MYR rate is applied to
+    its money amounts by the server (fx_service); the tables below stay in USD."""
+    return rx.box(_currency_button("MYR"), _currency_button("USD"), class_name="pf-cur", role="group", aria_label="Card currency")
+
+
 def _hero() -> rx.Component:
     return _card(
-        rx.text("Total balance", size="2", color="var(--gray-11)"),
+        rx.flex(
+            rx.text("Total balance", size="2", color="var(--gray-11)"),
+            _currency_toggle(),
+            justify="between",
+            align="center",
+            gap="0.75em",
+            width="100%",
+        ),
         rx.text(S.pf_summary["total"], class_name="pf-total pf-num"),
         rx.hstack(
             rx.box(
@@ -116,6 +140,8 @@ def _hero() -> rx.Component:
             spacing="2",
             align="center",
         ),
+        rx.cond(S.pf_fx_note != "", rx.text(S.pf_fx_note, size="1", color="var(--gray-11)", margin_top="0.5em", class_name="pf-num")),
+        rx.cond(S.pf_fx_error != "", rx.text(S.pf_fx_error, size="1", color="var(--amber-11)", margin_top="0.5em")),
         rx.grid(
             _stat("Unrealized P/L", "chart-line", S.pf_summary["pnl"], S.pf_summary["pnl_pct"], S.pf_summary["pnl_color"]),
             _stat("Stablecoins", "banknote", S.pf_summary["cash"], S.pf_summary["cash_pct"]),

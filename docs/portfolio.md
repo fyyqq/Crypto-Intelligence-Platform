@@ -1,7 +1,7 @@
 # Portfolio (MEXC)
 
 **Route:** `/portfolio` (the Portfolio view of the account area; `/profile` and `/profile/edit-profile` are the Edit view of the same page) and a "Your MEXC" box on every coin page, above Alerts.
-**Status:** built 2026-10-16. **Local only, not deployed.** Real data only on the live server, because the MEXC key is linked to the live server's IP and Malaysian ISPs block MEXC by DNS. Locally it is tested with demo data.
+**Status:** built 2026-10-16, **live** (deployed 2026-10-16). Real data only on the live server, because the MEXC key is linked to the live server's IP and Malaysian ISPs block MEXC by DNS. Locally it is tested with demo data.
 **Source:** `app/services/mexc_service.py` (MEXC reads, caching, cost math), `frontend/frontend/state/portfolio_state.py`, `frontend/frontend/components/portfolio_page.py`, styles `.pf-*` in `frontend/assets/styles.css`, table `portfolio_costs` (`app/models/portfolio_cost.py`, migration `c4e6a8b0d2f3`), tests `tests/test_mexc_service.py` + `tests/fixtures/mexc_demo.json`.
 
 ## Features
@@ -24,6 +24,15 @@
 - **Open orders:** pair, Buy/Sell, type (Limit, Post-only, Stop-limit, Take-profit...), price, trigger price, amount and % filled, remaining value, distance from the market price, time placed.
 - **Recent fills:** the 50 latest trades on the coins you hold (time, side, price, amount, total, fee), **5 rows per page** with the site's pager (first / previous / "Page 1 of N" / next / last; hidden when there is one page). Only the current page is sent to the browser (`pf_trades`); the full formatted list stays in the backend-only `_pf_trades_all`, the page number survives the 10 s refreshes and is clamped if the list shrinks (`PortfolioState._show_trades_page`).
 - Wide tables scroll inside their card, never the page (checked 1440 / 834 / 375 px, dark and light, no console errors).
+</details>
+
+<details><summary><strong>MYR / USD switch on the Total balance card</strong></summary>
+
+- The "Total balance" row is a space-between row: the label on the left, **MYR** and **USD** buttons on the right (`portfolio_page.py::_currency_toggle`, `.pf-cur*` in `styles.css`). **USD is the default**; the choice lasts for the session and goes back to USD on logout.
+- **MYR converts only this card's money amounts**: total balance, 24h change, unrealized P/L, stablecoins, value in open orders and the small-balances note (`portfolio_state._summary_view`). Percentages, counts and every table below (holdings, open orders, fills) stay in USD.
+- A small line under the 24h pill shows the rate and where it came from, e.g. "1 USD = 4.0800 MYR · Yahoo Finance · live" (or "quote of 16 Oct 03:49 (KL)" when the last quote is older than 15 min).
+- **The rate is live from the forex market**, not a fixed number (`app/services/fx_service.py`, no key, no cost): Yahoo Finance's USD/MYR quote (polled every 60 s) plus two daily references, ExchangeRate-API open data and the European Central Bank via Frankfurter (polled hourly). A quote far (> 2%) from the others' median is dropped, and the freshest of the rest wins. A source that fails is skipped for 5 min, and a rate is kept up to 72 h if every source fails. With no rate at all, the MYR button keeps the card in USD with "The live MYR rate is unavailable right now". One shared cache for every viewer; the 10 s dashboard refresh asks for the rate only while MYR is shown. Limits: Yahoo's MYR quote has only 2 decimals and can sit still for a while in quiet hours (the line then shows the quote's time); true tick-by-tick MYR needs a paid forex API key.
+- Tests: `tests/test_fx_service.py`. Checked in a browser (demo data, real rate): label left / buttons right on one row at 1440 / 834 / 375 px in dark and light, MYR total = USD total x the shown rate, tables unchanged, survives a refresh cycle, USD restores; with every source blocked the card stays USD with the message.
 </details>
 
 <details><summary><strong>Prices, refresh and caching</strong></summary>

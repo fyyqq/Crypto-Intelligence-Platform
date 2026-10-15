@@ -46,6 +46,14 @@ def _svc():
     return mexc_service
 
 
+def _fx():
+    if _ROOT_FOR_APP not in sys.path:
+        sys.path.insert(0, _ROOT_FOR_APP)
+    from app.services import fx_service
+
+    return fx_service
+
+
 def _money(v: float) -> str:
     return _svc().fmt_money(v)
 
@@ -112,6 +120,49 @@ def _order_view(o: dict) -> dict[str, str]:
     }
 
 
+def _summary_view(snap: dict, currency: str = "USD", rate: float = 1.0) -> dict[str, str]:
+    """The hero card's strings. Only the card's own money amounts are converted (`rate` = USD -> `currency`):
+    total, 24h change, unrealized P/L, stablecoins, value in orders and the small-balances note. Percentages,
+    counts and everything below the card (tables, order list, the unmatched-USDT note) stay in USD."""
+    fx = _fx()
+
+    def cur(v: float) -> str:
+        return fx.format_amount(v * rate, currency)
+
+    def cur_signed(v: float) -> str:
+        return fx.format_amount(v * rate, currency, signed=True)
+
+    total = snap["total_value"]
+    updated = snap.get("updated_at") or 0
+    cost_note = ""
+    if snap["without_cost"]:
+        n = snap["without_cost"]
+        cost_note = f"{n} coin{'s' if n != 1 else ''} without a known buy price"
+    return {
+        "total": cur(total),
+        "change": cur_signed(snap["change_24h"]),
+        "change_pct": _fmt_pct(snap["change_24h_pct"]),
+        "change_color": _color(snap["change_24h"]),
+        "pnl": cur_signed(snap["pnl"]) if snap["with_cost"] else "—",
+        "pnl_pct": _fmt_pct(snap["pnl_pct"]) if snap["cost_total"] else "",
+        "pnl_color": _color(snap["pnl"]),
+        "cost": _money(snap["cost_total"]),
+        "cost_note": cost_note,
+        "cash": cur(snap["stable_value"]),
+        "cash_pct": f"{snap['stable_value'] / total * 100:.1f}% of wallet" if total else "",
+        "in_orders": cur(snap["locked_value"]),
+        "orders_count": str(len(snap["orders"])),
+        "coins": str(sum(1 for h in snap["holdings"] if not h["is_stable"])),
+        "updated": datetime.fromtimestamp(updated, _TZ).strftime("%H:%M:%S") if updated else "",
+        "dust": f"+ {snap['dust_count']} small balance{'s' if snap['dust_count'] != 1 else ''} ({cur(snap['dust_value'])})" if snap["dust_count"] else "",
+        "unmatched": (
+            f"{_money(snap['unmatched_locked_usdt'])} USDT is held by buy orders on coins you don't hold: open that coin's page to see them."
+            if snap["unmatched_locked_usdt"] >= 1
+            else ""
+        ),
+    }
+
+
 class PortfolioState(CoinState):
     pf_allowed: bool = False  # this account may see the MEXC data
     pf_loaded: bool = False
@@ -119,6 +170,10 @@ class PortfolioState(CoinState):
     pf_demo: bool = False
     pf_error: str = ""
     pf_refreshing: bool = False
+    pf_currency: str = "USD"  # the hero card only: "USD" (default) or "MYR"
+    pf_fx_note: str = ""  # "1 USD = 4.0824 MYR · <source>" while MYR is shown
+    pf_fx_error: str = ""
+    _pf_snap: dict = {}  # last raw snapshot (backend-only, emptied by _clear_portfolio)
     pf_summary: dict[str, str] = {}
     pf_holdings: list[dict[str, str]] = []
     pf_orders: list[dict[str, str]] = []
@@ -153,35 +208,8 @@ class PortfolioState(CoinState):
         if not snap.get("ok"):
             self.pf_loaded = True
             return
-        total = snap["total_value"]
-        updated = snap.get("updated_at") or 0
-        cost_note = ""
-        if snap["without_cost"]:
-            n = snap["without_cost"]
-            cost_note = f"{n} coin{'s' if n != 1 else ''} without a known buy price"
-        self.pf_summary = {
-            "total": _money(total),
-            "change": _signed_money(snap["change_24h"]),
-            "change_pct": _fmt_pct(snap["change_24h_pct"]),
-            "change_color": _color(snap["change_24h"]),
-            "pnl": _signed_money(snap["pnl"]) if snap["with_cost"] else "—",
-            "pnl_pct": _fmt_pct(snap["pnl_pct"]) if snap["cost_total"] else "",
-            "pnl_color": _color(snap["pnl"]),
-            "cost": _money(snap["cost_total"]),
-            "cost_note": cost_note,
-            "cash": _money(snap["stable_value"]),
-            "cash_pct": f"{snap['stable_value'] / total * 100:.1f}% of wallet" if total else "",
-            "in_orders": _money(snap["locked_value"]),
-            "orders_count": str(len(snap["orders"])),
-            "coins": str(sum(1 for h in snap["holdings"] if not h["is_stable"])),
-            "updated": datetime.fromtimestamp(updated, _TZ).strftime("%H:%M:%S") if updated else "",
-            "dust": f"+ {snap['dust_count']} small balance{'s' if snap['dust_count'] != 1 else ''} ({_money(snap['dust_value'])})" if snap["dust_count"] else "",
-            "unmatched": (
-                f"{_money(snap['unmatched_locked_usdt'])} USDT is held by buy orders on coins you don't hold: open that coin's page to see them."
-                if snap["unmatched_locked_usdt"] >= 1
-                else ""
-            ),
-        }
+        self._pf_snap = snap  # raw numbers stay on the server: a currency change re-renders the card from them
+        self.pf_summary = _summary_view(snap, *self._card_currency())
         holdings = []
         for h in snap["holdings"]:
             has_cost = h["avg_price"] > 0
@@ -248,6 +276,7 @@ class PortfolioState(CoinState):
                 has_factory = factory is not None and factory is not dataclasses.MISSING
                 setattr(self, name, factory() if has_factory else field.default)
         self._pf_trades_all = []  # backend-only raw rows are not covered by the prefix loop above
+        self._pf_snap = {}
         self.pf_loaded = loaded
 
     def _show_trades_page(self) -> None:
@@ -268,6 +297,38 @@ class PortfolioState(CoinState):
         self._clear_portfolio(loaded=True)
         return True
 
+    def _card_currency(self) -> tuple[str, float]:
+        """(currency, USD -> currency rate) for the hero card from the shared rate cache (no network). Falls back to
+        USD, and says why, when MYR is chosen but no usable rate exists."""
+        if self.pf_currency != "MYR":
+            self.pf_fx_note = self.pf_fx_error = ""
+            return "USD", 1.0
+        info = _fx().cached("MYR")
+        if info is None:
+            self.pf_currency, self.pf_fx_note = "USD", ""
+            self.pf_fx_error = "The live MYR rate is unavailable right now, so the card shows USD."
+            return "USD", 1.0
+        self.pf_fx_error = ""
+        self.pf_fx_note = f"1 USD = {info['rate']:.4f} MYR · {info['note']}"
+        return "MYR", info["rate"]
+
+    @rx.event
+    async def set_pf_currency(self, currency: str):
+        """The MYR / USD buttons on the hero card. MYR fetches the live rate first; if no rate can be had the card
+        stays in USD with a message."""
+        if currency not in ("USD", "MYR") or not (self.is_logged_in and _svc().can_view(self.user_email)):
+            return
+        if currency == "MYR":
+            info = await asyncio.to_thread(_fx().get_rate, "MYR")
+            if info is None:
+                self.pf_fx_error = "The live MYR rate is unavailable right now. Try again in a moment."
+                return
+        self.pf_currency = currency
+        if self._pf_snap:
+            self.pf_summary = _summary_view(self._pf_snap, *self._card_currency())
+        else:
+            self._card_currency()
+
     async def _snapshot(self, force: bool = False) -> dict:
         return await asyncio.to_thread(_svc().portfolio, self.user_id or None, force)
 
@@ -275,7 +336,11 @@ class PortfolioState(CoinState):
         """One dashboard refresh. Returns False when the loop should stop (the viewer lost access, or the tab left
         the account area). Any other failure only shows a short message and keeps the last data on screen."""
         snap, error = None, ""
+        async with self:
+            wants_myr = self.pf_currency == "MYR"
         try:
+            if wants_myr:
+                await asyncio.to_thread(_fx().get_rate, "MYR")  # cached for 60 s and shared; never raises
             snap = await self._snapshot()
         except Exception:  # noqa: BLE001 - network/database/bad reply: log the detail, keep the loop alive
             _log.exception("MEXC portfolio refresh failed")

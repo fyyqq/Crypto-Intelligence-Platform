@@ -1769,3 +1769,12 @@ svg.wl-star-force-off {
 .pf-empty-icon { width: 56px; height: 56px; border-radius: 50%; background: var(--gray-a3); display: flex; align-items: center; justify-content: center; }
 @keyframes pf-spin { to { transform: rotate(360deg); } }
 .pf-spin { animation: pf-spin 0.8s linear infinite; }
+
+/* /portfolio hero card: MYR / USD switch (components/portfolio_page.py::_currency_toggle). */
+.pf-cur { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--gray-a3); border: 1px solid var(--gray-a4); flex-shrink: 0; }
+.pf-cur-btn {
+  min-width: 52px; padding: 4px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--gray-11);
+  font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; cursor: pointer; line-height: 1.4;
+}
+.pf-cur-btn:hover { color: var(--gray-12); }
+.pf-cur-btn.pf-cur-active { background: var(--accent-9); color: #fff; }  /* white on the accent fill is allowed (accent badges) */
