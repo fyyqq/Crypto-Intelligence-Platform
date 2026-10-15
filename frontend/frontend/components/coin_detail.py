@@ -895,6 +895,26 @@ def _alert_dialog() -> rx.Component:
     )
 
 
+def _alert_group(title: str, icon: str, color: str, alerts: rx.Var, empty: str) -> rx.Component:
+    """One side of the alert list: a coloured label, then its alerts (or a muted line)."""
+    return rx.vstack(
+        rx.hstack(
+            rx.icon(icon, size=14, color=color),
+            rx.text(title, size="1", weight="bold", color=color),
+            spacing="1",
+            align="center",
+        ),
+        rx.cond(
+            alerts.length() > 0,
+            rx.vstack(rx.foreach(alerts, _alert_row), spacing="2", width="100%"),
+            rx.text(empty, size="1", color_scheme="gray"),
+        ),
+        spacing="2",
+        width="100%",
+        align="start",
+    )
+
+
 def _alerts_section() -> rx.Component:
     return rx.vstack(
         rx.hstack(
@@ -908,7 +928,14 @@ def _alerts_section() -> rx.Component:
             rx.fragment(
                 rx.cond(
                     CoinState.has_coin_alerts,
-                    rx.vstack(rx.foreach(CoinState.coin_alerts, _alert_row), spacing="2", width="100%"),
+                    # Above-price alerts (green) and below-price alerts (red), a divider between them.
+                    rx.vstack(
+                        _alert_group("Above price", "trending-up", "var(--green-9)", CoinState.coin_alerts_above, "No alert above the price."),
+                        rx.divider(),
+                        _alert_group("Below price", "trending-down", "var(--red-9)", CoinState.coin_alerts_below, "No alert below the price."),
+                        spacing="3",
+                        width="100%",
+                    ),
                     rx.text("No price alerts yet.", size="1", color_scheme="gray"),
                 ),
                 rx.button(

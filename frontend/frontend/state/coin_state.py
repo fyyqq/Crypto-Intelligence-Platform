@@ -2954,6 +2954,16 @@ class CoinState(rx.State):
     def has_coin_alerts(self) -> bool:
         return len(self.coin_alerts) > 0
 
+    @rx.var(cache=True)
+    def coin_alerts_above(self) -> list[dict]:
+        """This coin's "price above" alerts, the nearest (lowest) target first."""
+        return sorted((a for a in self.coin_alerts if a["direction"] == "above"), key=lambda a: a["price"])
+
+    @rx.var(cache=True)
+    def coin_alerts_below(self) -> list[dict]:
+        """This coin's "price below" alerts, the nearest (highest) target first."""
+        return sorted((a for a in self.coin_alerts if a["direction"] == "below"), key=lambda a: -a["price"])
+
     @rx.event
     def toggle_watchlist_popup(self):
         self.watchlist_popup_open = not self.watchlist_popup_open
