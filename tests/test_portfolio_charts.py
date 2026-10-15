@@ -169,3 +169,33 @@ def test_apply_runs_to_the_end_on_a_real_snapshot_in_both_currencies(monkeypatch
         assert s.pf_loaded and s.pf_ring.startswith("conic-gradient(var(--blue-9)") and len(s.pf_alloc) == 7
         assert s.pf_alloc[0]["label"] == "BTC" and len(s.pf_holdings) == 7 and len(s.pf_trades) == 5
         assert s.pf_summary["total"] == ("$8,249.22" if currency == "USD" else "RM32,996.88")
+
+
+def test_the_balance_chart_follows_the_myr_usd_choice(monkeypatch):
+    """The card and the popup convert every reading with the same live rate as the Total balance card; switching
+    back to USD restores the dollar figures from the readings already held (no database read)."""
+    ps = _ps(monkeypatch)
+    from app.services import fx_service
+
+    monkeypatch.setattr(fx_service, "cached", lambda quote: {"rate": 4.0, "note": "test"})
+    rows = [(NOW - 3600, 100.0), (NOW - 1800, 150.0)]
+    data, info = ps._hist_view(rows, live_total=120.0, now=NOW, currency="MYR", rate=4.0)
+    assert [p["v"] for p in data] == [400.0, 600.0, 480.0]
+    assert (info["value"], info["change"], info["high"], info["low"]) == ("RM480.00", "+RM80.00", "RM600.00", "RM400.00")
+    assert info["change_pct"] == "+20.00%"  # a percentage does not depend on the currency
+
+    s = types.SimpleNamespace(pf_currency="USD", _pf_snap={"ok": True, "total_value": 120.0}, _pf_hist_card_rows=[], _pf_hist_popup_rows=[],
+                              pf_hist_card=[], pf_hist_card_info={}, pf_hist_points=[], pf_hist_info={}, pf_hist_since="")
+    for name in ("_chart_currency", "_live_total"):
+        setattr(s, name, types.MethodType(getattr(ps.PortfolioState, name), s))
+    import time as _time
+
+    rows = [(_time.time() - 3600, 100.0), (_time.time() - 1800, 150.0)]  # _apply_history uses the real clock
+    ps.PortfolioState._apply_history(s, rows, rows)
+    assert s.pf_hist_card_info["value"] == "$120.00" and s.pf_hist_info["high"] == "$150.00"
+    s.pf_currency = "MYR"
+    ps.PortfolioState._apply_history(s, None, None)  # what the MYR button does: redraw from the held readings
+    assert s.pf_hist_card_info["value"] == "RM480.00" and s.pf_hist_points[-1]["v"] == 480.0 and s.pf_hist_info["low"] == "RM400.00"
+    monkeypatch.setattr(fx_service, "cached", lambda quote: None)  # no rate: the chart stays in USD
+    ps.PortfolioState._apply_history(s, None, None)
+    assert s.pf_hist_card_info["value"] == "$120.00"

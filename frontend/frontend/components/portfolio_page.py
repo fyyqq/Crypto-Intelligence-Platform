@@ -200,12 +200,19 @@ def _allocation() -> rx.Component:
 
 
 _CHART_BLUE = "#3B82F6"  # readable on light and dark
-# Recharts has no typed prop for these in this Reflex version, so they go in as raw JS functions.
-_USD_TICK = rx.Var("(v) => '$' + Number(v).toLocaleString('en-US', {maximumFractionDigits: 0})")
-_USD_TOOLTIP = rx.Var("(v) => ['$' + Number(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}), 'Total balance']")
+# Recharts has no typed prop for these in this Reflex version, so they go in as raw JS functions (one per currency
+# symbol: the popup renders the chart for the selected one).
+def _money_tick(symbol: str) -> rx.Var:
+    return rx.Var(f"(v) => '{symbol}' + Number(v).toLocaleString('en-US', {{maximumFractionDigits: 0}})")
 
 
-def _balance_area(data, height, full: bool) -> rx.Component:
+def _money_tooltip(symbol: str) -> rx.Var:
+    return rx.Var(
+        f"(v) => ['{symbol}' + Number(v).toLocaleString('en-US', {{minimumFractionDigits: 2, maximumFractionDigits: 2}}), 'Total balance']"
+    )
+
+
+def _balance_area(data, height, full: bool, symbol: str = "$") -> rx.Component:
     parts = [
         rx.el.svg.defs(
             rx.el.svg.linear_gradient(
@@ -230,11 +237,11 @@ def _balance_area(data, height, full: bool) -> rx.Component:
         parts += [
             rx.recharts.cartesian_grid(stroke_dasharray="3 3", vertical=False, stroke="rgba(128,128,128,0.25)"),
             rx.recharts.x_axis(data_key="t", min_tick_gap=56, tick_line=False, axis_line=False, custom_attrs={"tick": {"fontSize": 11, "fill": "#8b8d98"}}),
-            rx.recharts.y_axis(domain=["auto", "auto"], width=72, tick_line=False, axis_line=False, custom_attrs={"tickFormatter": _USD_TICK, "tick": {"fontSize": 11, "fill": "#8b8d98"}}),
+            rx.recharts.y_axis(domain=["auto", "auto"], width=72, tick_line=False, axis_line=False, custom_attrs={"tickFormatter": _money_tick(symbol), "tick": {"fontSize": 11, "fill": "#8b8d98"}}),
             rx.recharts.graphing_tooltip(
                 content_style={"background": "var(--color-panel-solid)", "border": "1px solid var(--gray-a5)", "borderRadius": "8px", "color": "var(--gray-12)"},
                 label_style={"color": "var(--gray-11)"},
-                custom_attrs={"formatter": _USD_TOOLTIP},
+                custom_attrs={"formatter": _money_tooltip(symbol)},
             ),
         ]
     else:
@@ -324,7 +331,7 @@ def _balance_popup() -> rx.Component:
             rx.box(
                 rx.cond(
                     S.pf_hist_points.length() > 1,
-                    _balance_area(S.pf_hist_points, 380, True),
+                    rx.cond(S.pf_currency == "MYR", _balance_area(S.pf_hist_points, 380, True, "RM"), _balance_area(S.pf_hist_points, 380, True, "$")),
                     rx.center(
                         rx.text(
                             rx.cond(S.pf_hist_loading, "Loading…", "Not enough readings in this range yet: the server saves your balance every 5 minutes."),
@@ -343,6 +350,10 @@ def _balance_popup() -> rx.Component:
                 rx.cond(
                     S.pf_hist_info.contains("high"),
                     rx.text("High ", S.pf_hist_info["high"], " · Low ", S.pf_hist_info["low"], size="1", color="var(--gray-11)", class_name="pf-num"),
+                ),
+                rx.cond(
+                    (S.pf_currency == "MYR") & (S.pf_fx_note != ""),
+                    rx.text("In MYR at today's rate: ", S.pf_fx_note, size="1", color="var(--gray-11)", class_name="pf-num"),
                 ),
                 rx.cond(S.pf_hist_since != "", rx.text("Recording since ", S.pf_hist_since, " (Kuala Lumpur)", size="1", color="var(--gray-11)")),
                 justify="between",

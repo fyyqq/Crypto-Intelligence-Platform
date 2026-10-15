@@ -132,25 +132,29 @@ def _order_view(o: dict) -> dict[str, str]:
     }
 
 
-def _hist_view(rows: list, live_total: float = 0.0, now: float | None = None) -> tuple[list[dict], dict[str, str]]:
+def _hist_view(
+    rows: list, live_total: float = 0.0, now: float | None = None, currency: str = "USD", rate: float = 1.0
+) -> tuple[list[dict], dict[str, str]]:
     """Recorded (unix seconds, total USD) points + the current live total as the last point -> recharts rows
-    ({"t": label, "v": value}) and the range's figures (value, change, high, low)."""
+    ({"t": label, "v": value}) and the range's figures (value, change, high, low), in `currency` (every USD amount
+    times `rate`, the current USD -> currency rate, the same one the Total balance card uses)."""
     now = now or time.time()
-    pts = [(float(t), float(v)) for t, v in rows]
+    fx = _fx()
+    pts = [(float(t), float(v) * rate) for t, v in rows]
     if live_total > 0 and (not pts or now - pts[-1][0] > 30):
-        pts.append((now, float(live_total)))
+        pts.append((now, float(live_total) * rate))
     data = [{"t": datetime.fromtimestamp(t, _TZ).strftime("%d %b %H:%M"), "v": round(v, 2)} for t, v in pts]
     if not pts:
         return data, {}
     first, last = pts[0][1], pts[-1][1]
     change = last - first
     info = {
-        "value": _money(last),
-        "change": _signed_money(change),
+        "value": fx.format_amount(last, currency),
+        "change": fx.format_amount(change, currency, signed=True),
         "change_pct": _fmt_pct(change / first * 100) if first else "",
         "color": _color(change),
-        "high": _money(max(v for _, v in pts)),
-        "low": _money(min(v for _, v in pts)),
+        "high": fx.format_amount(max(v for _, v in pts), currency),
+        "low": fx.format_amount(min(v for _, v in pts), currency),
         "points": str(len(pts)),
     }
     return data, info
@@ -236,6 +240,8 @@ class PortfolioState(CoinState):
     pf_hist_info: dict[str, str] = {}
     pf_hist_since: str = ""
     pf_hist_loading: bool = False
+    _pf_hist_card_rows: list = []  # raw USD readings behind the card / popup (backend-only): a currency switch
+    _pf_hist_popup_rows: list = []  # redraws from these without reading the database again
     pf_summary: dict[str, str] = {}
     pf_holdings: list[dict[str, str]] = []
     pf_orders: list[dict[str, str]] = []
@@ -342,6 +348,7 @@ class PortfolioState(CoinState):
                 setattr(self, name, factory() if has_factory else field.default)
         self._pf_trades_all = []  # backend-only raw rows are not covered by the prefix loop above
         self._pf_snap = {}
+        self._pf_hist_card_rows, self._pf_hist_popup_rows = [], []
         self.pf_loaded = loaded
 
     def _show_trades_page(self) -> None:
@@ -365,11 +372,25 @@ class PortfolioState(CoinState):
     def _live_total(self) -> float:
         return float(self._pf_snap.get("total_value") or 0) if self._pf_snap.get("ok") else 0.0
 
+    def _chart_currency(self) -> tuple[str, float]:
+        """The MYR / USD choice for the balance chart, from the shared rate cache (no network, no side effects;
+        _card_currency, run first by _apply, already falls back to USD when MYR has no rate)."""
+        if self.pf_currency == "MYR":
+            info = _fx().cached("MYR")
+            if info:
+                return "MYR", info["rate"]
+        return "USD", 1.0
+
     def _apply_history(self, card_rows: list | None, popup_rows: list | None = None, since: float | None = None) -> None:
+        """New readings (None = keep the ones already held) -> the card and popup, in the selected currency."""
         if card_rows is not None:
-            self.pf_hist_card, self.pf_hist_card_info = _hist_view(card_rows, self._live_total())
+            self._pf_hist_card_rows = card_rows
         if popup_rows is not None:
-            self.pf_hist_points, self.pf_hist_info = _hist_view(popup_rows, self._live_total())
+            self._pf_hist_popup_rows = popup_rows
+        currency, rate = self._chart_currency()
+        live = self._live_total()
+        self.pf_hist_card, self.pf_hist_card_info = _hist_view(self._pf_hist_card_rows, live, currency=currency, rate=rate)
+        self.pf_hist_points, self.pf_hist_info = _hist_view(self._pf_hist_popup_rows, live, currency=currency, rate=rate)
         if since:
             self.pf_hist_since = datetime.fromtimestamp(since, _TZ).strftime("%d %b %Y, %H:%M")
 
@@ -420,8 +441,8 @@ class PortfolioState(CoinState):
 
     @rx.event
     async def set_pf_currency(self, currency: str):
-        """The MYR / USD buttons on the hero card. MYR fetches the live rate first; if no rate can be had the card
-        stays in USD with a message."""
+        """The MYR / USD buttons on the hero card. They switch the Total balance card and the balance chart (card +
+        popup). MYR fetches the live rate first; if no rate can be had everything stays in USD with a message."""
         if currency not in ("USD", "MYR") or not (self.is_logged_in and _svc().can_view(self.user_email)):
             return
         if currency == "MYR":
@@ -434,6 +455,7 @@ class PortfolioState(CoinState):
             self.pf_summary = _summary_view(self._pf_snap, *self._card_currency())
         else:
             self._card_currency()
+        self._apply_history(None, None)  # the balance chart (card + popup) follows the same choice
 
     async def _snapshot(self, force: bool = False) -> dict:
         return await asyncio.to_thread(_svc().portfolio, self.user_id or None, force)
