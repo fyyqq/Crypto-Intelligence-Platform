@@ -29,6 +29,7 @@ _log = logging.getLogger(__name__)
 _TZ = ZoneInfo("Asia/Kuala_Lumpur")
 _REFRESH_FAILED = "MEXC data could not be refreshed just now. Retrying shortly."
 _PORTFOLIO_VAR_PREFIXES = ("pf_", "coin_mexc_")  # every public var of this state starts with one of these
+_TRADES_PER_PAGE = 5  # Recent fills: rows per page
 _PAGE_SECONDS = 10  # /portfolio redraw (the service reads MEXC at most every 20 s, prices every 10 s)
 _COIN_SECONDS = 15  # coin page box
 _ACCOUNT_PATHS = {"/portfolio", "/profile", "/profile/edit-profile"}
@@ -46,12 +47,11 @@ def _svc():
 
 
 def _money(v: float) -> str:
-    """A USD amount (a value, not a coin price: coin prices go through _fmt_usd)."""
-    return f"-${abs(v):,.2f}" if v < 0 else f"${v:,.2f}"
+    return _svc().fmt_money(v)
 
 
 def _signed_money(v: float) -> str:
-    return ("+" if v > 0 else "-" if v < 0 else "") + f"${abs(v):,.2f}"
+    return _svc().fmt_signed_money(v)
 
 
 def _color(v: float) -> str:
@@ -59,12 +59,7 @@ def _color(v: float) -> str:
 
 
 def _qty(v: float) -> str:
-    """A coin amount: thousands separators, up to 8 decimals for small amounts, no trailing zeros."""
-    if v >= 1000:
-        return f"{v:,.2f}".rstrip("0").rstrip(".")
-    if v >= 1:
-        return f"{v:,.4f}".rstrip("0").rstrip(".")
-    return f"{v:.8f}".rstrip("0").rstrip(".") or "0"
+    return _svc().fmt_qty(v)
 
 
 def _when(ms: float) -> str:
@@ -127,7 +122,11 @@ class PortfolioState(CoinState):
     pf_summary: dict[str, str] = {}
     pf_holdings: list[dict[str, str]] = []
     pf_orders: list[dict[str, str]] = []
-    pf_trades: list[dict[str, str]] = []
+    pf_trades: list[dict[str, str]] = []  # the CURRENT page of Recent fills only (5 rows)
+    pf_trade_page: int = 1
+    pf_trade_pages: int = 1
+    pf_trade_total: int = 0
+    _pf_trades_all: list[dict[str, str]] = []  # every formatted fill; backend-only, emptied by _clear_portfolio
     pf_alloc: list[dict[str, str]] = []
     pf_ring: str = ""  # CSS conic-gradient of the allocation ring
     # Hand-typed average buy price dialog.
@@ -159,7 +158,7 @@ class PortfolioState(CoinState):
         cost_note = ""
         if snap["without_cost"]:
             n = snap["without_cost"]
-            cost_note = f"{n} coin{'s' if n != 1 else ''} without a buy price (set it with the pencil)"
+            cost_note = f"{n} coin{'s' if n != 1 else ''} without a known buy price"
         self.pf_summary = {
             "total": _money(total),
             "change": _signed_money(snap["change_24h"]),
@@ -209,7 +208,7 @@ class PortfolioState(CoinState):
             )
         self.pf_holdings = holdings
         self.pf_orders = [_order_view(o) for o in snap["orders"]]
-        self.pf_trades = [
+        self._pf_trades_all = [
             {
                 **_coin_fields(t["asset"]),
                 "asset": t["asset"],
@@ -223,6 +222,7 @@ class PortfolioState(CoinState):
             }
             for t in snap["trades"]
         ]
+        self._show_trades_page()
         # Allocation: the 6 biggest holdings + "Others".
         top = snap["holdings"][:6]
         rest = sum(h["allocation_pct"] for h in snap["holdings"][6:]) + (snap["dust_value"] / total * 100 if total else 0)
@@ -247,7 +247,18 @@ class PortfolioState(CoinState):
                 factory = field.default_factory  # None or MISSING for a plain default such as False / ""
                 has_factory = factory is not None and factory is not dataclasses.MISSING
                 setattr(self, name, factory() if has_factory else field.default)
+        self._pf_trades_all = []  # backend-only raw rows are not covered by the prefix loop above
         self.pf_loaded = loaded
+
+    def _show_trades_page(self) -> None:
+        """Puts the current page of Recent fills into pf_trades (the page number is kept between refreshes and
+        clamped when the list shrinks)."""
+        total = len(self._pf_trades_all)
+        pages = max(1, -(-total // _TRADES_PER_PAGE))
+        self.pf_trade_page = min(max(self.pf_trade_page, 1), pages)
+        start = (self.pf_trade_page - 1) * _TRADES_PER_PAGE
+        self.pf_trades = self._pf_trades_all[start : start + _TRADES_PER_PAGE]
+        self.pf_trade_pages, self.pf_trade_total = pages, total
 
     def _viewer_lost(self) -> bool:
         """True (after wiping this session's MEXC state) when the account may no longer see MEXC data: logged out,
@@ -333,6 +344,28 @@ class PortfolioState(CoinState):
             except Exception:  # noqa: BLE001
                 _log.exception("MEXC portfolio could not be displayed")
                 self.pf_error = _REFRESH_FAILED
+
+    def _go_trades_page(self, page: int) -> None:
+        if not (self.is_logged_in and _svc().can_view(self.user_email)):
+            return
+        self.pf_trade_page = page
+        self._show_trades_page()
+
+    @rx.event
+    def trades_first(self):
+        self._go_trades_page(1)
+
+    @rx.event
+    def trades_prev(self):
+        self._go_trades_page(self.pf_trade_page - 1)
+
+    @rx.event
+    def trades_next(self):
+        self._go_trades_page(self.pf_trade_page + 1)
+
+    @rx.event
+    def trades_last(self):
+        self._go_trades_page(self.pf_trade_pages)
 
     @rx.event
     def open_cost_dialog(self, asset: str, current: str):

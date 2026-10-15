@@ -22,7 +22,7 @@
 - **Allocation ring:** CSS `conic-gradient` of the 6 biggest holdings + "Others" (Radix step-9 colours, readable in both themes), legend with percentages.
 - **Holdings table:** coin (logo + link to `/coins/<slug>` when the site knows the ticker; ties go to the best CMC rank), amount (and how much is in orders), live price (`_fmt_usd`), 24h %, value, average buy price, P/L in $ and %, share bar. Biggest value first.
 - **Open orders:** pair, Buy/Sell, type (Limit, Post-only, Stop-limit, Take-profit...), price, trigger price, amount and % filled, remaining value, distance from the market price, time placed.
-- **Recent fills:** the 20 latest trades on the coins you hold (time, side, price, amount, total, fee).
+- **Recent fills:** the 50 latest trades on the coins you hold (time, side, price, amount, total, fee), **5 rows per page** with the site's pager (first / previous / "Page 1 of N" / next / last; hidden when there is one page). Only the current page is sent to the browser (`pf_trades`); the full formatted list stays in the backend-only `_pf_trades_all`, the page number survives the 10 s refreshes and is clamped if the list shrinks (`PortfolioState._show_trades_page`).
 - Wide tables scroll inside their card, never the page (checked 1440 / 834 / 375 px, dark and light, no console errors).
 </details>
 
@@ -40,13 +40,21 @@
 
 - Worked out from MEXC's trade history of the account (the API keeps about one month), average-cost method (`average_cost`): buys add their USDT cost (a USDT fee adds to it, a fee paid in the coin reduces the coins received), and sells remove coins at the running average.
 - Used only when the history covers at least 98% of the holding and no sell was bigger than the coins seen. Otherwise the coin shows "—" (bought earlier or deposited from elsewhere), and the hero notes how many coins lack a price.
-- The pencil next to a price opens a dialog to type your own average (e.g. from the MEXC app). It is saved per account in `portfolio_costs` and wins over the history ("set by you"). "Use trade history" deletes it.
+- A hand-typed average (`portfolio_costs`, `mexc_service.set_cost`) wins over the history and is labelled "set by you". **The pencil icon that opened the dialog was removed on request (2026-10-16)**, so there is currently no button to enter one; averages saved earlier still apply, and the dialog / events (`open_cost_dialog`, `save_cost`, `clear_cost`) are still in the code, unreachable, ready to be wired to something else.
 </details>
 
 <details><summary><strong>Coin page: "Your MEXC" box (above Alerts)</strong></summary>
 
 - Viewers only. Shows how much of the coin you hold, its value, average buy price and P/L. Below that, every open order on the coin (Buy/Sell, type, price, amount, trigger, distance from the market price), including a buy order on a coin you don't hold yet. "No open MEXC orders for this coin." when there are none. A "Portfolio →" link goes to `/portfolio`.
 - `coin_mexc_loop` refreshes it every 15 s and follows the coin when the tab moves to another coin page.
+</details>
+
+<details><summary><strong>Telegram: /portfolio</strong></summary>
+
+- `/portfolio` (also in the bot's menu and `/view_all_command`) replies with: total balance, 24h change, total profit/loss, stablecoins and the value held in orders, every holding (amount, live price, value, average buy, P/L), small balances, and every open order (Buy/Sell, type, price, trigger price for stop orders, amount, distance from market). Prices go through the site's `_fmt_usd` (registered into the bot by `frontend.py`).
+- **Owner only:** the chat must be linked to an account (Notifications > Connect Telegram) AND that account's email must be in `MEXC_VIEWER_EMAILS`. An unlinked chat gets the usual "not connected" line; any other linked account gets "Portfolio is not available for this account." and MEXC is not called at all. A MEXC error shows only the safe message (never the key, secret or IP).
+- Telegram messages are capped at 4096 characters: longer ones are cut at a line end under 3900 (`telegram_notify_service.format_portfolio`), never inside an HTML tag.
+- The bot only polls on the live server (`TELEGRAM_BOT_POLLING=true` there), so the command can't be tried locally; it is covered by `tests/test_telegram_portfolio.py`.
 </details>
 
 <details><summary><strong>Setup, local testing, deploy</strong></summary>

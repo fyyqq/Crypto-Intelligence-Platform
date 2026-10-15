@@ -174,6 +174,7 @@ COMMANDS = [
     {"command": "alerts", "description": "Show list of active alerts"},
     {"command": "alert", "description": "Show active alerts for one coin, e.g. /alert ETH"},
     {"command": "price", "description": "Live price of a coin by ticker, e.g. /price $meme"},
+    {"command": "portfolio", "description": "Your MEXC portfolio: balance, P/L, holdings, limit & stop orders"},
 ]
 
 
@@ -188,6 +189,9 @@ def commands_overview() -> str:
         "<b>Price alerts</b>",
         "/alerts - all your active alerts",
         "<code>/alert {coin}</code> - active alerts of one coin, e.g. /alert ETH",
+        "",
+        "<b>Portfolio</b>",
+        "/portfolio - your MEXC balance, profit/loss, holdings and open limit / stop orders (only for the account owner)",
         "",
         "<b>Market</b>",
         "<code>/price ${ticker}</code> - live price from the TradingView chart pair, every coin with that ticker, e.g. /price $meme",
@@ -299,6 +303,75 @@ def format_alerts(user_id: int, symbol: str | None = None) -> str:
     return "\n".join(lines)[:4000]
 
 
+_PORTFOLIO_MAX_CHARS = 3900  # Telegram's limit is 4096
+
+
+def _sign_icon(v: float) -> str:
+    return "🟢" if v > 0 else "🔴" if v < 0 else "⚪"
+
+
+def _pf_pnl(pnl: float, pct: float) -> str:
+    from app.services import mexc_service as m
+
+    return f"{_sign_icon(pnl)} {m.fmt_signed_money(pnl)} ({pct:+.2f}%)"
+
+
+def format_portfolio(user_id: int) -> str:
+    """The /portfolio reply: total balance, 24h change, profit/loss, every holding and every open limit / stop
+    order of the MEXC account (read-only, app/services/mexc_service.py). Only an account listed in
+    MEXC_VIEWER_EMAILS gets it; anyone else gets one neutral line and MEXC is not called."""
+    from app.services import mexc_service as m
+
+    db = SessionLocal()
+    try:
+        email = db.query(User.email).filter(User.id == user_id).scalar() or ""
+    finally:
+        db.close()
+    if not m.can_view(email):
+        return "Portfolio is not available for this account."
+    snap = m.portfolio(user_id)
+    if not snap.get("ok"):
+        return "💼 <b>Portfolio</b> is unavailable right now: " + html.escape(snap.get("error") or "no data yet.")
+    lines = ["💼 <b>MEXC portfolio</b>" + (" (demo data)" if snap.get("demo") else "")]
+    if snap.get("error"):
+        lines.append("⚠️ " + html.escape(snap["error"]) + " (showing the last data)")
+    lines += [
+        f"Total balance: <b>{m.fmt_money(snap['total_value'])}</b>",
+        f"24h: {_pf_pnl(snap['change_24h'], snap['change_24h_pct'])}",
+    ]
+    if snap["with_cost"]:
+        lines.append(f"P/L: {_pf_pnl(snap['pnl'], snap['pnl_pct'])}")
+    lines.append(f"Stablecoins: {m.fmt_money(snap['stable_value'])} · In open orders: {m.fmt_money(snap['locked_value'])}")
+    lines += ["", f"<b>Holdings ({sum(1 for h in snap['holdings'] if not h['is_stable'])} coins)</b>"]
+    for h in snap["holdings"]:
+        row = f"• <b>{html.escape(h['asset'])}</b> {m.fmt_qty(h['amount'])}"
+        if h["is_stable"]:
+            row += f" = {m.fmt_money(h['value'])}"
+        else:
+            row += f" @ {_fmt_price(h['price'])} = {m.fmt_money(h['value'])}"
+            if h["avg_price"] > 0:
+                row += f" · avg {_fmt_price(h['avg_price'])} · P/L {_pf_pnl(h['pnl'], h['pnl_pct'])}"
+        lines.append(row)
+    if snap["dust_count"]:
+        lines.append(f"<i>+ {snap['dust_count']} small balances ({m.fmt_money(snap['dust_value'])})</i>")
+    lines += ["", f"<b>Open orders ({len(snap['orders'])})</b>"]
+    if not snap["orders"]:
+        lines.append("None.")
+    for o in snap["orders"]:
+        icon = "🟢 Buy" if o["side"] == "BUY" else "🔴 Sell"
+        row = f"{icon} <b>{html.escape(o['asset'])}</b> · {o['type_label']} " + (_fmt_price(o["price"]) if o["price"] else "market")
+        if o["stop_price"]:
+            row += f" (trigger {_fmt_price(o['stop_price'])})"
+        row += f" · {m.fmt_qty(o['qty'])}"
+        if o["distance_pct"]:
+            row += f" · {abs(o['distance_pct']):.2f}% {'above' if o['distance_pct'] > 0 else 'below'} market"
+        lines.append(row)
+    text = "\n".join(lines)
+    if len(text) > _PORTFOLIO_MAX_CHARS:  # cut at a line end, never inside an HTML tag
+        text = text[:_PORTFOLIO_MAX_CHARS].rsplit("\n", 1)[0] + "\n…"
+    return text
+
+
 def handle_message(msg: dict) -> None:
     """One incoming bot message: /start <code> links, /alerts and /alert <COIN> reply."""
     chat = msg.get("chat") or {}
@@ -328,7 +401,7 @@ def handle_message(msg: dict) -> None:
         return
     parsed = digest.parse_command(cmd)
     past = digest.parse_date_command(cmd)
-    if cmd not in ("alerts", "command1", "alert", "fear_greed_index", "site_health", "forex_factory", "price") and not parsed and not past:
+    if cmd not in ("alerts", "command1", "alert", "fear_greed_index", "site_health", "forex_factory", "price", "portfolio") and not parsed and not past:
         return
     user_id = _user_for_chat(chat["id"])
     if not user_id:
@@ -337,6 +410,8 @@ def handle_message(msg: dict) -> None:
         from app.services import site_health_service
 
         _send(chat["id"], site_health_service.build_message())
+    elif cmd == "portfolio":
+        _send(chat["id"], format_portfolio(user_id))
     elif cmd == "fear_greed_index":
         digest.handle_fng(chat["id"])
     elif cmd == "price":

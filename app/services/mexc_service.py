@@ -48,6 +48,7 @@ PRICES_TTL = 10  # seconds: public 24h tickers
 TRADES_TTL = 600  # seconds: a coin's trade history (refetched sooner when its balance changes)
 COIN_ORDERS_TTL = 20  # seconds: open orders of a coin you don't hold (coin page)
 DUST_USD = 1.0  # holdings worth less than this are summed as "small balances"
+RECENT_FILLS = 50  # latest trades returned (the page shows them 5 at a time)
 _TRADE_PAGES = 5  # up to 5 x 100 trades per coin
 
 # Signed calls are only ever sent to these read endpoints (GET).
@@ -246,6 +247,29 @@ def average_cost(trades: list[dict]) -> dict:
             if qty <= 1e-12:
                 qty = cost = 0.0
     return {"qty": qty, "avg_price": cost / qty if qty > 0 else 0.0, "short": short}
+
+
+# -------------------------------------------------------------------------------------------- formatting
+# Shared by the /portfolio page (state/portfolio_state.py) and the Telegram /portfolio command. Coin PRICES are
+# not formatted here: they go through the frontend's _fmt_usd (page) / telegram_notify_service._fmt_price.
+
+
+def fmt_money(v: float) -> str:
+    """A USD amount (a value, not a coin price)."""
+    return f"-${abs(v):,.2f}" if v < 0 else f"${v:,.2f}"
+
+
+def fmt_signed_money(v: float) -> str:
+    return ("+" if v > 0 else "-" if v < 0 else "") + f"${abs(v):,.2f}"
+
+
+def fmt_qty(v: float) -> str:
+    """A coin amount: thousands separators, up to 8 decimals for small amounts, no trailing zeros."""
+    if v >= 1000:
+        return f"{v:,.2f}".rstrip("0").rstrip(".")
+    if v >= 1:
+        return f"{v:,.4f}".rstrip("0").rstrip(".")
+    return f"{v:.8f}".rstrip("0").rstrip(".") or "0"
 
 
 # ---------------------------------------------------------------------------------------------- caching
@@ -502,7 +526,7 @@ def portfolio(user_id: int | None = None, force: bool = False) -> dict:
         # USDT locked in buy orders this page could not find (MEXC lists orders per coin; a buy order on a
         # coin you don't hold shows on that coin's page).
         "unmatched_locked_usdt": max(locked_usdt - buy_usdt, 0.0) if _cache["open_orders_all"] is False else 0.0,
-        "trades": trades[:20],
+        "trades": trades[:RECENT_FILLS],
     }
 
 

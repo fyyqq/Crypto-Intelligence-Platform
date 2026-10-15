@@ -1,6 +1,6 @@
 """/profile: edit the account's details and pictures — banner on top, profile picture overlapping it, then a
 "Personal details" form (first/last name, mobile, e-mail read-only, address). Two columns from the md breakpoint,
-one column on phones. An account sidebar (25% of the width, sticky, minimizable) sits beside the page. Colours use the theme tokens so it follows light/dark mode."""
+one column on phones. An account sidebar (20% of the width, sticky, minimizable; the content takes the other 80%) sits beside the page. Colours use the theme tokens so it follows light/dark mode."""
 
 import reflex as rx
 
@@ -125,7 +125,7 @@ _SIDE_LINKS = [
 
 
 def _sidebar() -> rx.Component:
-    """Account sidebar: 25% of the width next to the page (sticky, never over it). The chevron button at the bottom
+    """Account sidebar: 20% of the width next to the page (sticky, never over it). The chevron button at the bottom
     shrinks it to an icon strip and back (assets/profile_sidebar.js flips `profile-collapsed` on .profile-layout and
     remembers the choice); the account (avatar, name, e-mail) sits under the links."""
     return rx.el.aside(

@@ -1603,12 +1603,12 @@ svg.wl-star-force-off {
 }
 @media (min-width: 1024px) { .profile-banner { height: 230px; } }
 
-/* /profile sidebar (profile_page.py::_sidebar): 25% of the width beside the page (sticky, never over it); collapsed =
+/* /profile sidebar (profile_page.py::_sidebar): 20% of the width beside the page (the content takes the other 80%) (sticky, never over it); collapsed =
    a narrow icon strip. Phones (< 768 px): it stacks above the page instead (full width, not sticky). */
 .profile-layout { display: flex; align-items: flex-start; width: 100%; }
 .profile-main { flex: 1 1 0; min-width: 0; }
 .profile-sidebar {
-  flex: 0 0 25%; width: 25%; box-sizing: border-box; align-self: stretch; padding: 0;
+  flex: 0 0 20%; width: 20%; box-sizing: border-box; align-self: stretch; padding: 0;
   background: var(--gray-a2); border-right: 1px solid var(--gray-a5); transition: flex-basis 0.2s ease, width 0.2s ease;
 }
 /* The column is as tall as the page; its content stays in view while scrolling (below the sticky header on tablets/phones). */

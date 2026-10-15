@@ -266,8 +266,9 @@ def test_clearing_resets_every_portfolio_var_to_its_default(monkeypatch):
 
     fields = {n: f for n, f in ps.PortfolioState.get_fields().items() if n.startswith(ps._PORTFOLIO_VAR_PREFIXES)}
     assert {"pf_summary", "pf_holdings", "pf_orders", "pf_trades", "coin_mexc_holding", "coin_mexc_orders", "coin_mexc_error"} <= set(fields)
-    stand_in = types.SimpleNamespace(**{n: "STALE-BALANCE" for n in fields})
+    stand_in = types.SimpleNamespace(**{n: "STALE-BALANCE" for n in fields}, _pf_trades_all=[{"asset": "STALE"}])
     ps.PortfolioState._clear_portfolio(stand_in)
+    assert stand_in._pf_trades_all == []  # the backend-only rows are emptied too
     for name, field in fields.items():
         factory = field.default_factory
         expected = factory() if factory is not None and factory is not dataclasses.MISSING else field.default
@@ -276,3 +277,23 @@ def test_clearing_resets_every_portfolio_var_to_its_default(monkeypatch):
         assert getattr(stand_in, name) == expected, name
     ps.PortfolioState._clear_portfolio(stand_in, loaded=True)
     assert stand_in.pf_loaded is True and stand_in.pf_allowed is False and stand_in.pf_summary == {}
+
+
+def test_recent_fills_are_shown_five_per_page_and_the_page_is_kept_and_clamped(monkeypatch):
+    ps = _state_module(monkeypatch)
+    rows = [{"asset": f"T{i}"} for i in range(12)]
+    s = types.SimpleNamespace(_pf_trades_all=rows, pf_trade_page=1, pf_trades=[], pf_trade_pages=1, pf_trade_total=0)
+    ps.PortfolioState._show_trades_page(s)
+    assert [r["asset"] for r in s.pf_trades] == ["T0", "T1", "T2", "T3", "T4"] and (s.pf_trade_pages, s.pf_trade_total) == (3, 12)
+    s.pf_trade_page = 3
+    ps.PortfolioState._show_trades_page(s)
+    assert [r["asset"] for r in s.pf_trades] == ["T10", "T11"]  # the last page holds the remainder
+    s.pf_trade_page = 9  # out of range -> the last page
+    ps.PortfolioState._show_trades_page(s)
+    assert s.pf_trade_page == 3
+    s._pf_trades_all = rows[:3]  # the list shrank on a refresh: back to page 1 of 1
+    ps.PortfolioState._show_trades_page(s)
+    assert s.pf_trade_page == 1 and len(s.pf_trades) == 3 and s.pf_trade_pages == 1
+    s._pf_trades_all = []
+    ps.PortfolioState._show_trades_page(s)
+    assert s.pf_trades == [] and s.pf_trade_pages == 1

@@ -197,26 +197,11 @@ def _holding_row(h) -> rx.Component:
         _td(
             rx.cond(
                 h["stable"] == "",
-                rx.hstack(
-                    rx.vstack(
-                        rx.text(h["avg"], size="2", color="var(--gray-12)"),
-                        rx.cond(h["avg_source"] != "", rx.text(h["avg_source"], size="1", color="var(--gray-11)")),
-                        spacing="0",
-                        align="end",
-                    ),
-                    rx.icon_button(
-                        rx.icon("pencil", size=13),
-                        on_click=S.open_cost_dialog(h["asset"], h["avg_plain"]),
-                        variant="ghost",
-                        color_scheme="gray",
-                        size="1",
-                        title="Set your average buy price",
-                        aria_label="Set your average buy price",
-                        cursor="pointer",
-                    ),
-                    spacing="1",
-                    align="center",
-                    justify="end",
+                rx.vstack(
+                    rx.text(h["avg"], size="2", color="var(--gray-12)"),
+                    rx.cond(h["avg_source"] != "", rx.text(h["avg_source"], size="1", color="var(--gray-11)")),
+                    spacing="0",
+                    align="end",
                 ),
             ),
         ),
@@ -322,6 +307,8 @@ def _trade_row(t) -> rx.Component:
 
 
 def _trades() -> rx.Component:
+    from frontend.components.news_page import _pagination_row  # the same pager as the news and index pages
+
     return _card(
         _section_title("history", "Recent fills", rx.text("coins you hold, last 30 days", size="1", color="var(--gray-11)")),
         rx.cond(
@@ -337,6 +324,13 @@ def _trades() -> rx.Component:
                 class_name="pf-scroll",
             ),
             rx.text("No trades in the last 30 days.", size="2", color="var(--gray-11)"),
+        ),
+        rx.cond(
+            S.pf_trade_pages > 1,
+            rx.box(
+                _pagination_row(S.trades_first, S.trades_prev, S.trades_next, S.trades_last, S.pf_trade_page, S.pf_trade_pages),
+                margin_top="0.75em",
+            ),
         ),
     )
 
