@@ -417,6 +417,18 @@ def _header_bar() -> rx.Component:
     )
 
 
+def _search_toggle() -> rx.Component:
+    """Phones only (hidden from 768 px, see styles.css): a search icon left of the bell that shows the search bar below
+    the header; assets/instant_ui.js toggles `mobile-search-open` on .site-header."""
+    return rx.box(
+        rx.icon("search", size=22, color="var(--gray-12)"),
+        class_name="header-search-toggle",
+        role="button",
+        aria_label="Search",
+        title="Search",
+    )
+
+
 def _header_bar_inner() -> rx.Component:
     return rx.box(
         rx.box(
@@ -455,7 +467,7 @@ def _header_bar_inner() -> rx.Component:
                 global_search(),
                 # One grid item below lg (bell + profile), so the header's
                 # 3-column grid keeps its search-in-the-middle layout.
-                rx.hstack(_notification_bell(), _profile_pill(), spacing="3", align="center", flex_shrink="0"),
+                rx.hstack(_search_toggle(), _notification_bell(), _profile_pill(), spacing="3", align="center", flex_shrink="0", class_name="header-actions"),
                 # Hidden — clicked from JS (assets/chain_pills.js) on a real
                 # click outside .profile-pill-trigger, closing the dropdown
                 # (same click-outside-close pattern as the header search's
@@ -508,6 +520,7 @@ def _header_bar_inner() -> rx.Component:
         border_bottom="1px solid var(--gray-a5)",
         box_shadow="0 2px 6px rgba(0, 0, 0, 0.12)",
         background="var(--gray-2)",
+        class_name="site-header",
     )
 
 

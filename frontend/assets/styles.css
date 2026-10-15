@@ -1631,3 +1631,20 @@ svg.wl-star-force-off {
   position: relative; width: 100%; max-width: 380px; padding: 24px; border-radius: 12px;
   background: var(--color-panel-solid); border: 1px solid var(--gray-a6); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
+
+/* Header on tablets and phones (frontend.py::_header_bar_inner). It stays at the top of the screen while the page
+   scrolls (sticky is a fixed header that keeps its own space, so no spacer is needed even when the search row opens). */
+.header-search-toggle { display: none; cursor: pointer; line-height: 0; }
+@media (max-width: 1023px) {
+  .site-header { position: sticky; top: 0; z-index: 1000; }
+}
+/* Phones: the search bar leaves the header row; the search icon left of the bell shows it in a row below, centred. */
+@media (max-width: 767px) {
+  .header-search-toggle { display: inline-flex; }
+  .site-header > div { grid-template-columns: auto minmax(0, 1fr) auto !important; }
+  .site-header .header-actions { grid-column: 3; grid-row: 1; }
+  .site-header .global-search-container { display: none; }
+  .site-header.mobile-search-open .global-search-container {
+    display: flex; grid-column: 1 / -1; grid-row: 2; justify-self: center; width: 100%; max-width: 520px; margin-top: 0.6em;
+  }
+}

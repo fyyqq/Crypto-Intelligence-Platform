@@ -191,6 +191,23 @@
     });
   }).observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["data-open"] });
 
+  // ---- 3c. phone header: the search icon shows / hides the search bar below the header --------------------
+  document.addEventListener(
+    "click",
+    function (e) {
+      var t = e.target;
+      if (!t.closest || !t.closest(".header-search-toggle")) return;
+      var header = document.querySelector(".site-header");
+      if (!header) return;
+      var open = header.classList.toggle("mobile-search-open");
+      if (open) {
+        var input = header.querySelector(".global-search-input");
+        if (input) setTimeout(function () { input.focus(); }, 0);
+      }
+    },
+    true
+  );
+
   // ---- 4. header search suggestions -------------------------------------------
   var index = null;
   var loading = null;
