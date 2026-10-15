@@ -1,6 +1,8 @@
 """MEXC portfolio (read-only): average cost from trades, the dashboard snapshot from MEXC-shaped demo data,
 viewer gating, and that only signed GETs to read endpoints are ever sent, with no secret in any error."""
 
+import logging
+import types
 from pathlib import Path
 
 import pytest
@@ -26,6 +28,7 @@ def reset(monkeypatch):
     monkeypatch.setattr(m.settings, "mexc_api_secret", "")
     monkeypatch.setattr(m.settings, "mexc_viewer_emails", "")
     monkeypatch.setattr(m, "get_costs", lambda user_id: {})
+    monkeypatch.setattr(m, "_rate", {"until": 0.0, "strikes": 0})
 
 
 @pytest.fixture
@@ -136,3 +139,140 @@ def test_a_failed_refresh_keeps_the_last_good_data(demo, monkeypatch):
 def test_not_configured():
     snap = m.portfolio()
     assert not snap["configured"] and not snap["ok"]
+
+
+# ------------------------------------------------------------------------------------------- hardening
+
+
+class Reply:
+    def __init__(self, status=200, body=None, headers=None):
+        self.status_code, self._body, self.headers = status, body if body is not None else {}, headers or {}
+
+    def json(self):
+        return self._body
+
+
+@pytest.fixture
+def live(monkeypatch):
+    """A configured key and a recording stand-in for requests.get (replies come from `replies`)."""
+    monkeypatch.setattr(m.settings, "mexc_api_key", "KEY123")
+    monkeypatch.setattr(m.settings, "mexc_api_secret", "SECRET456")
+    box = types.SimpleNamespace(calls=[], replies=[])
+
+    def fake_get(url, **kw):
+        box.calls.append((url, kw))
+        return box.replies.pop(0) if len(box.replies) > 1 else box.replies[0]
+
+    monkeypatch.setattr(m.requests, "get", fake_get)
+    return box
+
+
+def test_requests_use_https_never_follow_redirects_and_time_out(live):
+    live.replies = [Reply(body={"balances": []})]
+    m._get("/api/v3/account", signed=True)
+    m._get("/api/v3/ticker/24hr")
+    for url, kw in live.calls:
+        assert url.startswith("https://api.mexc.com/")
+        assert kw["allow_redirects"] is False and kw["timeout"] == m._TIMEOUT
+
+
+def test_an_unknown_mexc_error_is_generic_on_the_page_and_logged_in_full(live, caplog):
+    live.replies = [Reply(400, {"code": 99999, "msg": "IP [203.0.113.7] is weird"})]
+    with caplog.at_level(logging.WARNING, logger=m._log.name):
+        with pytest.raises(m.MexcError) as err:
+            m._get("/api/v3/account", signed=True)
+    assert "203.0.113.7" not in str(err.value) and "99999" in str(err.value) and "server log" in str(err.value)
+    assert "203.0.113.7" in caplog.text and "99999" in caplog.text  # the detail is kept, server side only
+    live.replies = [Reply(400, {"code": 700006, "msg": "IP [203.0.113.7] not in the ip white list"})]
+    with pytest.raises(m.MexcError, match="not linked to the MEXC API key") as err:
+        m._get("/api/v3/account", signed=True)
+    assert "203.0.113.7" not in str(err.value)
+
+
+def test_a_429_pauses_every_request_and_the_forced_refresh_cannot_skip_it(live, monkeypatch, caplog):
+    now = [1000.0]
+    monkeypatch.setattr(m.time, "time", lambda: now[0])
+    live.replies = [Reply(429, headers={})]
+    with caplog.at_level(logging.WARNING, logger=m._log.name):
+        with pytest.raises(m.MexcRateLimited):
+            m._get("/api/v3/account", signed=True)
+    assert "rate limit" in caplog.text and len(live.calls) == 1
+    assert m._rate["until"] == pytest.approx(1000.0 + m.ACCOUNT_TTL)
+    for _ in range(3):  # paused: nothing is sent, however often it is asked (refresh icon = force=True)
+        with pytest.raises(m.MexcRateLimited):
+            m._get("/api/v3/account", signed=True)
+        m._refresh(force=True)
+    assert len(live.calls) == 1 and "rate limit" in m._cache["error"]
+
+
+def test_the_429_pause_grows_honours_retry_after_and_resets_after_a_good_reply(live, monkeypatch):
+    now = [1000.0]
+    monkeypatch.setattr(m.time, "time", lambda: now[0])
+    waits = []
+    for _ in range(3):  # strikes 1..3: 20 s, 40 s, 80 s
+        live.replies = [Reply(429)]
+        with pytest.raises(m.MexcRateLimited):
+            m._get("/api/v3/account", signed=True)
+        waits.append(m._rate["until"] - now[0])
+        now[0] = m._rate["until"] + 0.1
+    assert waits == pytest.approx([m.ACCOUNT_TTL, m.ACCOUNT_TTL * 2, m.ACCOUNT_TTL * 4])
+    live.replies = [Reply(429, headers={"Retry-After": "250"})]
+    with pytest.raises(m.MexcRateLimited):
+        m._get("/api/v3/account", signed=True)
+    assert m._rate["until"] - now[0] == pytest.approx(250)  # MEXC's own wait is longer than ours
+    now[0] = m._rate["until"] + 0.1
+    live.replies = [Reply(200, {"balances": []})]
+    assert m._get("/api/v3/account", signed=True) == {"balances": []}
+    assert m._rate["strikes"] == 0
+    live.replies = [Reply(429)]
+    with pytest.raises(m.MexcRateLimited):
+        m._get("/api/v3/account", signed=True)
+    assert m._rate["until"] - now[0] == pytest.approx(m.ACCOUNT_TTL)  # back to the short pause
+
+
+def test_a_429_in_the_body_counts_too_and_the_page_keeps_its_last_data(demo, monkeypatch):
+    assert m.portfolio()["ok"]
+    monkeypatch.setattr(m.settings, "mexc_fixture_file", "")
+    monkeypatch.setattr(m.settings, "mexc_api_key", "KEY123")
+    monkeypatch.setattr(m.settings, "mexc_api_secret", "SECRET456")
+    monkeypatch.setattr(m.requests, "get", lambda *a, **k: Reply(200, {"code": 429, "msg": "Too many requests"}))
+    snap = m.portfolio(force=True)
+    assert snap["ok"] and len(snap["holdings"]) == 7 and "rate limit" in snap["error"]
+
+
+# ---------------------------------------------------------------- page state (what the browser receives)
+
+
+def _state_module(monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parent.parent / "frontend"))  # the Reflex app root
+    from frontend.state import portfolio_state
+
+    return portfolio_state
+
+
+def test_the_page_data_has_no_order_id_and_only_display_strings(monkeypatch, demo):
+    ps = _state_module(monkeypatch)
+    snap = m.portfolio()
+    assert snap["orders"] and "order_id" in snap["orders"][0]  # the service keeps it, server side
+    for order in snap["orders"]:
+        view = ps._order_view(order)
+        assert "id" not in view and "order_id" not in view and order["order_id"] not in view.values()
+        assert all(isinstance(v, str) for v in view.values())
+
+
+def test_clearing_resets_every_portfolio_var_to_its_default(monkeypatch):
+    ps = _state_module(monkeypatch)
+    import dataclasses
+
+    fields = {n: f for n, f in ps.PortfolioState.get_fields().items() if n.startswith(ps._PORTFOLIO_VAR_PREFIXES)}
+    assert {"pf_summary", "pf_holdings", "pf_orders", "pf_trades", "coin_mexc_holding", "coin_mexc_orders", "coin_mexc_error"} <= set(fields)
+    stand_in = types.SimpleNamespace(**{n: "STALE-BALANCE" for n in fields})
+    ps.PortfolioState._clear_portfolio(stand_in)
+    for name, field in fields.items():
+        factory = field.default_factory
+        expected = factory() if factory is not None and factory is not dataclasses.MISSING else field.default
+        if name == "pf_loaded":
+            expected = False
+        assert getattr(stand_in, name) == expected, name
+    ps.PortfolioState._clear_portfolio(stand_in, loaded=True)
+    assert stand_in.pf_loaded is True and stand_in.pf_allowed is False and stand_in.pf_summary == {}

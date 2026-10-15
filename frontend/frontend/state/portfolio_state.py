@@ -2,9 +2,20 @@
 
 Read-only (app/services/mexc_service.py). Only an account listed in MEXC_VIEWER_EMAILS gets any data: every
 loop and event checks mexc_service.can_view(user_email) on the server. The browser only receives formatted
-strings; the key, the secret and the raw MEXC replies stay on the server."""
+strings; the key, the secret and the raw MEXC replies stay on the server.
+
+Rules for this state (Reflex sends every var without a leading underscore to the browser):
+- A public var (pf_*, coin_mexc_*) holds ONLY display strings, never a raw MEXC reply, id or credential. Any raw
+  MEXC data a feature needs must live in a `_`-prefixed (backend-only) var and be emptied in _clear_portfolio.
+- _clear_portfolio runs on logout (CoinState.logout) and whenever a loop finds the viewer check failing, so a
+  logged-out session keeps none of the balances or orders. It resets every pf_* / coin_mexc_* var by prefix, so
+  a new var is covered automatically.
+- A loop cycle that fails (network, database, bad reply) shows a short message and the loop carries on; the
+  detail goes to the server log."""
 
 import asyncio
+import dataclasses
+import logging
 import sys
 import time
 from datetime import datetime
@@ -14,7 +25,10 @@ import reflex as rx
 
 from frontend.state.coin_state import _ROOT_FOR_APP, _UNIVERSE, CoinState, _fmt_pct, _fmt_usd
 
+_log = logging.getLogger(__name__)
 _TZ = ZoneInfo("Asia/Kuala_Lumpur")
+_REFRESH_FAILED = "MEXC data could not be refreshed just now. Retrying shortly."
+_PORTFOLIO_VAR_PREFIXES = ("pf_", "coin_mexc_")  # every public var of this state starts with one of these
 _PAGE_SECONDS = 10  # /portfolio redraw (the service reads MEXC at most every 20 s, prices every 10 s)
 _COIN_SECONDS = 15  # coin page box
 _ACCOUNT_PATHS = {"/portfolio", "/profile", "/profile/edit-profile"}
@@ -88,8 +102,7 @@ def _order_view(o: dict) -> dict[str, str]:
     buy = o["side"] == "BUY"
     return {
         **_coin_fields(o["asset"]),
-        "id": o["order_id"],
-        "asset": o["asset"],
+        "asset": o["asset"],  # (MEXC's order id is deliberately not sent: the page never needs it)
         "pair": f"{o['asset']}/{o['quote'] or 'USDT'}",
         "side": "Buy" if buy else "Sell",
         "side_color": "green" if buy else "red",
@@ -225,18 +238,60 @@ class PortfolioState(CoinState):
         self.pf_alloc = [{"label": a["label"], "pct": f"{a['pct']:.1f}%", "color": a["color"]} for a in alloc]
         self.pf_loaded = True
 
+    def _clear_portfolio(self, loaded: bool = False) -> None:
+        """Empties everything MEXC put into this session's state: every pf_* / coin_mexc_* var goes back to its
+        default (found by prefix, so a var added later is covered too). `loaded=True` keeps the /portfolio page
+        out of its loading skeleton (it then shows "not available"); logout passes False."""
+        for name, field in PortfolioState.get_fields().items():
+            if name.startswith(_PORTFOLIO_VAR_PREFIXES):
+                factory = field.default_factory  # None or MISSING for a plain default such as False / ""
+                has_factory = factory is not None and factory is not dataclasses.MISSING
+                setattr(self, name, factory() if has_factory else field.default)
+        self.pf_loaded = loaded
+
+    def _viewer_lost(self) -> bool:
+        """True (after wiping this session's MEXC state) when the account may no longer see MEXC data: logged out,
+        or another account is now in this tab. Call it while holding the state."""
+        if self.is_logged_in and _svc().can_view(self.user_email):
+            return False
+        self._clear_portfolio(loaded=True)
+        return True
+
     async def _snapshot(self, force: bool = False) -> dict:
         return await asyncio.to_thread(_svc().portfolio, self.user_id or None, force)
+
+    async def _portfolio_cycle(self) -> bool:
+        """One dashboard refresh. Returns False when the loop should stop (the viewer lost access, or the tab left
+        the account area). Any other failure only shows a short message and keeps the last data on screen."""
+        snap, error = None, ""
+        try:
+            snap = await self._snapshot()
+        except Exception:  # noqa: BLE001 - network/database/bad reply: log the detail, keep the loop alive
+            _log.exception("MEXC portfolio refresh failed")
+            error = _REFRESH_FAILED
+        async with self:
+            if self._viewer_lost():  # logged out / another account in this tab
+                return False
+            if snap is not None:
+                try:
+                    self._apply(snap)
+                except Exception:  # noqa: BLE001
+                    _log.exception("MEXC portfolio could not be displayed")
+                    error = _REFRESH_FAILED
+            if error:
+                self.pf_error, self.pf_loaded = error, True
+            # The account sidebar swaps Portfolio/Edit in the browser (no server navigation), so the loop keeps
+            # going anywhere in the account area and stops when the tab leaves it.
+            return self.router.url.path.rstrip("/") in _ACCOUNT_PATHS
 
     @rx.event(background=True)
     async def portfolio_loop(self):
         """Account-area on_load (/portfolio, /profile, /profile/edit-profile): redraws the dashboard every
         _PAGE_SECONDS while this tab is in the account area."""
         async with self:
-            self.pf_allowed = bool(self.is_logged_in and _svc().can_view(self.user_email))
-            if not self.pf_allowed:
-                self.pf_loaded = True
+            if self._viewer_lost():
                 return
+            self.pf_allowed = True
             if self._pf_running:
                 return
             self._pf_running = True
@@ -244,16 +299,7 @@ class PortfolioState(CoinState):
 
         try:
             while True:
-                snap = await self._snapshot()
-                async with self:
-                    if not _svc().can_view(self.user_email):  # logged out / another account in this tab
-                        self.pf_allowed = False
-                        break
-                    self._apply(snap)
-                    # The account sidebar swaps Portfolio/Edit in the browser (no server navigation), so the loop
-                    # keeps going anywhere in the account area and stops when the tab leaves it.
-                    on_page = self.router.url.path.rstrip("/") in _ACCOUNT_PATHS
-                if not on_page:
+                if not await self._portfolio_cycle():
                     break
                 await asyncio.sleep(_PAGE_SECONDS)
                 if self.router.session.client_token not in reflex_app.event_namespace.token_to_sid:
@@ -264,18 +310,29 @@ class PortfolioState(CoinState):
 
     @rx.event(background=True)
     async def refresh_portfolio(self):
-        """The refresh icon: reads MEXC now instead of waiting for the next cycle."""
+        """The refresh icon: reads MEXC now instead of waiting for the next cycle. (After a MEXC rate-limit answer
+        the service refuses to send anything until its pause ends, so this cannot skip that wait.)"""
         async with self:
             if not (self.is_logged_in and _svc().can_view(self.user_email)) or self.pf_refreshing:
                 return
             self.pf_refreshing = True
+        snap = None
         try:
             snap = await self._snapshot(force=True)
-            async with self:
+        except Exception:  # noqa: BLE001
+            _log.exception("MEXC portfolio manual refresh failed")
+        async with self:
+            self.pf_refreshing = False
+            if self._viewer_lost():  # logged out while MEXC was being read: keep nothing
+                return
+            if snap is None:
+                self.pf_error, self.pf_loaded = _REFRESH_FAILED, True
+                return
+            try:
                 self._apply(snap)
-        finally:
-            async with self:
-                self.pf_refreshing = False
+            except Exception:  # noqa: BLE001
+                _log.exception("MEXC portfolio could not be displayed")
+                self.pf_error = _REFRESH_FAILED
 
     @rx.event
     def open_cost_dialog(self, asset: str, current: str):
@@ -294,9 +351,15 @@ class PortfolioState(CoinState):
         if not (self.is_logged_in and self.user_id and _svc().can_view(self.user_email)):
             self.pf_cost_open = False
             return
-        await asyncio.to_thread(_svc().set_cost, self.user_id, self.pf_cost_asset, price)
+        try:
+            await asyncio.to_thread(_svc().set_cost, self.user_id, self.pf_cost_asset, price)
+            snap = await self._snapshot()
+        except Exception:  # noqa: BLE001
+            _log.exception("MEXC average buy price could not be saved")
+            self.pf_cost_error = "Could not save just now. Please try again."
+            return
         self.pf_cost_open = False
-        self._apply(await self._snapshot())
+        self._apply(snap)
 
     @rx.event
     async def save_cost(self):
@@ -316,14 +379,64 @@ class PortfolioState(CoinState):
 
     # ----------------------------------------------------------------------------------------- coin page
 
+    def _apply_coin(self, asset: str, snap: dict, orders: list[dict]) -> None:
+        held = next((h for h in snap.get("holdings") or [] if h["asset"] == asset), None)
+        self.coin_mexc_error = snap.get("error") or ""
+        self.coin_mexc_orders = [_order_view(o) for o in orders]
+        self.coin_mexc_holding = (
+            {
+                "amount": f"{_qty(held['amount'])} {asset}",
+                "value": _money(held["value"]),
+                "avg": _fmt_usd(held["avg_price"]) if held["avg_price"] > 0 else "—",
+                "pnl": f"{_signed_money(held['pnl'])} ({_fmt_pct(held['pnl_pct'])})" if held["avg_price"] > 0 else "—",
+                "pnl_color": _color(held["pnl"]) if held["avg_price"] > 0 else "var(--gray-11)",
+            }
+            if held
+            else {}
+        )
+        self.coin_mexc_loaded = True
+
+    async def _coin_mexc_cycle(self, shown: str | None) -> tuple[bool, str | None]:
+        """One coin-box refresh: (keep going?, the coin now shown). Failures show a short message in the box."""
+        async with self:
+            coin = self.selected_coin
+            asset = str(coin.get("symbol") or "").upper() if coin else ""
+            on_page = self.router.url.path.startswith("/coins/")
+            if asset != shown:
+                self.coin_mexc_loaded, self.coin_mexc_orders, self.coin_mexc_holding = False, [], {}
+        if not on_page:
+            return False, shown
+        if not asset:
+            return True, shown
+        svc = _svc()
+        snap, orders = None, []
+        try:
+            snap, orders = await asyncio.gather(self._snapshot(), asyncio.to_thread(svc.coin_orders, asset))
+        except Exception:  # noqa: BLE001 - network/database/bad reply: log the detail, keep the loop alive
+            _log.exception("MEXC coin box refresh failed")
+        async with self:
+            if self._viewer_lost():
+                return False, shown
+            failed = snap is None
+            if not failed:
+                try:
+                    self._apply_coin(asset, snap, orders)
+                except Exception:  # noqa: BLE001
+                    _log.exception("MEXC coin box could not be displayed")
+                    failed = True
+            if failed:  # keep what was shown, say why it may be stale
+                self.coin_mexc_error, self.coin_mexc_loaded = _REFRESH_FAILED, True
+        return True, asset
+
     @rx.event(background=True)
     async def coin_mexc_loop(self):
         """Coin page on_load: the viewer's MEXC holding and open orders for the page's coin, every _COIN_SECONDS
         (follows the coin when the tab moves to another coin page)."""
         async with self:
-            allowed = bool(self.is_logged_in and _svc().can_view(self.user_email))
-            self.coin_mexc_visible = allowed
-            if not allowed or self._coin_mexc_running:
+            if self._viewer_lost():
+                return
+            self.coin_mexc_visible = True
+            if self._coin_mexc_running:
                 return
             self._coin_mexc_running = True
             self.coin_mexc_loaded = False
@@ -332,37 +445,9 @@ class PortfolioState(CoinState):
         shown = None
         try:
             while True:
-                async with self:
-                    coin = self.selected_coin
-                    asset = str(coin.get("symbol") or "").upper() if coin else ""
-                    on_page = self.router.url.path.startswith("/coins/")
-                    if asset != shown:
-                        self.coin_mexc_loaded, self.coin_mexc_orders, self.coin_mexc_holding = False, [], {}
-                if not on_page:
+                keep_going, shown = await self._coin_mexc_cycle(shown)
+                if not keep_going:
                     break
-                if asset:
-                    svc = _svc()
-                    snap, orders = await asyncio.gather(self._snapshot(), asyncio.to_thread(svc.coin_orders, asset))
-                    held = next((h for h in snap.get("holdings") or [] if h["asset"] == asset), None)
-                    async with self:
-                        if not svc.can_view(self.user_email):
-                            self.coin_mexc_visible = False
-                            break
-                        self.coin_mexc_error = snap.get("error") or ""
-                        self.coin_mexc_orders = [_order_view(o) for o in orders]
-                        self.coin_mexc_holding = (
-                            {
-                                "amount": f"{_qty(held['amount'])} {asset}",
-                                "value": _money(held["value"]),
-                                "avg": _fmt_usd(held["avg_price"]) if held["avg_price"] > 0 else "—",
-                                "pnl": f"{_signed_money(held['pnl'])} ({_fmt_pct(held['pnl_pct'])})" if held["avg_price"] > 0 else "—",
-                                "pnl_color": _color(held["pnl"]) if held["avg_price"] > 0 else "var(--gray-11)",
-                            }
-                            if held
-                            else {}
-                        )
-                        self.coin_mexc_loaded = True
-                    shown = asset
                 await asyncio.sleep(_COIN_SECONDS)
                 if self.router.session.client_token not in reflex_app.event_namespace.token_to_sid:
                     break

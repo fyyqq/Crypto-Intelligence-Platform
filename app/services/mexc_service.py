@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import threading
 import time
 import urllib.parse
@@ -37,6 +38,8 @@ from pathlib import Path
 import requests
 
 from app.core.config import settings
+
+_log = logging.getLogger(__name__)
 
 BASE_URL = "https://api.mexc.com"
 _TIMEOUT = (4, 10)  # connect, read
@@ -76,7 +79,31 @@ _ERRORS = {
 
 
 class MexcError(RuntimeError):
-    """A message that is safe to show on the page (never contains the key, secret or a signed URL)."""
+    """A message that is safe to show on the page (never contains the key, secret, a signed URL or the server's
+    IP: MEXC's own error text is only ever written to the server log)."""
+
+
+class MexcRateLimited(MexcError):
+    """MEXC answered HTTP 429 (or code 429): every MEXC request is paused until _rate["until"]."""
+
+
+# Rate-limit pause shared by every request (one key, one IP): the first 429 pauses for ACCOUNT_TTL seconds
+# (longer if MEXC sends Retry-After), each further 429 doubles it up to RATE_LIMIT_MAX_SECONDS, and a good reply
+# resets the count. The pause also blocks the refresh icon (force=True): _get checks it before sending anything.
+RATE_LIMIT_MAX_SECONDS = 300
+_rate: dict = {"until": 0.0, "strikes": 0}
+
+
+def _rate_limited(reply) -> MexcRateLimited:
+    _rate["strikes"] = min(_rate["strikes"] + 1, 8)
+    try:
+        retry_after = float(getattr(reply, "headers", {}).get("Retry-After") or 0)
+    except (TypeError, ValueError):
+        retry_after = 0.0
+    wait = min(max(retry_after, ACCOUNT_TTL * 2 ** (_rate["strikes"] - 1)), RATE_LIMIT_MAX_SECONDS)
+    _rate["until"] = time.time() + wait
+    _log.warning("MEXC rate limit (429): pausing all MEXC requests for %ds (strike %d)", wait, _rate["strikes"])
+    return MexcRateLimited(f"MEXC rate limit reached. Waiting about {int(wait)} s before asking again.")
 
 
 # ---------------------------------------------------------------------------------------------- access
@@ -133,6 +160,9 @@ def _get(path: str, params: dict | None = None, signed: bool = False) -> object:
     fx = _fixture()
     if fx is not None:
         return _from_fixture(fx, path, params)
+    paused = _rate["until"] - time.time()
+    if paused > 0:  # a 429 paused MEXC: nothing is sent (not even a forced refresh) until it ends
+        raise MexcRateLimited(f"MEXC rate limit reached. Waiting about {int(paused) + 1} s before asking again.")
     headers = {"User-Agent": "Mozilla/5.0"}
     if signed:
         if path not in _READ_PATHS:  # read endpoints only, whatever a caller asks for
@@ -149,7 +179,10 @@ def _get(path: str, params: dict | None = None, signed: bool = False) -> object:
         query = urllib.parse.urlencode(params)
     url = f"{BASE_URL}{path}" + (f"?{query}" if query else "")
     try:
-        r = requests.get(url, headers=headers, timeout=_TIMEOUT)
+        # No redirects: a signed request (and its API-key header) must never be forwarded to another address.
+        r = requests.get(url, headers=headers, timeout=_TIMEOUT, allow_redirects=False)
+        if r.status_code == 429:
+            raise _rate_limited(r)
         data = r.json()
     except requests.RequestException:
         raise MexcError("MEXC could not be reached. It will retry shortly.") from None
@@ -157,9 +190,14 @@ def _get(path: str, params: dict | None = None, signed: bool = False) -> object:
         raise MexcError(f"MEXC sent an unreadable reply (HTTP {r.status_code}).") from None
     if isinstance(data, dict) and data.get("code") not in (None, 0, 200):
         code = data.get("code")
-        raise MexcError(_ERRORS.get(code, f"MEXC error {code}: {str(data.get('msg') or '')[:160]}")) from None
+        if code == 429:
+            raise _rate_limited(r)
+        # MEXC's own text can contain this server's IP address: it goes to the server log, never to the page.
+        _log.warning("MEXC API error: code=%s msg=%s (HTTP %s)", code, str(data.get("msg") or "")[:200], r.status_code)
+        raise MexcError(_ERRORS.get(code, f"MEXC API error (code {code}). Details are in the server log.")) from None
     if r.status_code != 200:
         raise MexcError(f"MEXC answered HTTP {r.status_code}.") from None
+    _rate["strikes"] = 0
     return data
 
 

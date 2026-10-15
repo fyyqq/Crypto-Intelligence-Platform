@@ -2647,6 +2647,11 @@ class CoinState(rx.State):
         self.alert_popups = []
         self.alert_popup_visible = False
         self.profile_menu_open = False
+        # The MEXC portfolio lives in a sub-state: wipe every pf_* / coin_mexc_* var, or the logged-out session
+        # would keep the balances and orders in its state (sent to the browser again on a reload).
+        from frontend.state.portfolio_state import PortfolioState  # imported here: portfolio_state imports this module
+
+        (await self.get_state(PortfolioState))._clear_portfolio()
         return rx.call_script("window.location.assign('/login')")
 
     @rx.event
