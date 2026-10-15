@@ -148,56 +148,81 @@ def _coin_card(c: rx.Var[dict]) -> rx.Component:
     )
 
 
-def _card_section(title: str, count, cards, pager) -> rx.Component:
-    """A titled grid of coin cards, 10 a page (5 columns x 2 rows on desktop), with its own pager."""
-    return rx.vstack(
-        rx.hstack(rx.heading(title, size="4"), rx.badge(count, color_scheme="gray", variant="soft", size="2"), align="center", spacing="2", wrap="wrap"),
-        rx.cond(
-            count.to(int) > 0,
-            rx.vstack(
-                rx.grid(
-                    rx.foreach(cards, _coin_card),
-                    columns=rx.breakpoints(initial="2", sm="3", md="5"),
-                    gap="1em",
-                    width="100%",
-                ),
-                pager,
-                spacing="3",
-                width="100%",
+def _sector_controls() -> rx.Component:
+    """Sort (market cap / 24h change, high to low or low to high) and how many coins the list holds in total."""
+    from frontend.state import CoinState
+    from frontend.state.coin_state import SECTOR_LIMITS, SECTOR_SORTS
+
+    return rx.flex(
+        rx.hstack(
+            rx.text("Sort", size="2", color_scheme="gray"),
+            rx.select.root(
+                rx.select.trigger(class_name="sector-select"),
+                rx.select.content(*[rx.select.item(label, value=key) for key, label in SECTOR_SORTS.items()]),
+                value=CoinState.sector_sort,
+                on_change=CoinState.set_sector_sort,
+                size="2",
             ),
-            rx.text("No coin to show here yet.", size="2", color_scheme="gray"),
+            align="center",
+            spacing="2",
         ),
-        spacing="3",
-        align_items="start",
-        width="100%",
+        rx.hstack(
+            rx.text("Show", size="2", color_scheme="gray"),
+            rx.select.root(
+                rx.select.trigger(class_name="sector-select"),
+                rx.select.content(*[rx.select.item("All coins" if key == "All" else f"Top {key}", value=key) for key in SECTOR_LIMITS]),
+                value=CoinState.sector_limit,
+                on_change=CoinState.set_sector_limit,
+                size="2",
+            ),
+            align="center",
+            spacing="2",
+        ),
+        gap="1em",
+        wrap="wrap",
+        align="center",
     )
 
 
 def _sector_coin_card(view, noun: str) -> rx.Component:
-    """Three sections for the narrative / chain: its top coins by market cap, its top gainers and its top losers
-    (24h change, biggest move first)."""
+    """The narrative's / chain's coins as cards: sortable, cut to a chosen total, 10 a page (5 columns x 2 rows on
+    desktop) with a pager."""
     from frontend.components.news_page import _pagination_row
     from frontend.state import CoinState
-
-    def pager(pages, shown, first, prev, nxt, last):
-        return rx.cond(pages > 1, _pagination_row(first, prev, nxt, last, shown, pages))
 
     return rx.cond(
         view["coin_count"].to(int) > 0,
         rx.vstack(
-            _card_section(
-                rx.fragment("Top coins by market cap in ", view["label"]), view["coin_count"], CoinState.sector_cards,
-                pager(CoinState.sector_card_pages, CoinState.sector_card_page_shown, CoinState.sector_cards_first, CoinState.sector_cards_prev, CoinState.sector_cards_next, CoinState.sector_cards_last),
+            rx.flex(
+                rx.hstack(
+                    rx.heading("Coins in ", view["label"], size="4"),
+                    rx.badge(view["coin_count"], color_scheme="gray", variant="soft", size="2"),
+                    align="center",
+                    spacing="2",
+                    wrap="wrap",
+                ),
+                _sector_controls(),
+                justify="between",
+                align="center",
+                gap="1em",
+                wrap="wrap",
+                width="100%",
             ),
-            _card_section(
-                "Top Gainers (24h)", CoinState.sector_gainer_count, CoinState.sector_gainer_cards,
-                pager(CoinState.sector_gainer_pages, CoinState.sector_gainer_page_shown, CoinState.sector_gainers_first, CoinState.sector_gainers_prev, CoinState.sector_gainers_next, CoinState.sector_gainers_last),
+            rx.grid(
+                rx.foreach(CoinState.sector_cards, _coin_card),
+                columns=rx.breakpoints(initial="2", sm="3", md="5"),
+                gap="1em",
+                width="100%",
             ),
-            _card_section(
-                "Top Losers (24h)", CoinState.sector_loser_count, CoinState.sector_loser_cards,
-                pager(CoinState.sector_loser_pages, CoinState.sector_loser_page_shown, CoinState.sector_losers_first, CoinState.sector_losers_prev, CoinState.sector_losers_next, CoinState.sector_losers_last),
+            rx.cond(
+                CoinState.sector_card_pages > 1,
+                _pagination_row(
+                    CoinState.sector_cards_first, CoinState.sector_cards_prev, CoinState.sector_cards_next, CoinState.sector_cards_last,
+                    CoinState.sector_card_page_shown, CoinState.sector_card_pages,
+                ),
             ),
-            spacing="6",
+            spacing="3",
+            align_items="start",
             width="100%",
         ),
     )

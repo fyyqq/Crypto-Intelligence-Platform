@@ -1650,3 +1650,6 @@ svg.wl-star-force-off {
     display: flex; grid-column: 1 / -1; grid-row: 2; justify-self: center; width: 100%; max-width: 520px; margin-top: 0.6em;
   }
 }
+.sector-select { min-width: 190px; }
+.tag-link { display: inline-flex; }
+.tag-link:hover span { background: var(--gray-a4); }

@@ -594,16 +594,40 @@ def _tag_pill(text: rx.Var[str] | str) -> rx.Component:
     return rx.badge(text, variant="surface", color_scheme="gray", size="2", white_space="nowrap")
 
 
-def _real_tag_group(label: str, tags: rx.Var, suffix: str = "") -> rx.Component:
-    # coin["narrative_list"]/["platform_list"] come off a plain `dict`-typed
-    # selected_coin var, so Reflex sees them as Any — .to(list[str]) tells
-    # rx.foreach the concrete type it needs to iterate.
+TAG_LIMIT = 20  # tags shown per group before "View more"
+
+
+def _tag_badge(tag: rx.Var[dict]) -> rx.Component:
+    """A tag; one that has a narrative page (/narrative/<slug>) opens it."""
+    badge = rx.badge(tag["name"], variant="surface", color_scheme="gray", size="2", white_space="nowrap")
+    return rx.cond(
+        tag["href"] != "",
+        rx.link(badge, href=tag["href"], underline="none", class_name="tag-link"),
+        badge,
+    )
+
+
+def _tag_group(label: str, key: str, tags: rx.Var | list[dict]) -> rx.Component:
+    """A titled group of tags: the first TAG_LIMIT, then a "View more" pill that shows the rest ("View less" folds
+    it back). tags: [{name, href}] (the rows carry them as plain dict lists, so .to(list[dict]))."""
+    if isinstance(tags, list):
+        tags = rx.Var.create(tags)
+    tags = tags.to(list[dict])
+    opened = CoinState.tag_groups_open.contains(key)
     return rx.vstack(
         rx.text(label, size="2", color_scheme="gray"),
-        rx.hstack(
-            rx.foreach(tags.to(list[str]), lambda t: _tag_pill(t + suffix if suffix else t)),
-            spacing="2",
-            wrap="wrap",
+        rx.box(
+            rx.foreach(rx.cond(opened, tags, tags[:TAG_LIMIT]), _tag_badge),
+            rx.cond(
+                tags.length() > TAG_LIMIT,
+                rx.box(
+                    rx.text(rx.cond(opened, "View less", "View more"), size="1", weight="bold"),
+                    on_click=CoinState.toggle_tag_group(key),
+                    class_name="chain-filter-pill chain-filter-pill-more",
+                ),
+            ),
+            class_name="filter-pills-wrap",
+            width="100%",
         ),
         spacing="2",
         width="100%",
@@ -611,14 +635,8 @@ def _real_tag_group(label: str, tags: rx.Var, suffix: str = "") -> rx.Component:
     )
 
 
-def _dummy_tag_group(label: str, tags: list[str]) -> rx.Component:
-    return rx.vstack(
-        rx.text(label, size="2", color_scheme="gray"),
-        rx.hstack(*[_tag_pill(t) for t in tags], spacing="2", wrap="wrap"),
-        spacing="2",
-        width="100%",
-        align="start",
-    )
+def _dummy_tags(tags: list[str]) -> list[dict]:
+    return [{"name": t, "href": ""} for t in tags]
 
 
 def _tags_section(coin: dict) -> rx.Component:
@@ -627,10 +645,10 @@ def _tags_section(coin: dict) -> rx.Component:
     # chain pills) — Industry and Self-Reported Tags have no equivalent field
     # in what we sync, so those two stay dummy placeholders.
     return rx.vstack(
-        _real_tag_group("Category", coin["narrative_list"]),
-        _dummy_tag_group("Industry", _DUMMY_INDUSTRY_TAGS),
-        _real_tag_group("Platform", coin["platform_list"], suffix=" Ecosystem"),
-        _dummy_tag_group("Self-Reported Tags", _DUMMY_SELF_REPORTED_TAGS),
+        _tag_group("Category", "category", coin["narrative_tags"]),
+        _tag_group("Industry", "industry", _dummy_tags(_DUMMY_INDUSTRY_TAGS)),
+        _tag_group("Platform", "platform", coin["platform_tags"]),
+        _tag_group("Self-Reported Tags", "self", _dummy_tags(_DUMMY_SELF_REPORTED_TAGS)),
         spacing="4",
         width="100%",
         align="start",
