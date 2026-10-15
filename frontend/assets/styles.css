@@ -1588,3 +1588,7 @@ svg.wl-star-force-off {
   .profile-avatar { width: 112px; height: 112px; margin-top: -56px; }
 }
 @media (min-width: 1024px) { .profile-banner { height: 230px; } }
+
+/* /narrative and /chains: name + 24h score inside one pill (components/index_pages.py). */
+.sector-pill { display: inline-flex; align-items: center; gap: 6px; }
+.sector-pill .sector-pct { font-variant-numeric: tabular-nums; }

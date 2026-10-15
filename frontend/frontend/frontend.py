@@ -1606,7 +1606,7 @@ app.add_page(
     narratives_page,
     route="/narrative",
     title="Repace — Narratives",
-    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CoinState.load_sector_boards],
 )
 app.add_page(
     narrative_page,
@@ -1661,6 +1661,6 @@ for _route, _page_fn in [
     ("/memecoin", memecoin_page),
     ("/watchlist", watchlist_page),
 ]:
-    # /watchlist also runs the live price loop (shared exchange prices every 30s).
-    _extra = [CoinState.live_sync_loop] if _route == "/watchlist" else []
+    # /watchlist also runs the live price loop (shared exchange prices every 30s); /chains loads its 24h board.
+    _extra = [CoinState.live_sync_loop] if _route == "/watchlist" else [CoinState.load_sector_boards] if _route == "/chains" else []
     app.add_page(_page_fn, route=_route, title=f"Repace — {_page_fn.__name__.replace('_page', '').title()}", on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, *_extra])

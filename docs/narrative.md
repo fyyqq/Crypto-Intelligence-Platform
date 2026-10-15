@@ -5,6 +5,8 @@
 
 `/narrative` now shows only a "Narratives" heading with a count and **every narrative as a pill, all on one page (no pagination, no search)**, the same list the homepage "More Narrative" pages through (`CoinState.narrative_links`). The old Narrative Radar article grid (100 articles per page, "Showing 1–100 of N") was removed from this URL. Each pill opens `/narrative/<slug>`, which still lists that narrative's AI-targeted articles (below) with a "← All narratives" link back.
 
+**24h ranking (2026-10-15):** pills are sorted by each narrative's 24h score, shown at the right of its name (green up / red down): the plain average 24h change of its **top 20 coins by market cap** that have a 24h change (at least 3, otherwise no number and listed after the scored ones by size). Changes come from our own hourly `price_snapshot` rows (top 500 coins, under $50K volume left out; same data as Gainers & Losers), so it costs **no API call**; the result is cached for every session and recomputed at most **hourly** (the snapshots only change hourly; 10 min while the 24h window is still collecting). Code: `app/services/sector_performance_service.py` (tests `tests/test_sector_performance.py`), `coin_state.sector_boards` / `CoinState.load_sector_boards`, `components/index_pages.py`.
+
 **Not to be confused with:** the [Home](./home.md) page's own narrative pill filter (left sidebar) — that's a Home feature that filters the existing coin table, not this page. An early planning note in this project's Notion workspace called this idea the "Narrative & Effected Coin Page" — scope not yet decided.
 
 

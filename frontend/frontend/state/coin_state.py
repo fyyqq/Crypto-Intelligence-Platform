@@ -655,6 +655,59 @@ def coin_slug(cmc_id, symbol: str) -> str:
     return _UNIVERSE.get("slugs", {}).get(int(cmc_id or 0)) or (symbol or "").lower()
 
 
+# /narrative and /chains: 24h score per sector (app/services/sector_performance_service.py), shared by every session
+# and recomputed at most hourly (the price snapshots behind it only change hourly; no API call involved).
+_SECTORS: dict = {"at": 0.0, "status": "", "narratives": {}, "chains": {}, "updated": ""}
+SECTOR_TTL = 3600
+SECTOR_RETRY = 600  # while the 24h window is still collecting history, look again after 10 minutes
+
+
+def sector_boards() -> dict:
+    """Blocking. The cached {"status", "narratives", "chains", "updated"}; rebuilt when stale."""
+    age = time.time() - _SECTORS["at"]
+    if _SECTORS["at"] and age < (SECTOR_TTL if _SECTORS["status"] == "ready" else SECTOR_RETRY):
+        return _SECTORS
+    if _ROOT_FOR_APP not in sys.path:
+        sys.path.insert(0, _ROOT_FOR_APP)
+    from app.services import sector_performance_service as sp
+
+    ensure_universe()
+    changes, status = sp.changes_24h()
+    rows = _UNIVERSE["rows"]
+    import datetime as _dt
+    from zoneinfo import ZoneInfo
+
+    _SECTORS.update(
+        at=time.time(),
+        status=status,
+        narratives=sp.sector_scores(rows, changes, lambda r: r.get("narrative_list") or []),
+        chains=sp.sector_scores(rows, changes, lambda r: [r.get("main_chain") or ""]),
+        updated=_dt.datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).strftime("%d %b %H:%M"),
+    )
+    return _SECTORS
+
+
+def _board(names: list[str], scores: dict, href_of=None) -> list[dict]:
+    from app.services.sector_performance_service import ranked
+
+    out = []
+    for n in ranked(names, scores):
+        sc = scores.get(n)
+        pct = sc["pct"] if sc else None
+        out.append({
+            "name": n,
+            "href": href_of(n) if href_of else "",
+            "pct": "" if pct is None else f"{pct:+.2f}%",
+            "color": "var(--gray-10)" if pct is None else ("var(--green-11)" if pct > 0 else "var(--red-11)" if pct < 0 else "var(--gray-11)"),
+            "title": f"Average 24h change of its top {sc['coins']} coins by market cap" if sc else "Not enough coins with 24h data",
+        })
+    return out
+
+
+def _narrative_href(n: str) -> str:
+    return "/narrative/" + (re.sub(r"[^a-z0-9]+", "-", n.lower()).strip("-") or "narrative")
+
+
 FILTER_PAGE_SIZE = 50  # pills per page in the homepage sidebar's expanded narrative / chain lists
 
 
@@ -1508,6 +1561,11 @@ class CoinState(rx.State):
     # Page (1-based) of the expanded / searched narrative and chain lists, FILTER_PAGE_SIZE pills each.
     narrative_page: int = 1
     chain_page: int = 1
+    # /narrative and /chains boards: every name with its 24h score, best first (load_sector_boards).
+    narrative_board: list[dict] = []
+    chain_board: list[dict] = []
+    sector_status: str = ""
+    sector_updated: str = ""
     selected_category: str = "All narratives"
     # Drives just the pill's active/blue highlight. Kept separate from
     # selected_category (which drives the actual re-filter/re-sort of up to
@@ -1801,6 +1859,16 @@ class CoinState(rx.State):
     @rx.event
     def chain_page_next(self):
         self.chain_page = min(self.chain_page_count, self.chain_page + 1)
+
+    @rx.event
+    async def load_sector_boards(self):
+        """/narrative and /chains on_load: the 24h-ranked pill lists (cached hourly for every session)."""
+        data = await asyncio.to_thread(sector_boards)
+        names_n = [c for c in self.all_categories if c != "All narratives"] or list(_UNIVERSE["narratives"])
+        names_c = [c for c in self.all_chains if c != "All chains"] or list(_UNIVERSE["chains"])
+        self.narrative_board = _board(names_n, data["narratives"], _narrative_href)
+        self.chain_board = _board(names_c, data["chains"])
+        self.sector_status, self.sector_updated = data["status"], data["updated"]
 
     @rx.event
     def open_chain(self, name: str):
