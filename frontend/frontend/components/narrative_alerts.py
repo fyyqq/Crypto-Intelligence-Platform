@@ -66,7 +66,7 @@ def narrative_alerts() -> rx.Component:
                     spacing="1",
                     align="center",
                 ),
-                href="/narrative",
+                href="/narrative-radar",
                 underline="none",
                 color_scheme="indigo",
             ),
@@ -293,3 +293,69 @@ def narrative_page_content() -> rx.Component:
 
 def chain_page_content() -> rx.Component:
     return sector_page_content(NewsState.chain_view, "chain", "/chains", "← All chains")
+
+
+def _radar_card(article: rx.Var) -> rx.Component:
+    """A Narrative Radar story: its image on top, then the coin and narrative the AI tied it to, the time, the title and
+    the first lines."""
+    return rx.link(
+        rx.vstack(
+            rx.cond(
+                article["has_image"],
+                rx.box(
+                    rx.image(
+                        src=article["image_url"], width="100%", height="100%", object_fit="cover", display="block",
+                        class_name="news-card-image", custom_attrs={"data-fallback-src": article["fallback_image_url"]},
+                    ),
+                    width="100%", height="140px", min_height="140px", flex_shrink="0", overflow="hidden",
+                ),
+            ),
+            rx.vstack(
+                rx.hstack(
+                    rx.hstack(
+                        rx.badge(article["target_symbol"], color_scheme="indigo", size="1"),
+                        rx.badge(article["target_narrative"], color_scheme="orange", size="1"),
+                        spacing="2", wrap="wrap", min_width="0", flex="1 1 0",
+                    ),
+                    rx.text(article["time_display"], size="1", color_scheme="gray", white_space="nowrap", flex_shrink="0"),
+                    justify="between", align="start", width="100%", spacing="2",
+                ),
+                rx.text(article["title"], weight="bold", size="2", class_name="line-clamp-3"),
+                rx.cond(article["has_snippet"], rx.text(article["snippet"], size="1", color_scheme="gray", class_name="line-clamp-3")),
+                spacing="2", align="start", width="100%", padding="0.85em",
+            ),
+            spacing="0", align="start", width="100%", height="100%",
+            border="1px solid var(--gray-a5)", border_radius="12px", background="var(--gray-a2)", overflow="hidden",
+            class_name="news-card",
+        ),
+        href=article["detail_url"], underline="none", color="inherit", width="100%", height="100%",
+    )
+
+
+def radar_page_content() -> rx.Component:
+    """/narrative-radar: 50 story cards a page (5 columns on desktop), each with its image on top, newest first."""
+    from frontend.components.news_page import _GRID_COLUMNS, _pagination_row
+
+    view = NewsState.radar_view
+    return rx.vstack(
+        rx.flex(
+            rx.heading("Narrative Radar", size="6"),
+            rx.text("Crypto news with the coin and narrative each story moves, picked by AI.", size="2", color_scheme="gray"),
+            rx.badge(view["article_count"], " stories", color_scheme="gray", variant="soft", size="2"),
+            direction="column", spacing="3", align="center", text_align="center", width="100%",
+        ),
+        rx.cond(
+            NewsState.is_loading,
+            rx.grid(*[rx.skeleton(height="260px", border_radius="12px") for _ in range(10)], columns=_GRID_COLUMNS, spacing="4", width="100%"),
+            rx.vstack(
+                rx.text("Showing ", view["range_start"], "–", view["range_end"], " of ", view["article_count"], " stories", size="2", color_scheme="gray"),
+                rx.grid(rx.foreach(view["articles"].to(list[dict]), _radar_card), columns=_GRID_COLUMNS, spacing="4", width="100%"),
+                rx.cond(
+                    view["has_pagination"],
+                    _pagination_row(NewsState.radar_first, NewsState.radar_prev, NewsState.radar_next, NewsState.radar_last, view["page"], view["total_pages"]),
+                ),
+                spacing="4", width="100%",
+            ),
+        ),
+        spacing="5", width="100%", padding=["1em", "1em", "1.5em", "2em", "2em"],
+    )

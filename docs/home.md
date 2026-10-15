@@ -197,3 +197,5 @@ Four equal-height (244px) bordered cards in one row above the Cryptocurrency new
 `app/services/cmc_budget.py` reads the key's remaining monthly credits from CMC's free `/v1/key/info` (every 30 min) and pauses the optional CMC calls (the view sync for coins no exchange lists, the Gainers & Losers refresh button) once the credits left are needed for the hourly/daily syncs until the monthly reset (250/day reserved while local and live share the key). The 8 deliberate 0.25s "keep the skeleton visible" pauses in filter/search/paging handlers are gone, and `sync_visible_page` uses the shared exchange prices first (CMC only for uncovered coins). Measured: page change, search and narrative filter answer in ~0.6-1.6s.
 </details>
 
+
+**Homepage changes (2026-10-15):** the "Narrative Radar" strip under the news feed is removed (the stories live on `/narrative-radar`, reached from the Narrative menu). The news strips' cards (`news_page._news_card(compact=True)`) now show the article's **image on top** (120 px high; the full news pages keep 160 px).

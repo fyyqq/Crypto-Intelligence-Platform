@@ -525,6 +525,7 @@ def _build_article_rows(rows: list[dict]) -> list[dict]:
 
 # ---- /narrative/<slug> and /chains/<slug>: the sector's coins and every story that mentions them --------
 SECTOR_NEWS_COINS = 40  # the sector's largest coins whose name / ticker are looked for in headlines
+RADAR_PER_PAGE = 50  # story cards per page on /narrative-radar
 SECTOR_ARTICLES_PER_PAGE = 20  # stories per page on /narrative/<slug> and /chains/<slug>
 _GENERIC_NAMES = {"coin", "token", "network", "protocol", "chain", "finance", "money", "world", "swap", "the", "meme"}
 
@@ -913,6 +914,7 @@ class NewsState(rx.State):
     view_all_page: int = 1
     # Current page of /narrative (Narrative Radar, 100 per page).
     narrative_page: int = 1
+    radar_page: int = 1  # page of /narrative-radar
     # "Summarize What Happened Today" popup on /news/<category>.
     summary_open: bool = False
     summary_loading: bool = False
@@ -1221,6 +1223,44 @@ class NewsState(rx.State):
     def chain_page_title(self) -> str:
         label = self.chain_view["label"]
         return f"Repace — {label}" if label else "Repace — Chains"
+
+    @rx.var(cache=True)
+    def radar_view(self) -> dict:
+        """/narrative-radar: every Cryptocurrency story the AI tied to a coin and a narrative, newest first, RADAR_PER_PAGE (50)
+        a page."""
+        articles = [a for a in self._all_articles if a["news_type"] == "Cryptocurrency" and a["has_target"]]
+        total_pages = max(1, -(-len(articles) // RADAR_PER_PAGE))
+        page = max(1, min(self.radar_page, total_pages))
+        start = (page - 1) * RADAR_PER_PAGE
+        return {
+            "article_count": len(articles),
+            "range_start": start + 1 if articles else 0,
+            "range_end": min(start + RADAR_PER_PAGE, len(articles)),
+            "page": page,
+            "total_pages": total_pages,
+            "has_pagination": total_pages > 1,
+            "articles": articles[start : start + RADAR_PER_PAGE],
+        }
+
+    @rx.event
+    def reset_radar_page(self):
+        self.radar_page = 1
+
+    @rx.event
+    def radar_first(self):
+        self.radar_page = 1
+
+    @rx.event
+    def radar_prev(self):
+        self.radar_page = max(1, self.radar_view["page"] - 1)
+
+    @rx.event
+    def radar_next(self):
+        self.radar_page = min(self.radar_view["total_pages"], self.radar_view["page"] + 1)
+
+    @rx.event
+    def radar_last(self):
+        self.radar_page = self.radar_view["total_pages"]
 
     @rx.var(cache=True)
     def narrative_page_title(self) -> str:

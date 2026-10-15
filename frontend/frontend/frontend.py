@@ -21,6 +21,7 @@ from frontend.components import (
     narrative_page_content,
     chain_page_content,
     narratives_index_content,
+    radar_page_content,
     profile_content,
     chains_index_content,
     news_detail_content,
@@ -151,7 +152,9 @@ def _nav_menu_items() -> rx.Component:
                 width="100%",
                 color="var(--gray-12)",
             )
-            for label, href in _NAV_LINKS
+            for label, href in [
+                item for label, href in _NAV_LINKS for item in ([(label, href), ("Narrative Radar", "/narrative-radar")] if href == "/narrative" else [(label, href)])
+            ]
         ],
         rx.divider(margin_y="0.25em"),
         display=["block", "block", "block", "block", "none"],
@@ -346,6 +349,7 @@ def _dropdown_nav_item(label: str, href: str, entries: list[tuple[str, str]]) ->
 # Dropdown entries by nav link: News categories, Tools sub-pages.
 _NAV_DROPDOWNS = {
     "/news": [(name, f"/news/{slug}") for name, slug in _NEWS_CATEGORIES],
+    "/narrative": [("Narrative Radar", "/narrative-radar")],
     "/tools": [(p["title"], p["href"]) for p in TOOL_PAGES],
 }
 
@@ -937,7 +941,6 @@ def index() -> rx.Component:
                 id="news-feed-section",
                 width="100%",
             ),
-            narrative_alerts(),
             rx.hstack(
                 rx.box(
                     filter_bar(),
@@ -1151,6 +1154,11 @@ def _index_shell(content: rx.Component) -> rx.Component:
         min_height="100vh",
         width="100%",
     )
+
+
+def narrative_radar_page() -> rx.Component:
+    # /narrative-radar — the AI-picked stories (coin + narrative), 50 a page with their images.
+    return _index_shell(radar_page_content())
 
 
 def narratives_page() -> rx.Component:
@@ -1622,6 +1630,12 @@ app.add_page(
 # placeholder pages today. Each still loads the coin universe so the shared
 # header's own search bar works even when one of these is the very first
 # page a session visits (a direct/bookmarked link, not navigated to from "/").
+app.add_page(
+    narrative_radar_page,
+    route="/narrative-radar",
+    title="Repace — Narrative Radar",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, NewsState.load_news, NewsState.reset_radar_page, NewsState.watch_new_articles],
+)
 app.add_page(
     narratives_page,
     route="/narrative",

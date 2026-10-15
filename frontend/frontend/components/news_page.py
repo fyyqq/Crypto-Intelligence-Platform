@@ -15,11 +15,11 @@ _GRID_COLUMNS = rx.breakpoints(initial="2", sm="3", lg="5")
 
 
 def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
-    """compact=True (homepage strip): text only — no image and no category badge,
-    just the source badge (Telegram group / website name), title, time and excerpt."""
+    """compact=True (homepage strip): the image on top (shorter), no category badge, just the source badge (Telegram
+    group / website name), title, time and excerpt."""
     return rx.link(
         rx.vstack(
-            rx.fragment() if compact else rx.cond(
+            rx.cond(
                 article["has_image"],
                 rx.box(
                     rx.image(
@@ -32,9 +32,9 @@ def _news_card(article: dict, *, compact: bool = False) -> rx.Component:
                         custom_attrs={"data-fallback-src": article["fallback_image_url"]},
                     ),
                     width="100%",
-                    height="160px",
-                    min_height="160px",
-                    max_height="160px",
+                    height="120px" if compact else "160px",
+                    min_height="120px" if compact else "160px",
+                    max_height="120px" if compact else "160px",
                     flex_shrink="0",
                     overflow="hidden",
                 ),
