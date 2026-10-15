@@ -1524,16 +1524,6 @@ async def _telegram_macro_reminders():
 
 
 app.register_lifespan_task(_telegram_macro_reminders)
-
-
-async def _contabo_reminders():
-    """Telegram reminders 5 / 3 / 1 days before the Contabo subscription ends; only where TELEGRAM_DIGEST=true (live) and CONTABO_RENEWAL_DATE is set."""
-    from app.services import contabo_reminder_service  # noqa: E402
-
-    await contabo_reminder_service.run_loop()
-
-
-app.register_lifespan_task(_contabo_reminders)
 # Dynamic routes must be registered before static ones (Reflex route-matching
 # order), so /coins/[symbol] is added ahead of the "/" index page below.
 # The path is the coin's NAME ("/coins/a-meme-coin", a number when names repeat),
