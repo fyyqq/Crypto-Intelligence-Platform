@@ -17,3 +17,5 @@ Shows a "Chains" heading with a count and **every chain as a pill, all on one pa
 Each chain name in the `/chains` table now links to `/chains/<chain-name>` (new route): title, a card box with the chain's coins (logo + ticker pills, largest first; "Show all coins"), then every Cryptocurrency story that mentions the chain's own name or one of its 40 biggest coins by name / ticker, newest first, 100 per page (same code as the narrative page: `components/narrative_alerts.py::sector_page_content`, `NewsState.chain_view`). The table opens sorted by biggest gainer on every visit and shows 20 rows a page.
 
 **Coin cards and paging (2026-10-15):** `/chains/<slug>` uses the same paged coin cards (10 a page, 5x2, star = watchlist, live price, trend line) and 20 stories a page as the narrative page; see `docs/narrative.md`.
+
+**Three card sections (2026-10-15):** the chain page has the same Top coins by market cap / Top Gainers (24h) / Top Losers (24h) sections; see `docs/narrative.md`.

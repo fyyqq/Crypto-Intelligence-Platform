@@ -775,6 +775,7 @@ def sector_members(kind: str, slug: str) -> tuple[str, list[dict]]:
     return label, rows
 
 
+SECTOR_MOVER_MIN_VOLUME = 50_000  # USD of 24h volume a coin needs to appear in Top Gainers / Top Losers
 SECTOR_CARDS_PER_PAGE = 10  # coin cards per page on /narrative/<slug> and /chains/<slug>: 5 columns x 2 rows
 
 
@@ -1639,7 +1640,9 @@ class CoinState(rx.State):
     # Page (1-based) of the expanded / searched narrative and chain lists, FILTER_PAGE_SIZE pills each.
     narrative_page: int = 1
     chain_page: int = 1
-    sector_card_page: int = 1  # page of coin cards on /narrative/<slug> and /chains/<slug>
+    sector_card_page: int = 1  # page of each coin-card section on /narrative/<slug> and /chains/<slug>
+    sector_gainer_page: int = 1
+    sector_loser_page: int = 1
     # /narrative and /chains boards: every name with its 24h score, best first (load_sector_boards).
     # Full tables stay on the server (leading underscore); the browser gets one page of SECTOR_PAGE_SIZE rows.
     _narrative_base: list[dict] = []
@@ -2048,6 +2051,23 @@ class CoinState(rx.State):
         return []
 
     @rx.var(cache=True)
+    def _sector_live_rows(self) -> list[dict]:
+        """The sector's coins (largest market cap first) with the live overrides applied (price, 24h change)."""
+        return [self._row_with_overrides(r) for r in self._sector_member_rows]
+
+    @rx.var(cache=True)
+    def _sector_gainer_rows(self) -> list[dict]:
+        """Coins up in 24h, biggest rise first. Coins under SECTOR_MOVER_MIN_VOLUME of 24h volume are left out (the same
+        dust floor as Gainers & Losers: their moves are noise, e.g. +47,000% on $1 of volume)."""
+        liquid = (r for r in self._sector_live_rows if (r.get("volume_raw") or 0) >= SECTOR_MOVER_MIN_VOLUME)
+        return sorted((r for r in liquid if (r.get("pct_24h_raw") or 0) > 0), key=lambda r: -r["pct_24h_raw"])
+
+    @rx.var(cache=True)
+    def _sector_loser_rows(self) -> list[dict]:
+        liquid = (r for r in self._sector_live_rows if (r.get("volume_raw") or 0) >= SECTOR_MOVER_MIN_VOLUME)
+        return sorted((r for r in liquid if (r.get("pct_24h_raw") or 0) < 0), key=lambda r: r["pct_24h_raw"])
+
+    @rx.var(cache=True)
     def sector_card_pages(self) -> int:
         return max(1, -(-len(self._sector_member_rows) // SECTOR_CARDS_PER_PAGE))
 
@@ -2056,13 +2076,35 @@ class CoinState(rx.State):
         return min(max(1, self.sector_card_page), self.sector_card_pages)
 
     @rx.var(cache=True)
-    def sector_cards(self) -> list[dict]:
-        """The current page of coin cards: live price and 24h change (the same overrides the tables use), the
-        table's trend line and whether the coin is in the viewer's watchlist (the star)."""
-        start = (self.sector_card_page_shown - 1) * SECTOR_CARDS_PER_PAGE
+    def sector_gainer_count(self) -> int:
+        return len(self._sector_gainer_rows)
+
+    @rx.var(cache=True)
+    def sector_gainer_pages(self) -> int:
+        return max(1, -(-self.sector_gainer_count // SECTOR_CARDS_PER_PAGE))
+
+    @rx.var(cache=True)
+    def sector_gainer_page_shown(self) -> int:
+        return min(max(1, self.sector_gainer_page), self.sector_gainer_pages)
+
+    @rx.var(cache=True)
+    def sector_loser_count(self) -> int:
+        return len(self._sector_loser_rows)
+
+    @rx.var(cache=True)
+    def sector_loser_pages(self) -> int:
+        return max(1, -(-self.sector_loser_count // SECTOR_CARDS_PER_PAGE))
+
+    @rx.var(cache=True)
+    def sector_loser_page_shown(self) -> int:
+        return min(max(1, self.sector_loser_page), self.sector_loser_pages)
+
+    @staticmethod
+    def _coin_cards(rows: list[dict], page: int) -> list[dict]:
+        """One page of coin cards: live price and 24h change (the same overrides the tables use) and the table's
+        trend line; the star state comes from CoinState.watchlist_ids in the component."""
         out = []
-        for base in self._sector_member_rows[start:start + SECTOR_CARDS_PER_PAGE]:
-            r = self._row_with_overrides(base)
+        for r in rows[(page - 1) * SECTOR_CARDS_PER_PAGE: page * SECTOR_CARDS_PER_PAGE]:
             pct = r.get("pct_24h_raw") or 0.0
             out.append({
                 "cmc_id": r["cmc_id"], "name": r["name"], "symbol": r["symbol"], "icon_url": r["icon_url"],
@@ -2072,9 +2114,24 @@ class CoinState(rx.State):
             })
         return out
 
+    @rx.var(cache=True)
+    def sector_cards(self) -> list[dict]:
+        """Top coins by market cap (the sector's largest first)."""
+        return self._coin_cards(self._sector_live_rows, self.sector_card_page_shown)
+
+    @rx.var(cache=True)
+    def sector_gainer_cards(self) -> list[dict]:
+        """Top gainers: the coins up the most in 24h."""
+        return self._coin_cards(self._sector_gainer_rows, self.sector_gainer_page_shown)
+
+    @rx.var(cache=True)
+    def sector_loser_cards(self) -> list[dict]:
+        """Top losers: the coins down the most in 24h."""
+        return self._coin_cards(self._sector_loser_rows, self.sector_loser_page_shown)
+
     @rx.event
     def reset_sector_cards(self):
-        self.sector_card_page = 1
+        self.sector_card_page = self.sector_gainer_page = self.sector_loser_page = 1
 
     @rx.event
     def sector_cards_first(self):
@@ -2091,6 +2148,38 @@ class CoinState(rx.State):
     @rx.event
     def sector_cards_last(self):
         self.sector_card_page = self.sector_card_pages
+
+    @rx.event
+    def sector_gainers_first(self):
+        self.sector_gainer_page = 1
+
+    @rx.event
+    def sector_gainers_prev(self):
+        self.sector_gainer_page = max(1, self.sector_gainer_page_shown - 1)
+
+    @rx.event
+    def sector_gainers_next(self):
+        self.sector_gainer_page = min(self.sector_gainer_pages, self.sector_gainer_page_shown + 1)
+
+    @rx.event
+    def sector_gainers_last(self):
+        self.sector_gainer_page = self.sector_gainer_pages
+
+    @rx.event
+    def sector_losers_first(self):
+        self.sector_loser_page = 1
+
+    @rx.event
+    def sector_losers_prev(self):
+        self.sector_loser_page = max(1, self.sector_loser_page_shown - 1)
+
+    @rx.event
+    def sector_losers_next(self):
+        self.sector_loser_page = min(self.sector_loser_pages, self.sector_loser_page_shown + 1)
+
+    @rx.event
+    def sector_losers_last(self):
+        self.sector_loser_page = self.sector_loser_pages
 
     @rx.var(cache=True)
     def narrative_table_pages(self) -> int:
