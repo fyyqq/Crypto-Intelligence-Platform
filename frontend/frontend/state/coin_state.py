@@ -1529,7 +1529,7 @@ def _fetch_business_summary(symbol: str, cmc_id: int | None = None) -> tuple[int
 # live data goes into each session's coin_overrides). Rebuilding it took
 # ~4.6s per new session and kept a private ~35 MB copy in each one.
 _UNIVERSE: dict = {"at": 0.0, "rows": [], "by_id": {}, "narratives": [], "chains": []}
-_UNIVERSE_TTL = 600  # seconds; new listings show up within 10 minutes
+_UNIVERSE_TTL = 300  # seconds; new listings and the 5-minute stored-price refresh (free_price_sync) show up within 5 minutes
 
 
 _UNIVERSE_LOCK = __import__("threading").Lock()

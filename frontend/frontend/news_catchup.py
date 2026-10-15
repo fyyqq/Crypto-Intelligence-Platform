@@ -213,6 +213,22 @@ def _hot_sync_loop() -> None:
         time.sleep(_SNAPSHOT_CHECK_SECONDS)
 
 
+def _free_price_loop() -> None:
+    """Every ~5 minutes refreshes every coin's STORED price from the exchange list and DexScreener (free, no CMC
+    credits): see app.services.free_price_sync. A short pause after start so the server warms up first."""
+    if str(_REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(_REPO_ROOT))
+    time.sleep(30)
+    while True:
+        try:
+            from app.services import free_price_sync
+
+            free_price_sync.run()
+        except Exception:  # noqa: BLE001
+            logger.exception("free price sync failed")
+        time.sleep(300)  # free_price_sync.INTERVAL_SECONDS
+
+
 _MEDIA_MAINTENANCE_INTERVAL_SECONDS = 12 * 3600
 
 
@@ -251,4 +267,5 @@ def ensure_running() -> None:
     threading.Thread(target=_targeting_loop, name="news-targeting", daemon=True).start()
     threading.Thread(target=_category_loop, name="coin-categories", daemon=True).start()
     threading.Thread(target=_hot_sync_loop, name="hot-sync-snapshots", daemon=True).start()
+    threading.Thread(target=_free_price_loop, name="free-price-sync", daemon=True).start()
     threading.Thread(target=_media_maintenance_loop, name="telegram-media-maintenance", daemon=True).start()
