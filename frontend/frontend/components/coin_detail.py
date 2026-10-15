@@ -982,7 +982,9 @@ def _info_column() -> rx.Component:
             align="center",
             width="100%",
         ),
-        rx.hstack(
+        # Price on top; the live dot and the 24h change sit BESIDE it on tablets and phones (a little left spacing) and
+        # BELOW it from md up (desktop); everything vertically centred.
+        rx.flex(
             # Live price (every 1s, from the chart's own exchange pair) once it
             # arrives; the synced price until then. Re-keyed on every change so
             # the up/down flash (styles.css .price-flash-*) replays.
@@ -997,13 +999,19 @@ def _info_column() -> rx.Component:
                     rx.cond(CoinState.live_price_dir == "down", "price-flash-down", ""),
                 ),
             ),
-            rx.cond(
-                CoinState.live_price_display != "",
-                rx.box(class_name="live-dot", title="Live price, updated every second"),
+            rx.hstack(
+                rx.cond(
+                    CoinState.live_price_display != "",
+                    rx.box(class_name="live-dot", title="Live price, updated every second"),
+                ),
+                rx.text(coin["change_24h_display"], " (24h)", size="3", weight="bold", color=coin["change_24h_color"]),
+                align="center",
+                spacing="2",
+                margin_left=rx.breakpoints(initial="0.5em", md="0"),
             ),
-            rx.text(coin["change_24h_display"], " (24h)", size="3", weight="bold", color=coin["change_24h_color"]),
-            align="baseline",
-            spacing="2",
+            direction=rx.breakpoints(initial="row", md="column"),
+            align=rx.breakpoints(initial="center", md="start"),
+            gap="0.25em 0.5em",
             wrap="wrap",
         ),
         rx.hstack(

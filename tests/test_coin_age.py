@@ -14,15 +14,16 @@ from app.models.coin_contract import CoinContract
 from app.services import coin_age_service as ca
 
 
-def test_age_text_years_days_and_under_a_year():
+def test_age_text_is_years_and_days_without_the_date():
     t = date(2026, 10, 15)
-    assert ca.format_age(date(2025, 10, 12), t) == "1 year 3 days (12/10/2025)"
-    assert ca.format_age(date(2025, 10, 15), t) == "1 year (15/10/2025)"
-    assert ca.format_age(date(2020, 8, 1), t) == "6 years 75 days (01/08/2020)"
-    assert ca.format_age(date(2026, 9, 1), t) == "44 days (01/09/2026)"
-    assert ca.format_age(date(2026, 10, 14), t) == "1 day (14/10/2026)" and ca.format_age(t, t) == "Today (15/10/2026)"
+    assert ca.format_age(date(2025, 10, 12), t) == "1 year 3 days"
+    assert ca.format_age(date(2025, 10, 15), t) == "1 year"
+    assert ca.format_age(date(2020, 8, 1), t) == "6 years 75 days"
+    assert ca.format_age(date(2026, 9, 1), t) == "44 days"
+    assert ca.format_age(date(2026, 10, 14), t) == "1 day" and ca.format_age(t, t) == "Today"
     assert ca.format_age(date(2024, 2, 29), date(2026, 3, 1)).startswith("2 years")  # a 29 Feb start
-    assert ca.format_age(None, t) == "" and ca.format_age(date(2027, 1, 1), t) == "01/01/2027"  # a future date: no age
+    assert ca.format_age(None, t) == "" and ca.format_age(date(2027, 1, 1), t) == ""  # unknown / a future date: nothing
+    assert "(" not in ca.format_age(date(2019, 2, 25), t)
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-"""A coin's age for the coin page ("Age: 1 year 47 days (12/10/2025)").
+"""A coin's age for the coin page ("Age: 1 year 47 days").
 
 Where the launch date comes from (best first; a better source replaces a worse one, a worse one never replaces a
 better one):
@@ -28,36 +28,29 @@ _GECKO_BACKOFF_UNTIL = 0.0  # after a CoinGecko 429 (free tier) leave it alone f
 
 
 def format_age(launch: date | None, today: date | None = None) -> str:
-    """"1 year 47 days (12/10/2025)" (day/month/year); "23 days (...)" under a year; "Today"; "" when unknown."""
+    """"1 year 47 days" (whole calendar years, then the days left); "23 days" under a year; "Today"; "" when unknown or
+    in the future. The start date itself is not shown."""
     if launch is None:
         return ""
     today = today or datetime.now(timezone.utc).date()
     days = (today - launch).days
-    stamp = launch.strftime("%d/%m/%Y")
     if days < 0:
-        return stamp
-    years = 0
-    while True:  # whole years by calendar, then the days left
+        return ""
+
+    def plus_years(n: int) -> date:
         try:
-            nxt = launch.replace(year=launch.year + years + 1)
+            return launch.replace(year=launch.year + n)
         except ValueError:  # 29 Feb
-            nxt = launch.replace(year=launch.year + years + 1, day=28)
-        if nxt > today:
-            break
+            return launch.replace(year=launch.year + n, day=28)
+
+    years = 0
+    while plus_years(years + 1) <= today:
         years += 1
-    try:
-        anchor = launch.replace(year=launch.year + years)
-    except ValueError:
-        anchor = launch.replace(year=launch.year + years, day=28)
-    left = (today - anchor).days
+    left = (today - plus_years(years)).days
     if years:
-        parts = [f"{years} year{'s' if years != 1 else ''}"]
-        if left:
-            parts.append(f"{left} day{'s' if left != 1 else ''}")
-        return f"{' '.join(parts)} ({stamp})"
-    if days == 0:
-        return f"Today ({stamp})"
-    return f"{days} day{'s' if days != 1 else ''} ({stamp})"
+        text = f"{years} year{'s' if years != 1 else ''}"
+        return f"{text} {left} day{'s' if left != 1 else ''}" if left else text
+    return "Today" if days == 0 else f"{days} day{'s' if days != 1 else ''}"
 
 
 def _since(moment: datetime) -> timedelta:
