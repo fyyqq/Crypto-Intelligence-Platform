@@ -88,3 +88,25 @@ def test_only_evm_and_solana_addresses_are_sent():
     assert fps._is_real_contract("0x" + "a" * 40) and fps._is_real_contract("9DHe3pycTuymFk4H4bbPoAJ4hQrr2kaLDF6J6aAKpump")
     assert not fps._is_real_contract("ibc/126DA09104B71B164883842B769C0E9EC1486C0887D27A9999E395C2C8FB5682")
     assert not fps._is_real_contract("0x" + "e" * 40) and not fps._is_real_contract("") and not fps._is_real_contract("1234")
+
+
+def test_a_dust_priced_coin_keeps_its_cap_and_big_jumps_are_not_scaled():
+    addr = "0x" + "ab" * 20
+    dust = coin(1, "JESUS", 1e-8, cap=5000.0, contract=addr)
+    ups = fps.compute_updates([dust, coin(2, "SI", 1.0, cap=1000.0)], {"SI": {"price": 1.4, "pct_24h": 0.0}}, dex_fetch=lambda a: {addr: (5e-6, 1.0)})
+    assert ups[1]["price"] == 5e-6 and ups[1]["market_cap"] == 5000.0  # 500x "move" from a rounded price: cap untouched
+    assert ups[2]["market_cap"] == 1400.0  # a normal 40% move still scales
+
+
+def test_repair_fixes_impossible_caps_in_sql():
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine("sqlite://")
+    with engine.begin() as c:
+        c.execute(text("CREATE TABLE coins (cmc_id INT, price_usd REAL, circulating_supply REAL, market_cap_usd REAL)"))
+        c.execute(text("INSERT INTO coins VALUES (1, 1e-8, 1.5e14, 9e21), (2, 82000, 19e6, 1.6e12), (3, 0.002, 8.8e13, 3.4e5), (4, 5, NULL, 9e18), (5, 1e-8, 2.1e15, 1.7e11)"))
+        assert fps.repair_market_caps(c, "coins") == 3
+        got = dict(c.execute(text("SELECT cmc_id, market_cap_usd FROM coins")).all())
+    assert round(got[1]) == 1_500_000 and got[2] == 1.6e12  # real Bitcoin untouched
+    assert got[3] == 3.4e5  # CMC's own LOWER cap is kept (self-reported supply)
+    assert got[4] == 0 and round(got[5]) == 21_000_000

@@ -42,6 +42,7 @@ DEX_MAX_FAILURES = 3  # failed batches (in a row, per worker) before a run stops
 DEX_WORKERS = 4  # requests in flight at once (DexScreener allows 300/min)
 _ADDRESS = re.compile(r"0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44}")  # EVM or Solana; anything else makes a batch 404
 MIN_LIQUIDITY_USD = 1000.0
+MIN_SCALE_PRICE = 1e-6  # stored prices have 8 decimals: below this the rounding error is too big to scale a cap by
 _MIRROR = Path(__file__).resolve().parent.parent.parent / "frontend" / "reflex.db"
 
 
@@ -107,10 +108,14 @@ def compute_updates(
         if price <= 0 or price == old:
             return
         cap = float(c["market_cap"] or 0)
+        # Scale the cap by the price move only from a trustworthy stored price: below $0.000001 it is rounded to 8
+        # decimals (ratio = millions, compounding every run: 2026-10-16 Jesus Coin hit 10^21), and a move of more than
+        # 10x in one run is a different pool / lookalike, not a price change.
+        scalable = old >= MIN_SCALE_PRICE and cap > 0 and 0.1 <= price / old <= 10
         updates[c["cmc_id"]] = {
             "price": price,
             "pct_24h": pct,
-            "market_cap": cap * price / old if old > 0 and cap > 0 else cap,
+            "market_cap": cap * price / old if scalable else cap,
         }
 
     uncovered: list[dict] = []
@@ -159,6 +164,27 @@ _MIRROR_SQL = text(
 )
 
 
+def _repair_sql(table: str) -> list:
+    """Market caps that cannot be right: > 100x price x circulating supply -> price x supply; > $5T with nothing to
+    check against -> 0 (the page then ranks the coin by CoinMarketCap's own rank). Same statements for Postgres
+    (coins) and the SQLite mirror (coin)."""
+    return [
+        text(
+            f"UPDATE {table} SET market_cap_usd = price_usd * circulating_supply WHERE circulating_supply > 0 "
+            "AND price_usd > 0 AND market_cap_usd > 100 * price_usd * circulating_supply"
+        ),
+        text(
+            f"UPDATE {table} SET market_cap_usd = 0 WHERE market_cap_usd > 5e12 "
+            "AND NOT (COALESCE(circulating_supply, 0) > 0 AND COALESCE(price_usd, 0) > 0)"
+        ),
+    ]
+
+
+def repair_market_caps(conn, table: str) -> int:
+    """Runs the repair on an open connection; returns how many rows were fixed."""
+    return sum(max(conn.execute(stmt).rowcount or 0, 0) for stmt in _repair_sql(table))
+
+
 def _rows(updates: dict[int, dict]) -> list[dict]:
     return [{"cmc_id": k, **v} for k, v in updates.items()]
 
@@ -191,16 +217,21 @@ def run() -> int:
         updates = compute_updates(coins, hub)
         if updates:
             db.execute(_UPDATE_SQL, _rows(updates))
-            db.commit()
+        fixed = repair_market_caps(db, "coins")
+        db.commit()
     finally:
         db.close()
-    if updates and _MIRROR.exists():
+    if _MIRROR.exists():
         engine = create_engine(f"sqlite:///{_MIRROR}", connect_args={"timeout": 15})
         try:
             with engine.begin() as conn:
-                conn.execute(_MIRROR_SQL, _rows(updates))
+                if updates:
+                    conn.execute(_MIRROR_SQL, _rows(updates))
+                repair_market_caps(conn, "coin")
         finally:
             engine.dispose()
+    if fixed:
+        log.warning("free price sync: repaired %d implausible market caps", fixed)
     try:
         from app.services import heartbeat
 

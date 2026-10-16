@@ -1,6 +1,6 @@
 """Forex Factory events in Telegram: reminders before the big US events and the /forex_factory month list.
 
-Reminders (to every account with Telegram connected): 7 days, 3 days and 1 hour before each CPI release,
+Reminders (to every account with Telegram connected): 7 days, 3 days and 1 hour before each CPI and PPI release,
 jobs report (Non-Farm Employment Change), FOMC event (rate decision, statement, press conference, minutes)
 and Fed Chair speech. Single FOMC members' speeches (about ten a week, low impact) are only in the month
 list, not reminded. Events that happen at the same time (the four CPI numbers) are one reminder.
@@ -31,11 +31,11 @@ OFFSETS = (("7d", timedelta(days=7), "in 7 days"), ("3d", timedelta(days=3), "in
 ON_TIME = timedelta(minutes=15)  # a reminder this close to its moment still says "in 7 days"; later it says the real time left
 _STATE_FILE = Path(__file__).resolve().parent.parent.parent / "logs" / "macro_reminders_sent.json"
 _MEMBER = re.compile(r"FOMC Member", re.I)
-_ICON = {"CPI": "📈", "NFP": "👷", "FOMC": "🏦"}
+_ICON = {"CPI": "📈", "PPI": "🏭", "NFP": "👷", "FOMC": "🏦"}
 
 
 def remindable(e: dict) -> bool:
-    """USD CPI / NFP / FOMC events except single members' speeches (the Fed Chair is kept)."""
+    """USD CPI / PPI / NFP / FOMC events except single members' speeches (the Fed Chair is kept)."""
     return e["currency"] == "USD" and not _MEMBER.search(e["title"])
 
 
@@ -72,6 +72,8 @@ def _title(unit: dict) -> str:
     rows = unit["rows"]
     if unit["group"] == "CPI":
         return "US CPI"
+    if unit["group"] == "PPI":
+        return "US PPI"
     if unit["group"] == "NFP":
         return "US Non-Farm Employment Change"
     return html.escape(rows[0]["title"] if len(rows) == 1 else rows[0]["title"] + f" (+{len(rows) - 1})")
@@ -162,7 +164,7 @@ def month_messages(events: list[dict], now: datetime) -> list[str]:
     kl_now = now.astimezone(mc.KL)
     head = f"📅 <b>Forex Factory · {kl_now:%B %Y}</b>\n<i>US events, Kuala Lumpur time</i>"
     if not month:
-        return [head + "\n\nNo CPI, FOMC or Non-Farm Employment events found for this month yet."]
+        return [head + "\n\nNo CPI, PPI, FOMC or Non-Farm Employment events found for this month yet."]
     days: dict = {}
     for e in month:
         days.setdefault(e["start"].astimezone(mc.KL).date(), []).append(e)

@@ -114,7 +114,7 @@ def test_month_list_is_only_this_calendar_month_with_past_actuals(env):
     assert "✅ 20:30  CPI m/m 0.3%" in text and "▫️ 02:00  Federal Funds Rate (3.75%)" in text
     assert "<b>Wed 14 Oct</b>" in text and "<b>Thu 29 Oct</b>" in text  # 14:00 New York on the 28th is 02:00 on the 29th in Kuala Lumpur
     assert "💬 Members: Waller 15:45" in text and "💬 Members: Barkin 01:30" in text  # one line a day; 13:30 New York is 01:30 next day
-    assert rm.month_messages([nov], now)[0].endswith("No CPI, FOMC or Non-Farm Employment events found for this month yet.")
+    assert rm.month_messages([nov], now)[0].endswith("No CPI, PPI, FOMC or Non-Farm Employment events found for this month yet.")
 
 
 def test_a_long_month_is_split_into_several_messages():

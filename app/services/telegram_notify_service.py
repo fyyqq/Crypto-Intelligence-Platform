@@ -170,7 +170,7 @@ COMMANDS = [
     {"command": "clear_chat", "description": "Delete this chat's messages (last 48 hours)"},
     {"command": "site_health", "description": "Site and data health check"},
     {"command": "fear_greed_index", "description": "Fear & Greed Index: now and yesterday"},
-    {"command": "forex_factory", "description": "This month's CPI, FOMC, jobs report & Fed speeches"},
+    {"command": "forex_factory", "description": "This month's CPI, PPI, FOMC, jobs report & Fed speeches"},
     {"command": "alerts", "description": "Show list of active alerts"},
     {"command": "alert", "description": "Show active alerts for one coin, e.g. /alert ETH"},
     {"command": "price", "description": "Live price of a coin by ticker, e.g. /price $meme"},
@@ -196,7 +196,7 @@ def commands_overview() -> str:
         "<b>Market</b>",
         "<code>/price ${ticker}</code> - live price from the TradingView chart pair, every coin with that ticker, e.g. /price $meme",
         "/fear_greed_index - Fear &amp; Greed Index, now and yesterday",
-        "/forex_factory - this month's US CPI, FOMC, Non-Farm Employment and Fed speeches (Kuala Lumpur time). /forex-factory works too",
+        "/forex_factory - this month's US CPI, PPI, FOMC, Non-Farm Employment and Fed speeches (Kuala Lumpur time). /forex-factory works too",
         "",
         "<b>System</b>",
         "/site_health - is the site and its data (prices, news, CoinMarketCap, alerts, server) healthy?",
@@ -218,7 +218,7 @@ def commands_overview() -> str:
         "{date} = day_month_year, e.g. 13_10_2026",
         "",
         "Boards update once an hour. Sent automatically every day at 08:00 (Kuala Lumpur): the 24H Top 100 board and the Fear &amp; Greed Index. Other boards only when you ask.\n"
-        "Reminders 7 days, 3 days and 1 hour before every CPI release, Non-Farm Employment report, FOMC event and Fed Chair speech are sent automatically.",
+        "Reminders 7 days, 3 days and 1 hour before every CPI and PPI release, Non-Farm Employment report, FOMC event and Fed Chair speech are sent automatically.",
     ])
 
 

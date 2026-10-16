@@ -8,6 +8,7 @@ feature exists.
 
 import reflex as rx
 
+from frontend.components.search_form import q, search_form
 from frontend.state import CoinState
 
 
@@ -143,25 +144,28 @@ def _global_search_dropdown() -> rx.Component:
 
 def global_search() -> rx.Component:
     return rx.box(
-        rx.icon("search", size=14, class_name="global-search-icon"),
-        rx.debounce_input(
+        rx.icon("search", size=14, class_name="global-search-icon search-submit-icon"),
+        search_form(
             # A raw rx.el.input, not the Radix-themed rx.input — Radix's own
             # rt-TextFieldRoot background/border rules live inside a CSS
             # @layer that outranks a plain class override (see
             # coin_table.py::_coin_search's own note on this), which would
             # fight the transparent background this search bar needs. A raw
             # element has no such layer to fight.
+            # Searches on submit (Enter / the magnifier), not while typing (search_form.py).
             rx.el.input(
-                value=CoinState.global_search_query,
-                on_change=CoinState.set_global_search_query,
+                name="q",
+                default_value=CoinState.global_search_query,
+                key=CoinState.global_search_epoch.to_string(),
                 on_focus=CoinState.focus_global_search,
                 placeholder="Search",
                 id="global-search-input-field",
                 class_name="global-search-input",
                 auto_complete="off",
                 spell_check=False,
+                enter_key_hint="search",
             ),
-            debounce_timeout=250,
+            on_submit=lambda form_data: CoinState.set_global_search_query(q(form_data)),
         ),
         rx.cond(
             CoinState.global_search_query == "",

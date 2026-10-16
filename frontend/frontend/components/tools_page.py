@@ -6,7 +6,7 @@
   (data via ToolsState; each has a "data source" popup that also asks for an
   API key when needed) and the BTC / ETH rainbow chart (log-regression bands
   drawn server-side as SVG).
-- /tools/cpi-fomc: "Forex Factory", this week's CPI / FOMC / Non-Farm Employment events.
+- /tools/cpi-fomc: "Forex Factory", this week's CPI / PPI / FOMC / Non-Farm Employment events.
 - /tools/crypto-calendar: the monthly @layergg events calendar (see calendar_state / crypto_calendar_service).
 - /tools/market-charts: TradingView embeds: DXY, total crypto market cap,
   Bitcoin dominance, ETH/BTC, total market cap excluding BTC.
@@ -516,8 +516,8 @@ TOOL_PAGES = [
         "title": "Forex Factory",
         "href": "/tools/cpi-fomc",
         "icon": "landmark",
-        "description": "This week's key US events from the Forex Factory calendar (inflation CPI, Federal Reserve FOMC and Non-Farm Employment) with the exact date and time, forecast, previous and actual values, updated live.",
-        "chips": ["CPI", "FOMC", "NFP", "Live"],
+        "description": "This week's key US events from the Forex Factory calendar (inflation CPI, producer prices PPI, Federal Reserve FOMC and Non-Farm Employment) with the exact date and time, forecast, previous and actual values, updated live.",
+        "chips": ["CPI", "PPI", "FOMC", "NFP", "Live"],
     },
 ]
 
@@ -780,7 +780,7 @@ def _next_card() -> rx.Component:
             background="var(--gray-a2)",
         ),
         rx.box(
-            rx.text("No more CPI, FOMC or Non-Farm Employment events this week.", size="2", color="var(--gray-11)"),
+            rx.text("No more CPI, PPI, FOMC or Non-Farm Employment events this week.", size="2", color="var(--gray-11)"),
             padding="1em 1.2em",
             border_radius="12px",
             border="1px solid var(--gray-a5)",
@@ -792,7 +792,7 @@ def _next_card() -> rx.Component:
 
 
 def cpi_fomc_content() -> rx.Component:
-    """/tools/cpi-fomc (named Forex Factory): this week's CPI, FOMC and Non-Farm Employment events, live."""
+    """/tools/cpi-fomc (named Forex Factory): this week's CPI, PPI, FOMC and Non-Farm Employment events, live."""
     legend = rx.hstack(
         *[
             rx.hstack(rx.box(class_name=f"mc-dot mc-dot-{k}"), rx.text(label, size="1", color="var(--gray-11)"), spacing="1", align="center")
@@ -801,7 +801,7 @@ def cpi_fomc_content() -> rx.Component:
         spacing="3",
     )
     return rx.vstack(
-        _page_header("Forex Factory Calendar", "US inflation (CPI), Federal Reserve (FOMC) and Non-Farm Employment events from the Forex Factory calendar, with exact times."),
+        _page_header("Forex Factory Calendar", "US inflation (CPI), producer prices (PPI), Federal Reserve (FOMC) and Non-Farm Employment events from the Forex Factory calendar, with exact times."),
         rx.hstack(
             rx.hstack(_scope_button("USD only", "USD"), _scope_button("All currencies", "ALL"), spacing="2"),
             rx.spacer(),
@@ -833,7 +833,7 @@ def cpi_fomc_content() -> rx.Component:
         ),
         rx.text(
             "Times are Kuala Lumpur (the New York time is shown under each). Schedule, forecast and previous: the public Forex Factory "
-            "calendar feed, refreshed every few minutes. Actual values: the official US sources (BLS for CPI and Non-Farm Employment, FRED for the Federal Funds Rate), "
+            "calendar feed, refreshed every few minutes. Actual values: the official US sources (BLS for CPI, PPI and Non-Farm Employment, FRED for the Federal Funds Rate), "
             "filled in a minute or two after each release; ▲/▼ compares the actual with the forecast.",
             size="1",
             color="var(--gray-10)",

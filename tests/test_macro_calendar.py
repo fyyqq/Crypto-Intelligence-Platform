@@ -88,7 +88,7 @@ def test_html_groups_days_in_kl_time_dims_the_past_and_escapes_text():
     later = mc.build_html([e for e in ev if e["currency"] == "USD"], datetime(2026, 10, 14, 13, 5, tzinfo=UTC))  # CPI is 35 min old
     assert later.count("mc-past") >= 2 and "mc-soon" not in later
     assert "&lt;b&gt;CPI&lt;/b&gt; y/y" in h and "<b>CPI</b> y/y" not in h
-    assert "No CPI, FOMC or Non-Farm Employment events" in mc.build_html([], now)
+    assert "No CPI, PPI, FOMC or Non-Farm Employment events" in mc.build_html([], now)
 
 
 def test_feed_is_cached_for_everyone_and_survives_an_outage(monkeypatch):
@@ -444,6 +444,50 @@ def test_a_failing_schedule_source_is_retried_later_and_keeps_old_dates(monkeypa
 
     monkeypatch.setattr(mc.requests, "get", boom)
     s = mc.load_schedule(datetime(2026, 10, 15, tzinfo=UTC))
-    assert s["fomc"] == [] and len(seen) == 3  # fed + two FRED releases tried
+    assert s["fomc"] == [] and len(seen) == 4  # fed + three FRED releases (CPI, PPI, jobs) tried
     mc.load_schedule(datetime(2026, 10, 15, tzinfo=UTC))
-    assert len(seen) == 3  # not hammered: wait 30 minutes after a failure
+    assert len(seen) == 4  # not hammered: wait 30 minutes after a failure
+
+
+PPI_FEED = [
+    row("PPI m/m", "USD", "2026-11-13T08:30:00-05:00", forecast="0.6%", previous="0.4%"),
+    row("Core PPI m/m", "USD", "2026-11-13T08:30:00-05:00", forecast="0.3%", previous="0.2%"),
+    row("PPI m/m", "CHF", "2026-11-13T02:30:00-05:00", impact="Low", forecast="0.6%", previous="0.7%"),
+    row("PPI y/y", "JPY", "2026-11-12T19:50:00-05:00", impact="Low"),
+]
+
+
+def test_ppi_events_are_kept_grouped_and_get_their_own_chip():
+    ev = mc.parse_feed(PPI_FEED)
+    usd = [e for e in ev if e["currency"] == "USD"]
+    assert [(e["title"], e["group"], e["impact"], e["forecast"]) for e in usd] == [("Core PPI m/m", "PPI", "high", "0.3%"), ("PPI m/m", "PPI", "high", "0.6%")]
+    assert all(e["group"] == "PPI" for e in ev)  # other currencies are kept in the raw list, the page filters to USD
+    assert 'mc-chip-ppi">PPI' in mc.build_html(usd, datetime(2026, 11, 13, 12, 0, tzinfo=UTC))
+
+
+def test_ppi_actual_is_the_month_over_month_change_like_forex_factory():
+    from decimal import Decimal as D
+
+    levels = {"ppi_sa": {(2026, 9): D("159.780"), (2026, 8): D("157.662")}, "ppi_core_sa": {(2026, 9): D("271.972"), (2026, 8): D("271.372")}}
+    assert mc.ppi_from_levels(levels, 2026, 9) == {"PPI m/m": "1.3%", "Core PPI m/m": "0.2%"}
+    assert mc.ppi_from_levels(levels, 2026, 10) == {}  # not published yet
+
+
+def test_ppi_is_filled_from_bls_after_the_release(monkeypatch):
+    from decimal import Decimal as D
+
+    ev = [e for e in mc.parse_feed(PPI_FEED) if e["currency"] == "USD"]
+    levels = {"ppi_sa": {(2026, 10): D("160.5"), (2026, 9): D("159.780")}, "ppi_core_sa": {(2026, 10): D("272.5"), (2026, 9): D("271.972")}}
+    monkeypatch.setattr(mc, "_fetch_bls_levels", lambda: levels)
+    monkeypatch.setattr(mc, "_last_free", 0.0)
+    assert mc.refresh_free_actuals(ev, datetime(2026, 11, 13, 13, 40, tzinfo=UTC)) == 2
+    assert {e["title"]: e["actual"] for e in ev} == {"PPI m/m": "0.5%", "Core PPI m/m": "0.2%"}
+
+
+def test_ppi_release_dates_fill_the_schedule_and_the_reminder_names_it():
+    from app.services import macro_reminder_service as rem
+
+    got = mc.placeholder_events({"ppi": ["2026-11-13"]}, [], datetime(2026, 10, 15, tzinfo=UTC))
+    assert [(e["group"], e["title"], e["start"].astimezone(mc.KL).strftime("%d %b %H:%M")) for e in got] == [("PPI", "PPI (release date)", "13 Nov 21:30")]
+    unit = rem.units(got)[0]
+    assert rem._title(unit) == "US PPI" and rem._ICON["PPI"] == "🏭"

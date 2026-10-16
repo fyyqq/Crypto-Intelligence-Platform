@@ -1,5 +1,5 @@
-"""Forex Factory calendar page (/tools/cpi-fomc): this week's US inflation (CPI), Federal Reserve (FOMC) and
-Non-Farm Employment Change (NFP) events from Forex Factory's economic calendar.
+"""Forex Factory calendar page (/tools/cpi-fomc): this week's US inflation (CPI), producer prices (PPI), Federal
+Reserve (FOMC) and Non-Farm Employment Change (NFP) events from Forex Factory's economic calendar.
 
 Sources
 - **Schedule, forecast, previous** (always): the free public feed
@@ -68,7 +68,7 @@ HORIZON_DAYS = 30  # the page shows today and the next 30 days
 # CPI events, everything FOMC (the committee's members' speeches, statement, minutes, press conference,
 # the rate decision, which Forex Factory names "Federal Funds Rate", and the Fed Chair) and the monthly
 # jobs report, "Non-Farm Employment Change".
-_KEEP = re.compile(r"\bCPI\b|FOMC|Federal Funds Rate|\bFed Chair|Non-?Farm Employment Change", re.I)
+_KEEP = re.compile(r"\bCPI\b|\bPPI\b|FOMC|Federal Funds Rate|\bFed Chair|Non-?Farm Employment Change", re.I)
 _IMPACT = {"high": "high", "medium": "medium", "low": "low", "holiday": "holiday", "non-economic": "low"}
 
 _lock = threading.Lock()
@@ -89,6 +89,8 @@ def _event_id(title: str, currency: str, start: datetime) -> str:
 def group_of(title: str) -> str:
     if re.search(r"\bCPI\b", title, re.I):
         return "CPI"
+    if re.search(r"\bPPI\b", title, re.I):
+        return "PPI"
     return "NFP" if re.search(r"Non-?Farm Employment", title, re.I) else "FOMC"
 
 
@@ -175,7 +177,9 @@ BLS_URL = "https://api.bls.gov/publicAPI/v1/timeseries/data/"
 FRED_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 BLS_V2_URL = "https://api.bls.gov/publicAPI/v2/timeseries/data/"
 _BLS = {"all_sa": "CUSR0000SA0", "all_nsa": "CUUR0000SA0", "core_sa": "CUSR0000SA0L1E", "core_nsa": "CUUR0000SA0L1E",
-        "nfp": "CES0000000001"}  # total nonfarm employment, seasonally adjusted, thousands
+        "nfp": "CES0000000001",  # total nonfarm employment, seasonally adjusted, thousands
+        "ppi_sa": "WPSFD4",  # PPI final demand, seasonally adjusted
+        "ppi_core_sa": "WPSFD4131"}  # PPI final demand less foods and energy, seasonally adjusted
 FREE_MIN_GAP = 120
 _free_runs: dict[str, int] = {}
 _last_free = 0.0
@@ -197,6 +201,18 @@ def cpi_from_levels(levels: dict[str, dict[tuple[int, int], Decimal]], year: int
             out[f"{label} m/m"] = _pct(s_[(year, month)], s_[prev])
         if (year, month) in n_ and (year - 1, month) in n_:
             out[f"{label} y/y"] = _pct(n_[(year, month)], n_[(year - 1, month)])
+    return out
+
+
+def ppi_from_levels(levels: dict[str, dict[tuple[int, int], Decimal]], year: int, month: int) -> dict[str, str]:
+    """{"PPI m/m": "0.6%", "Core PPI m/m": "0.3%"} for the reference month from the seasonally adjusted final demand
+    indexes (Forex Factory's "PPI m/m" and "Core PPI m/m", one decimal); {} for a month not published yet."""
+    prev = (year, month - 1) if month > 1 else (year - 1, 12)
+    out: dict[str, str] = {}
+    for label, key in (("PPI m/m", "ppi_sa"), ("Core PPI m/m", "ppi_core_sa")):
+        s_ = levels.get(key, {})
+        if (year, month) in s_ and prev in s_:
+            out[label] = _pct(s_[(year, month)], s_[prev])
     return out
 
 
@@ -250,7 +266,7 @@ def refresh_free_actuals(events: list[dict], now: datetime | None = None) -> int
     global _last_free
     now = now or datetime.now(timezone.utc)
     pending = [e for e in events if e["currency"] == "USD" and not e["actual"] and e["start"] <= now <= e["start"] + FREE_WINDOW
-               and (e["group"] in ("CPI", "NFP") or e["title"].lower() == "federal funds rate")]
+               and (e["group"] in ("CPI", "PPI", "NFP") or e["title"].lower() == "federal funds rate")]
     if not pending:
         return 0
     day = now.date().isoformat()
@@ -261,7 +277,7 @@ def refresh_free_actuals(events: list[dict], now: datetime | None = None) -> int
         _last_free = time.time()
         _free_runs[day] = _free_runs.get(day, 0) + 1
     found: dict[str, dict] = {}
-    bls_events = [e for e in pending if e["group"] in ("CPI", "NFP")]
+    bls_events = [e for e in pending if e["group"] in ("CPI", "PPI", "NFP")]
     if bls_events:
         try:
             levels = _fetch_bls_levels()
@@ -269,6 +285,8 @@ def refresh_free_actuals(events: list[dict], now: datetime | None = None) -> int
                 ref = e["start"].astimezone(ET).date().replace(day=1) - timedelta(days=1)  # the month before the release
                 if e["group"] == "CPI":
                     value = cpi_from_levels(levels, ref.year, ref.month).get(e["title"], "")
+                elif e["group"] == "PPI":
+                    value = ppi_from_levels(levels, ref.year, ref.month).get(e["title"], "")
                 else:
                     value = nfp_from_levels(levels, ref.year, ref.month)
                 if value:
@@ -410,8 +428,8 @@ def refresh_actuals(events: list[dict], now: datetime | None = None) -> int:
 # The free feed holds only the current week, so a month view and "7 days before" reminders need more:
 #  - every feed event is remembered on disk (past days of the month, and a time that changed);
 #  - FOMC meetings come from the Federal Reserve's own calendar page (no key, decision day 14:00 New York);
-#  - CPI and the jobs report dates come from FRED's release calendar (free key, FRED_API_KEY; without it
-#    these two only appear once the feed's week reaches them). They are placeholders ("scheduled") that
+#  - CPI, PPI and the jobs report dates come from FRED's release calendar (free key, FRED_API_KEY; without it
+#    these only appear once the feed's week reaches them). They are placeholders ("scheduled") that
 #    the feed's real rows (with forecast and previous) replace as soon as that week is published.
 
 _MONTHS = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
@@ -502,7 +520,7 @@ def load_schedule(now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     with _lock:
         if _schedule is None:
-            _schedule = _read_schedule() or {"at": 0.0, "fomc": [], "cpi": [], "nfp": []}
+            _schedule = _read_schedule() or {"at": 0.0, "fomc": [], "cpi": [], "ppi": [], "nfp": []}
         t = time.time()
         if t - _schedule["at"] < SCHEDULE_TTL or t - _schedule_failed_at < SCHEDULE_RETRY:
             return _schedule
@@ -518,7 +536,7 @@ def load_schedule(now: datetime | None = None) -> dict:
             ok = False
             log.warning("Fed meeting calendar failed: %s", exc)
         if settings.fred_api_key.strip():
-            for key, rid in (("cpi", 10), ("nfp", 50)):
+            for key, rid in (("cpi", 10), ("ppi", 46), ("nfp", 50)):
                 try:
                     new[key] = [d.isoformat() for d in _fetch_fred_dates(rid, today)]
                 except Exception as exc:  # noqa: BLE001
@@ -539,6 +557,7 @@ def load_schedule(now: datetime | None = None) -> dict:
 
 _RELEASES = {  # key -> (group, title, impact, hour, minute) New York time
     "cpi": ("CPI", "CPI (release date)", "high", 8, 30),
+    "ppi": ("PPI", "PPI (release date)", "high", 8, 30),
     "nfp": ("NFP", "Non-Farm Employment Change", "high", 8, 30),
     "fomc": ("FOMC", "FOMC Meeting: Federal Funds Rate decision", "high", 14, 0),
 }
@@ -667,7 +686,7 @@ def build_html(events: list[dict], now: datetime | None = None, has_actuals_sour
     minutes pulse, and a released event that is still waiting for its actual shows animated dots."""
     now = now or datetime.now(timezone.utc)
     if not events:
-        return '<div class="mc-empty">No CPI, FOMC or Non-Farm Employment events in the next 30 days.</div>'
+        return '<div class="mc-empty">No CPI, PPI, FOMC or Non-Farm Employment events in the next 30 days.</div>'
     days: dict[date, list[dict]] = {}
     for e in events:
         days.setdefault(e["start"].astimezone(KL).date(), []).append(e)

@@ -3,6 +3,7 @@ chain filters — see frontend.py for the column layout."""
 
 import reflex as rx
 
+from frontend.components.search_form import q, search_form
 from frontend.state import CoinState
 
 
@@ -36,16 +37,21 @@ def _more_narratives_pill() -> rx.Component:
 
 
 def _search_box(placeholder: str, value, on_change) -> rx.Component:
-    return rx.input(
-        value=value,
-        on_change=on_change,
-        placeholder=placeholder,
-        debounce_timeout=200,
-        size="1",
-        radius="full",
-        variant="surface",
-        width="150px",
-        class_name="filter-search",
+    # Searches on submit (Enter / the magnifier), not while typing.
+    return search_form(
+        rx.input(
+            name="q",
+            default_value=value,
+            key=value,
+            placeholder=placeholder,
+            enter_key_hint="search",
+            size="1",
+            radius="full",
+            variant="surface",
+            width="150px",
+            class_name="filter-search",
+        ),
+        on_submit=lambda form_data: on_change(q(form_data)),
     )
 
 

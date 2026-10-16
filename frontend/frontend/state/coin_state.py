@@ -599,6 +599,26 @@ def _resolve_unlock_source_url(symbol: str, defillama_slug: str | None) -> str:
 _SLUG_ID_RE = re.compile(r"^(.+)-(\d+)$")
 
 
+def _sane_market_cap(cap, price, circulating) -> float:
+    """A stored market cap that is wildly bigger than price x circulating supply (a rounding artifact: prices are
+    stored to 8 decimals, so a dust-priced coin rounds up to $0.00000001 and a "scale the cap by the price move"
+    update multiplies it by millions) is replaced by price x circulating supply. Bad data never ranks a scam token
+    above Bitcoin (2026-10-16: Jesus Coin / Bitgert showed 10^20 dollars)."""
+    cap, price, circulating = float(cap or 0), float(price or 0), float(circulating or 0)
+    if circulating > 0 and price > 0 and cap > 100 * price * circulating:
+        return price * circulating
+    if cap > 5e12 and not (circulating > 0 and price > 0):
+        return 0.0  # more than the whole crypto market and nothing to check it against
+    return cap
+
+
+def _rank_order(row: dict) -> tuple:
+    """The homepage / list order: CoinMarketCap's own rank (the Top 100 you see on CMC), coins CMC has not ranked
+    last by market cap. Never the raw market cap, which one bad number can turn upside down."""
+    rank = row.get("cmc_rank") or 0
+    return (rank if rank > 0 else 10**9, -(row.get("market_cap_usd") or 0), row["cmc_id"])
+
+
 def _primary_key(row: dict) -> tuple:
     """Which coin owns a shared ticker: the largest market cap, then the lowest CMC id."""
     return (-(row.get("market_cap_usd") or 0), row["cmc_id"])
@@ -772,7 +792,7 @@ def sector_members(kind: str, slug: str) -> tuple[str, list[dict]]:
         rows = [r for r in _UNIVERSE["rows"] if label in (r.get("narrative_list") or [])]
     else:
         rows = [r for r in _UNIVERSE["rows"] if r.get("main_chain") == label]
-    rows.sort(key=lambda r: -(r.get("market_cap_usd") or 0))
+    rows.sort(key=_rank_order)
     return label, rows
 
 
@@ -871,9 +891,10 @@ def _build_row(coin: Coin) -> dict:
     ]
     social_links = [{"platform": p, "url": u} for p, u in social_candidates if u]
 
+    market_cap = _sane_market_cap(coin.market_cap_usd, coin.price_usd, coin.circulating_supply)
     vol_mkt_cap_pct = (
-        coin.volume_24h_usd / coin.market_cap_usd * 100
-        if coin.volume_24h_usd and coin.market_cap_usd
+        coin.volume_24h_usd / market_cap * 100
+        if coin.volume_24h_usd and market_cap
         else None
     )
 
@@ -887,14 +908,14 @@ def _build_row(coin: Coin) -> dict:
         # a market-cap-position computed fresh only in filtered_coins, which
         # selected_coin bypasses by reading straight out of all_coins).
         "cmc_rank": coin.cmc_rank or 0,
-        "market_cap_usd": coin.market_cap_usd or 0.0,
+        "market_cap_usd": market_cap,
         "price_raw": coin.price_usd or 0.0,
         "volume_raw": coin.volume_24h_usd or 0.0,
         "pct_1h_raw": coin.percent_change_1h or 0.0,
         "pct_24h_raw": coin.percent_change_24h or 0.0,
         "pct_7d_raw": coin.percent_change_7d or 0.0,
         "price_display": _price_display_with_fallback(coin.price_usd, coin.cached_market_pairs),
-        "market_cap_display": _fmt_compact_usd(coin.market_cap_usd or 0.0),
+        "market_cap_display": _fmt_compact_usd(market_cap),
         "volume_display": _fmt_compact_usd(coin.volume_24h_usd or 0.0),
         "change_1h_display": _fmt_pct(coin.percent_change_1h or 0.0),
         "change_1h_color": _pct_color(coin.percent_change_1h or 0.0),
@@ -1144,7 +1165,8 @@ def _hub_rows(base_rows: list[dict]) -> dict[int, dict]:
         if not quote or not price_hub.plausible(quote["price"], ref):
             continue
         price, pct = quote["price"], quote["pct_24h"]
-        market_cap = float(row.get("market_cap_usd") or 0) * price / ref
+        # A stored price below $0.000001 is rounded (8 decimals): scaling by it multiplies the cap by millions.
+        market_cap = float(row.get("market_cap_usd") or 0) * price / ref if ref >= 1e-6 else float(row.get("market_cap_usd") or 0)
         out[row["cmc_id"]] = {
             "price_raw": price,
             "price_display": _fmt_usd(price),
@@ -1742,6 +1764,7 @@ class CoinState(rx.State):
     # to the navigation), and shown when the empty box is focused.
     global_search_history_raw: str = rx.LocalStorage("", name="repace_search_history")
     global_search_focused: bool = False
+    global_search_epoch: int = 0  # bumped whenever code clears the search: remounts the (uncontrolled) input empty
 
     # Header profile-pill dropdown (frontend.py::_profile_pill) — holds the
     # dark/light mode toggle now that the header no longer has room for it
@@ -2340,8 +2363,7 @@ class CoinState(rx.State):
                         row["cmc_id"]
                         for row in sorted(
                             (self._row_with_overrides(r) for r in self._all_coins),
-                            key=lambda r: r["market_cap_usd"],
-                            reverse=True,
+                            key=_rank_order,
                         )[:100]
                     ]
                     visible_ids = [row["cmc_id"] for row in self.sorted_paged_coins]
@@ -2431,17 +2453,14 @@ class CoinState(rx.State):
         full_rows = [self._row_with_overrides(r) for r in self._all_coins]
         global_rank_by_id = {
             row["cmc_id"]: i
-            for i, row in enumerate(
-                sorted(full_rows, key=lambda r: r["market_cap_usd"], reverse=True),
-                start=1,
-            )
+            for i, row in enumerate(sorted(full_rows, key=_rank_order), start=1)
         }
         rows = [
             {**row, "rank": global_rank_by_id[row["cmc_id"]]}
             for row in full_rows
             if row["cmc_id"] in watched
         ]
-        return sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
+        return sorted(rows, key=_rank_order)
 
     def _merged_row(self, cmc_id: int) -> dict | None:
         """Finds cmc_id's row in all_coins and merges in any existing
@@ -2533,6 +2552,7 @@ class CoinState(rx.State):
     @rx.event
     def go_to_coin_from_search(self, symbol: str):
         self.global_search_query = ""
+        self.global_search_epoch += 1
         self.global_search_limit = 5
         return rx.call_script(f"window.location.assign({json.dumps('/coins/' + symbol.lower())})")
 
@@ -2548,6 +2568,7 @@ class CoinState(rx.State):
         was never meant to leave it. A real outside click has no such race.
         """
         self.global_search_query = ""
+        self.global_search_epoch += 1
         self.global_search_limit = 5
         self.global_search_focused = False
 
@@ -2581,6 +2602,7 @@ class CoinState(rx.State):
         # handler on click; drop it on the next page load instead.
         if self.global_search_query or self.global_search_focused:
             self.global_search_query = ""
+            self.global_search_epoch += 1
             self.global_search_limit = 5
             self.global_search_focused = False
         if not self.is_logged_in and not self.session_token and not self._dev_auto_login_off:
@@ -3374,6 +3396,12 @@ class CoinState(rx.State):
         self.chart_search_query = value
 
     @rx.event
+    def submit_chart_search(self, value: str):
+        """The picker's search form (Enter or the Search button): store the text, then search TradingView."""
+        self.chart_search_query = value
+        return CoinState.search_chart_options
+
+    @rx.event
     def set_chart_manual_symbol(self, value: str):
         self.chart_manual_symbol = value
         self.chart_dialog_error = ""
@@ -3875,21 +3903,17 @@ class CoinState(rx.State):
             # standing.
             global_rank_by_id = {
                 row["cmc_id"]: i
-                for i, row in enumerate(
-                    sorted(full_rows, key=lambda r: r["market_cap_usd"], reverse=True),
-                    start=1,
-                )
+                for i, row in enumerate(sorted(full_rows, key=_rank_order), start=1)
             }
             rows = [
                 {**r, "rank": global_rank_by_id[r["cmc_id"]]}
                 for r in rows
                 if query in r["name"].lower() or query in r["symbol"].lower()
             ]
-            return sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
-        rows = sorted(rows, key=lambda r: r["market_cap_usd"], reverse=True)
-        # Rank reflects position by market cap in the current view (1..N),
-        # not CMC's own cmc_rank field, which has gaps/different methodology
-        # (e.g. staked derivatives) that don't match a strict market-cap order.
+            return sorted(rows, key=_rank_order)
+        rows = sorted(rows, key=_rank_order)
+        # The list is in CoinMarketCap's own order (cmc_rank) and the rank column counts 1..N within the
+        # current view, so the homepage Top 100 is the CMC Top 100 (a bad market cap can't reorder it).
         return [{**row, "rank": i} for i, row in enumerate(rows, start=1)]
 
     @rx.var(cache=True)
@@ -3967,7 +3991,7 @@ class CoinState(rx.State):
         matches = [
             r for r in full_rows if query in r["name"].lower() or query in r["symbol"].lower()
         ]
-        return sorted(matches, key=lambda r: r["market_cap_usd"], reverse=True)
+        return sorted(matches, key=_rank_order)
 
     @rx.var(cache=True)
     def global_search_history(self) -> list[dict]:

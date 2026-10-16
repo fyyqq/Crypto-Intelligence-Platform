@@ -3,6 +3,7 @@ pagination baked into CoinState.paged_coins."""
 
 import reflex as rx
 
+from frontend.components.search_form import q, search_form
 from frontend.state import CoinState
 
 
@@ -436,9 +437,9 @@ def _coin_search() -> rx.Component:
             on_click=CoinState.toggle_search,
         ),
         rx.box(
-            rx.debounce_input(
+            search_form(
                 rx.input(
-                    rx.input.slot(rx.icon("search", size=14)),
+                    rx.input.slot(rx.icon("search", size=14, class_name="search-submit-icon")),
                     # Right-side slot puts the clear "x" inside the input's
                     # own bordered box (a real clearable-input affordance)
                     # instead of floating as a separate icon after it.
@@ -447,13 +448,15 @@ def _coin_search() -> rx.Component:
                             "x",
                             size=14,
                             class_name="coin-search-clear-icon",
-                            on_click=CoinState.toggle_search,
+                            on_click=[CoinState.toggle_search, rx.set_value("coin-search-input-field", "")],
                         ),
                         side="right",
                     ),
                     placeholder="Search coin name or ticker...",
-                    value=CoinState.search_query,
-                    on_change=CoinState.set_search_query,
+                    name="q",
+                    default_value=CoinState.search_query,
+                    key=CoinState.search_query,
+                    enter_key_hint="search",
                     id="coin-search-input-field",
                     size="2",
                     radius="full",
@@ -461,7 +464,7 @@ def _coin_search() -> rx.Component:
                     class_name="coin-search-input",
                     width=["150px", "180px", "220px", "220px", "220px"],
                 ),
-                debounce_timeout=300,
+                on_submit=lambda form_data: CoinState.set_search_query(q(form_data)),
             ),
             class_name="coin-search-input-wrap",
         ),
@@ -486,18 +489,20 @@ def _mobile_search_bar() -> rx.Component:
     # one of the two is ever visible at a given width, so they can't get out
     # of sync with each other.
     return rx.box(
-        rx.debounce_input(
+        search_form(
             rx.input(
-                rx.input.slot(rx.icon("search", size=14)),
+                rx.input.slot(rx.icon("search", size=14, class_name="search-submit-icon")),
                 placeholder="Search coin name or ticker...",
-                value=CoinState.search_query,
-                on_change=CoinState.set_search_query,
+                name="q",
+                default_value=CoinState.search_query,
+                key=CoinState.search_query,
+                enter_key_hint="search",
                 size="2",
                 radius="full",
                 variant="surface",
                 width="100%",
             ),
-            debounce_timeout=300,
+            on_submit=lambda form_data: CoinState.set_search_query(q(form_data)),
         ),
         width="100%",
         margin_top="0.75em",

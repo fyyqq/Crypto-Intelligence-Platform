@@ -8,6 +8,7 @@ frontend/state/news_state.py.
 
 import reflex as rx
 
+from frontend.components.search_form import q, search_form
 from frontend.state import NewsState
 
 # Phone 2 columns, tablet 3, desktop (lg+) 5.
@@ -201,18 +202,21 @@ def _section_source_filter(section: dict) -> rx.Component:
 
 
 def _section_search(section: dict) -> rx.Component:
-    return rx.debounce_input(
+    # Searches the titles on submit (Enter / the magnifier), not while typing.
+    return search_form(
         rx.input(
-            rx.input.slot(rx.icon("search", size=18)),
-            value=section["search_text"],
+            rx.input.slot(rx.icon("search", size=18, class_name="search-submit-icon")),
+            name="q",
+            default_value=section["search_text"],
+            key=section["search_text"],
             placeholder="Search title",
+            enter_key_hint="search",
             # Same (large) size at every width.
             size="3",
             radius="full",
             width="100%",
-            on_change=lambda value: NewsState.set_category_search(section["news_type"], value),
         ),
-        debounce_timeout=300,
+        on_submit=lambda form_data: NewsState.set_category_search(section["news_type"], q(form_data)),
         width="100%",
     )
 

@@ -32,7 +32,9 @@ def scaled_info(stored: dict, live_price: float, liquidity_usd: float | None = N
     market_cap = float(stored.get("market_cap_usd") or 0)
     if live_price <= 0 or ref <= 0 or market_cap <= 0:
         return {}
-    ratio = live_price / ref
+    # A stored price below $0.000001 is rounded (8 decimals): its ratio to a live price is meaningless and would
+    # multiply the market cap by millions, so those coins keep their stored cap and FDV.
+    ratio = live_price / ref if ref >= 1e-6 else 1.0
     new_cap = market_cap * ratio
     out = {
         "market_cap_usd": new_cap,

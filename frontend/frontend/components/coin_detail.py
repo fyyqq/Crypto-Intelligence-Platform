@@ -16,6 +16,7 @@ Per explicit scope for this pass — only the middle chart is real:
 import reflex as rx
 
 from frontend.components.footer import _BRAND_ICON_PATHS
+from frontend.components.search_form import q
 from frontend.components.portfolio_page import coin_chart_lines_active, coin_chart_lines_bar, coin_chart_lines_view, coin_mexc_section
 from frontend.components.tradingview_controls import timeframe_controls
 from frontend.state import CoinState, NewsState
@@ -1933,15 +1934,22 @@ def _chart_picker_dialog() -> rx.Component:
                 wrap="wrap",
                 margin_top="0.75em",
             ),
-            rx.hstack(
-                rx.input(
-                    value=CoinState.chart_search_query,
-                    on_change=CoinState.set_chart_search_query,
-                    placeholder="Search TradingView (ticker or name)",
+            # Searches TradingView on submit (Enter or the Search button), not while typing.
+            rx.el.form(
+                rx.hstack(
+                    rx.input(
+                        name="q",
+                        default_value=CoinState.chart_search_query,
+                        placeholder="Search TradingView (ticker or name)",
+                        enter_key_hint="search",
+                        width="100%",
+                    ),
+                    rx.button("Search", type="submit", loading=CoinState.chart_search_loading, cursor="pointer"),
+                    spacing="2",
                     width="100%",
                 ),
-                rx.button("Search", on_click=CoinState.search_chart_options, loading=CoinState.chart_search_loading, cursor="pointer"),
-                spacing="2",
+                on_submit=lambda form_data: CoinState.submit_chart_search(q(form_data)),
+                reset_on_submit=False,
                 width="100%",
                 margin_top="0.9em",
             ),

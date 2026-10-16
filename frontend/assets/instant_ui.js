@@ -12,9 +12,11 @@
 //  2. Watchlist stars flip filled/empty on the click.
 //  3. Popups (watchlist, notification bell) open/close on the click and on a
 //     click outside.
-//  4. Header search: suggestions from a coin list loaded once from
-//     /api/coin-index, shown as you type; replaced by the server's live
-//     results as soon as those match what is in the box.
+//  4. Header search: searches on SUBMIT (Enter / the magnifier), not while
+//     typing. Typing only hides the old results; on submit the suggestions come
+//     at once from a coin list loaded once from /api/coin-index, and are
+//     replaced by the server's live results as soon as those match the box.
+//  5. Every search bar's magnifier icon submits its form.
 (function () {
   if (window.__instantUiInit) return;
   window.__instantUiInit = true;
@@ -301,16 +303,41 @@
   document.addEventListener(
     "focusin",
     function (e) {
-      if (e.target && e.target.id === "global-search-input-field") loadIndex();
+      if (e.target && e.target.id === "global-search-input-field") {
+        loadIndex();
+        if (!e.target.value) {
+          var c = e.target.closest(".global-search-container");
+          if (c) c.classList.remove("gs-typing");
+        }
+      }
     },
     true
   );
 
+  // Typing hides the previous results (CSS .gs-typing); nothing is searched until the form is submitted.
   document.addEventListener(
     "input",
     function (e) {
       var input = e.target;
       if (!input || input.id !== "global-search-input-field") return;
+      var container = input.closest(".global-search-container");
+      if (!container) return;
+      hideInstant(container);
+      container.classList.toggle("gs-typing", input.value !== "");
+    },
+    true
+  );
+
+  // Enter (or the magnifier, which submits the form) shows the results: instantly from the local index, then the
+  // server's own list takes over.
+  document.addEventListener(
+    "submit",
+    function (e) {
+      var input = e.target && e.target.querySelector && e.target.querySelector("#global-search-input-field");
+      if (!input) return;
+      var container = input.closest(".global-search-container");
+      if (container) container.classList.remove("gs-typing");
+      if (!input.value.trim()) return;
       if (index) renderInstant(input);
       else (loadIndex() || Promise.resolve()).then(function () { renderInstant(input); });
     },
@@ -324,7 +351,29 @@
       if (!t.closest) return;
       var container = document.querySelector(".global-search-container");
       if (!container) return;
-      if (t.closest(".global-search-clear-icon") || !t.closest(".global-search-container")) hideInstant(container);
+      if (t.closest(".global-search-clear-icon") || !t.closest(".global-search-container")) {
+        hideInstant(container);
+        container.classList.remove("gs-typing");
+      }
+    },
+    true
+  );
+
+  // ---- 5. magnifier icons submit their search form --------------------------------
+  document.addEventListener(
+    "click",
+    function (e) {
+      var icon = e.target.closest && e.target.closest(".search-submit-icon");
+      if (!icon) return;
+      var form = icon.closest("form");
+      if (!form) {
+        var wrap = icon.closest(".global-search-container");
+        form = wrap && wrap.querySelector("form");
+      }
+      if (form && form.requestSubmit) {
+        e.preventDefault();
+        form.requestSubmit();
+      }
     },
     true
   );

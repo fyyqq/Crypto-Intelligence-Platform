@@ -4,6 +4,7 @@ logo + ticker pills (CoinState.load_sector_boards)."""
 
 import reflex as rx
 
+from frontend.components.search_form import q, search_form
 from frontend.state import CoinState
 from frontend.state.coin_state import SECTOR_TABLE_PAGE_SIZES
 
@@ -131,15 +132,19 @@ def _page(title: str, kind: str, label: str, top_label: str, total, rows, name_c
                     on_change=on_size,
                     size="2",
                 ),
-                rx.input(
-                value=search_var,
-                on_change=on_search,
-                placeholder=f"Search {kind}",
-                debounce_timeout=250,
-                size="2",
-                radius="full",
-                variant="surface",
-                class_name="sector-search",
+                search_form(
+                    rx.input(
+                        name="q",
+                        default_value=search_var,
+                        key=search_var,
+                        placeholder=f"Search {kind}",
+                        enter_key_hint="search",
+                        size="2",
+                        radius="full",
+                        variant="surface",
+                        class_name="sector-search",
+                    ),
+                    on_submit=lambda form_data: on_search(q(form_data)),
                 ),
                 align="center",
                 spacing="2",
