@@ -81,3 +81,14 @@ Source: `app/services/telegram_digest_service.py`, tests `tests/test_telegram_di
 
 **Not real time:** the boards use the latest stored price snapshot (hourly, ~:42 on live; exchange-price fallback while CMC credits are out) against the snapshot ~24h / 7d / 30d earlier, so repeating a command returns the same board until the next hourly snapshot. A live-price version (shared exchange price list, 30s fresh, vs the same baseline snapshot) is possible but not built.
 </details>
+
+## Coins you hold on MEXC glow on the boards (2026-10-16)
+
+On `/gainers-losers` every coin you hold on the MEXC spot account is marked on the **live** boards: its row glows (`.gl-held-row`, a soft accent tint, a left bar and a gentle pulse, theme tokens so it reads in light and dark; still under reduced motion) and a small "Holding" tag sits next to its name.
+- **Which coins:** `mexc_service.held_assets()` (non-stable coins worth at least $1, read through the same 20 s account cache as the Portfolio page, no amounts leave the server) matched to the coins of the board by ticker: the best CMC rank with that ticker whose price is within 0.5x-2x of the account's price (`price_snapshot_service.held_coin_ids`, so a lookalike token with the same ticker is never marked).
+- **Only for you:** the check is the same as the Portfolio page (`MEXC_VIEWER_EMAILS`, `GainersLosersState._load_holdings`); anyone else gets no marks and no MEXC call. The browser only receives a `held` flag per row.
+- **Where it shows:** each coin appears on the board of its own rank band (Top 100 = rank 1-100, 101-200 ... 401-500). A held coin ranked beyond 500 (or without a recent change on record, e.g. under the $50K volume floor) is not shown.
+- **Not in the top 30 or the wrong direction:** a held coin that is not among a board's top 30 rows (it is down on the Gainers board, up on the Losers board, or just too small a move) is added as the **last row** of that board, with its real `#` in the band's whole ordering (e.g. #72), however large. The Change-header sort only reorders the top rows; these extra rows stay last. `price_snapshot_service.board_rows` builds it (tests `tests/test_gainers_holdings.py`).
+- Saved past days (calendar) are not marked: they say nothing about what you hold now. Refreshing the page or the refresh icon re-reads the holdings.
+- Checked locally with a demo account (coins from every band incl. FET): in-place marks, end rows with real #, other bands, a coin beyond rank 500 hidden, light/dark, 375 px with no horizontal scroll, no console errors. Real MEXC data exists only on the live server.
+

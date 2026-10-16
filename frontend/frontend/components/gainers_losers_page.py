@@ -110,6 +110,8 @@ def _header_cell(text: str, align: str = "left") -> rx.Component:
 
 
 def _row(row: rx.Var) -> rx.Component:
+    # A coin you hold on MEXC glows (.gl-held-row, styles.css); one that is not among the board's top rows is added
+    # at the end with its real #.
     return rx.table.row(
         rx.table.cell(rx.text(row["position"], size="2", color_scheme="gray"), vertical_align="middle"),
         rx.table.cell(
@@ -117,7 +119,13 @@ def _row(row: rx.Var) -> rx.Component:
                 rx.hstack(
                     rx.image(src=row["icon_url"], width="22px", height="22px", border_radius="50%", flex_shrink="0"),
                     rx.vstack(
-                        rx.text(row["name"], size="2", weight="medium", class_name="line-clamp-1"),
+                        rx.hstack(
+                            rx.text(row["name"], size="2", weight="medium", class_name="line-clamp-1"),
+                            rx.cond(row["held"] != "", rx.badge("Holding", size="1", variant="soft", class_name="gl-held-badge")),
+                            spacing="2",
+                            align="center",
+                            min_width="0",
+                        ),
                         rx.text(row["symbol"], " · #", row["rank"], size="1", color_scheme="gray"),
                         spacing="0",
                         align="start",
@@ -158,6 +166,7 @@ def _row(row: rx.Var) -> rx.Component:
             white_space="nowrap",
             display=["none", "table-cell", "table-cell", "table-cell", "table-cell"],
         ),
+        class_name=rx.cond(row["held"] != "", "gl-held-row", ""),
     )
 
 

@@ -98,10 +98,23 @@ def _coin_slug(cmc_id, symbol):
     return coin_slug(cmc_id, symbol)
 
 
-def _display_row(position: int, c: dict) -> dict:
+def _load_holdings(email: str) -> dict[str, float]:
+    """{ticker: price} of the coins held on the MEXC account, only for a viewer listed in MEXC_VIEWER_EMAILS
+    (the same gate as the Portfolio page). {} for anyone else. Blocking."""
+    _service()  # puts the repo root on sys.path
+    from app.services import mexc_service
+
+    if not mexc_service.can_view(email):
+        return {}
+    return mexc_service.held_assets()
+
+
+def _display_row(position: int, c: dict, held: bool = False, extra: bool = False) -> dict:
     up = c["pct_change"] > 0
     return {
         "position": str(position),
+        "held": "1" if held else "",  # the only thing about a holding that reaches the browser
+        "extra": "1" if extra else "",  # a held coin added below the top rows
         "rank": str(c["rank"]),
         "name": c["name"],
         "symbol": c["symbol"],
@@ -139,6 +152,8 @@ class GainersLosersState(rx.State):
     # biggest move first: gainers descending, losers ascending (most negative).
     gainers_desc: bool = True
     losers_desc: bool = False
+    # {ticker: price} of the coins held on the viewer's MEXC account (backend only: just a "held" flag per row is sent).
+    _held: dict[str, float] = {}
 
     @rx.var
     def selected_day_label(self) -> str:
@@ -194,13 +209,16 @@ class GainersLosersState(rx.State):
     def _board(self, direction: str) -> list[dict[str, str]]:
         svc = _service()
         source = self._day_changes if self.selected_day else self._changes
-        rows = svc.rank_movers(source.get(self.window, []), self.bucket, direction, _LIMIT)
-        # The Change header's sort only reorders the board's coins (it never
-        # swaps in different ones); # stays the biggest-move position.
+        changes = source.get(self.window, [])
+        # Held coins are marked on the live board only (a saved day's board says nothing about what you hold now).
+        held_ids = set() if self.selected_day else svc.held_coin_ids(changes, self._held)
+        rows = svc.board_rows(changes, self.bucket, direction, _LIMIT, held_ids)
+        # The Change header's sort only reorders the board's own top coins (it never swaps in different ones);
+        # # stays the biggest-move position. A held coin that is not among them stays at the end, whatever its #.
         desc = self.gainers_desc if direction == "gainers" else self.losers_desc
-        ranked = list(enumerate(rows, start=1))
-        ranked.sort(key=lambda pc: pc[1]["pct_change"], reverse=desc)
-        return [_display_row(i, c) for i, c in ranked]
+        top = sorted((r for r in rows if not r["extra"]), key=lambda r: r["coin"]["pct_change"], reverse=desc)
+        extra = [r for r in rows if r["extra"]]
+        return [_display_row(r["position"], r["coin"], r["held"], r["extra"]) for r in top + extra]
 
     @rx.var
     def gainers(self) -> list[dict[str, str]]:
@@ -280,6 +298,22 @@ class GainersLosersState(rx.State):
         async with self:
             self._apply(data)
             self.loading = False
+        await self._load_held()
+
+    async def _load_held(self):
+        """Which coins the logged-in viewer holds on MEXC (the board then marks them). Never blocks or breaks the
+        page: any failure just means no marks."""
+        from frontend.state.coin_state import CoinState
+
+        try:
+            async with self:
+                cs = await self.get_state(CoinState)
+                email = cs.user_email if cs.is_logged_in else ""
+            held = await asyncio.to_thread(_load_holdings, email) if email else {}
+        except Exception:  # noqa: BLE001
+            held = {}
+        async with self:
+            self._held = held
 
     def _apply(self, data: dict):
         self.first_day, self.last_day = data.pop("_days")
@@ -310,3 +344,4 @@ class GainersLosersState(rx.State):
         async with self:
             self._apply(data)
             self.refreshing = False
+        await self._load_held()

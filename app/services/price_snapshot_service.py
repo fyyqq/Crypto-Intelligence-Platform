@@ -370,6 +370,48 @@ def rank_movers(changes: list[dict], bucket: int, direction: str, limit: int = D
     return picked[: max(0, limit)]
 
 
+def held_coin_ids(changes: list[dict], held: dict[str, float] | None) -> set[int]:
+    """Which coins of `changes` are the ones you hold. `held` is {ticker: USD price} (the exchange account). A
+    ticker is shared by several coins, so the match is the best-ranked coin with that ticker whose price is within
+    0.5x-2x of the account's price (the same guard price_hub.plausible uses); no match = not shown."""
+    ids: set[int] = set()
+    for asset, price in (held or {}).items():
+        best = None
+        for c in changes:
+            if (c["symbol"] or "").upper() != asset.upper():
+                continue
+            if price > 0 and c["price_now"] > 0 and not 0.5 <= c["price_now"] / price <= 2.0:
+                continue
+            if best is None or c["rank"] < best["rank"]:
+                best = c
+        if best is not None:
+            ids.add(best["coin_id"])
+    return ids
+
+
+def board_rows(changes: list[dict], bucket: int, direction: str, limit: int = DEFAULT_LIMIT, held_ids: set[int] | None = None) -> list[dict]:
+    """A gainers/losers board with the coins you hold marked: [{"coin", "position", "held", "extra"}].
+
+    The first rows are rank_movers' top `limit` (position 1..N). A held coin of this rank band that is not among
+    them is added at the END with its real position in the band's whole ordering (gainers: best change first,
+    so a coin that is down sits far down; losers: worst first), however large that number is. A held coin outside
+    the band (or with no change on record) is not shown."""
+    sign = 1 if direction == "gainers" else -1
+    floor = bucket_floor(bucket)
+    band = sorted((c for c in changes if floor < c["rank"] <= bucket), key=lambda c: c["pct_change"] * sign, reverse=True)
+    held_ids = held_ids or set()
+    top = rank_movers(changes, bucket, direction, limit)
+    top_ids = {c["coin_id"] for c in top}
+    position = {c["coin_id"]: i for i, c in enumerate(band, start=1)}
+    rows = [{"coin": c, "position": position[c["coin_id"]], "held": c["coin_id"] in held_ids, "extra": False} for c in top]
+    rows += [
+        {"coin": c, "position": position[c["coin_id"]], "held": True, "extra": True}
+        for c in band
+        if c["coin_id"] in held_ids and c["coin_id"] not in top_ids
+    ]
+    return rows
+
+
 # ---- Step 6: output ----------------------------------------------------------
 def get_movers(
     db: Session, bucket: int, window: str, direction: str, limit: int = DEFAULT_LIMIT

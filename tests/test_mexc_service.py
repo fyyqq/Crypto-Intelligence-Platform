@@ -297,3 +297,18 @@ def test_recent_fills_are_shown_five_per_page_and_the_page_is_kept_and_clamped(m
     s._pf_trades_all = []
     ps.PortfolioState._show_trades_page(s)
     assert s.pf_trades == [] and s.pf_trade_pages == 1
+
+
+def test_held_assets_lists_only_priced_non_stable_coins_worth_a_dollar(demo):
+    held = m.held_assets()
+    assert {"BTC", "ETH", "SUI", "SOL", "PEPE", "LINK"} <= set(held) and "USDT" not in held
+    assert "MX" not in held  # 0.03 MX is dust
+    assert all(price > 0 for price in held.values())
+
+
+def test_held_assets_is_empty_when_mexc_is_not_connected_or_fails(monkeypatch):
+    assert m.held_assets() == {}  # not configured
+    monkeypatch.setattr(m.settings, "mexc_api_key", "k")
+    monkeypatch.setattr(m.settings, "mexc_api_secret", "s")
+    monkeypatch.setattr(m, "_refresh", lambda force=False: (_ for _ in ()).throw(RuntimeError("boom")))
+    assert m.held_assets() == {}

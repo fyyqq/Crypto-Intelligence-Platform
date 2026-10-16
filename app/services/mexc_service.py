@@ -401,6 +401,27 @@ def _refresh(force: bool = False) -> None:
 # ---------------------------------------------------------------------------------------------- snapshot
 
 
+def held_assets() -> dict[str, float]:
+    """{asset code: USD price} of every non-stable coin worth at least DUST_USD in the account, for marking the
+    coins you hold on /gainers-losers. Shares the account cache (a read at most every ACCOUNT_TTL). Blocking.
+    {} when MEXC is not configured or the read failed and nothing is cached; never raises. No amounts leave here."""
+    if not is_configured():
+        return {}
+    try:
+        _refresh()
+        out: dict[str, float] = {}
+        for b in _cache["balances"]:
+            asset = b["asset"]
+            if asset in _STABLES:
+                continue
+            price = price_of(asset)[0]
+            if price > 0 and (b["free"] + b["locked"]) * price >= DUST_USD:
+                out[asset] = price
+        return out
+    except Exception:  # noqa: BLE001 - the board simply shows no holdings
+        return {}
+
+
 def _order_row(o: dict) -> dict:
     symbol = str(o.get("symbol") or "")
     asset, quote = _split_symbol(symbol)
