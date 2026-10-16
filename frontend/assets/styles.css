@@ -1801,19 +1801,35 @@ svg.wl-star-force-off {
 /* Typing in the header search hides the previous results until the next submit (assets/instant_ui.js 4). */
 .global-search-container.gs-typing .global-search-dropdown { display: none !important; }
 
-/* /gainers-losers: a coin you hold on MEXC glows (components/gainers_losers_page.py::_row). Theme tokens only, so it
-   reads in both light and dark mode; the left bar + soft glow pulse gently, and stop for reduced motion. */
+/* /gainers-losers: a coin you hold on MEXC gets a rounded, animated RGB border around its row (components/
+   gainers_losers_page.py::_row). The border is the cells' own 2px transparent border painted with a rainbow gradient
+   (border-box layer, fixed to the viewport so it runs unbroken across the cells and the colours travel); the cells'
+   fill is the card's own colour. First/last cell are fully rounded (a pill). Table cells can only round their
+   corners when the borders are not collapsed, hence border-collapse: separate on a table that has such a row. */
+table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 .gl-held-row > td {
-  background: var(--accent-a3);
-  box-shadow: inset 0 1px 0 var(--accent-a6), inset 0 -1px 0 var(--accent-a6);
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  box-shadow: none;
+  background:
+    linear-gradient(var(--gray-a2), var(--gray-a2)) padding-box,
+    linear-gradient(var(--color-background), var(--color-background)) padding-box,
+    linear-gradient(90deg, #ff2d55, #ff9500, #ffd60a, #30d158, #00c7be, #0a84ff, #bf5af2, #ff2d55) border-box;
+  background-size: auto, auto, 1100px 100%;
+  background-attachment: scroll, scroll, fixed;
+  animation: gl-rgb-run 5s linear infinite;
 }
-.gl-held-row > td:first-child {
-  box-shadow: inset 3px 0 0 var(--accent-9), inset 0 1px 0 var(--accent-a6), inset 0 -1px 0 var(--accent-a6);
+.gl-held-row > td:first-child { border-left: 2px solid transparent; border-radius: 999px 0 0 999px; }
+.gl-held-row > td:last-child { border-right: 2px solid transparent; border-radius: 0 999px 999px 0; }
+.gl-held-row > td:first-child { padding-left: 14px; }
+.gl-held-row > td:last-child { padding-right: 14px; }
+/* Phones: the volume column is hidden, so the Change cell closes the pill. */
+@media (max-width: 519px) {
+  .gl-held-row > td:nth-child(4) { border-right: 2px solid transparent; border-radius: 0 999px 999px 0; padding-right: 14px; }
 }
-.gl-held-row { animation: gl-held-glow 2.6s ease-in-out infinite; }
-@keyframes gl-held-glow {
-  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
-  50% { filter: drop-shadow(0 0 7px var(--accent-a7)); }
+@keyframes gl-rgb-run {
+  from { background-position: 0 0, 0 0, 0 0; }
+  to { background-position: 0 0, 0 0, 1100px 0; }
 }
 .gl-held-badge { flex-shrink: 0; }
-@media (prefers-reduced-motion: reduce) { .gl-held-row { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .gl-held-row > td { animation: none; } }

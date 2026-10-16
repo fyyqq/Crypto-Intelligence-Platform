@@ -393,9 +393,9 @@ def board_rows(changes: list[dict], bucket: int, direction: str, limit: int = DE
     """A gainers/losers board with the coins you hold marked: [{"coin", "position", "held", "extra"}].
 
     The first rows are rank_movers' top `limit` (position 1..N). A held coin of this rank band that is not among
-    them is added at the END with its real position in the band's whole ordering (gainers: best change first,
-    so a coin that is down sits far down; losers: worst first), however large that number is. A held coin outside
-    the band (or with no change on record) is not shown."""
+    them is added at the END with its real position among that board's coins, however large that number is. A held
+    coin only ever appears on the board of its own direction: up on the 24h = Gainers only, down = Losers only
+    (exactly 0% goes with the gainers). A held coin outside the band (or with no change on record) is not shown."""
     sign = 1 if direction == "gainers" else -1
     floor = bucket_floor(bucket)
     band = sorted((c for c in changes if floor < c["rank"] <= bucket), key=lambda c: c["pct_change"] * sign, reverse=True)
@@ -404,10 +404,13 @@ def board_rows(changes: list[dict], bucket: int, direction: str, limit: int = DE
     top_ids = {c["coin_id"] for c in top}
     position = {c["coin_id"]: i for i, c in enumerate(band, start=1)}
     rows = [{"coin": c, "position": position[c["coin_id"]], "held": c["coin_id"] in held_ids, "extra": False} for c in top]
+    def own_side(c: dict) -> bool:
+        return c["pct_change"] * sign > 0 or (sign == 1 and c["pct_change"] == 0)
+
     rows += [
         {"coin": c, "position": position[c["coin_id"]], "held": True, "extra": True}
         for c in band
-        if c["coin_id"] in held_ids and c["coin_id"] not in top_ids
+        if c["coin_id"] in held_ids and c["coin_id"] not in top_ids and own_side(c)
     ]
     return rows
 

@@ -29,18 +29,24 @@ def test_a_held_coin_in_the_top_rows_is_marked_in_place():
     assert [(r["position"], r["held"]) for r in rows if r["held"]] == [(5, True)]
 
 
-def test_a_held_coin_that_is_not_in_the_top_rows_goes_to_the_end_with_its_real_position():
-    gain = svc.board_rows(CHANGES, 100, "gainers", 30, {900})
-    assert len(gain) == 31 and gain[-1]["extra"] and gain[-1]["held"] and gain[-1]["coin"]["coin_id"] == 900
-    # FET is down 0.3%: in the gainers ordering it comes after all 40 gainers, i.e. far below the top 30
+def test_a_held_coin_outside_the_top_rows_goes_to_the_end_of_its_own_side_only():
     band = [x for x in CHANGES if x["rank"] <= 100]
-    assert gain[-1]["position"] == sorted(band, key=lambda x: -x["pct_change"]).index(CHANGES[70]) + 1 > 30
+    # A gainer beyond the top 30 (the 31st-40th of 40 gainers): last row of Gainers, with its real position; never in Losers.
+    gain = svc.board_rows(CHANGES, 100, "gainers", 30, {35})
+    assert len(gain) == 31 and gain[-1]["extra"] and gain[-1]["held"] and gain[-1]["coin"]["coin_id"] == 35 and gain[-1]["position"] == 35
+    assert all(r["coin"]["coin_id"] != 35 for r in svc.board_rows(CHANGES, 100, "losers", 30, {35}))
+    # FET is down 0.3%: Losers only (a mild loser sits after the worst ones), never on the Gainers board.
+    assert all(r["coin"]["coin_id"] != 900 for r in svc.board_rows(CHANGES, 100, "gainers", 30, {900}))
     loss = svc.board_rows(CHANGES, 100, "losers", 30, {900})
-    assert loss[-1]["extra"] and loss[-1]["position"] == sorted(band, key=lambda x: x["pct_change"]).index(CHANGES[70]) + 1  # a mild loser: after the 30 worst
+    assert loss[-1]["extra"] and loss[-1]["position"] == sorted(band, key=lambda x: x["pct_change"]).index(CHANGES[70]) + 1 > 30
+    # exactly 0% is in no top list: it goes with the gainers
+    flat = CHANGES + [c(950, "FLAT", 50, 0.0)]
+    assert svc.board_rows(flat, 100, "gainers", 30, {950})[-1]["coin"]["coin_id"] == 950
+    assert all(r["coin"]["coin_id"] != 950 for r in svc.board_rows(flat, 100, "losers", 30, {950}))
 
 
 def test_the_other_bands_show_their_own_holdings_and_nothing_beyond_rank_500():
-    assert [r["coin"]["coin_id"] for r in svc.board_rows(CHANGES, 200, "gainers", 30, {902})] == [902]  # 101-200: only that coin exists
+    assert [r["coin"]["coin_id"] for r in svc.board_rows(CHANGES, 200, "gainers", 30, {902})] == [902]  # 101-200: only that coin exists, up 5%
     assert svc.board_rows(CHANGES, 100, "gainers", 30, {902})[-1]["coin"]["coin_id"] != 902  # not in the 1-100 board
     allbands = [r["coin"]["coin_id"] for b in svc.BUCKETS for r in svc.board_rows(CHANGES, b, "gainers", 30, {903})]
     assert 903 not in allbands  # rank 650: never shown
