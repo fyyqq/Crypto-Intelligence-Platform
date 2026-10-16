@@ -1801,11 +1801,11 @@ svg.wl-star-force-off {
 /* Typing in the header search hides the previous results until the next submit (assets/instant_ui.js 4). */
 .global-search-container.gs-typing .global-search-dropdown { display: none !important; }
 
-/* /gainers-losers: a coin you hold on MEXC gets a rounded, animated RGB border around its row (components/
+/* /gainers-losers: a coin you hold on MEXC gets a square (0px radius), animated RGB border around its row (components/
    gainers_losers_page.py::_row). The border is the cells' own 2px transparent border painted with a rainbow gradient
    (border-box layer, fixed to the viewport so it runs unbroken across the cells and the colours travel); the cells'
-   fill is the card's own colour. First/last cell are fully rounded (a pill). Table cells can only round their
-   corners when the borders are not collapsed, hence border-collapse: separate on a table that has such a row. */
+   fill is the card's own colour. Corners are square. Cell borders only paint per cell when they are not collapsed,
+   hence border-collapse: separate on a table that has such a row. */
 table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 .gl-held-row > td {
   border-top: 2px solid transparent;
@@ -1819,13 +1819,12 @@ table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
   background-attachment: scroll, scroll, fixed;
   animation: gl-rgb-run 5s linear infinite;
 }
-.gl-held-row > td:first-child { border-left: 2px solid transparent; border-radius: 999px 0 0 999px; }
-.gl-held-row > td:last-child { border-right: 2px solid transparent; border-radius: 0 999px 999px 0; }
-.gl-held-row > td:first-child { padding-left: 14px; }
-.gl-held-row > td:last-child { padding-right: 14px; }
-/* Phones: the volume column is hidden, so the Change cell closes the pill. */
+.gl-held-row > td { border-radius: 0; }
+.gl-held-row > td:first-child { border-left: 2px solid transparent; }
+.gl-held-row > td:last-child { border-right: 2px solid transparent; }
+/* Phones: the volume column is hidden, so the Change cell closes the border. */
 @media (max-width: 519px) {
-  .gl-held-row > td:nth-child(4) { border-right: 2px solid transparent; border-radius: 0 999px 999px 0; padding-right: 14px; }
+  .gl-held-row > td:nth-child(4) { border-right: 2px solid transparent; }
 }
 @keyframes gl-rgb-run {
   from { background-position: 0 0, 0 0, 0 0; }
