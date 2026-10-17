@@ -1737,7 +1737,7 @@ app.add_page(
     gainers_losers_page,
     route="/gainers-losers",
     title="Repace — Top Gainers & Losers",
-    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, GainersLosersState.load],
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, GainersLosersState.load, GainersLosersState.watch_live],
 )
 app.add_page(
     tools_page,

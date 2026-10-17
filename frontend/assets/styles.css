@@ -1832,3 +1832,8 @@ table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 }
 .gl-held-badge { flex-shrink: 0; }
 @media (prefers-reduced-motion: reduce) { .gl-held-row > td { animation: none; } }
+
+/* /gainers-losers: the small pulsing dot before "Live prices update every 30 s" */
+.gl-live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green-9); animation: gl-live-pulse 2s ease-in-out infinite; }
+@keyframes gl-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .gl-live-dot { animation: none; } }

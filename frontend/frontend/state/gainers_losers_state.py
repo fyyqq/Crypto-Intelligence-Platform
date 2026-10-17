@@ -61,20 +61,24 @@ def _load_all() -> dict:
         db.close()
 
 
+def _load_live(force: bool = False) -> tuple[dict[int, float], str]:
+    """({coin_id: live price}, "HH:MM:SS UTC") from the shared live-price layer (exchange list, then the stored
+    price; see price_snapshot_service.live_prices). `force` re-reads the exchanges now (rate limited there)."""
+    from datetime import datetime, timezone
+
+    svc = _service()
+    from app.core.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        prices, at = svc.live_prices(db, force=force)
+    finally:
+        db.close()
+    return prices, datetime.fromtimestamp(at, timezone.utc).strftime("%H:%M:%S UTC") if prices else ""
+
+
 def _refresh_all() -> dict:
-    """Refresh button: a fresh top-500 CMC pull (skipped inside the global
-    cooldown, see run_manual_hot_sync), save today's board, then reload."""
-    _service()  # puts the repo root on sys.path
-    from app.scheduler.jobs import run_manual_hot_sync
-
-    if run_manual_hot_sync():
-        from app.core.database import SessionLocal
-
-        db = SessionLocal()
-        try:
-            _service().record_daily_movers(db)
-        finally:
-            db.close()
+    """Refresh button: reload every window from the stored snapshots (picks up a new hourly one)."""
     return _load_all()
 
 
@@ -154,6 +158,10 @@ class GainersLosersState(rx.State):
     losers_desc: bool = False
     # {ticker: price} of the coins held on the viewer's MEXC account (backend only: just a "held" flag per row is sent).
     _held: dict[str, float] = {}
+    # Live prices on top of the hourly snapshots (backend only): {coin_id: price}; live_at = when they were read.
+    _live: dict[int, float] = {}
+    live_at: str = ""
+    _watching: bool = False
 
     @rx.var
     def selected_day_label(self) -> str:
@@ -210,6 +218,8 @@ class GainersLosersState(rx.State):
         svc = _service()
         source = self._day_changes if self.selected_day else self._changes
         changes = source.get(self.window, [])
+        if not self.selected_day:  # today's boards use the live price now; saved days stay as they were
+            changes = svc.apply_live(changes, self._live)
         # Held coins are marked on the live board only (a saved day's board says nothing about what you hold now).
         held_ids = set() if self.selected_day else svc.held_coin_ids(changes, self._held)
         rows = svc.board_rows(changes, self.bucket, direction, _LIMIT, held_ids)
@@ -298,7 +308,41 @@ class GainersLosersState(rx.State):
         async with self:
             self._apply(data)
             self.loading = False
+        await self._read_live(False)
         await self._load_held()
+
+    async def _read_live(self, force: bool) -> bool:
+        """Re-prices the boards from the live sources; True when it worked. A failure keeps the last prices."""
+        try:
+            prices, at = await asyncio.to_thread(_load_live, force)
+        except Exception:  # noqa: BLE001
+            return False
+        async with self:
+            if prices:
+                self._live, self.live_at = prices, at
+        return bool(prices)
+
+    @rx.event(background=True)
+    async def watch_live(self):
+        """While the page is open: re-price the boards every 30 s (the shared price list is read once for everyone,
+        so many viewers cost the exchanges nothing extra). Stops when the tab goes away."""
+        from frontend.frontend import app as reflex_app
+
+        async with self:
+            if self._watching:
+                return
+            self._watching = True
+        try:
+            while True:
+                await asyncio.sleep(30)
+                async with self:
+                    gone = self.router.session.client_token not in reflex_app.event_namespace.token_to_sid
+                if gone:
+                    break
+                await self._read_live(False)
+        finally:
+            async with self:
+                self._watching = False
 
     async def _load_held(self):
         """Which coins the logged-in viewer holds on MEXC (the board then marks them). Never blocks or breaks the
@@ -336,6 +380,7 @@ class GainersLosersState(rx.State):
             self.day_windows = []
         try:
             data, _ = await asyncio.gather(asyncio.to_thread(_refresh_all), asyncio.sleep(0.8))
+            await self._read_live(True)  # the exchanges are read again now (at most once every 10 s for everyone)
         except Exception as exc:  # noqa: BLE001
             async with self:
                 self.refreshing = False

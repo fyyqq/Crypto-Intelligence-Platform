@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 import re
+import threading
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -429,6 +430,86 @@ def rank_movers(changes: list[dict], bucket: int, direction: str, limit: int = D
     picked = [c for c in changes if floor < c["rank"] <= bucket and c["pct_change"] * sign > 0 and not _stable(c)]
     picked.sort(key=lambda c: c["pct_change"] * sign, reverse=True)
     return picked[: max(0, limit)]
+
+
+# ---- Live prices on top of the hourly snapshots -----------------------------------------------------
+# The boards compare a coin's price NOW with its price ~24h / 7d / 30d ago (the hourly snapshots). The snapshots only
+# change once an hour, so "now" is re-priced from live sources every LIVE_TTL seconds and the % change and the
+# ordering follow it. Sources, best first, per coin: the shared exchange price list (price_hub: Binance / OKX / Bybit /
+# Gate, four bulk calls per refresh however many people watch, ~30 s fresh), then the stored price (refreshed every ~5
+# minutes from the exchange list and DexScreener by free_price_sync), then the snapshot's own price. The result is shared
+# by every viewer, and a forced refresh (the page's refresh icon) is rate limited to one per FORCE_MIN_GAP seconds.
+LIVE_TTL = 30
+FORCE_MIN_GAP = 10
+LIVE_MAX_SNAPSHOT_AGE = timedelta(hours=3)  # a staler "latest snapshot" is not mixed with a live price (the baselines are measured from it)
+
+
+def _utcnow() -> datetime:
+    return datetime.utcnow()  # snapshot times are naive UTC
+_live_cache: dict = {"at": 0.0, "forced_at": 0.0, "prices": {}}
+_live_lock = threading.Lock()
+
+
+def live_prices(db: Session, force: bool = False) -> tuple[dict[int, float], float]:
+    """({coin_id: current USD price}, when it was read as a unix time) for every coin of the latest snapshot up to rank
+    max(BUCKETS). Shared and cached LIVE_TTL seconds; `force` re-reads the exchanges now (at most once per
+    FORCE_MIN_GAP seconds). Never raises: a failing source just leaves the snapshot's own price."""
+    import time
+
+    now = time.time()
+    with _live_lock:
+        age = now - _live_cache["at"]
+        if age < LIVE_TTL and not (force and now - _live_cache["forced_at"] >= FORCE_MIN_GAP):
+            return _live_cache["prices"], _live_cache["at"]
+        if force:
+            _live_cache["forced_at"] = now
+        latest = _latest_sync_time(db)
+        if latest is None or _utcnow() - latest > LIVE_MAX_SNAPSHOT_AGE:
+            return {}, now  # no recent history: the boards show the snapshot data alone, as before
+        snaps = db.execute(
+            select(PriceSnapshot.coin_id, PriceSnapshot.symbol, PriceSnapshot.price_usd).where(
+                PriceSnapshot.synced_at == latest, PriceSnapshot.cmc_rank.is_not(None), PriceSnapshot.cmc_rank <= BUCKETS[-1]
+            )
+        ).all()
+        stored = dict(db.execute(select(Coin.cmc_id, Coin.price_usd).where(Coin.cmc_id.in_([s[0] for s in snaps]))).all())
+        hub: dict = {}
+        try:
+            from app.services import price_hub
+
+            if force:
+                price_hub.refresh()
+            hub = price_hub.get_prices(max_age=LIVE_TTL)
+        except Exception:  # noqa: BLE001 - exchanges unreachable: fall back to the stored prices
+            hub = {}
+        prices: dict[int, float] = {}
+        for coin_id, symbol, snap_price in snaps:
+            base = float(snap_price or 0)
+            if base <= 0:
+                continue
+            quote = hub.get((symbol or "").upper())
+            if quote and 0.5 <= quote["price"] / base <= 2.0:
+                prices[coin_id] = float(quote["price"])
+                continue
+            kept = float(stored.get(coin_id) or 0)
+            prices[coin_id] = kept if kept > 0 and 0.2 <= kept / base <= 5.0 else base
+        _live_cache.update(at=now, prices=prices)
+        return prices, now
+
+
+def apply_live(changes: list[dict], live: dict[int, float] | None) -> list[dict]:
+    """The same rows with price_now replaced by the live price and pct_change recomputed from it (price_then and
+    everything else unchanged). Rows without a live price are returned as they are."""
+    if not live:
+        return changes
+    out = []
+    for c in changes:
+        price = live.get(c["coin_id"])
+        if price and price > 0 and price != c["price_now"]:
+            pct = pct_change(price, c["price_then"])
+            if pct is not None:
+                c = {**c, "price_now": price, "pct_change": pct}
+        out.append(c)
+    return out
 
 
 def held_coin_ids(changes: list[dict], held: dict[str, float] | None) -> set[int]:

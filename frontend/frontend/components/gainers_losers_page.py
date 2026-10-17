@@ -171,7 +171,7 @@ def _row(row: rx.Var) -> rx.Component:
 
 
 def _refresh_button() -> rx.Component:
-    """Re-syncs prices from CMC and recomputes every board (see
+    """Re-reads the live prices now and recomputes every board (see
     GainersLosersState.refresh). Spins while it runs; follows the theme."""
     return rx.tooltip(
         rx.icon_button(
@@ -186,7 +186,7 @@ def _refresh_button() -> rx.Component:
             class_name=rx.cond(S.refreshing, "gl-refresh-spinning", ""),
             style={"color": "var(--gray-12)", "flex_shrink": "0"},
         ),
-        content=rx.cond(S.synced_at != "", "Refresh prices · last synced " + S.synced_at, "Refresh prices"),
+        content=rx.cond(S.live_at != "", "Refresh prices now · live at " + S.live_at, "Refresh prices now"),
     )
 
 
@@ -324,12 +324,21 @@ def gainers_losers_content() -> rx.Component:
         rx.vstack(
             rx.heading("Top Gainers & Losers", size="6"),
             rx.text(
-                "Price change measured from our own hourly price snapshots, not CoinMarketCap's % change. "
-                "Coins with under $50K 24h volume are left out.",
+                "Price change = the live price now against the price about 24h / 7d / 1 month ago from our own hourly "
+                "price snapshots, not CoinMarketCap's % change. Coins with under $50K 24h volume and stablecoins are left out.",
                 size="2",
                 color_scheme="gray",
                 text_align="center",
                 max_width="640px",
+            ),
+            rx.cond(
+                (S.live_at != "") & (S.selected_day == ""),
+                rx.hstack(
+                    rx.box(class_name="gl-live-dot"),
+                    rx.text("Live prices update every 30 s · last update ", S.live_at, size="1", color_scheme="gray"),
+                    spacing="2",
+                    align="center",
+                ),
             ),
             spacing="2",
             align="center",
