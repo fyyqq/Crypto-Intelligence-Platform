@@ -1798,8 +1798,6 @@ svg.wl-star-force-off {
 /* Search bars search on submit (components/search_form.py): the form never changes the layout around its field. */
 .search-submit-form { display: contents; }
 .search-submit-icon { cursor: pointer; }
-/* Typing in the header search hides the previous results until the next submit (assets/instant_ui.js 4). */
-.global-search-container.gs-typing .global-search-dropdown { display: none !important; }
 
 /* /gainers-losers: a coin you hold on MEXC gets a square (0px radius), animated RGB border around its row (components/
    gainers_losers_page.py::_row). The border is the cells' own 2px transparent border painted with a rainbow gradient

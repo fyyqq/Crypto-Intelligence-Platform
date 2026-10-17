@@ -42,7 +42,6 @@ def _search_box(placeholder: str, value, on_change) -> rx.Component:
         rx.input(
             name="q",
             default_value=value,
-            key=value,
             placeholder=placeholder,
             enter_key_hint="search",
             size="1",

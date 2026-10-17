@@ -208,7 +208,6 @@ def _section_search(section: dict) -> rx.Component:
             rx.input.slot(rx.icon("search", size=18, class_name="search-submit-icon")),
             name="q",
             default_value=section["search_text"],
-            key=section["search_text"],
             placeholder="Search title",
             enter_key_hint="search",
             # Same (large) size at every width.

@@ -36,7 +36,7 @@
 
 <details><summary><strong>MYR / USD switch on the Total balance card</strong></summary>
 
-- The "Total balance" row is a space-between row: the label on the left, **MYR** and **USD** buttons on the right (`portfolio_page.py::_currency_toggle`, `.pf-cur*` in `styles.css`). **USD is the default**; the choice lasts for the session and goes back to USD on logout.
+- The "Total balance" row is a space-between row: the label on the left, **MYR** and **USD** buttons on the right (`portfolio_page.py::_currency_toggle`, `.pf-cur*` in `styles.css`). **MYR is the default (changed 2026-10-18; it was USD)**; the choice lasts for the session and goes back to MYR on logout. If no live MYR rate can be had the card falls back to USD with a message.
 - **MYR converts this card's money amounts** (total balance, 24h change, unrealized P/L, stablecoins, value in open orders, the small-balances note: `portfolio_state._summary_view`) **and the balance chart** (card + popup, see above). Percentages, counts and every table below (holdings, open orders, fills) stay in USD.
 - A small line under the 24h pill shows the rate and where it came from, e.g. "1 USD = 4.0800 MYR · Yahoo Finance · live" (or "quote of 16 Oct 03:49 (KL)" when the last quote is older than 15 min).
 - **The rate is live from the forex market**, not a fixed number (`app/services/fx_service.py`, no key, no cost): Yahoo Finance's USD/MYR quote (polled every 60 s) plus two daily references, ExchangeRate-API open data and the European Central Bank via Frankfurter (polled hourly). A quote far (> 2%) from the others' median is dropped, and the freshest of the rest wins. A source that fails is skipped for 5 min, and a rate is kept up to 72 h if every source fails. With no rate at all, the MYR button keeps the card in USD with "The live MYR rate is unavailable right now". One shared cache for every viewer; the 10 s dashboard refresh asks for the rate only while MYR is shown. Limits: Yahoo's MYR quote has only 2 decimals and can sit still for a while in quiet hours (the line then shows the quote's time); true tick-by-tick MYR needs a paid forex API key.
@@ -81,3 +81,8 @@
 - **Local:** MEXC can't be reached from this Mac (the ISP's DNS block, and the key isn't linked to the home IP), so the page shows the MEXC error. To see the UI with made-up data, start Reflex with `MEXC_FIXTURE_FILE=tests/fixtures/mexc_demo.json MEXC_VIEWER_EMAILS=dev-tester@example.com` in front of `reflex run` (process environment overrides `.env`), and restart normally afterwards.
 - **Unconfirmed until live:** whether MEXC returns stop-limit / trigger orders placed in the app through `openOrders`, and whether `openOrders` without a symbol is accepted (both handled either way).
 </details>
+
+## MYR by default, also on the coin page (2026-10-18)
+
+The Total balance card and the balance chart (card and popup) open in **MYR**, and so does the **holding on a coin page** ("Your MEXC" box): the wallet value of that coin and its profit/loss amount are shown in ringgit at the same live rate (`PortfolioState._apply_coin` uses the Portfolio currency, so switching USD / MYR on `/portfolio` changes the coin page too during the session); the average buy price and order prices stay in USD because they are coin prices. The rate is fetched before the first draw (`get_rate`, cached 60 s). Tests `tests/test_portfolio_charts.py`, `tests/test_fx_service.py`.
+

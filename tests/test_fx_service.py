@@ -171,10 +171,10 @@ def test_the_card_falls_back_to_usd_with_a_message_when_there_is_no_rate(monkeyp
     assert ps.PortfolioState._card_currency(s) == ("USD", 1.0) and s.pf_fx_note == s.pf_fx_error == ""
 
 
-def test_logout_returns_the_card_to_usd_and_drops_the_raw_snapshot(monkeypatch):
+def test_logout_returns_the_card_to_myr_the_default_and_drops_the_raw_snapshot(monkeypatch):
     ps = _state_module(monkeypatch)
     names = {n for n in ps.PortfolioState.get_fields() if n.startswith(ps._PORTFOLIO_VAR_PREFIXES)}
     assert {"pf_currency", "pf_fx_note", "pf_fx_error"} <= names
     s = types.SimpleNamespace(**{n: "x" for n in names}, _pf_trades_all=[1], _pf_snap={"total_value": 1})
     ps.PortfolioState._clear_portfolio(s)
-    assert s.pf_currency == "USD" and s._pf_snap == {} and s.pf_fx_note == ""
+    assert s.pf_currency == "MYR" and s._pf_snap == {} and s.pf_fx_note == ""  # MYR is the default currency

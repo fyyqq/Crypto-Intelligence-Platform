@@ -136,7 +136,6 @@ def _page(title: str, kind: str, label: str, top_label: str, total, rows, name_c
                     rx.input(
                         name="q",
                         default_value=search_var,
-                        key=search_var,
                         placeholder=f"Search {kind}",
                         enter_key_hint="search",
                         size="2",

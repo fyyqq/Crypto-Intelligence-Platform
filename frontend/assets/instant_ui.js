@@ -12,11 +12,12 @@
 //  2. Watchlist stars flip filled/empty on the click.
 //  3. Popups (watchlist, notification bell) open/close on the click and on a
 //     click outside.
-//  4. Header search: searches on SUBMIT (Enter / the magnifier), not while
-//     typing. Typing only hides the old results; on submit the suggestions come
-//     at once from a coin list loaded once from /api/coin-index, and are
-//     replaced by the server's live results as soon as those match the box.
-//  5. Every search bar's magnifier icon submits its form.
+//  4. Header search: suggestions come at once from a coin list loaded once from
+//     /api/coin-index when the search runs, and are replaced by the server's
+//     live results as soon as those match the box.
+//  5. Every search bar searches ~0.45 s after the last key (or at once on Enter /
+//     its magnifier): the field is uncontrolled, so the server never overwrites
+//     what is being typed.
 (function () {
   if (window.__instantUiInit) return;
   window.__instantUiInit = true;
@@ -303,41 +304,23 @@
   document.addEventListener(
     "focusin",
     function (e) {
-      if (e.target && e.target.id === "global-search-input-field") {
-        loadIndex();
-        if (!e.target.value) {
-          var c = e.target.closest(".global-search-container");
-          if (c) c.classList.remove("gs-typing");
-        }
-      }
+      if (e.target && e.target.id === "global-search-input-field") loadIndex();
     },
     true
   );
 
-  // Typing hides the previous results (CSS .gs-typing); nothing is searched until the form is submitted.
-  document.addEventListener(
-    "input",
-    function (e) {
-      var input = e.target;
-      if (!input || input.id !== "global-search-input-field") return;
-      var container = input.closest(".global-search-container");
-      if (!container) return;
-      hideInstant(container);
-      container.classList.toggle("gs-typing", input.value !== "");
-    },
-    true
-  );
-
-  // Enter (or the magnifier, which submits the form) shows the results: instantly from the local index, then the
-  // server's own list takes over.
+  // A search (typed, then paused, or Enter / the magnifier) shows the results: instantly from the local index, then
+  // the server's own list takes over.
   document.addEventListener(
     "submit",
     function (e) {
       var input = e.target && e.target.querySelector && e.target.querySelector("#global-search-input-field");
       if (!input) return;
       var container = input.closest(".global-search-container");
-      if (container) container.classList.remove("gs-typing");
-      if (!input.value.trim()) return;
+      if (!input.value.trim()) {
+        if (container) hideInstant(container);
+        return;
+      }
       if (index) renderInstant(input);
       else (loadIndex() || Promise.resolve()).then(function () { renderInstant(input); });
     },
@@ -351,15 +334,63 @@
       if (!t.closest) return;
       var container = document.querySelector(".global-search-container");
       if (!container) return;
-      if (t.closest(".global-search-clear-icon") || !t.closest(".global-search-container")) {
-        hideInstant(container);
-        container.classList.remove("gs-typing");
+      if (t.closest(".global-search-clear-icon") || !t.closest(".global-search-container")) hideInstant(container);
+    },
+    true
+  );
+
+  // ---- 5. search while typing (after a pause), magnifier = submit ------------------------------
+  var SEARCH_DELAY_MS = 450;
+
+  function searchInput(el) {
+    return el && el.tagName === "INPUT" && el.name === "q" && el.closest && el.closest("form.search-submit-form") ? el : null;
+  }
+
+  document.addEventListener(
+    "input",
+    function (e) {
+      var input = searchInput(e.target);
+      if (!input) return;
+      clearTimeout(input.__searchTimer);
+      input.__searchTimer = setTimeout(function () {
+        var form = input.closest("form");
+        var text = input.value;
+        if (!form || text === input.__lastSent) return;
+        input.__lastSent = text;
+        if (form.requestSubmit) form.requestSubmit();
+      }, SEARCH_DELAY_MS);
+    },
+    true
+  );
+
+  // Enter submits at once: the pending delayed search is not needed any more.
+  document.addEventListener(
+    "submit",
+    function (e) {
+      var input = e.target && e.target.querySelector && searchInput(e.target.querySelector("input[name=q]"));
+      if (input) {
+        clearTimeout(input.__searchTimer);
+        input.__lastSent = input.value;
       }
     },
     true
   );
 
-  // ---- 5. magnifier icons submit their search form --------------------------------
+  // The committed search text (the input's value ATTRIBUTE, kept current by default_value) is copied into the field when
+  // something other than typing changed it (a clear button, "clear filters") and the field is not being typed in.
+  new MutationObserver(function (muts) {
+    muts.forEach(function (m) {
+      var el = m.target;
+      if (m.attributeName !== "value" || !searchInput(el) || el === document.activeElement) return;
+      var committed = el.getAttribute("value") || "";
+      if (el.value !== committed) {
+        el.value = committed;
+        el.__lastSent = committed;
+      }
+    });
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["value"], subtree: true });
+
+  // ---- 5b. magnifier icons submit their search form --------------------------------
   document.addEventListener(
     "click",
     function (e) {

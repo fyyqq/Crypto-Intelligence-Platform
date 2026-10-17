@@ -232,7 +232,7 @@ class PortfolioState(CoinState):
     pf_demo: bool = False
     pf_error: str = ""
     pf_refreshing: bool = False
-    pf_currency: str = "USD"  # the hero card only: "USD" (default) or "MYR"
+    pf_currency: str = "MYR"  # the Total balance card, the balance chart and the coin page holding: "MYR" (default) or "USD"
     pf_fx_note: str = ""  # "1 USD = 4.0824 MYR · <source>" while MYR is shown
     pf_fx_error: str = ""
     _pf_snap: dict = {}  # last raw snapshot (backend-only, emptied by _clear_portfolio)
@@ -626,6 +626,8 @@ class PortfolioState(CoinState):
 
     def _apply_coin(self, asset: str, snap: dict, orders: list[dict], candles: list | None = None) -> None:
         held = next((h for h in snap.get("holdings") or [] if h["asset"] == asset), None)
+        cur, rate = self._chart_currency()  # the holding's money amounts follow the Portfolio currency (MYR by default)
+        fx = _fx()
         lines = _chart_lines(held, orders)
         self.coin_mexc_candles = json.dumps(candles or [], separators=(",", ":"))
         self.coin_mexc_lines = json.dumps(lines, separators=(",", ":"))
@@ -635,9 +637,9 @@ class PortfolioState(CoinState):
         self.coin_mexc_holding = (
             {
                 "amount": f"{_qty(held['amount'])} {asset}",
-                "value": _money(held["value"]),
+                "value": fx.format_amount(held["value"] * rate, cur),
                 "avg": _fmt_usd(held["avg_price"]) if held["avg_price"] > 0 else "—",
-                "pnl": f"{_signed_money(held['pnl'])} ({_fmt_pct(held['pnl_pct'])})" if held["avg_price"] > 0 else "—",
+                "pnl": f"{fx.format_amount(held['pnl'] * rate, cur, signed=True)} ({_fmt_pct(held['pnl_pct'])})" if held["avg_price"] > 0 else "—",
                 "pnl_color": _color(held["pnl"]) if held["avg_price"] > 0 else "var(--gray-11)",
             }
             if held
@@ -652,6 +654,7 @@ class PortfolioState(CoinState):
             asset = str(coin.get("symbol") or "").upper() if coin else ""
             on_page = self.router.url.path.startswith("/coins/")
             interval = self.coin_mexc_interval
+            wants_myr = self.pf_currency == "MYR"
             if asset != shown:
                 self.coin_mexc_loaded, self.coin_mexc_orders, self.coin_mexc_holding = False, [], {}
                 self.coin_mexc_candles, self.coin_mexc_lines, self.coin_mexc_has_lines = "[]", "[]", False
@@ -662,6 +665,8 @@ class PortfolioState(CoinState):
         svc = _svc()
         snap, orders, candles = None, [], []
         try:
+            if wants_myr:
+                await asyncio.to_thread(_fx().get_rate, "MYR")  # cached for 60 s and shared; never raises
             snap, orders, candles = await asyncio.gather(
                 self._snapshot(), asyncio.to_thread(svc.coin_orders, asset), asyncio.to_thread(svc.klines, asset, interval)
             )

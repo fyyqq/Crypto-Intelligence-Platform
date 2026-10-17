@@ -1,10 +1,12 @@
-"""Search bars search on SUBMIT (Enter, a phone keyboard's Go/Search key, or the magnifier icon), never while typing.
+"""Search bars search when you STOP TYPING (a short delay after the last key), and at once on Enter, a phone keyboard's
+Go/Search key or the magnifier icon.
 
-A search input is an uncontrolled field inside a form (`name="q"`): typing only changes the field, and the form's submit
-hands the text to the state handler. `key` is the committed search text (or a counter the state bumps when it clears the
-search), so the field shows the committed text again after a programmatic change such as a clear button.
-The form is `display: contents` (styles.css `.search-submit-form`) so it never changes the layout around the field;
-assets/instant_ui.js 5 makes the magnifier icon submit the form."""
+A search input is an uncontrolled field inside a form (`name="q"`): the browser owns what is typed, so a server reply can
+never overwrite or drop characters while you are still typing (the bug of the old always-controlled, debounced inputs),
+and the field is never remounted mid-typing. assets/instant_ui.js 5 submits the form ~0.45 s after the last keystroke,
+turns the magnifier icon into a submit button, and copies the committed text (the input's `value` attribute, which
+`default_value` keeps current) into the field when a clear button or another handler changes it and the field is not
+focused. The form is `display: contents` (styles.css `.search-submit-form`) so it never changes the layout around it."""
 
 import reflex as rx
 

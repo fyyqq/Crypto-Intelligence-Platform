@@ -216,10 +216,26 @@ def test_klines_are_cached_per_interval_and_the_chart_intervals_are_mexc_ones(mo
 def test_the_lines_view_is_offered_only_with_lines_and_candles(monkeypatch, demo):
     ps = _ps(monkeypatch)
     snap = m.portfolio(1)
-    s = types.SimpleNamespace()
+    s = types.SimpleNamespace(_chart_currency=lambda: ("USD", 1.0))
     ps.PortfolioState._apply_coin(s, "SUI", snap, m.coin_orders("SUI"), m.klines("SUI"))
     assert s.coin_mexc_has_lines is True and json.loads(s.coin_mexc_lines)[1]["c"] == ps._LINE_LIMIT
     ps.PortfolioState._apply_coin(s, "SUI", snap, m.coin_orders("SUI"), [])  # no MEXC candles: TradingView stays
     assert s.coin_mexc_has_lines is False
     ps.PortfolioState._apply_coin(s, "DOGE", snap, [], m.klines("SUI"))  # candles but nothing of yours: no lines view
     assert s.coin_mexc_has_lines is False
+
+
+def test_the_coin_page_holding_is_shown_in_the_portfolio_currency_myr_by_default(monkeypatch, demo):
+    ps = _ps(monkeypatch)
+    snap = m.portfolio(1)
+    held = next(h for h in snap["holdings"] if h["asset"] == "SUI")
+    usd = types.SimpleNamespace(_chart_currency=lambda: ("USD", 1.0))
+    myr = types.SimpleNamespace(_chart_currency=lambda: ("MYR", 4.0))
+    ps.PortfolioState._apply_coin(usd, "SUI", snap, [], [])
+    ps.PortfolioState._apply_coin(myr, "SUI", snap, [], [])
+    assert usd.coin_mexc_holding["value"] == f"${held['value']:,.2f}"
+    assert myr.coin_mexc_holding["value"] == f"RM{held['value'] * 4:,.2f}"  # the wallet value in ringgit
+    assert myr.coin_mexc_holding["avg"] == usd.coin_mexc_holding["avg"]  # a coin's price stays in USD
+    if held["avg_price"] > 0:
+        assert myr.coin_mexc_holding["pnl"].startswith(("RM", "-RM", "+RM"))
+    assert ps.PortfolioState.get_fields()["pf_currency"].default == "MYR"

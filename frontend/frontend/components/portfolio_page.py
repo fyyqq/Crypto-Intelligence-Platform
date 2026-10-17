@@ -113,7 +113,7 @@ def _currency_button(code: str) -> rx.Component:
 
 
 def _currency_toggle() -> rx.Component:
-    """MYR / USD buttons (USD is the default). They change this card only: the live USD -> MYR rate is applied to
+    """MYR / USD buttons (MYR is the default since 2026-10-18). They change this card only: the live USD -> MYR rate is applied to
     its money amounts by the server (fx_service); the tables below stay in USD."""
     return rx.box(_currency_button("MYR"), _currency_button("USD"), class_name="pf-cur", role="group", aria_label="Card currency")
 
