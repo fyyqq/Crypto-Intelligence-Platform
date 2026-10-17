@@ -16,6 +16,7 @@ Every window lives in WINDOWS; adding a window means adding one entry there.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -254,6 +255,64 @@ def window_status(db: Session, window_name: str) -> dict:
     }
 
 
+# ---- Stablecoins are left out of the Gainers & Losers boards ----------------------------------------
+# A stablecoin is not a mover: its few-hundredths-of-a-percent wobbles around $1 would otherwise fill the Losers
+# board on a quiet day. A coin counts as one when
+#  1. CoinMarketCap tags it a stablecoin (any category with "stablecoin" in its name) AND it trades near a peg
+#     (0.85-1.35 USD: the dollar, euro stablecoins at ~1.12, yield-bearing ones drifting above 1). The price check
+#     matters: the "Stablecoin" tags also sit on protocol and chain tokens (XPL, STABLE, FF, TEL) that really move;
+#  2. or it is not tagged, looks like a dollar token by name/ticker (usd, dollar, stable, euro, US...), sits within
+#     0.97-1.03 USD and moved no more than 2% in the window (a depegged, untagged coin is a real mover).
+STABLE_PEG_RANGE = (0.85, 1.35)
+STABLE_HINT_PRICE_RANGE = (0.97, 1.03)
+STABLE_MAX_MOVE_PCT = 2.0
+_STABLE_NAME_HINT = re.compile(r"usd|dollar|stable|euro|\beur", re.I)
+_STABLE_SYMBOL_HINT = re.compile(r"us[a-z]{0,3}|eur[a-z]{0,3}", re.I)
+_stable_cache: dict = {"at": 0.0, "ids": frozenset()}
+STABLE_IDS_TTL = 600
+
+
+def stablecoin_ids(db: Session) -> frozenset[int]:
+    """cmc ids of the coins CoinMarketCap tags as a stablecoin (cached 10 minutes; a failed read keeps the last copy)."""
+    import time
+
+    if time.time() - _stable_cache["at"] < STABLE_IDS_TTL:
+        return _stable_cache["ids"]
+    from app.models.category import Category, coin_category
+
+    try:
+        ids = frozenset(
+            db.scalars(
+                select(Coin.cmc_id)
+                .join(coin_category, coin_category.c.coin_id == Coin.id)
+                .join(Category, Category.id == coin_category.c.category_id)
+                .where(Category.name.ilike("%stablecoin%"))
+                .distinct()
+            ).all()
+        )
+    except Exception:  # noqa: BLE001 - keep the last known set; the price heuristic still applies
+        return _stable_cache["ids"]
+    _stable_cache.update(at=time.time(), ids=ids)
+    return ids
+
+
+def is_stablecoin(c: dict, tagged: frozenset[int] | set[int] | None = None) -> bool:
+    """True for a stablecoin (see the rules above) given one change row."""
+    price = float(c.get("price_now") or 0)
+    if tagged and c["coin_id"] in tagged and STABLE_PEG_RANGE[0] <= price <= STABLE_PEG_RANGE[1]:
+        return True
+    if STABLE_HINT_PRICE_RANGE[0] <= price <= STABLE_HINT_PRICE_RANGE[1] and abs(c.get("pct_change") or 0) <= STABLE_MAX_MOVE_PCT:
+        name, symbol = c.get("name") or "", c.get("symbol") or ""
+        return bool(_STABLE_NAME_HINT.search(name) or _STABLE_SYMBOL_HINT.fullmatch(symbol))
+    return False
+
+
+def _stable(c: dict) -> bool:
+    """The row's own flag (set by compute_changes / load_daily_movers from the database tags) or, for a row without
+    one, the price rules alone."""
+    return c["stable"] if "stable" in c else is_stablecoin(c)
+
+
 def compute_changes(db: Session, window_name: str) -> list[dict]:
     """THE one % change calculation, shared by gainers and losers.
 
@@ -299,6 +358,7 @@ def compute_changes(db: Session, window_name: str) -> list[dict]:
             then_by_coin[coin_id] = (float(price), synced_at)
 
     names = dict(db.execute(select(Coin.cmc_id, Coin.name).where(Coin.cmc_id.in_(ids))).all())
+    tagged = stablecoin_ids(db)
 
     changes = []
     for snap in current:
@@ -324,6 +384,7 @@ def compute_changes(db: Session, window_name: str) -> list[dict]:
                 "now_at": latest,
             }
         )
+        changes[-1]["stable"] = is_stablecoin(changes[-1], tagged)  # kept in the list (sector scores use it), left off the boards
     return changes
 
 
@@ -365,7 +426,7 @@ def rank_movers(changes: list[dict], bucket: int, direction: str, limit: int = D
         raise SnapshotConfigError(f"Unknown direction '{direction}'. Use 'gainers' or 'losers'.")
     sign = 1 if direction == "gainers" else -1
     floor = bucket_floor(bucket)
-    picked = [c for c in changes if floor < c["rank"] <= bucket and c["pct_change"] * sign > 0]
+    picked = [c for c in changes if floor < c["rank"] <= bucket and c["pct_change"] * sign > 0 and not _stable(c)]
     picked.sort(key=lambda c: c["pct_change"] * sign, reverse=True)
     return picked[: max(0, limit)]
 
@@ -398,7 +459,9 @@ def board_rows(changes: list[dict], bucket: int, direction: str, limit: int = DE
     (exactly 0% goes with the gainers). A held coin outside the band (or with no change on record) is not shown."""
     sign = 1 if direction == "gainers" else -1
     floor = bucket_floor(bucket)
-    band = sorted((c for c in changes if floor < c["rank"] <= bucket), key=lambda c: c["pct_change"] * sign, reverse=True)
+    band = sorted(
+        (c for c in changes if floor < c["rank"] <= bucket and not _stable(c)), key=lambda c: c["pct_change"] * sign, reverse=True
+    )
     held_ids = held_ids or set()
     top = rank_movers(changes, bucket, direction, limit)
     top_ids = {c["coin_id"] for c in top}
@@ -507,20 +570,21 @@ def load_daily_movers(db: Session, day: date) -> dict[str, list[dict]]:
     rank_movers cuts them the same way as the live board. A window with
     nothing saved that day is absent."""
     rows = db.scalars(select(MoversDaily).where(MoversDaily.day == day, MoversDaily.window.in_(list(WINDOWS)))).all()
+    tagged = stablecoin_ids(db)
     out: dict[str, list[dict]] = {}
     for r in rows:
-        out.setdefault(r.window, []).append(
-            {
-                "coin_id": r.coin_id,
-                "rank": r.cmc_rank,
-                "name": r.name,
-                "symbol": r.symbol,
-                "price_now": float(r.price_now),
-                "price_then": float(r.price_then),
-                "pct_change": r.pct_change,
-                "volume_24h": float(r.volume_24h),
-                "then_at": r.then_at,
-                "now_at": r.now_at,
-            }
-        )
+        row = {
+            "coin_id": r.coin_id,
+            "rank": r.cmc_rank,
+            "name": r.name,
+            "symbol": r.symbol,
+            "price_now": float(r.price_now),
+            "price_then": float(r.price_then),
+            "pct_change": r.pct_change,
+            "volume_24h": float(r.volume_24h),
+            "then_at": r.then_at,
+            "now_at": r.now_at,
+        }
+        row["stable"] = is_stablecoin(row, tagged)  # saved boards from before the filter hold stablecoins too
+        out.setdefault(r.window, []).append(row)
     return out
