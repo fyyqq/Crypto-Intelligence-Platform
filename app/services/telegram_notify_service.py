@@ -174,6 +174,8 @@ COMMANDS = [
     {"command": "alerts", "description": "Show list of active alerts"},
     {"command": "price", "description": "Live price of a coin by ticker, e.g. /price $meme"},
     {"command": "portfolio", "description": "Your MEXC portfolio: balance, P/L, holdings, limit & stop orders"},
+    {"command": "currency_converter", "description": "Convert $ to RM or RM to $, e.g. /currency_converter $1000"},
+    {"command": "pnl_calculator", "description": "Profit / loss calculator, e.g. /pnl_calculator $1000 + 50%"},
 ]
 
 
@@ -187,6 +189,11 @@ def commands_overview() -> str:
         "",
         "<b>Price alerts</b>",
         "/alerts - all your active alerts",
+        "",
+        "<b>Calculators</b> (USD and MYR, live rate)",
+        "<code>/currency-converter $1000</code> - dollars to ringgit; <code>/currency-converter RM1000</code> - ringgit to dollars",
+        "<code>/pnl-calculator $1000 + 50%</code> - profit: $1,000 + 50% = $1,500",
+        "<code>/pnl-calculator $1000 - 50%</code> - loss: $1,000 - 50% = $500. RM works too: /pnl-calculator RM4000 - 25%",
         "",
         "<b>Portfolio</b>",
         "/portfolio - your MEXC balance, profit/loss, holdings and open limit / stop orders (only for the account owner)",
@@ -387,9 +394,10 @@ def handle_message(msg: dict) -> None:
         return
     parts = text.split()
     cmd = parts[0][1:].split("@")[0].lower()
-    if cmd == "forex-factory":  # Telegram's menu cannot hold a hyphen; typed by hand it is fine
-        cmd = "forex_factory"
+    if cmd in ("forex-factory", "currency-converter", "pnl-calculator"):  # Telegram's menu cannot hold a hyphen; typed by hand it is fine
+        cmd = cmd.replace("-", "_")
     arg = parts[1] if len(parts) > 1 else ""
+    rest = text.split(None, 1)[1] if len(parts) > 1 else ""  # everything after the command (the calculators take several words)
     if cmd == "start":
         if arg:
             _handle_start(msg)
@@ -407,7 +415,7 @@ def handle_message(msg: dict) -> None:
         _send(chat["id"], commands_overview())
         return
     parsed = digest.parse_command(cmd)
-    if cmd not in ("alerts", "command1", "fear_greed_index", "site_health", "forex_factory", "price", "portfolio") and not parsed:
+    if cmd not in ("alerts", "command1", "fear_greed_index", "site_health", "forex_factory", "price", "portfolio", "currency_converter", "pnl_calculator") and not parsed:
         return
     user_id = _user_for_chat(chat["id"])
     if not user_id:
@@ -418,6 +426,10 @@ def handle_message(msg: dict) -> None:
         _send(chat["id"], site_health_service.build_message())
     elif cmd == "portfolio":
         _send(chat["id"], format_portfolio(user_id))
+    elif cmd in ("currency_converter", "pnl_calculator"):
+        from app.services import calc_service
+
+        _send(chat["id"], calc_service.converter_message(rest) if cmd == "currency_converter" else calc_service.pnl_message(rest))
     elif cmd == "fear_greed_index":
         digest.handle_fng(chat["id"])
     elif cmd == "price":

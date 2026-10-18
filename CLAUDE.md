@@ -23,7 +23,7 @@ Memecoin `/memecoin` (blank, navbar link after Tools) · Profile `/profile` · N
 
 ## Current State (2026-10-05)
 
-- Tools: Profit Calculator (`/tools/profit-calculator`) and Currency Converter (`/tools/currency-converter`), USD/MYR with the live rate, maths in the browser (2026-10-19, **local only, not deployed**); `docs/tools.md`.
+- Tools: Profit Calculator (`/tools/profit-calculator`) and Currency Converter (`/tools/currency-converter`), USD/MYR with the live rate, maths in the browser (2026-10-19, deployed) + Telegram `/currency-converter $1000` / `/pnl-calculator $1000 + 50%` (`app/services/calc_service.py`); `docs/tools.md`.
 - Telegram `/portfolio` shows money in MYR, coin prices in USD (2026-10-18); `docs/portfolio.md`.
 - MEXC portfolio opens in MYR (card, balance chart and the coin page holding) (2026-10-18); details `docs/portfolio.md`.
 - MEXC portfolio (2026-10-16, **live**; server `.env` has `MEXC_API_KEY`/`MEXC_API_SECRET`/`MEXC_VIEWER_EMAILS`): read-only `/portfolio` dashboard (total with a live-rate MYR/USD switch, 24h, P/L, allocation, holdings, open orders, fills 5 a page) + "Your MEXC" box above coin-page Alerts (and, on coins you hold / have orders on, a "My lines" Lightweight Charts view in the main chart area: avg buy blue, limit green, stop-loss red, with a My lines / TradingView switch) + a balance-history chart (recorded every 5 min from 2026-10-16, table `portfolio_balance_history`) + Telegram `/portfolio`, viewer emails only. Real data only on live (key IP-linked to the server; Malaysian ISPs DNS-block MEXC); local UI test with `MEXC_FIXTURE_FILE=tests/fixtures/mexc_demo.json`. Details: `docs/portfolio.md`.
