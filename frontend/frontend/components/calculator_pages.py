@@ -1,0 +1,183 @@
+"""/tools/profit-calculator and /tools/currency-converter.
+
+Both are plain forms whose arithmetic runs in the browser (assets/calculators.js): every keystroke or button press
+answers at once. The live USD -> MYR rate comes from CalcState (fx_service, refreshed every 30 s) and reaches the
+script as `data-rate` on the page's `.calc-root`, so a new rate recalculates the result by itself. Only USD and MYR.
+Colours use theme tokens (styles.css `.calc-*`)."""
+
+import reflex as rx
+
+from frontend.components.tools_page import _PAGE_PADDING, _page_header
+from frontend.state.calc_state import CalcState as C
+
+
+def _seg(label: str, **attrs) -> rx.Component:
+    """One button of a segmented control; assets/calculators.js marks the chosen one."""
+    return rx.el.button(label, type="button", class_name="calc-seg", custom_attrs=attrs)
+
+
+def _field(label: str, control: rx.Component, hint: str = "") -> rx.Component:
+    return rx.box(
+        rx.el.label(label, class_name="calc-label"),
+        control,
+        *([rx.text(hint, size="1", color="var(--gray-11)")] if hint else []),
+        class_name="calc-field",
+    )
+
+
+def _input(field: str, placeholder: str, prefix: str = "", suffix: str = "", value: str = "", **attrs) -> rx.Component:
+    """A number box with an optional prefix (the currency symbol, filled in by the script) and suffix."""
+    return rx.box(
+        *([rx.el.span(prefix, class_name="calc-affix", custom_attrs={"data-o": "prefix"})] if prefix else []),
+        rx.el.input(
+            type="text",
+            input_mode="decimal",
+            placeholder=placeholder,
+            default_value=value,
+            auto_complete="off",
+            spell_check=False,
+            class_name="calc-input",
+            custom_attrs={"data-f": field, **attrs},
+        ),
+        *([rx.el.span(suffix, class_name="calc-affix")] if suffix else []),
+        class_name="calc-input-wrap",
+    )
+
+
+def _rate_status() -> rx.Component:
+    """The live-rate line shared by both pages (also the loading / error state)."""
+    return rx.box(
+        rx.cond(
+            C.fx_rate != "",
+            rx.hstack(
+                rx.box(class_name="calc-live-dot"),
+                rx.text(
+                    "Live mid-market rate · ", C.fx_note, " · updated ", C.fx_time,
+                    size="1", color="var(--gray-11)",
+                ),
+                spacing="2",
+                align="center",
+                wrap="wrap",
+            ),
+            rx.cond(
+                C.fx_error != "",
+                rx.text(C.fx_error, size="1", color="var(--red-11)"),
+                rx.skeleton(rx.text("Loading the live USD / MYR rate", size="1"), height="16px"),
+            ),
+        ),
+        class_name="calc-status",
+    )
+
+
+def _root(kind: str, *children) -> rx.Component:
+    """The element the script works on: its data attributes carry the live rate."""
+    return rx.box(
+        *children,
+        class_name="calc-root",
+        custom_attrs={"data-calc": kind, "data-rate": C.fx_rate, "data-note": C.fx_note, "data-time": C.fx_time},
+    )
+
+
+# ---- Profit calculator ------------------------------------------------------------------------------
+
+def profit_calculator_content() -> rx.Component:
+    form = rx.box(
+        rx.heading("Your trade", size="4"),
+        _field(
+            "Currency",
+            rx.box(_seg("USD ($)", **{"data-cur": "USD"}), _seg("MYR (RM)", **{"data-cur": "MYR"}), class_name="calc-segs"),
+        ),
+        _field("Capital", _input("capital", "1000", prefix="$")),
+        _field(
+            "Result of the trade",
+            rx.box(
+                _seg("Profit  +", **{"data-sign": "1"}),
+                _seg("Loss  −", **{"data-sign": "-1"}),
+                class_name="calc-segs",
+            ),
+        ),
+        _field("Percentage", _input("pct", "50", suffix="%")),
+        class_name="calc-card",
+    )
+    result = rx.box(
+        rx.text("Result", size="2", color="var(--gray-11)"),
+        rx.el.div("—", class_name="calc-big", custom_attrs={"data-o": "result"}),
+        rx.el.div("", class_name="calc-sub", custom_attrs={"data-o": "change"}),
+        rx.el.div("", class_name="calc-formula", custom_attrs={"data-o": "formula"}),
+        rx.box(
+            rx.text("In the other currency", size="1", color="var(--gray-11)"),
+            rx.el.div("", class_name="calc-other", custom_attrs={"data-o": "other"}),
+            class_name="calc-other-box",
+        ),
+        rx.el.div("", class_name="calc-warn", custom_attrs={"data-o": "warn"}),
+        class_name="calc-card calc-result",
+    )
+    return rx.vstack(
+        rx.box(_page_header("Profit Calculator", "Enter your capital and a profit or loss percentage to see the result, in USD or MYR."), width="100%", max_width="980px"),
+        _root(
+            "profit",
+            rx.box(form, result, class_name="calc-two"),
+            _rate_status(),
+        ),
+        spacing="5",
+        align="center",
+        width="100%",
+        padding=_PAGE_PADDING,
+    )
+
+
+# ---- Currency converter -----------------------------------------------------------------------------
+
+def currency_converter_content() -> rx.Component:
+    card = rx.box(
+        rx.box(
+            _field("Amount", _input("amount", "1000", prefix="$", value="1000")),
+            _field(
+                "From",
+                rx.box(_seg("USD", **{"data-cur": "USD"}), _seg("MYR", **{"data-cur": "MYR"}), class_name="calc-segs"),
+            ),
+            rx.el.button(
+                rx.icon("arrow-left-right", size=18),
+                type="button",
+                title="Swap currencies",
+                aria_label="Swap currencies",
+                class_name="calc-swap",
+                custom_attrs={"data-swap": "1"},
+            ),
+            _field("To", rx.el.div("", class_name="calc-to", custom_attrs={"data-o": "to-label"})),
+            class_name="calc-convert-row",
+        ),
+        rx.box(
+            rx.el.div("—", class_name="calc-big", custom_attrs={"data-o": "result"}),
+            rx.el.div("", class_name="calc-formula", custom_attrs={"data-o": "formula"}),
+            rx.el.div("", class_name="calc-rates", custom_attrs={"data-o": "rates"}),
+            class_name="calc-result-block",
+        ),
+        class_name="calc-card",
+    )
+    table = rx.box(
+        rx.heading("Quick conversions", size="3"),
+        rx.el.table(
+            rx.el.thead(rx.el.tr(rx.el.th("", custom_attrs={"data-o": "th-from"}), rx.el.th("", custom_attrs={"data-o": "th-to"}))),
+            rx.el.tbody(custom_attrs={"data-o": "table"}),
+            class_name="calc-table",
+        ),
+        class_name="calc-card",
+    )
+    return rx.vstack(
+        rx.box(_page_header("Currency Converter", "Convert between US dollars and Malaysian ringgit at the live mid-market rate."), width="100%", max_width="980px"),
+        _root(
+            "convert",
+            rx.box(card, table, class_name="calc-two calc-two-convert"),
+            _rate_status(),
+            rx.text(
+                "The mid-market rate is the real exchange rate (no bank margin). A bank or card may charge a fee or a different rate.",
+                size="1",
+                color="var(--gray-11)",
+            ),
+        ),
+        spacing="5",
+        align="center",
+        width="100%",
+        padding=_PAGE_PADDING,
+    )

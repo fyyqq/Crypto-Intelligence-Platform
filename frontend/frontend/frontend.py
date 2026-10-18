@@ -31,6 +31,8 @@ from frontend.components import (
     TOOL_PAGES,
     cpi_fomc_content,
     crypto_calendar_content,
+    currency_converter_content,
+    profit_calculator_content,
     market_charts_content,
     market_indicators_content,
     tools_home_content,
@@ -39,7 +41,7 @@ from frontend.components import (
 from frontend.components.alerts_page import alerts_content
 from frontend.components.notifications_page import notification_popup, notifications_content
 from frontend.components.login_page import AuthState, LoginState, login_page, signup_page
-from frontend.state import CalendarState, CoinState, MacroCalendarState, GainersLosersState, HomeMoversState, MarketStatusState, NewsDetailState, NewsState, NotificationState, PortfolioState, ProfileState, ToolsState
+from frontend.state import CalcState, CalendarState, CoinState, MacroCalendarState, GainersLosersState, HomeMoversState, MarketStatusState, NewsDetailState, NewsState, NotificationState, PortfolioState, ProfileState, ToolsState
 
 
 def _alerts_menu_item() -> rx.Component:
@@ -1274,6 +1276,16 @@ def crypto_calendar_page() -> rx.Component:
     return _tools_shell(crypto_calendar_content())
 
 
+def profit_calculator_page() -> rx.Component:
+    # /tools/profit-calculator: capital + profit/loss % -> result, in USD or MYR (live rate).
+    return _tools_shell(profit_calculator_content(), "/calculators.js")
+
+
+def currency_converter_page() -> rx.Component:
+    # /tools/currency-converter: USD <-> MYR at the live mid-market rate.
+    return _tools_shell(currency_converter_content(), "/calculators.js")
+
+
 def gainers_losers_page() -> rx.Component:
     # /gainers-losers — top gainers and losers from the app's own price snapshots.
     return rx.box(
@@ -1762,6 +1774,18 @@ app.add_page(
     route="/tools/crypto-calendar",
     title="Repace — Crypto Calendar",
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CalendarState.load],
+)
+app.add_page(
+    profit_calculator_page,
+    route="/tools/profit-calculator",
+    title="Repace — Profit Calculator",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CalcState.load_rate],
+)
+app.add_page(
+    currency_converter_page,
+    route="/tools/currency-converter",
+    title="Repace — Currency Converter",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CalcState.load_rate],
 )
 app.add_page(
     market_charts_page,

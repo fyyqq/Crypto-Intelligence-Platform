@@ -1,3 +1,4 @@
+from frontend.components.calculator_pages import currency_converter_content, profit_calculator_content
 from frontend.components.coin_detail import coin_detail_page, similar_coins_page_content
 from frontend.components.coin_table import coin_table
 from frontend.components.filters import filter_bar
@@ -47,5 +48,7 @@ __all__ = [
     "market_charts_content",
     "market_indicators_content",
     "tools_home_content",
+    "profit_calculator_content",
+    "currency_converter_content",
     "watchlist_table",
 ]

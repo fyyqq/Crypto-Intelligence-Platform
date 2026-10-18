@@ -519,6 +519,20 @@ TOOL_PAGES = [
         "description": "This week's key US events from the Forex Factory calendar (inflation CPI, producer prices PPI, Federal Reserve FOMC and Non-Farm Employment) with the exact date and time, forecast, previous and actual values, updated live.",
         "chips": ["CPI", "PPI", "FOMC", "NFP", "Live"],
     },
+    {
+        "title": "Profit Calculator",
+        "href": "/tools/profit-calculator",
+        "icon": "calculator",
+        "description": "Enter your capital and a profit or loss percentage and see the result at once, in US dollars or Malaysian ringgit, with the live exchange rate.",
+        "chips": ["USD", "MYR", "Profit / Loss", "Live rate"],
+    },
+    {
+        "title": "Currency Converter",
+        "href": "/tools/currency-converter",
+        "icon": "arrow-left-right",
+        "description": "Convert between US dollars and Malaysian ringgit at the live mid-market rate, switch the direction in one click, and see quick conversions.",
+        "chips": ["USD", "MYR", "Live rate"],
+    },
 ]
 
 
