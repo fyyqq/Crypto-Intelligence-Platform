@@ -86,3 +86,7 @@
 
 The Total balance card and the balance chart (card and popup) open in **MYR**, and so does the **holding on a coin page** ("Your MEXC" box): the wallet value of that coin and its profit/loss amount are shown in ringgit at the same live rate (`PortfolioState._apply_coin` uses the Portfolio currency, so switching USD / MYR on `/portfolio` changes the coin page too during the session); the average buy price and order prices stay in USD because they are coin prices. The rate is fetched before the first draw (`get_rate`, cached 60 s). Tests `tests/test_portfolio_charts.py`, `tests/test_fx_service.py`.
 
+## Telegram /portfolio in MYR (2026-10-18)
+
+The reply now shows **money in MYR** at the live rate (the same `fx_service` rate as the page, with a line "Amounts in MYR (1 USD = 4.0795 MYR); coin prices in USD"): total balance, 24h change, profit/loss, stablecoins, value locked in orders, each holding's value and its P/L amount, and the small-balances total. **Coin prices stay in USD**: a holding's current price, its average buy price, and the order prices / trigger prices. Percentages are unchanged. If no live MYR rate can be had the amounts fall back to USD and the message says so. Tests `tests/test_telegram_portfolio.py`.
+

@@ -97,7 +97,7 @@ def _handle_start(msg: dict) -> None:
     _set_chat_id(owner[0], chat["id"])
     try:
         _send(chat["id"], "✅ <b>Repace alerts connected.</b> Triggered price alerts will arrive here.\n"
-                          "Commands: /alerts (all active alerts), /alert ETH (one coin).")
+                          "Commands: /alerts (all active alerts). Send /view_all_command for the full list.")
     except Exception:  # noqa: BLE001
         log.exception("telegram confirmation failed")
 
@@ -166,13 +166,12 @@ SEND_RETRY_SECONDS = 2
 # ---- Commands (/alerts, /alert ETH) -------------------------------------------------------
 
 COMMANDS = [
-    {"command": "view_all_command", "description": "Show all commands, incl. the ones that need a {coin} or {date}"},
+    {"command": "view_all_command", "description": "Show all commands"},
     {"command": "clear_chat", "description": "Delete this chat's messages (last 48 hours)"},
     {"command": "site_health", "description": "Site and data health check"},
     {"command": "fear_greed_index", "description": "Fear & Greed Index: now and yesterday"},
     {"command": "forex_factory", "description": "This month's CPI, PPI, FOMC, jobs report & Fed speeches"},
     {"command": "alerts", "description": "Show list of active alerts"},
-    {"command": "alert", "description": "Show active alerts for one coin, e.g. /alert ETH"},
     {"command": "price", "description": "Live price of a coin by ticker, e.g. /price $meme"},
     {"command": "portfolio", "description": "Your MEXC portfolio: balance, P/L, holdings, limit & stop orders"},
 ]
@@ -182,13 +181,12 @@ OVERVIEW_COMMANDS = ("view_all_command", "view_all_commands", "help")  # all sho
 
 
 def commands_overview() -> str:
-    """The /view_all_command text. {coin} and {date} are the parts the user fills in."""
+    """The /view_all_command text."""
     return "\n".join([
         "📖 <b>All commands</b>",
         "",
         "<b>Price alerts</b>",
         "/alerts - all your active alerts",
-        "<code>/alert {coin}</code> - active alerts of one coin, e.g. /alert ETH",
         "",
         "<b>Portfolio</b>",
         "/portfolio - your MEXC balance, profit/loss, holdings and open limit / stop orders (only for the account owner)",
@@ -207,15 +205,6 @@ def commands_overview() -> str:
         "/gainers_losers_7d",
         "/gainers_losers_1m",
         "",
-        "<b>Other rank bands</b>: add _top200 (ranks 101-200), _top300, _top400 or _top500",
-        "/gainers_losers_24h_top200",
-        "/gainers_losers_7d_top300",
-        "/gainers_losers_1m_top500",
-        "",
-        "<b>Past days</b> (saved boards, UTC days since 11 Oct 2026)",
-        "<code>/gainers_losers_{date}</code> - 24H, Top 100, e.g. /gainers_losers_13_10_2026",
-        "<code>/gainers_losers_7d_top200_{date}</code> - timeframe (24h, 7d, 1m) and band (top100...top500) are optional, the date is always last",
-        "{date} = day_month_year, e.g. 13_10_2026",
         "",
         "Boards update once an hour. Sent automatically every day at 08:00 (Kuala Lumpur): the 24H Top 100 board and the Fear &amp; Greed Index. Other boards only when you ask.\n"
         "Reminders 7 days, 3 days and 1 hour before every CPI and PPI release, Non-Farm Employment report, FOMC event and Fed Chair speech are sent automatically.",
@@ -279,26 +268,26 @@ def _user_for_chat(chat_id: int) -> int | None:
         db.close()
 
 
-def format_alerts(user_id: int, symbol: str | None = None) -> str:
+def format_alerts(user_id: int) -> str:
     db = SessionLocal()
     try:
-        q = db.query(PriceAlert).filter(PriceAlert.user_id == user_id, PriceAlert.triggered_at.is_(None))
-        if symbol:
-            q = q.filter(PriceAlert.symbol.ilike(symbol))
-        rows = q.order_by(PriceAlert.symbol, PriceAlert.target_price).all()
+        rows = (
+            db.query(PriceAlert)
+            .filter(PriceAlert.user_id == user_id, PriceAlert.triggered_at.is_(None))
+            .order_by(PriceAlert.symbol, PriceAlert.target_price)
+            .all()
+        )
     finally:
         db.close()
     if not rows:
-        return f"No active alerts for <b>{html.escape(symbol.upper())}</b>." if symbol else "You have no active alerts."
+        return "You have no active alerts."
     by_coin: dict[str, list[str]] = {}
     for r in rows:
         arrow = "🟢 above" if r.direction == "above" else "🔴 below"
         by_coin.setdefault(r.symbol.upper(), []).append(f"{arrow} {_fmt_price(r.target_price)}")
-    head = f"🔔 <b>{html.escape(symbol.upper())} alerts ({len(rows)})</b>" if symbol else f"🔔 <b>Active alerts ({len(rows)})</b>"
-    lines = [head]
+    lines = [f"🔔 <b>Active alerts ({len(rows)})</b>"]
     for sym, items in by_coin.items():
-        if not symbol:
-            lines.append(f"<b>{html.escape(sym)}</b>")
+        lines.append(f"<b>{html.escape(sym)}</b>")
         lines.extend(f"   {i}" for i in items)
     return "\n".join(lines)[:4000]
 
@@ -310,16 +299,23 @@ def _sign_icon(v: float) -> str:
     return "🟢" if v > 0 else "🔴" if v < 0 else "⚪"
 
 
-def _pf_pnl(pnl: float, pct: float) -> str:
-    from app.services import mexc_service as m
+def _money_fns(rate: float, currency: str):
+    """(money, signed money) formatters for a USD amount in `currency` (MYR at `rate`, else USD)."""
+    from app.services import fx_service as fx
 
-    return f"{_sign_icon(pnl)} {m.fmt_signed_money(pnl)} ({pct:+.2f}%)"
+    return (
+        lambda v: fx.format_amount(v * rate, currency),
+        lambda v: fx.format_amount(v * rate, currency, signed=True),
+    )
 
 
 def format_portfolio(user_id: int) -> str:
     """The /portfolio reply: total balance, 24h change, profit/loss, every holding and every open limit / stop
-    order of the MEXC account (read-only, app/services/mexc_service.py). Only an account listed in
-    MEXC_VIEWER_EMAILS gets it; anyone else gets one neutral line and MEXC is not called."""
+    order of the MEXC account (read-only, app/services/mexc_service.py). Money amounts (total balance, 24h change,
+    profit/loss, holding values, stablecoins, locked in orders) are in MYR at the live rate, like the Portfolio page;
+    COIN prices (current, average buy, order prices) stay in USD. Only an account listed in MEXC_VIEWER_EMAILS gets
+    it; anyone else gets one neutral line and MEXC is not called."""
+    from app.services import fx_service as fx
     from app.services import mexc_service as m
 
     db = SessionLocal()
@@ -332,28 +328,39 @@ def format_portfolio(user_id: int) -> str:
     snap = m.portfolio(user_id)
     if not snap.get("ok"):
         return "💼 <b>Portfolio</b> is unavailable right now: " + html.escape(snap.get("error") or "no data yet.")
+    info = fx.get_rate("MYR")  # blocking, cached 60 s, never raises
+    currency, rate = ("MYR", info["rate"]) if info else ("USD", 1.0)
+    money, signed = _money_fns(rate, currency)
+
+    def pnl(v: float, pct: float) -> str:
+        return f"{_sign_icon(v)} {signed(v)} ({pct:+.2f}%)"
+
     lines = ["💼 <b>MEXC portfolio</b>" + (" (demo data)" if snap.get("demo") else "")]
     if snap.get("error"):
         lines.append("⚠️ " + html.escape(snap["error"]) + " (showing the last data)")
+    lines.append(
+        f"<i>Amounts in MYR (1 USD = {rate:.4f} MYR); coin prices in USD</i>" if currency == "MYR"
+        else "<i>The live MYR rate is unavailable right now, so amounts are in USD</i>"
+    )
     lines += [
-        f"Total balance: <b>{m.fmt_money(snap['total_value'])}</b>",
-        f"24h: {_pf_pnl(snap['change_24h'], snap['change_24h_pct'])}",
+        f"Total balance: <b>{money(snap['total_value'])}</b>",
+        f"24h: {pnl(snap['change_24h'], snap['change_24h_pct'])}",
     ]
     if snap["with_cost"]:
-        lines.append(f"P/L: {_pf_pnl(snap['pnl'], snap['pnl_pct'])}")
-    lines.append(f"Stablecoins: {m.fmt_money(snap['stable_value'])} · In open orders: {m.fmt_money(snap['locked_value'])}")
+        lines.append(f"P/L: {pnl(snap['pnl'], snap['pnl_pct'])}")
+    lines.append(f"Stablecoins: {money(snap['stable_value'])} · In open orders: {money(snap['locked_value'])}")
     lines += ["", f"<b>Holdings ({sum(1 for h in snap['holdings'] if not h['is_stable'])} coins)</b>"]
     for h in snap["holdings"]:
         row = f"• <b>{html.escape(h['asset'])}</b> {m.fmt_qty(h['amount'])}"
         if h["is_stable"]:
-            row += f" = {m.fmt_money(h['value'])}"
+            row += f" = {money(h['value'])}"
         else:
-            row += f" @ {_fmt_price(h['price'])} = {m.fmt_money(h['value'])}"
+            row += f" @ {_fmt_price(h['price'])} = {money(h['value'])}"
             if h["avg_price"] > 0:
-                row += f" · avg {_fmt_price(h['avg_price'])} · P/L {_pf_pnl(h['pnl'], h['pnl_pct'])}"
+                row += f" · avg {_fmt_price(h['avg_price'])} · P/L {pnl(h['pnl'], h['pnl_pct'])}"
         lines.append(row)
     if snap["dust_count"]:
-        lines.append(f"<i>+ {snap['dust_count']} small balances ({m.fmt_money(snap['dust_value'])})</i>")
+        lines.append(f"<i>+ {snap['dust_count']} small balances ({money(snap['dust_value'])})</i>")
     lines += ["", f"<b>Open orders ({len(snap['orders'])})</b>"]
     if not snap["orders"]:
         lines.append("None.")
@@ -373,7 +380,7 @@ def format_portfolio(user_id: int) -> str:
 
 
 def handle_message(msg: dict) -> None:
-    """One incoming bot message: /start <code> links, /alerts and /alert <COIN> reply."""
+    """One incoming bot message: /start <code> links, /alerts and the other commands reply."""
     chat = msg.get("chat") or {}
     text = (msg.get("text") or "").strip()
     if chat.get("type") != "private" or not text.startswith("/"):
@@ -400,8 +407,7 @@ def handle_message(msg: dict) -> None:
         _send(chat["id"], commands_overview())
         return
     parsed = digest.parse_command(cmd)
-    past = digest.parse_date_command(cmd)
-    if cmd not in ("alerts", "command1", "alert", "fear_greed_index", "site_health", "forex_factory", "price", "portfolio") and not parsed and not past:
+    if cmd not in ("alerts", "command1", "fear_greed_index", "site_health", "forex_factory", "price", "portfolio") and not parsed:
         return
     user_id = _user_for_chat(chat["id"])
     if not user_id:
@@ -425,15 +431,7 @@ def handle_message(msg: dict) -> None:
 
         macro_reminder_service.handle_command(chat["id"])
     elif parsed:
-        digest.handle_command(chat["id"], parsed[0], arg, parsed[1])
-    elif past:
-        digest.handle_past(chat["id"], *past)
-    elif cmd == "alert":
-        sym = arg.lstrip("$").strip()
-        if not re.fullmatch(r"[A-Za-z0-9]{1,20}", sym):
-            _send(chat["id"], "Usage: /alert ETH")
-        else:
-            _send(chat["id"], format_alerts(user_id, sym))
+        digest.handle_command(chat["id"], parsed)
     else:  # /alerts (and the old /command1 name)
         _send(chat["id"], format_alerts(user_id))
 

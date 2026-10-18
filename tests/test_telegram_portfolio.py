@@ -36,6 +36,9 @@ def env(monkeypatch):
     })
     monkeypatch.setattr(m, "_rate", {"until": 0.0, "strikes": 0})
     monkeypatch.setattr(m, "get_costs", lambda user_id: {})
+    from app.services import fx_service
+
+    monkeypatch.setattr(fx_service, "get_rate", lambda quote="MYR": {"rate": 4.0, "source": "x", "note": ""})
     sent = []
     monkeypatch.setattr(tg, "_send", lambda chat_id, text: sent.append((chat_id, text)))
     yield sent
@@ -46,20 +49,32 @@ def _say(chat_id, text="/portfolio"):
     tg.handle_message({"text": text, "message_id": 5, "chat": {"id": chat_id, "type": "private"}})
 
 
-def test_the_owner_gets_balance_pnl_holdings_and_limit_and_stop_orders(env):
+def test_the_owner_gets_balance_pnl_holdings_in_myr_and_coin_prices_in_usd(env):
     _say(111)
     (chat_id, text), = env
     assert chat_id == 111
     assert "MEXC portfolio" in text and "(demo data)" in text
-    assert "Total balance: <b>$8,249.22</b>" in text and "P/L: 🟢 +$125.57 (+2.04%)" in text
-    assert "24h:" in text and "Stablecoins: $1,243.50" in text and "In open orders: $1,210.56" in text
+    assert "Amounts in MYR (1 USD = 4.0000 MYR); coin prices in USD" in text
+    # money = USD x 4: total balance, P/L, stablecoins, locked value
+    assert "Total balance: <b>RM32,996.88</b>" in text and "P/L: 🟢 +RM502.28 (+2.04%)" in text
+    assert "24h:" in text and "Stablecoins: RM4,974.00" in text and "In open orders: RM4,842.24" in text
     for coin in ("BTC", "ETH", "SUI", "SOL", "PEPE", "LINK", "USDT"):
         assert f"<b>{coin}</b>" in text
-    assert "<b>SUI</b> 820 @ $1.0412 = $853.78 · avg $1.22 · P/L 🔴 -$146.62 (-14.66%)" in text  # price via _fmt_price
+    # a holding: the coin price and the average buy price stay in USD, its value and P/L are ringgit
+    assert "<b>SUI</b> 820 @ $1.0412 = RM3,415.14 · avg $1.22 · P/L 🔴 -RM586.46 (-14.66%)" in text
     assert "Open orders (4)" in text
-    assert "🔴 Sell <b>SOL</b> · Stop-limit $149 (trigger $150)" in text  # the stop order
+    assert "🔴 Sell <b>SOL</b> · Stop-limit $149 (trigger $150)" in text  # order prices: USD
     assert "🔴 Sell <b>SUI</b> · Limit $1.35" in text and "🟢 Buy <b>ETH</b> · Limit $2900" in text
     assert "+ 2 small balances" in text and len(text) < 4096
+
+
+def test_without_a_live_myr_rate_the_amounts_fall_back_to_usd_and_say_so(env, monkeypatch):
+    from app.services import fx_service
+
+    monkeypatch.setattr(fx_service, "get_rate", lambda quote="MYR": None)
+    _say(111)
+    (_, text), = env
+    assert "Total balance: <b>$8,249.22</b>" in text and "MYR rate is unavailable" in text and "RM" not in text
 
 
 def test_another_linked_account_gets_one_neutral_line_and_mexc_is_never_called(env, monkeypatch):

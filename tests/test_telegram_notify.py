@@ -111,7 +111,7 @@ def _sent(calls):
     return [p["text"] for m, p in calls if m == "sendMessage"]
 
 
-def test_alerts_and_alert_commands(env):
+def test_the_alerts_command_and_the_removed_alert_coin_command(env):
     calls, _ = env
     maker = tg.SessionLocal
     tg._set_chat_id(1, 42)
@@ -122,17 +122,14 @@ def test_alerts_and_alert_commands(env):
     _alert(maker, 2, "SOL", "above", 500)  # another account: hidden
     tg.handle_message(_msg("/alerts"))
     tg.handle_message(_msg("/command1"))  # the name the bot menu had before
-    tg.handle_message(_msg("/alert eth"))
+    tg.handle_message(_msg("/alert eth"))  # removed 2026-10-18: the bot no longer answers /alert {coin}
     tg.handle_message(_msg("/alert@test_bot $ETH"))
-    tg.handle_message(_msg("/alert DOGE"))
     tg.handle_message(_msg("/alert"))
     out = _sent(calls)
-    assert "Active alerts (3)" in out[0] and "BTC" in out[0] and "ETH" in out[0] and "SOL" not in out[0]
+    assert len(out) == 2  # only /alerts and /command1 answered
+    assert "Active alerts (3)" in out[0] and "BTC" in out[0] and "ETH" in out[0] and "SOL" not in out[0] and "9999" not in out[0]
     assert out[1] == out[0]
-    assert "ETH alerts (2)" in out[2] and "below $2000" in out[2] and "9999" not in out[2] and "BTC" not in out[2]
-    assert out[3] == out[2]
-    assert "No active alerts for <b>DOGE</b>" in out[4]
-    assert out[5] == "Usage: /alert ETH"
+    assert not any(c["command"] == "alert" for c in tg.COMMANDS)
 
 
 def test_commands_ignore_unlinked_chats_and_groups(env):

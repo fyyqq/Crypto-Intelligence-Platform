@@ -55,13 +55,13 @@ def env(monkeypatch, tmp_path):
     engine.dispose()
 
 
-def test_command_names_and_bands():
+def test_command_names():
     assert dg.command_window("gainers_losers_24h") == "24h"
     assert dg.command_window("gainer-losers-24H") == "24h"  # the spelling typed by hand
     assert dg.command_window("gainers_losers_7d") == "7d"
     assert dg.command_window("gainers_losers_1m") == "30d"
     assert dg.command_window("gainers_losers_9d") is None and dg.command_window("alerts") is None
-    assert [dg.parse_band(a) for a in ("", "200", "top300", "150", "x")] == [100, 200, 300, None, None]
+    assert dg.parse_command("gainers_losers_24h") == "24h" and dg.parse_command("gainer-losers-1M") == "30d"
 
 
 def test_message_format(env, monkeypatch):
@@ -84,12 +84,12 @@ def test_commands_via_handle_message(env):
     sent, _ = env
     msg = lambda t, chat=42: {"text": t, "chat": {"id": chat, "type": "private"}}  # noqa: E731
     tg.handle_message(msg("/gainers_losers_24h"))
-    tg.handle_message(msg("/gainer-losers-7D 200"))
-    tg.handle_message(msg("/gainers_losers_1m banana"))
+    tg.handle_message(msg("/gainer-losers-7D"))
+    tg.handle_message(msg("/gainers_losers_1m"))
     tg.handle_message(msg("/gainers_losers_24h", chat=999))
     assert "24H · Top 100" in sent[0][1]
-    assert "7D · Rank 101-200" in sent[1][1]
-    assert sent[2][1].startswith("Usage:")
+    assert "7D · Top 100" in sent[1][1]
+    assert "1 Month · Top 100" in sent[2][1]
     assert "not connected" in sent[3][1]
 
 
@@ -178,83 +178,23 @@ def test_fng_message_and_command(env, fng):
     assert "Could not load" in sent[2][1]
 
 
-def test_band_commands():
-    assert dg.parse_command("gainers_losers_24h_top100") == ("24h", 100)
-    assert dg.parse_command("gainers_losers_7d_top200") == ("7d", 200)
-    assert dg.parse_command("gainer-losers-1M-top500") == ("30d", 500)  # hand-typed spelling
-    assert dg.parse_command("gainers_losers_24h") == ("24h", None)
-    assert dg.parse_command("gainers_losers_24h_top150") is None and dg.parse_command("gainers_losers_24h_top600") is None
-
-
 def test_menu_entries_are_valid_for_telegram():
     names = [c["command"] for c in dg.COMMANDS]
-    assert len(names) == 18 and len(set(names)) == 18  # 3 windows x (default + 5 bands)
+    assert names == ["gainers_losers_24h", "gainers_losers_7d", "gainers_losers_1m"]  # the rank bands were removed
     assert all(re.fullmatch(r"[a-z0-9_]{1,32}", n) for n in names)
     assert all(1 <= len(c["description"]) <= 256 for c in dg.COMMANDS)
-    assert "gainers_losers_30d_top200" not in names and "gainers_losers_1m_top200" in names
 
 
-def test_band_command_replies_with_that_band(env):
+def test_removed_commands_are_ignored_silently(env):
+    """The other rank bands, the past-day boards (with a date) and an argument-style band no longer exist."""
     sent, _ = env
-    msg = lambda t: {"text": t, "chat": {"id": 42, "type": "private"}}  # noqa: E731
-    tg.handle_message(msg("/gainers_losers_24h_top200"))
-    tg.handle_message(msg("/gainers_losers_7d_top500@test_bot"))
-    tg.handle_message(msg("/gainers_losers_1m_top100"))
-    assert "24H · Rank 101-200" in sent[0][1]
-    assert "7D · Rank 401-500" in sent[1][1]
-    assert "1 Month · Top 100" in sent[2][1]
-
-
-# ---- past days -----------------------------------------------------------------------------
-
-from datetime import date  # noqa: E402
-
-from app.models.movers_daily import MoversDaily  # noqa: E402
-
-
-def _save_day(maker, day, window="24h"):
-    rows = [
-        ("SOL", 5, 10.0, 150.0), ("DOGE", 150, 4.0, 0.2),  # gainers in Top 100 / 101-200
-        ("ETH", 2, -6.0, 2500.0), ("ADA", 120, -3.0, 0.5),  # losers
-    ]
-    db = maker()
-    for i, (sym, rank, pct, price) in enumerate(rows):
-        db.add(MoversDaily(day=day, window=window, coin_id=i + 1, symbol=sym, name=sym, cmc_rank=rank, price_now=price,
-                           price_then=price / (1 + pct / 100), pct_change=pct, volume_24h=1e6,
-                           then_at=datetime(2026, 10, 12, 23, 42), now_at=datetime(2026, 10, 13, 23, 42)))
-    db.commit()
-    db.close()
-
-
-def test_date_command_parsing():
-    assert dg.parse_date_command("gainers_losers_13_10_2026") == (date(2026, 10, 13), "24h", None)
-    assert dg.parse_date_command("gainers_losers_7d_top200_13_10_2026") == (date(2026, 10, 13), "7d", 200)
-    assert dg.parse_date_command("gainers_losers_1m_top300_13_10_2026") == (date(2026, 10, 13), "30d", 300)
-    assert dg.parse_date_command("gainers_losers_24h_13_10_2026") == (date(2026, 10, 13), "24h", None)
-    assert dg.parse_date_command("gainers_losers_top200_13_10_2026") == (date(2026, 10, 13), "24h", 200)
-    assert dg.parse_date_command("gainer-losers-1M-1-2-2026") == (date(2026, 2, 1), "30d", None)
-    assert dg.parse_date_command("gainers_losers_31_02_2026") == (None, "24h", None)  # not a real day
-    assert dg.parse_date_command("gainers_losers_top150_13_10_2026") is None
-    assert dg.parse_date_command("gainers_losers_13_10_2026_7d") is None  # the old order (date before the window)
-    assert dg.parse_date_command("gainers_losers_24h") is None and dg.parse_command("gainers_losers_13_10_2026") is None
-
-
-def test_past_day_board_and_missing_day(env):
-    sent, _ = env
-    _save_day(tg.SessionLocal, date(2026, 10, 13))
-    msg = lambda t: {"text": t, "chat": {"id": 42, "type": "private"}}  # noqa: E731
-    tg.handle_message(msg("/gainers_losers_13_10_2026"))
-    tg.handle_message(msg("/gainers_losers_24h_top200_13_10_2026"))
-    tg.handle_message(msg("/gainers_losers_7d_13_10_2026"))  # nothing saved for that window
-    tg.handle_message(msg("/gainers_losers_01_01_2020"))
-    tg.handle_message(msg("/gainers_losers_31_02_2026"))
-    top100, top200 = sent[0][1], sent[1][1]
-    assert "24H · Top 100 · 13 Oct 2026" in top100 and "Saved board, as of 13 Oct 23:42 UTC" in top100
-    assert "SOL" in top100 and "+10.00%" in top100 and "ETH" in top100 and "DOGE" not in top100
-    assert "Rank 101-200" in top200 and "DOGE" in top200 and "ADA" in top200 and "SOL" not in top200
-    assert "No saved 7D board for 13 Oct 2026" in sent[2][1]
-    assert "No saved 24H board for 1 Jan 2020. Saved boards exist from 13 Oct 2026 to 13 Oct 2026" in sent[3][1]
-    assert "not a valid date" in sent[4][1]
+    for text in ("/gainers_losers_24h_top200", "/gainers_losers_7d_top500@test_bot", "/gainers_losers_13_10_2026",
+                 "/gainers_losers_7d_top200_13_10_2026", "/gainers_losers_24h 200", "/gainer-losers-1M-top300"):
+        tg.handle_message({"text": text, "chat": {"id": 42, "type": "private"}})
+    assert [t for _, t in sent if "Top Gainers" not in t] == []  # a plain /gainers_losers_24h 200 is still the Top 100 board
+    assert len(sent) == 1 and "24H · Top 100" in sent[0][1]
+    assert dg.parse_command("gainers_losers_24h_top200") is None and dg.parse_command("gainers_losers_13_10_2026") is None
+    assert not hasattr(dg, "parse_date_command") and not hasattr(dg, "handle_past")
 
 
 def test_view_all_command_lists_everything_even_for_unlinked_chats(env):
@@ -263,8 +203,9 @@ def test_view_all_command_lists_everything_even_for_unlinked_chats(env):
         tg.handle_message({"text": text, "chat": {"id": 999, "type": "private"}})  # 999 is not linked
     assert len(sent) == 3 and sent[0][1] == sent[1][1] == sent[2][1]
     text = sent[0][1]
-    for part in ("/alerts", "/alert {coin}", "/gainers_losers_24h", "/gainers_losers_7d", "/gainers_losers_1m",
-                 "_top200", "/gainers_losers_{date}", "/gainers_losers_7d_top200_{date}", "13_10_2026"):
+    for part in ("/alerts", "/gainers_losers_24h", "/gainers_losers_7d", "/gainers_losers_1m", "/portfolio", "/price"):
         assert part in text
+    for gone in ("/alert {coin}", "_top200", "{date}", "13_10_2026", "Past days", "Other rank bands"):
+        assert gone not in text
     assert tg.COMMANDS[0]["command"] == "view_all_command"
     assert "{" not in "".join(c["command"] for c in tg.menu_commands())  # menu names stay valid
