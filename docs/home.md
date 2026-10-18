@@ -203,3 +203,8 @@ Four equal-height (244px) bordered cards in one row above the Cryptocurrency new
 
 
 **Homepage changes (2026-10-15):** the "Narrative Radar" strip under the news feed is removed (the stories live on `/narrative-radar`, reached from the Narrative menu). The news strips' cards (`news_page._news_card(compact=True)`) now show the article's **image on top** (120 px high; the full news pages keep 160 px).
+
+## Gainers & Losers card: fixed row height (2026-10-19)
+
+The homepage movers card (`components/market_overview.py::_movers_card`, "Top Gainers" / "Top Losers", two pages) now gives every coin row a **fixed 36px height** (`_MOVER_ROW_HEIGHT`; five rows fill the 244px card). Before, each row was `flex: 1`, so a list with fewer than five coins (one gainer on a quiet day, or after the stablecoin filter) stretched that single row to ~180px, "taking too much height". A short list now keeps the same row size as a full one, with empty space below. Checked at 1440 / 834 / 375 px, dark and light: one gainer = 36px, five losers = 5 x 36px, card stays 244px, no overflow.
+

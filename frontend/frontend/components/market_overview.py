@@ -8,7 +8,7 @@ Layout spec (matched to CoinMarketCap's cards, 2026-10-14): every card is 244px
 tall with 16px padding and a one-line, 24px title row. Market Status is a 2 x 3
 grid of equal columns and equal rows with 8px gaps; every cell has its label
 top-left (12px grey) and its content below; Fear & Greed spans two rows and
-Altcoin Season spans both columns. The movers card has five equal rows."""
+Altcoin Season spans both columns. The movers card has up to five rows of a fixed 36px, so a short list keeps the same row size."""
 
 import reflex as rx
 
@@ -16,6 +16,7 @@ from frontend.state.home_movers_state import HomeMoversState as H
 from frontend.state.market_status_state import MarketStatusState as M
 
 _CARD_HEIGHT = "244px"
+_MOVER_ROW_HEIGHT = "36px"  # five rows fill the card: 244 - 32 padding - 24 title - 6 gap = 182 / 5
 _CARD = dict(
     display="flex",
     flex_direction="column",
@@ -202,8 +203,10 @@ def _mover_row(row: rx.Var[dict]) -> rx.Component:
         color="inherit",
         display="flex",
         align_items="center",
-        flex="1",
-        min_height="0",
+        # A fixed row height (one fifth of the card's list area, 36px), NOT flex: 1: with fewer than five coins a
+        # growing row stretched a single coin to the whole card height.
+        height=_MOVER_ROW_HEIGHT,
+        flex=f"0 0 {_MOVER_ROW_HEIGHT}",
         width="100%",
         padding_x="4px",
         margin_x="-4px",
@@ -242,7 +245,7 @@ def _movers_body() -> rx.Component:
             ),
             rx.cond(
                 H.rows.length() > 0,
-                rx.vstack(rx.foreach(H.rows, _mover_row), spacing="0", width="100%", flex="1", min_height="0"),
+                rx.vstack(rx.foreach(H.rows, _mover_row), spacing="0", width="100%", flex="1", min_height="0", justify="start"),
                 rx.center(rx.text("No data yet", size="2", color="var(--gray-11)"), flex="1"),
             ),
         ),
