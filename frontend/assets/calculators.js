@@ -1,4 +1,4 @@
-// /tools/profit-calculator and /tools/currency-converter (components/calculator_pages.py): the arithmetic runs here, in the
+// /tools/pnl-calculator and /tools/currency-converter (components/calculator_pages.py): the arithmetic runs here, in the
 // browser, so every key press answers at once. The live USD -> MYR rate arrives as `data-rate` on the page's .calc-root
 // (kept fresh by CalcState every 30 s); a new rate recalculates by itself. Only USD and MYR. The pure functions are
 // exported on window.__calc (and module.exports for the tests).
@@ -76,7 +76,8 @@
       var t = tiers[i], ok = t.drop != null && t.pct != null && t.drop >= 0 && t.drop < 100 && t.pct >= 0;
       if (!ok) { rows.push({ valid: false }); continue; }
       var price = ath * (1 - t.drop / 100), spent = budget * t.pct / 100, got = spent / price;
-      rows.push({ valid: true, drop: t.drop, pct: t.pct, price: price, spent: spent, tokens: got, vsPrev: (price / prev - 1) * 100, fromAth: i === 0 || prev === ath });
+      var loss = budget * t.drop / 100; // what a fall of `drop`% takes from the capital put in
+      rows.push({ valid: true, drop: t.drop, pct: t.pct, price: price, spent: spent, tokens: got, vsPrev: (price / prev - 1) * 100, fromAth: i === 0 || prev === ath, loss: loss, balance: budget - loss });
       invested += spent; tokens += got; prev = price; pctSum += t.pct;
     }
     var avg = tokens > 0 ? invested / tokens : null;
@@ -255,7 +256,7 @@
       var inp = function (k, v, label) {
         return '<div class="calc-input-wrap calc-pct-wrap"><input type="text" inputmode="decimal" autocomplete="off" class="calc-input" data-t="' + i + '" data-k="' + k + '" aria-label="Tier ' + (i + 1) + " " + label + '" value="' + String(v == null ? "" : v).replace(/"/g, "") + '"><span class="calc-affix">%</span></div>';
       };
-      html += "<tr><td>" + (i + 1) + "</td><td>" + inp("drop", tiers[i].drop, "drop from the ATH") + "</td><td>" + inp("pct", tiers[i].pct, "share of the budget") + '</td><td class="dca-spent"></td><td class="dca-price"></td><td class="dca-tokens"></td><td class="dca-vs"></td><td>' +
+      html += "<tr><td>" + (i + 1) + "</td><td>" + inp("drop", tiers[i].drop, "drop from the ATH") + "</td><td>" + inp("pct", tiers[i].pct, "share of the budget") + '</td><td class="dca-spent"></td><td class="dca-price"></td><td class="dca-tokens"></td><td class="dca-vs"></td><td class="dca-loss"></td><td class="dca-bal"></td><td>' +
         (tiers.length > 1 ? '<button type="button" class="calc-del" aria-label="Remove tier ' + (i + 1) + '" data-del-tier="' + i + '">×</button>' : "") + "</td></tr>";
     }
     body.innerHTML = html;
@@ -274,22 +275,23 @@
     var trs = root.querySelectorAll('[data-o="tiers"] tr');
     for (var i = 0; i < trs.length; i++) {
       var row = r && r.rows[i], cell = function (c, text) { var el = trs[i].querySelector(c); if (el) el.textContent = text; };
-      if (!row || !row.valid) { cell(".dca-spent", "—"); cell(".dca-price", "—"); cell(".dca-tokens", "—"); cell(".dca-vs", row ? "check the numbers" : "—"); continue; }
+      if (!row || !row.valid) { cell(".dca-spent", "—"); cell(".dca-price", "—"); cell(".dca-tokens", "—"); cell(".dca-vs", row ? "check" : "—"); cell(".dca-loss", "—"); cell(".dca-bal", "—"); continue; }
       cell(".dca-spent", money(row.spent, cur));
       cell(".dca-price", price(row.price, cur));
       cell(".dca-tokens", tokensText(row.tokens));
+      // Loss %: the drop from the ATH (-75%, -80%, -85%), the same value as the Drop from ATH column; the hover says how far
+      // the price falls from the previous tier.
       var vs = trs[i].querySelector(".dca-vs");
       if (vs) {
-        vs.textContent = (row.vsPrev > 0 ? "+" : row.vsPrev < 0 ? "-" : "") + fmtPct(Math.abs(Math.round(row.vsPrev * 100) / 100)) + "%" + (row.fromAth ? " (from ATH)" : "");
-        vs.classList.toggle("calc-up", row.vsPrev > 0); vs.classList.toggle("calc-down", row.vsPrev < 0);
+        vs.textContent = row.drop > 0 ? "-" + fmtPct(Math.round(row.drop * 100) / 100) + "%" : "0%";
+        vs.title = "From the previous tier the price moves " + (row.vsPrev > 0 ? "+" : "") + fmtPct(Math.round(row.vsPrev * 100) / 100) + "%" + (row.fromAth ? " (measured from the ATH)" : "");
+        vs.classList.toggle("calc-down", row.drop > 0);
       }
+      cell(".dca-loss", row.loss > 0 ? "-" + money(row.loss, cur) : money(0, cur));
+      var bal = trs[i].querySelector(".dca-bal");
+      if (bal) { bal.textContent = money(row.balance, cur); bal.classList.toggle("calc-down", row.balance < 0); }
     }
     var allValid = r && r.rows.length > 0 && r.rows.every(function (x) { return x.valid; });
-    out(root, "r-invested", r && r.tokens > 0 ? money(r.invested, cur) : "—");
-    out(root, "r-tokens", r && r.tokens > 0 ? tokensText(r.tokens) : "—");
-    out(root, "r-avg", r && r.avg != null ? price(r.avg, cur) : "—");
-    var dropEl = out(root, "r-avgdrop", r && r.avgDrop != null ? (r.avgDrop < 0 ? "-" : "+") + fmtPct(Math.abs(Math.round(r.avgDrop * 100) / 100)) + "% from the ATH" : "—");
-    if (dropEl) dropEl.classList.toggle("calc-down", !!(r && r.avgDrop < 0));
     var status = q(root, '[data-o="status"]'), sum = r ? Math.round(r.pctSum * 10000) / 10000 : 0, msg = "", tone = 0;
     if (!ready) msg = "Enter your budget and the ATH price.";
     else if (!allValid) { msg = "Each tier needs a drop between 0% and 99.99% and a budget share of 0% or more."; tone = -1; }
@@ -339,16 +341,13 @@
   }, true);
 
   document.addEventListener("click", function (e) {
-    var t = e.target.closest && e.target.closest(".calc-root [data-cur], .calc-root [data-sign], .calc-root [data-swap], .calc-root [data-mode], .calc-root [data-step], .calc-root [data-preset], .calc-root [data-equalize], .calc-root [data-add-tier], .calc-root [data-del-tier], .calc-root [data-dca-preset]");
+    var t = e.target.closest && e.target.closest(".calc-root [data-cur], .calc-root [data-sign], .calc-root [data-swap], .calc-root [data-mode], .calc-root [data-step], .calc-root [data-preset], .calc-root [data-equalize], .calc-root [data-add-tier], .calc-root [data-del-tier]");
     if (!t) return;
     var root = t.closest(".calc-root");
     if (root.dataset.calc === "dca") {
       if (t.hasAttribute("data-cur")) root.dataset.cur = t.getAttribute("data-cur");
       else if (t.hasAttribute("data-add-tier")) { if (root.__tiers.length < MAX_TIERS) root.__tiers.push({ drop: "", pct: "" }); }
       else if (t.hasAttribute("data-del-tier")) { if (root.__tiers.length > 1) root.__tiers.splice(parseInt(t.getAttribute("data-del-tier"), 10), 1); }
-      else if (t.hasAttribute("data-dca-preset")) {
-        root.__tiers = t.getAttribute("data-dca-preset").split(",").map(function (x) { var a = x.split(":"); return { drop: a[0], pct: a[1] }; });
-      }
       renderDca(root, true);
       return;
     }

@@ -65,9 +65,10 @@ def test_both_tools_are_in_the_tools_menu_and_have_routes():
     from frontend.components.tools_page import TOOL_PAGES
 
     by = {p["href"]: p["title"] for p in TOOL_PAGES}
-    assert by["/tools/profit-calculator"] == "Profit Calculator" and by["/tools/currency-converter"] == "Currency Converter"
+    assert by["/tools/pnl-calculator"] == "PNL Calculator" and "/tools/profit-calculator" not in by and by["/tools/currency-converter"] == "Currency Converter"
     src = (ROOT / "frontend" / "frontend" / "frontend.py").read_text()
-    assert 'route="/tools/profit-calculator"' in src and 'route="/tools/currency-converter"' in src
+    assert 'route="/tools/pnl-calculator"' in src and 'route="/tools/currency-converter"' in src
+    assert 'route="/tools/profit-calculator"' in src and 'rx.redirect("/tools/pnl-calculator")' in src  # the old URL redirects
 
 
 @needs_node
@@ -120,6 +121,8 @@ def test_dca_plan_from_the_example():
     assert [x["vsPrev"] for x in r["rows"]] == pytest.approx([-75, -20, -25])  # -75% from the ATH, then the real falls between tiers
     assert r["invested"] == pytest.approx(1000) and r["tokens"] == pytest.approx(12 + 15 + 400 / 15)
     assert r["avg"] == pytest.approx(1000 / (12 + 15 + 400 / 15)) and r["avgDrop"] == pytest.approx(-81.3665, abs=1e-3)
+    # the loss at each tier's drop from the ATH, on the capital put in, and the balance left after it
+    assert [x["loss"] for x in r["rows"]] == pytest.approx([750, 800, 850]) and [x["balance"] for x in r["rows"]] == pytest.approx([250, 200, 150])
 
 
 @needs_node

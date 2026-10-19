@@ -520,8 +520,8 @@ TOOL_PAGES = [
         "chips": ["CPI", "PPI", "FOMC", "NFP", "Live"],
     },
     {
-        "title": "Profit Calculator",
-        "href": "/tools/profit-calculator",
+        "title": "PNL Calculator",
+        "href": "/tools/pnl-calculator",
         "icon": "calculator",
         "description": "Enter your capital and a profit or loss percentage and see the result at once, in US dollars or Malaysian ringgit, with the live exchange rate. Includes a Crypto DCA planner for buying the dips below an all-time high.",
         "chips": ["USD", "MYR", "Profit / Loss", "DCA planner", "Live rate"],

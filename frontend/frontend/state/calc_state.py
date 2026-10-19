@@ -1,4 +1,4 @@
-"""State for the two calculator tools (/tools/profit-calculator and /tools/currency-converter): only the live
+"""State for the two calculator tools (/tools/pnl-calculator and /tools/currency-converter): only the live
 USD -> MYR rate. The arithmetic itself runs in the browser (assets/calculators.js) so every keystroke answers at once;
 this state keeps the rate fresh (read through app/services/fx_service.py: Yahoo Finance polled every 60 s plus two
 daily references, a quote far from the others is dropped) and hands it to the page as data attributes."""

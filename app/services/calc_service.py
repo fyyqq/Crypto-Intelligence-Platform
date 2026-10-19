@@ -1,4 +1,4 @@
-"""The Telegram calculators: /currency_converter and /pnl_calculator (the same maths as the website's Profit Calculator
+"""The Telegram calculators: /currency_converter and /pnl_calculator (the same maths as the website's PNL Calculator
 and Currency Converter tools, assets/calculators.js). USD and MYR only, at the live rate from fx_service.
 
     /currency-converter $1000      -> $1,000.00 = RM4,079.00          ($ converts to MYR)

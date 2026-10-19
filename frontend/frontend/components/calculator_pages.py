@@ -1,4 +1,4 @@
-"""/tools/profit-calculator, /tools/currency-converter and /tools/capital-splitter.
+"""/tools/pnl-calculator, /tools/currency-converter and /tools/capital-splitter.
 
 Both are plain forms whose arithmetic runs in the browser (assets/calculators.js): every keystroke or button press
 answers at once. The live USD -> MYR rate comes from CalcState (fx_service, refreshed every 30 s) and reaches the
@@ -80,45 +80,22 @@ def _root(kind: str, *children) -> rx.Component:
 
 # ---- Profit calculator ------------------------------------------------------------------------------
 
-# Quick plans: "drop from the ATH %:share of the budget %" per tier.
-_DCA_PRESETS = [
-    ("75 / 80 / 85  ·  30 / 30 / 40", "75:30,80:30,85:40"),
-    ("50 / 60 / 70  ·  20 / 30 / 50", "50:20,60:30,70:50"),
-    ("30 / 50 / 70  ·  25 / 25 / 50", "30:25,50:25,70:50"),
-    ("40 / 60 / 80 / 90  ·  10 / 20 / 30 / 40", "40:10,60:20,80:30,90:40"),
-]
-
-
 def _dca_section() -> rx.Component:
-    """Crypto DCA planner: a budget spread over buy tiers placed at chosen drops below the all-time high."""
-    inputs = rx.box(
-        rx.heading("Crypto DCA planner", size="4"),
-        rx.text(
-            "Plan buys at drops below the all-time high (ATH): each tier is how far the price has fallen from the ATH and "
-            "how much of your budget you spend there.",
-            size="2",
-            color="var(--gray-11)",
-        ),
-        rx.box(
-            _field("Currency", rx.box(_seg("USD ($)", **{"data-cur": "USD"}), _seg("MYR (RM)", **{"data-cur": "MYR"}), class_name="calc-segs")),
-            _field("Total budget", _input("budget", "1000", prefix="$", value="1000")),
-            _field("All-time high (ATH) price", rx.box(
+    """Crypto DCA tiers against an all-time high: the capital you put in, the ATH, and one row per buy tier with what you
+    spend, the token price, the tokens bought, the loss at that drop and the balance left after the loss."""
+    controls = rx.box(
+        _field("Currency", rx.box(_seg("USD ($)", **{"data-cur": "USD"}), _seg("MYR (RM)", **{"data-cur": "MYR"}), class_name="calc-segs")),
+        _field("Capital amount", _input("budget", "1000", prefix="$", value="1000")),
+        _field(
+            "All-time high (ATH) price",
+            rx.box(
                 rx.el.span("$", class_name="calc-affix", custom_attrs={"data-o": "prefix2"}),
                 rx.el.input(type="text", input_mode="decimal", placeholder="100", default_value="100", auto_complete="off", spell_check=False,
                             class_name="calc-input", custom_attrs={"data-f": "ath"}),
                 class_name="calc-input-wrap",
-            )),
-            class_name="calc-dca-top",
-        ),
-        rx.box(
-            rx.text("Quick plans (drop from the ATH  ·  share of the budget)", size="1", color="var(--gray-11)"),
-            rx.box(
-                *[rx.el.button(label, type="button", class_name="calc-chip", custom_attrs={"data-dca-preset": plan}) for label, plan in _DCA_PRESETS],
-                class_name="calc-chips",
             ),
-            class_name="calc-field",
         ),
-        class_name="calc-card",
+        class_name="calc-dca-top",
     )
     table = rx.box(
         rx.box(
@@ -126,6 +103,13 @@ def _dca_section() -> rx.Component:
             rx.el.button("+ Add tier", type="button", class_name="calc-chip", custom_attrs={"data-add-tier": "1"}),
             class_name="calc-dca-head",
         ),
+        rx.text(
+            "Buy in tiers as the price falls from the all-time high: each tier is how far below the ATH it is and how much "
+            "of your capital you spend there.",
+            size="2",
+            color="var(--gray-11)",
+        ),
+        controls,
         rx.box(
             rx.el.table(
                 rx.el.thead(
@@ -136,7 +120,9 @@ def _dca_section() -> rx.Component:
                         rx.el.th("Spent"),
                         rx.el.th("Token price"),
                         rx.el.th("Tokens bought"),
-                        rx.el.th("Real drop vs previous tier"),
+                        rx.el.th("Loss %"),
+                        rx.el.th("Loss amount"),
+                        rx.el.th("Balance after loss"),
                         rx.el.th(""),
                     )
                 ),
@@ -147,28 +133,17 @@ def _dca_section() -> rx.Component:
         ),
         rx.el.div("", class_name="calc-status-line", custom_attrs={"data-o": "status"}),
         rx.text(
-            "\"Real drop vs previous tier\" is how far the price falls from one tier to the next: going from -75% to -80% "
-            "below the ATH is only a 20% fall, because the base keeps shrinking. The first tier is measured from the ATH.",
+            "Loss % follows each tier's drop from the ATH. Loss amount = your capital x that %, and Balance after loss = "
+            "your capital - that loss. (Hover a Loss % to see how far the price falls from the previous tier.)",
             size="1",
             color="var(--gray-11)",
         ),
         class_name="calc-card",
     )
-    results = rx.box(
-        rx.heading("Final result", size="4"),
-        rx.box(
-            rx.box(rx.text("Total capital invested", size="1", color="var(--gray-11)"), rx.el.div("—", class_name="calc-big calc-big-sm", custom_attrs={"data-o": "r-invested"})),
-            rx.box(rx.text("Total tokens accumulated", size="1", color="var(--gray-11)"), rx.el.div("—", class_name="calc-big calc-big-sm", custom_attrs={"data-o": "r-tokens"})),
-            rx.box(rx.text("Final average entry price", size="1", color="var(--gray-11)"), rx.el.div("—", class_name="calc-big calc-big-sm", custom_attrs={"data-o": "r-avg"})),
-            rx.box(rx.text("Average entry vs the ATH", size="1", color="var(--gray-11)"), rx.el.div("—", class_name="calc-big calc-big-sm", custom_attrs={"data-o": "r-avgdrop"})),
-            class_name="calc-dca-results",
-        ),
-        class_name="calc-card",
-    )
-    return _root("dca", rx.box(inputs, results, class_name="calc-two"), table)
+    return _root("dca", table)
 
 
-def profit_calculator_content() -> rx.Component:
+def pnl_calculator_content() -> rx.Component:
     form = rx.box(
         rx.heading("Your trade", size="4"),
         _field(
@@ -201,7 +176,7 @@ def profit_calculator_content() -> rx.Component:
         class_name="calc-card calc-result",
     )
     return rx.vstack(
-        rx.box(_page_header("Profit Calculator", "Enter your capital and a profit or loss percentage to see the result, in USD or MYR."), width="100%", max_width="980px"),
+        rx.box(_page_header("PNL Calculator", "Enter your capital and a profit or loss percentage to see the result, in USD or MYR, and plan your buy tiers below the all-time high."), width="100%", max_width="980px"),
         _root(
             "profit",
             rx.box(form, result, class_name="calc-two"),

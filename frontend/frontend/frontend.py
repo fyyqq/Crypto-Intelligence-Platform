@@ -33,7 +33,7 @@ from frontend.components import (
     crypto_calendar_content,
     capital_splitter_content,
     currency_converter_content,
-    profit_calculator_content,
+    pnl_calculator_content,
     market_charts_content,
     market_indicators_content,
     tools_home_content,
@@ -1277,9 +1277,14 @@ def crypto_calendar_page() -> rx.Component:
     return _tools_shell(crypto_calendar_content())
 
 
-def profit_calculator_page() -> rx.Component:
-    # /tools/profit-calculator: capital + profit/loss % -> result, in USD or MYR (live rate).
-    return _tools_shell(profit_calculator_content(), "/calculators.js")
+def pnl_calculator_page() -> rx.Component:
+    # /tools/pnl-calculator: capital + profit/loss % -> result, in USD or MYR (live rate), plus the DCA tier table.
+    return _tools_shell(pnl_calculator_content(), "/calculators.js")
+
+
+def profit_calculator_redirect_page() -> rx.Component:
+    # /tools/profit-calculator was this page's first URL: old links and bookmarks land on /tools/pnl-calculator.
+    return rx.center(rx.spinner(), min_height="40vh")
 
 
 def currency_converter_page() -> rx.Component:
@@ -1782,10 +1787,16 @@ app.add_page(
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CalendarState.load],
 )
 app.add_page(
-    profit_calculator_page,
-    route="/tools/profit-calculator",
-    title="Repace — Profit Calculator",
+    pnl_calculator_page,
+    route="/tools/pnl-calculator",
+    title="Repace — PNL Calculator",
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CalcState.load_rate],
+)
+app.add_page(
+    profit_calculator_redirect_page,
+    route="/tools/profit-calculator",
+    title="Repace — PNL Calculator",
+    on_load=[rx.redirect("/tools/pnl-calculator")],
 )
 app.add_page(
     currency_converter_page,
