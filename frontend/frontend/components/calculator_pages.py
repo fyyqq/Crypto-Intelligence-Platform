@@ -87,7 +87,6 @@ def _dca_section() -> rx.Component:
     """Crypto DCA tiers against an all-time high: the capital you put in, the ATH, and one row per buy tier with what you
     spend, the token price, the tokens bought, the loss at that drop and the balance left after the loss."""
     controls = rx.box(
-        _field("Currency", rx.box(_seg("USD ($)", **{"data-cur": "USD"}), _seg("MYR (RM)", **{"data-cur": "MYR"}), class_name="calc-segs")),
         _field("Capital amount", _input("budget", "1000", prefix="$", value="1000")),
         _field(
             "All-time high (ATH) price",

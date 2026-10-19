@@ -143,5 +143,7 @@ def test_the_pnl_page_sections_share_one_width_and_the_tier_table_has_an_add_mor
     assert src.count("wide=True") == 2 and "max_width=_WIDE" in src  # the calculator, the tier card and the heading
     assert 'class_name="calc-add-more"' in src and '"+ Add more"' in src
     css = (ROOT / "frontend" / "assets" / "styles.css").read_text()
+    dca_src = src[src.index("def _dca_section"):src.index("def pnl_calculator_content")]
+    assert "data-cur" not in dca_src and "MYR" not in dca_src  # the buy tiers table has no currency switch: it is USD
     assert ".calc-root.calc-wide { max-width: 1180px; }" in css and 'calc-root[data-calc="dca"] { max-width' not in css
     assert "var MAX_TIERS = 20;" in JS.read_text()

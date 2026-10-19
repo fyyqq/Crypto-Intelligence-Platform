@@ -1927,7 +1927,7 @@ table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 
 /* Profit calculator page: the Crypto DCA planner */
 .calc-dca-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
-@media (min-width: 560px) { .calc-dca-top { grid-template-columns: repeat(2, minmax(0, 1fr)); } .calc-dca-top > :first-child { grid-column: 1 / -1; } }
+@media (min-width: 560px) { .calc-dca-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }  }
 .calc-root.calc-wide { max-width: 1180px; }
 .calc-add-more {
   width: 100%; padding: 10px 14px; border: 1px dashed var(--gray-a8); border-radius: 10px; background: transparent;
