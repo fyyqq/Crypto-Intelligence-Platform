@@ -68,3 +68,30 @@ def test_both_tools_are_in_the_tools_menu_and_have_routes():
     assert by["/tools/profit-calculator"] == "Profit Calculator" and by["/tools/currency-converter"] == "Currency Converter"
     src = (ROOT / "frontend" / "frontend" / "frontend.py").read_text()
     assert 'route="/tools/profit-calculator"' in src and 'route="/tools/currency-converter"' in src
+
+
+@needs_node
+def test_capital_split_amounts_add_up_to_the_cent():
+    assert run_js("c.splitAmounts(1000, [100/3, 100/3, 100/3])") == [333.34, 333.33, 333.33]  # never 999.99
+    assert run_js("c.splitAmounts(1000, [20, 20, 60])") == [200, 200, 600]  # the 20% + 20% + 60% example
+    assert run_js("c.splitAmounts(4000, [20, 20, 60])") == [800, 800, 2400]
+    assert run_js("c.splitAmounts(100, [100/7, 100/7, 100/7, 100/7, 100/7, 100/7, 100/7])") == [14.29, 14.29, 14.29, 14.29, 14.28, 14.28, 14.28]
+    assert sum(run_js("c.splitAmounts(0.05, [50, 50])")) == pytest.approx(0.05)
+    assert run_js("c.splitAmounts(1000, [20, 20])") == [200, 200]  # percentages that do not reach 100 are not scaled up
+    assert run_js("c.splitAmounts(1000, [70, 50])") == [700, 500]  # nor scaled down when over 100 (the page warns)
+
+
+@needs_node
+def test_equal_percentages_add_up_to_exactly_100():
+    assert run_js("c.equalPcts(3)") == [33.33, 33.33, 33.34]
+    assert run_js("c.equalPcts(2)") == [50, 50] and run_js("c.equalPcts(4)") == [25, 25, 25, 25]
+    for n in range(2, 13):
+        assert sum(run_js(f"c.equalPcts({n})")) == pytest.approx(100)
+
+
+def test_capital_splitter_is_in_the_tools_menu_with_a_route():
+    sys.path.insert(0, str(ROOT / "frontend"))
+    from frontend.components.tools_page import TOOL_PAGES
+
+    assert {p["href"]: p["title"] for p in TOOL_PAGES}["/tools/capital-splitter"] == "Capital Splitter"
+    assert 'route="/tools/capital-splitter"' in (ROOT / "frontend" / "frontend" / "frontend.py").read_text()

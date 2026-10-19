@@ -533,6 +533,13 @@ TOOL_PAGES = [
         "description": "Convert between US dollars and Malaysian ringgit at the live mid-market rate, switch the direction in one click, and see quick conversions.",
         "chips": ["USD", "MYR", "Live rate"],
     },
+    {
+        "title": "Capital Splitter",
+        "href": "/tools/capital-splitter",
+        "icon": "split",
+        "description": "Split your capital into equal parts or your own percentages, for example $1,000 in three entries or 20% / 20% / 60%, in US dollars or Malaysian ringgit.",
+        "chips": ["Equal parts", "Custom %", "USD", "MYR"],
+    },
 ]
 
 

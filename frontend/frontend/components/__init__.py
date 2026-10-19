@@ -1,4 +1,4 @@
-from frontend.components.calculator_pages import currency_converter_content, profit_calculator_content
+from frontend.components.calculator_pages import capital_splitter_content, currency_converter_content, profit_calculator_content
 from frontend.components.coin_detail import coin_detail_page, similar_coins_page_content
 from frontend.components.coin_table import coin_table
 from frontend.components.filters import filter_bar
@@ -50,5 +50,6 @@ __all__ = [
     "tools_home_content",
     "profit_calculator_content",
     "currency_converter_content",
+    "capital_splitter_content",
     "watchlist_table",
 ]

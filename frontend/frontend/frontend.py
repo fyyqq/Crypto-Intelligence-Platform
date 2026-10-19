@@ -31,6 +31,7 @@ from frontend.components import (
     TOOL_PAGES,
     cpi_fomc_content,
     crypto_calendar_content,
+    capital_splitter_content,
     currency_converter_content,
     profit_calculator_content,
     market_charts_content,
@@ -1286,6 +1287,11 @@ def currency_converter_page() -> rx.Component:
     return _tools_shell(currency_converter_content(), "/calculators.js")
 
 
+def capital_splitter_page() -> rx.Component:
+    # /tools/capital-splitter: split a capital into equal parts or custom percentages.
+    return _tools_shell(capital_splitter_content(), "/calculators.js")
+
+
 def gainers_losers_page() -> rx.Component:
     # /gainers-losers — top gainers and losers from the app's own price snapshots.
     return rx.box(
@@ -1785,6 +1791,12 @@ app.add_page(
     currency_converter_page,
     route="/tools/currency-converter",
     title="Repace — Currency Converter",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CalcState.load_rate],
+)
+app.add_page(
+    capital_splitter_page,
+    route="/tools/capital-splitter",
+    title="Repace — Capital Splitter",
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CalcState.load_rate],
 )
 app.add_page(

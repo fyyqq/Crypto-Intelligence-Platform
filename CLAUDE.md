@@ -23,6 +23,7 @@ Memecoin `/memecoin` (blank, navbar link after Tools) · Profile `/profile` · N
 
 ## Current State (2026-10-05)
 
+- Tools: Capital Splitter (`/tools/capital-splitter`: equal or custom-% split of a capital, USD/MYR, cents add up; 2026-10-19, **local only, not deployed**); `docs/tools.md`.
 - Tools: Profit Calculator (`/tools/profit-calculator`) and Currency Converter (`/tools/currency-converter`), USD/MYR with the live rate, maths in the browser (2026-10-19, deployed) + Telegram `/currency-converter $1000` / `/pnl-calculator $1000 + 50%` (`app/services/calc_service.py`); `docs/tools.md`.
 - Telegram `/portfolio` shows money in MYR, coin prices in USD (2026-10-18); `docs/portfolio.md`.
 - MEXC portfolio opens in MYR (card, balance chart and the coin page holding) (2026-10-18); details `docs/portfolio.md`.

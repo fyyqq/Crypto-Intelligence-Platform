@@ -1,4 +1,4 @@
-"""/tools/profit-calculator and /tools/currency-converter.
+"""/tools/profit-calculator, /tools/currency-converter and /tools/capital-splitter.
 
 Both are plain forms whose arithmetic runs in the browser (assets/calculators.js): every keystroke or button press
 answers at once. The live USD -> MYR rate comes from CalcState (fx_service, refreshed every 30 s) and reaches the
@@ -176,6 +176,84 @@ def currency_converter_content() -> rx.Component:
                 color="var(--gray-11)",
             ),
         ),
+        spacing="5",
+        align="center",
+        width="100%",
+        padding=_PAGE_PADDING,
+    )
+
+
+# ---- Capital splitter -------------------------------------------------------------------------------
+
+_PRESETS = [("Equal 2", "50,50"), ("20 / 20 / 60", "20,20,60"), ("40 / 30 / 30", "40,30,30"), ("50 / 30 / 20", "50,30,20"), ("25 x 4", "25,25,25,25"), ("10 / 20 / 30 / 40", "10,20,30,40")]
+
+
+def capital_splitter_content() -> rx.Component:
+    controls = rx.box(
+        rx.box(
+            _field("Currency", rx.box(_seg("USD ($)", **{"data-cur": "USD"}), _seg("MYR (RM)", **{"data-cur": "MYR"}), class_name="calc-segs")),
+            _field("Capital", _input("capital", "1000", prefix="$", value="1000")),
+            class_name="calc-split-top",
+        ),
+        rx.box(
+            _field("Split", rx.box(_seg("Equal parts", **{"data-mode": "equal"}), _seg("Custom %", **{"data-mode": "custom"}), class_name="calc-segs")),
+            _field(
+                "Number of parts",
+                rx.box(
+                    rx.el.button("−", type="button", aria_label="Fewer parts", class_name="calc-step", custom_attrs={"data-step": "-1"}),
+                    rx.el.div("3", class_name="calc-count", custom_attrs={"data-o": "count"}),
+                    rx.el.button("+", type="button", aria_label="More parts", class_name="calc-step", custom_attrs={"data-step": "1"}),
+                    class_name="calc-stepper",
+                ),
+            ),
+            class_name="calc-split-top",
+        ),
+        rx.box(
+            rx.text("Quick splits", size="1", color="var(--gray-11)"),
+            rx.box(
+                *[rx.el.button(label, type="button", class_name="calc-chip", custom_attrs={"data-preset": pcts}) for label, pcts in _PRESETS],
+                rx.el.button("Make equal", type="button", class_name="calc-chip", custom_attrs={"data-equalize": "1"}),
+                class_name="calc-chips",
+            ),
+            class_name="calc-field",
+        ),
+        class_name="calc-card",
+    )
+    table = rx.box(
+        rx.heading("Your parts", size="4"),
+        rx.box(
+            rx.el.table(
+                rx.el.thead(
+                    rx.el.tr(
+                        rx.el.th("Part"),
+                        rx.el.th("Percent"),
+                        rx.el.th("Amount"),
+                        rx.el.th("", custom_attrs={"data-o": "th-oth"}),
+                    )
+                ),
+                rx.el.tbody(custom_attrs={"data-o": "parts"}),
+                rx.el.tfoot(
+                    rx.el.tr(
+                        rx.el.td("Total"),
+                        rx.el.td("", custom_attrs={"data-o": "total-pct"}),
+                        rx.el.td("", custom_attrs={"data-o": "total"}),
+                        rx.el.td(""),
+                    )
+                ),
+                class_name="calc-table calc-parts-table",
+            ),
+            class_name="calc-scroll",
+        ),
+        rx.el.div("", class_name="calc-status-line", custom_attrs={"data-o": "status"}),
+        class_name="calc-card",
+    )
+    return rx.vstack(
+        rx.box(
+            _page_header("Capital Splitter", "Split your capital into equal parts or your own percentages (for example 20% + 20% + 60%), in USD or MYR."),
+            width="100%",
+            max_width="980px",
+        ),
+        _root("split", rx.box(controls, table, class_name="calc-two calc-two-split"), _rate_status()),
         spacing="5",
         align="center",
         width="100%",

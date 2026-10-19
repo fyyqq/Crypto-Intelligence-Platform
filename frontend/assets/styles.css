@@ -1893,3 +1893,34 @@ table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 .calc-table th:last-child, .calc-table td:last-child { text-align: right; }
 .calc-two-convert { align-items: start; }
 @media (min-width: 900px) { .calc-two-convert { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); } }
+
+/* /tools/capital-splitter */
+.calc-split-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 560px) { .calc-split-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+@media (min-width: 900px) { .calc-two-split { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: start; } }
+.calc-stepper { display: flex; align-items: center; gap: 10px; height: 48px; }
+.calc-step {
+  width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--gray-a7); background: var(--color-background);
+  color: var(--gray-12); font-size: 22px; line-height: 1; cursor: pointer;
+}
+.calc-step:hover { background: var(--gray-a3); }
+.calc-count { min-width: 40px; text-align: center; font-size: 22px; font-weight: 700; color: var(--gray-12); }
+.calc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.calc-chip {
+  padding: 6px 12px; border-radius: 999px; border: 1px solid var(--gray-a7); background: var(--gray-a2); color: var(--gray-12);
+  font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.calc-chip:hover { background: var(--gray-a4); }
+.calc-scroll { overflow-x: auto; }
+.calc-parts-table td, .calc-parts-table th { white-space: nowrap; }
+.calc-parts-table th:nth-child(2), .calc-parts-table td:nth-child(2) { text-align: left; }
+.calc-parts-table th:nth-child(3), .calc-parts-table td:nth-child(3), .calc-parts-table th:nth-child(4), .calc-parts-table td:nth-child(4) { text-align: right; }
+.calc-parts-table .calc-amt { font-weight: 600; }
+.calc-parts-table .calc-oth { color: var(--gray-11); }
+.calc-parts-table tfoot td { border-top: 2px solid var(--gray-a6); font-weight: 700; }
+.calc-pct-wrap { height: 36px; padding: 0 10px; max-width: 120px; }
+.calc-pct-wrap .calc-input { font-size: 15px; }
+.calc-status-line { font-size: 14px; font-weight: 600; }
+.calc-amber { color: var(--amber-11); }
+.calc-two-split .calc-seg { padding: 9px 6px; font-size: 13px; }
+@media (max-width: 519px) { .calc-parts-table th:nth-child(4), .calc-parts-table td:nth-child(4) { display: none; } }
