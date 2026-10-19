@@ -95,3 +95,15 @@ def test_capital_splitter_is_in_the_tools_menu_with_a_route():
 
     assert {p["href"]: p["title"] for p in TOOL_PAGES}["/tools/capital-splitter"] == "Capital Splitter"
     assert 'route="/tools/capital-splitter"' in (ROOT / "frontend" / "frontend" / "frontend.py").read_text()
+
+
+def test_every_quick_split_lists_the_smaller_numbers_first_and_adds_up_to_100():
+    sys.path.insert(0, str(ROOT / "frontend"))
+    from frontend.components.calculator_pages import _PRESETS
+
+    for label, pcts in _PRESETS:
+        nums = [float(x) for x in pcts.split(",")]
+        assert nums == sorted(nums), label  # smallest first
+        assert sum(nums) == 100 and label.replace(" ", "").replace("/", ",").split(",")[:len(nums)] != [], label
+    assert "30,30,40" in [p for _, p in _PRESETS] and "20,30,50" in [p for _, p in _PRESETS]
+    assert "40,30,30" not in [p for _, p in _PRESETS] and "50,30,20" not in [p for _, p in _PRESETS]
