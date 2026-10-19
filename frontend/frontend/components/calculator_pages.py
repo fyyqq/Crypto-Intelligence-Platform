@@ -85,7 +85,7 @@ def _root(kind: str, *children, wide: bool = False) -> rx.Component:
 
 def _dca_section() -> rx.Component:
     """Crypto DCA tiers against an all-time high: the capital you put in, the ATH, and one row per buy tier with what you
-    spend, the token price, the tokens bought, the loss at that drop and the balance left after the loss."""
+    spend, the token price, the loss at that drop and the balance left after the loss."""
     controls = rx.box(
         _field("Capital amount", _input("budget", "1000", prefix="$", value="1000")),
         _field(
@@ -121,7 +121,6 @@ def _dca_section() -> rx.Component:
                         rx.el.th("Budget %"),
                         rx.el.th("Spent"),
                         rx.el.th("Token price"),
-                        rx.el.th("Tokens bought"),
                         rx.el.th("Loss %"),
                         rx.el.th("Loss amount"),
                         rx.el.th("Balance after loss"),

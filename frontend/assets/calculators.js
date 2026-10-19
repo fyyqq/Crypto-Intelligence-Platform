@@ -244,10 +244,6 @@
     return SYM[cur] + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: digits });
   }
 
-  function tokensText(v) {
-    return v.toLocaleString("en-US", { maximumFractionDigits: v >= 1000 ? 2 : v >= 1 ? 4 : 8 });
-  }
-
   function buildDcaRows(root) {
     var body = q(root, '[data-o="tiers"]'), tiers = root.__tiers || [];
     if (!body) return;
@@ -256,7 +252,7 @@
       var inp = function (k, v, label) {
         return '<div class="calc-input-wrap calc-pct-wrap"><input type="text" inputmode="decimal" autocomplete="off" class="calc-input" data-t="' + i + '" data-k="' + k + '" aria-label="Tier ' + (i + 1) + " " + label + '" value="' + String(v == null ? "" : v).replace(/"/g, "") + '"><span class="calc-affix">%</span></div>';
       };
-      html += "<tr><td>" + (i + 1) + "</td><td>" + inp("drop", tiers[i].drop, "drop from the ATH") + "</td><td>" + inp("pct", tiers[i].pct, "share of the budget") + '</td><td class="dca-spent"></td><td class="dca-price"></td><td class="dca-tokens"></td><td class="dca-vs"></td><td class="dca-loss"></td><td class="dca-bal"></td><td>' +
+      html += "<tr><td>" + (i + 1) + "</td><td>" + inp("drop", tiers[i].drop, "drop from the ATH") + "</td><td>" + inp("pct", tiers[i].pct, "share of the budget") + '</td><td class="dca-spent"></td><td class="dca-price"></td><td class="dca-vs"></td><td class="dca-loss"></td><td class="dca-bal"></td><td>' +
         (tiers.length > 1 ? '<button type="button" class="calc-del" aria-label="Remove tier ' + (i + 1) + '" data-del-tier="' + i + '">×</button>' : "") + "</td></tr>";
     }
     body.innerHTML = html;
@@ -279,10 +275,9 @@
     var trs = root.querySelectorAll('[data-o="tiers"] tr');
     for (var i = 0; i < trs.length; i++) {
       var row = r && r.rows[i], cell = function (c, text) { var el = trs[i].querySelector(c); if (el) el.textContent = text; };
-      if (!row || !row.valid) { cell(".dca-spent", "—"); cell(".dca-price", "—"); cell(".dca-tokens", "—"); cell(".dca-vs", row && !blank[i] ? "check" : "—"); cell(".dca-loss", "—"); cell(".dca-bal", "—"); continue; }
+      if (!row || !row.valid) { cell(".dca-spent", "—"); cell(".dca-price", "—"); cell(".dca-vs", row && !blank[i] ? "check" : "—"); cell(".dca-loss", "—"); cell(".dca-bal", "—"); continue; }
       cell(".dca-spent", money(row.spent, cur));
       cell(".dca-price", price(row.price, cur));
-      cell(".dca-tokens", tokensText(row.tokens));
       // Loss %: the drop from the ATH (-75%, -80%, -85%), the same value as the Drop from ATH column; the hover says how far
       // the price falls from the previous tier.
       var vs = trs[i].querySelector(".dca-vs");
