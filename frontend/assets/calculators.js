@@ -234,7 +234,7 @@
   }
 
   // ---- DCA against the ATH -------------------------------------------------------------------------------------
-  var MAX_TIERS = 10;
+  var MAX_TIERS = 20;
 
   function pos(text) { return num(String(text == null ? "" : text).replace(/^\s*[-−–]/, "")); } // "-75" and "75" are the same drop
 
@@ -268,14 +268,18 @@
     out(root, "prefix", SYM[cur]);
     out(root, "prefix2", SYM[cur]);
     if (rebuild) buildDcaRows(root);
+    var addButtons = root.querySelectorAll("[data-add-tier]");
+    for (var b = 0; b < addButtons.length; b++) addButtons[b].style.display = (root.__tiers || []).length >= MAX_TIERS ? "none" : "";
     var budget = num(q(root, '[data-f="budget"]').value), ath = num(q(root, '[data-f="ath"]').value);
     var tiers = (root.__tiers || []).map(function (t) { var d = pos(t.drop), p = num(t.pct); return { drop: d, pct: p }; });
     var ready = budget != null && ath != null && ath > 0;
+    // A row with both boxes still empty (just added) is not an error: it shows dashes and is left out.
+    var blank = (root.__tiers || []).map(function (t) { return String(t.drop || "").trim() === "" && String(t.pct || "").trim() === ""; });
     var r = ready ? dca(budget, ath, tiers) : null;
     var trs = root.querySelectorAll('[data-o="tiers"] tr');
     for (var i = 0; i < trs.length; i++) {
       var row = r && r.rows[i], cell = function (c, text) { var el = trs[i].querySelector(c); if (el) el.textContent = text; };
-      if (!row || !row.valid) { cell(".dca-spent", "—"); cell(".dca-price", "—"); cell(".dca-tokens", "—"); cell(".dca-vs", row ? "check" : "—"); cell(".dca-loss", "—"); cell(".dca-bal", "—"); continue; }
+      if (!row || !row.valid) { cell(".dca-spent", "—"); cell(".dca-price", "—"); cell(".dca-tokens", "—"); cell(".dca-vs", row && !blank[i] ? "check" : "—"); cell(".dca-loss", "—"); cell(".dca-bal", "—"); continue; }
       cell(".dca-spent", money(row.spent, cur));
       cell(".dca-price", price(row.price, cur));
       cell(".dca-tokens", tokensText(row.tokens));
@@ -291,7 +295,7 @@
       var bal = trs[i].querySelector(".dca-bal");
       if (bal) { bal.textContent = money(row.balance, cur); bal.classList.toggle("calc-down", row.balance < 0); }
     }
-    var allValid = r && r.rows.length > 0 && r.rows.every(function (x) { return x.valid; });
+    var allValid = r && r.rows.length > 0 && r.rows.every(function (x, i) { return x.valid || blank[i]; });
     var status = q(root, '[data-o="status"]'), sum = r ? Math.round(r.pctSum * 10000) / 10000 : 0, msg = "", tone = 0;
     if (!ready) msg = "Enter your budget and the ATH price.";
     else if (!allValid) { msg = "Each tier needs a drop between 0% and 99.99% and a budget share of 0% or more."; tone = -1; }

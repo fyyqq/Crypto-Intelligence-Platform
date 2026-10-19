@@ -69,11 +69,14 @@ def _rate_status() -> rx.Component:
     )
 
 
-def _root(kind: str, *children) -> rx.Component:
+_WIDE = "1180px"  # the PNL Calculator page: every section (and its heading) is this wide
+
+
+def _root(kind: str, *children, wide: bool = False) -> rx.Component:
     """The element the script works on: its data attributes carry the live rate."""
     return rx.box(
         *children,
-        class_name="calc-root",
+        class_name="calc-root calc-wide" if wide else "calc-root",
         custom_attrs={"data-calc": kind, "data-rate": C.fx_rate, "data-note": C.fx_note, "data-time": C.fx_time},
     )
 
@@ -131,6 +134,7 @@ def _dca_section() -> rx.Component:
             ),
             class_name="calc-scroll",
         ),
+        rx.el.button("+ Add more", type="button", class_name="calc-add-more", custom_attrs={"data-add-tier": "1"}),
         rx.el.div("", class_name="calc-status-line", custom_attrs={"data-o": "status"}),
         rx.text(
             "Loss % follows each tier's drop from the ATH. Loss amount = your capital x that %, and Balance after loss = "
@@ -140,7 +144,7 @@ def _dca_section() -> rx.Component:
         ),
         class_name="calc-card",
     )
-    return _root("dca", table)
+    return _root("dca", table, wide=True)
 
 
 def pnl_calculator_content() -> rx.Component:
@@ -176,11 +180,12 @@ def pnl_calculator_content() -> rx.Component:
         class_name="calc-card calc-result",
     )
     return rx.vstack(
-        rx.box(_page_header("PNL Calculator", "Enter your capital and a profit or loss percentage to see the result, in USD or MYR, and plan your buy tiers below the all-time high."), width="100%", max_width="980px"),
+        rx.box(_page_header("PNL Calculator", "Enter your capital and a profit or loss percentage to see the result, in USD or MYR, and plan your buy tiers below the all-time high."), width="100%", max_width=_WIDE),
         _root(
             "profit",
             rx.box(form, result, class_name="calc-two"),
             _rate_status(),
+            wide=True,
         ),
         _dca_section(),
         spacing="5",
