@@ -80,6 +80,94 @@ def _root(kind: str, *children) -> rx.Component:
 
 # ---- Profit calculator ------------------------------------------------------------------------------
 
+# Quick plans: "drop from the ATH %:share of the budget %" per tier.
+_DCA_PRESETS = [
+    ("75 / 80 / 85  ·  30 / 30 / 40", "75:30,80:30,85:40"),
+    ("50 / 60 / 70  ·  20 / 30 / 50", "50:20,60:30,70:50"),
+    ("30 / 50 / 70  ·  25 / 25 / 50", "30:25,50:25,70:50"),
+    ("40 / 60 / 80 / 90  ·  10 / 20 / 30 / 40", "40:10,60:20,80:30,90:40"),
+]
+
+
+def _dca_section() -> rx.Component:
+    """Crypto DCA planner: a budget spread over buy tiers placed at chosen drops below the all-time high."""
+    inputs = rx.box(
+        rx.heading("Crypto DCA planner", size="4"),
+        rx.text(
+            "Plan buys at drops below the all-time high (ATH): each tier is how far the price has fallen from the ATH and "
+            "how much of your budget you spend there.",
+            size="2",
+            color="var(--gray-11)",
+        ),
+        rx.box(
+            _field("Currency", rx.box(_seg("USD ($)", **{"data-cur": "USD"}), _seg("MYR (RM)", **{"data-cur": "MYR"}), class_name="calc-segs")),
+            _field("Total budget", _input("budget", "1000", prefix="$", value="1000")),
+            _field("All-time high (ATH) price", rx.box(
+                rx.el.span("$", class_name="calc-affix", custom_attrs={"data-o": "prefix2"}),
+                rx.el.input(type="text", input_mode="decimal", placeholder="100", default_value="100", auto_complete="off", spell_check=False,
+                            class_name="calc-input", custom_attrs={"data-f": "ath"}),
+                class_name="calc-input-wrap",
+            )),
+            class_name="calc-dca-top",
+        ),
+        rx.box(
+            rx.text("Quick plans (drop from the ATH  ·  share of the budget)", size="1", color="var(--gray-11)"),
+            rx.box(
+                *[rx.el.button(label, type="button", class_name="calc-chip", custom_attrs={"data-dca-preset": plan}) for label, plan in _DCA_PRESETS],
+                class_name="calc-chips",
+            ),
+            class_name="calc-field",
+        ),
+        class_name="calc-card",
+    )
+    table = rx.box(
+        rx.box(
+            rx.heading("Buy tiers", size="4"),
+            rx.el.button("+ Add tier", type="button", class_name="calc-chip", custom_attrs={"data-add-tier": "1"}),
+            class_name="calc-dca-head",
+        ),
+        rx.box(
+            rx.el.table(
+                rx.el.thead(
+                    rx.el.tr(
+                        rx.el.th("Tier"),
+                        rx.el.th("Drop from ATH"),
+                        rx.el.th("Budget %"),
+                        rx.el.th("Spent"),
+                        rx.el.th("Token price"),
+                        rx.el.th("Tokens bought"),
+                        rx.el.th("Real drop vs previous tier"),
+                        rx.el.th(""),
+                    )
+                ),
+                rx.el.tbody(custom_attrs={"data-o": "tiers"}),
+                class_name="calc-table calc-dca-table",
+            ),
+            class_name="calc-scroll",
+        ),
+        rx.el.div("", class_name="calc-status-line", custom_attrs={"data-o": "status"}),
+        rx.text(
+            "\"Real drop vs previous tier\" is how far the price falls from one tier to the next: going from -75% to -80% "
+            "below the ATH is only a 20% fall, because the base keeps shrinking. The first tier is measured from the ATH.",
+            size="1",
+            color="var(--gray-11)",
+        ),
+        class_name="calc-card",
+    )
+    results = rx.box(
+        rx.heading("Final result", size="4"),
+        rx.box(
+            rx.box(rx.text("Total capital invested", size="1", color="var(--gray-11)"), rx.el.div("—", class_name="calc-big calc-big-sm", custom_attrs={"data-o": "r-invested"})),
+            rx.box(rx.text("Total tokens accumulated", size="1", color="var(--gray-11)"), rx.el.div("—", class_name="calc-big calc-big-sm", custom_attrs={"data-o": "r-tokens"})),
+            rx.box(rx.text("Final average entry price", size="1", color="var(--gray-11)"), rx.el.div("—", class_name="calc-big calc-big-sm", custom_attrs={"data-o": "r-avg"})),
+            rx.box(rx.text("Average entry vs the ATH", size="1", color="var(--gray-11)"), rx.el.div("—", class_name="calc-big calc-big-sm", custom_attrs={"data-o": "r-avgdrop"})),
+            class_name="calc-dca-results",
+        ),
+        class_name="calc-card",
+    )
+    return _root("dca", rx.box(inputs, results, class_name="calc-two"), table)
+
+
 def profit_calculator_content() -> rx.Component:
     form = rx.box(
         rx.heading("Your trade", size="4"),
@@ -119,6 +207,7 @@ def profit_calculator_content() -> rx.Component:
             rx.box(form, result, class_name="calc-two"),
             _rate_status(),
         ),
+        _dca_section(),
         spacing="5",
         align="center",
         width="100%",

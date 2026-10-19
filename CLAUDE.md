@@ -23,6 +23,7 @@ Memecoin `/memecoin` (blank, navbar link after Tools) · Profile `/profile` · N
 
 ## Current State (2026-10-05)
 
+- Tools: Crypto DCA planner (second section of `/tools/profit-calculator`: budget + ATH + drop/budget tiers -> spent, token price, tokens, real drop between tiers, average entry vs ATH; 2026-10-20, **local only, not deployed**); `docs/tools.md`.
 - Tools: Capital Splitter (`/tools/capital-splitter`: equal or custom-% split of a capital, USD/MYR, cents add up; 2026-10-19, deployed); `docs/tools.md`.
 - Tools: Profit Calculator (`/tools/profit-calculator`) and Currency Converter (`/tools/currency-converter`), USD/MYR with the live rate, maths in the browser (2026-10-19, deployed) + Telegram `/currency-converter $1000` / `/pnl-calculator $1000 + 50%` (`app/services/calc_service.py`); `docs/tools.md`.
 - Telegram `/portfolio` shows money in MYR, coin prices in USD (2026-10-18); `docs/portfolio.md`.

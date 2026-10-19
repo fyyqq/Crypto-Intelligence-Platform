@@ -66,7 +66,24 @@
     return cents.map(function (c) { return c / 100; });
   }
 
-  var api = { num: num, money: money, signed: signed, profit: profit, convert: convert, other: other, equalPcts: equalPcts, splitAmounts: splitAmounts };
+  // DCA plan against an all-time high. tiers = [{drop, pct}]: a drop of 75 means the price is 75% below the ATH, pct is the
+  // share of the budget bought there. Per tier: the price (ath x (1 - drop)), the money spent (budget x pct), the tokens
+  // bought, and the real % move from the previous tier's price (the first tier is measured from the ATH). Tiers whose drop
+  // is not between 0 and 100 (or pct below 0) are invalid and skipped in the totals.
+  function dca(budget, ath, tiers) {
+    var rows = [], invested = 0, tokens = 0, prev = ath, pctSum = 0;
+    for (var i = 0; i < tiers.length; i++) {
+      var t = tiers[i], ok = t.drop != null && t.pct != null && t.drop >= 0 && t.drop < 100 && t.pct >= 0;
+      if (!ok) { rows.push({ valid: false }); continue; }
+      var price = ath * (1 - t.drop / 100), spent = budget * t.pct / 100, got = spent / price;
+      rows.push({ valid: true, drop: t.drop, pct: t.pct, price: price, spent: spent, tokens: got, vsPrev: (price / prev - 1) * 100, fromAth: i === 0 || prev === ath });
+      invested += spent; tokens += got; prev = price; pctSum += t.pct;
+    }
+    var avg = tokens > 0 ? invested / tokens : null;
+    return { rows: rows, invested: invested, tokens: tokens, avg: avg, avgDrop: avg == null ? null : (avg / ath - 1) * 100, pctSum: pctSum };
+  }
+
+  var api = { num: num, money: money, signed: signed, profit: profit, convert: convert, other: other, equalPcts: equalPcts, splitAmounts: splitAmounts, dca: dca };
   if (typeof window !== "undefined") window.__calc = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof document === "undefined") return;
@@ -215,8 +232,76 @@
     if (status) { status.textContent = msg; status.classList.toggle("calc-up", tone > 0); status.classList.toggle("calc-down", tone < 0); status.classList.toggle("calc-amber", tone === 0); }
   }
 
+  // ---- DCA against the ATH -------------------------------------------------------------------------------------
+  var MAX_TIERS = 10;
+
+  function pos(text) { return num(String(text == null ? "" : text).replace(/^\s*[-−–]/, "")); } // "-75" and "75" are the same drop
+
+  // Prices: never rounded to nothing (0.0000123 stays readable).
+  function price(v, cur) {
+    var digits = v >= 1 ? 4 : v >= 0.01 ? 6 : 10;
+    return SYM[cur] + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: digits });
+  }
+
+  function tokensText(v) {
+    return v.toLocaleString("en-US", { maximumFractionDigits: v >= 1000 ? 2 : v >= 1 ? 4 : 8 });
+  }
+
+  function buildDcaRows(root) {
+    var body = q(root, '[data-o="tiers"]'), tiers = root.__tiers || [];
+    if (!body) return;
+    var html = "";
+    for (var i = 0; i < tiers.length; i++) {
+      var inp = function (k, v, label) {
+        return '<div class="calc-input-wrap calc-pct-wrap"><input type="text" inputmode="decimal" autocomplete="off" class="calc-input" data-t="' + i + '" data-k="' + k + '" aria-label="Tier ' + (i + 1) + " " + label + '" value="' + String(v == null ? "" : v).replace(/"/g, "") + '"><span class="calc-affix">%</span></div>';
+      };
+      html += "<tr><td>" + (i + 1) + "</td><td>" + inp("drop", tiers[i].drop, "drop from the ATH") + "</td><td>" + inp("pct", tiers[i].pct, "share of the budget") + '</td><td class="dca-spent"></td><td class="dca-price"></td><td class="dca-tokens"></td><td class="dca-vs"></td><td>' +
+        (tiers.length > 1 ? '<button type="button" class="calc-del" aria-label="Remove tier ' + (i + 1) + '" data-del-tier="' + i + '">×</button>' : "") + "</td></tr>";
+    }
+    body.innerHTML = html;
+  }
+
+  function renderDca(root, rebuild) {
+    var cur = root.dataset.cur || "USD";
+    mark(root, "data-cur", cur);
+    out(root, "prefix", SYM[cur]);
+    out(root, "prefix2", SYM[cur]);
+    if (rebuild) buildDcaRows(root);
+    var budget = num(q(root, '[data-f="budget"]').value), ath = num(q(root, '[data-f="ath"]').value);
+    var tiers = (root.__tiers || []).map(function (t) { var d = pos(t.drop), p = num(t.pct); return { drop: d, pct: p }; });
+    var ready = budget != null && ath != null && ath > 0;
+    var r = ready ? dca(budget, ath, tiers) : null;
+    var trs = root.querySelectorAll('[data-o="tiers"] tr');
+    for (var i = 0; i < trs.length; i++) {
+      var row = r && r.rows[i], cell = function (c, text) { var el = trs[i].querySelector(c); if (el) el.textContent = text; };
+      if (!row || !row.valid) { cell(".dca-spent", "—"); cell(".dca-price", "—"); cell(".dca-tokens", "—"); cell(".dca-vs", row ? "check the numbers" : "—"); continue; }
+      cell(".dca-spent", money(row.spent, cur));
+      cell(".dca-price", price(row.price, cur));
+      cell(".dca-tokens", tokensText(row.tokens));
+      var vs = trs[i].querySelector(".dca-vs");
+      if (vs) {
+        vs.textContent = (row.vsPrev > 0 ? "+" : row.vsPrev < 0 ? "-" : "") + fmtPct(Math.abs(Math.round(row.vsPrev * 100) / 100)) + "%" + (row.fromAth ? " (from ATH)" : "");
+        vs.classList.toggle("calc-up", row.vsPrev > 0); vs.classList.toggle("calc-down", row.vsPrev < 0);
+      }
+    }
+    var allValid = r && r.rows.length > 0 && r.rows.every(function (x) { return x.valid; });
+    out(root, "r-invested", r && r.tokens > 0 ? money(r.invested, cur) : "—");
+    out(root, "r-tokens", r && r.tokens > 0 ? tokensText(r.tokens) : "—");
+    out(root, "r-avg", r && r.avg != null ? price(r.avg, cur) : "—");
+    var dropEl = out(root, "r-avgdrop", r && r.avgDrop != null ? (r.avgDrop < 0 ? "-" : "+") + fmtPct(Math.abs(Math.round(r.avgDrop * 100) / 100)) + "% from the ATH" : "—");
+    if (dropEl) dropEl.classList.toggle("calc-down", !!(r && r.avgDrop < 0));
+    var status = q(root, '[data-o="status"]'), sum = r ? Math.round(r.pctSum * 10000) / 10000 : 0, msg = "", tone = 0;
+    if (!ready) msg = "Enter your budget and the ATH price.";
+    else if (!allValid) { msg = "Each tier needs a drop between 0% and 99.99% and a budget share of 0% or more."; tone = -1; }
+    else if (Math.abs(sum - 100) < 0.005) { msg = "Budget used: 100% ✓"; tone = 1; }
+    else if (sum < 100) msg = "Budget used: " + fmtPct(sum) + "% · " + fmtPct(Math.round((100 - sum) * 10000) / 10000) + "% not assigned (" + money(budget - r.invested, cur) + ")";
+    else { msg = "Budget used: " + fmtPct(sum) + "% · over by " + fmtPct(Math.round((sum - 100) * 10000) / 10000) + "%"; tone = -1; }
+    if (status) { status.textContent = msg; status.classList.toggle("calc-up", tone > 0); status.classList.toggle("calc-down", tone < 0); status.classList.toggle("calc-amber", tone === 0); }
+  }
+
   function render(root) {
-    if (root.dataset.calc === "profit") renderProfit(root);
+    if (root.dataset.calc === "dca") renderDca(root, !root.__built && (root.__built = true));
+    else if (root.dataset.calc === "profit") renderProfit(root);
     else if (root.dataset.calc === "convert") renderConvert(root);
     else if (root.dataset.calc === "split") renderSplit(root, !root.__built && (root.__built = true));
   }
@@ -228,6 +313,7 @@
     root.dataset.sign = root.dataset.sign || "1";
     root.dataset.mode = root.dataset.mode || "equal";
     root.dataset.count = root.dataset.count || "3";
+    if (root.dataset.calc === "dca" && !root.__tiers) root.__tiers = [{ drop: "75", pct: "30" }, { drop: "80", pct: "30" }, { drop: "85", pct: "40" }]; // the example
     render(root);
   }
 
@@ -239,6 +325,11 @@
   document.addEventListener("input", function (e) {
     var root = e.target.closest && e.target.closest(".calc-root");
     if (!root || !e.target.matches("input")) return;
+    if (root.dataset.calc === "dca") {
+      if (e.target.hasAttribute("data-t")) root.__tiers[parseInt(e.target.getAttribute("data-t"), 10)][e.target.getAttribute("data-k")] = e.target.value;
+      renderDca(root, false); // the box being typed in is never rebuilt
+      return;
+    }
     if (root.dataset.calc === "split") {
       if (e.target.hasAttribute("data-pct")) (root.__pcts = root.__pcts || [])[parseInt(e.target.getAttribute("data-pct"), 10)] = e.target.value;
       renderSplit(root, false); // the row being typed in is never rebuilt
@@ -248,9 +339,19 @@
   }, true);
 
   document.addEventListener("click", function (e) {
-    var t = e.target.closest && e.target.closest(".calc-root [data-cur], .calc-root [data-sign], .calc-root [data-swap], .calc-root [data-mode], .calc-root [data-step], .calc-root [data-preset], .calc-root [data-equalize]");
+    var t = e.target.closest && e.target.closest(".calc-root [data-cur], .calc-root [data-sign], .calc-root [data-swap], .calc-root [data-mode], .calc-root [data-step], .calc-root [data-preset], .calc-root [data-equalize], .calc-root [data-add-tier], .calc-root [data-del-tier], .calc-root [data-dca-preset]");
     if (!t) return;
     var root = t.closest(".calc-root");
+    if (root.dataset.calc === "dca") {
+      if (t.hasAttribute("data-cur")) root.dataset.cur = t.getAttribute("data-cur");
+      else if (t.hasAttribute("data-add-tier")) { if (root.__tiers.length < MAX_TIERS) root.__tiers.push({ drop: "", pct: "" }); }
+      else if (t.hasAttribute("data-del-tier")) { if (root.__tiers.length > 1) root.__tiers.splice(parseInt(t.getAttribute("data-del-tier"), 10), 1); }
+      else if (t.hasAttribute("data-dca-preset")) {
+        root.__tiers = t.getAttribute("data-dca-preset").split(",").map(function (x) { var a = x.split(":"); return { drop: a[0], pct: a[1] }; });
+      }
+      renderDca(root, true);
+      return;
+    }
     if (root.dataset.calc === "split" && !t.hasAttribute("data-cur")) {
       var n = splitCount(root);
       if (t.hasAttribute("data-mode")) {

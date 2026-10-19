@@ -107,3 +107,29 @@ def test_every_quick_split_lists_the_smaller_numbers_first_and_adds_up_to_100():
         assert sum(nums) == 100 and label.replace(" ", "").replace("/", ",").split(",")[:len(nums)] != [], label
     assert "30,30,40" in [p for _, p in _PRESETS] and "20,30,50" in [p for _, p in _PRESETS]
     assert "40,30,30" not in [p for _, p in _PRESETS] and "50,30,20" not in [p for _, p in _PRESETS]
+
+
+@needs_node
+def test_dca_plan_from_the_example():
+    """Budget 1000, ATH 100, tiers -75% / 30%, -80% / 30%, -85% / 40%."""
+    r = run_js("c.dca(1000, 100, [{drop: 75, pct: 30}, {drop: 80, pct: 30}, {drop: 85, pct: 40}])")
+    prices = [x["price"] for x in r["rows"]]
+    assert prices == pytest.approx([25, 20, 15])
+    assert [x["spent"] for x in r["rows"]] == pytest.approx([300, 300, 400])
+    assert [x["tokens"] for x in r["rows"]] == pytest.approx([12, 15, 400 / 15])
+    assert [x["vsPrev"] for x in r["rows"]] == pytest.approx([-75, -20, -25])  # -75% from the ATH, then the real falls between tiers
+    assert r["invested"] == pytest.approx(1000) and r["tokens"] == pytest.approx(12 + 15 + 400 / 15)
+    assert r["avg"] == pytest.approx(1000 / (12 + 15 + 400 / 15)) and r["avgDrop"] == pytest.approx(-81.3665, abs=1e-3)
+
+
+@needs_node
+def test_dca_edge_cases():
+    partial = run_js("c.dca(1000, 100, [{drop: 50, pct: 20}])")
+    assert partial["invested"] == 200 and partial["pctSum"] == 20 and partial["avg"] == pytest.approx(50) and partial["avgDrop"] == pytest.approx(-50)
+    bad = run_js("c.dca(1000, 100, [{drop: 100, pct: 50}, {drop: -5, pct: 10}, {drop: null, pct: 10}, {drop: 60, pct: 40}])")
+    assert [x["valid"] for x in bad["rows"]] == [False, False, False, True]  # a drop of 100% (price 0), negative or empty is skipped
+    assert bad["invested"] == pytest.approx(400) and bad["rows"][3]["vsPrev"] == pytest.approx(-60) and bad["rows"][3]["fromAth"] is True  # no valid tier before it: measured from the ATH
+    none = run_js("c.dca(1000, 100, [])")
+    assert none["avg"] is None and none["tokens"] == 0
+    rise = run_js("c.dca(100, 10, [{drop: 80, pct: 50}, {drop: 60, pct: 50}])")  # a shallower second tier: the price is higher
+    assert rise["rows"][1]["vsPrev"] == pytest.approx(100)

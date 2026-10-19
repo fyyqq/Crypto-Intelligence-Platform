@@ -1924,3 +1924,18 @@ table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 .calc-amber { color: var(--amber-11); }
 .calc-two-split .calc-seg { padding: 9px 6px; font-size: 13px; }
 @media (max-width: 519px) { .calc-parts-table th:nth-child(4), .calc-parts-table td:nth-child(4) { display: none; } }
+
+/* Profit calculator page: the Crypto DCA planner */
+.calc-dca-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 560px) { .calc-dca-top { grid-template-columns: repeat(2, minmax(0, 1fr)); } .calc-dca-top > :first-child { grid-column: 1 / -1; } }
+.calc-dca-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.calc-dca-table th, .calc-dca-table td { white-space: nowrap; }
+.calc-dca-table th:nth-child(n+4), .calc-dca-table td:nth-child(n+4) { text-align: right; }
+.calc-dca-table th:nth-child(2), .calc-dca-table td:nth-child(2), .calc-dca-table th:nth-child(3), .calc-dca-table td:nth-child(3) { text-align: left; }
+.calc-dca-table th:last-child, .calc-dca-table td:last-child { text-align: right; }
+.calc-dca-table td:nth-child(4), .calc-dca-table td:nth-child(6) { font-weight: 600; }
+.calc-del { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--gray-a6); background: transparent; color: var(--gray-11); font-size: 18px; line-height: 1; cursor: pointer; }
+.calc-del:hover { background: var(--gray-a4); color: var(--gray-12); }
+.calc-dca-results { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 20px; }
+.calc-big-sm { font-size: 22px; }
+@media (max-width: 519px) { .calc-dca-results { grid-template-columns: minmax(0, 1fr); } }
