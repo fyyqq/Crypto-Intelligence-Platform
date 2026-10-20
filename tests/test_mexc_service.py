@@ -345,3 +345,41 @@ def test_the_deposit_address_call_is_a_signed_get_to_a_read_path_only():
     assert "/api/v3/capital/deposit/address" in m._READ_PATHS
     src = Path(m.__file__).read_text()
     assert "requests.post" not in src and "requests.put" not in src and "requests.delete" not in src  # nothing can write
+
+
+def test_deposit_address_is_re_read_every_minute_and_a_change_is_flagged(monkeypatch):
+    answers = [[{"network": "Solana(SOL)", "address": "AddrOne"}], [{"network": "Solana(SOL)", "address": "AddrOne"}], [{"network": "Solana(SOL)", "address": "AddrTwo"}]]
+    calls = []
+
+    def fake(path, params=None, signed=False):
+        calls.append(1)
+        return answers[len(calls) - 1]
+
+    now = [1000.0]
+    monkeypatch.setattr(m.time, "time", lambda: now[0])
+    monkeypatch.setattr(m, "_get", fake)
+    first = m.deposit_address("SOL")
+    assert first["address"] == "AddrOne" and not first["changed"]
+    now[0] += 30
+    assert m.deposit_address("SOL")["address"] == "AddrOne" and len(calls) == 1  # inside DEPOSIT_TTL: no new call
+    now[0] += 31
+    again = m.deposit_address("SOL")  # a minute later: read again, same address
+    assert len(calls) == 2 and again["address"] == "AddrOne" and not again["changed"]
+    now[0] += 5
+    forced = m.deposit_address("SOL", force=True)  # the refresh icon reads at once
+    assert len(calls) == 3 and forced["address"] == "AddrTwo" and forced["changed"] and forced["changed_at"] == now[0]
+
+
+def test_a_refused_re_read_keeps_the_last_good_address_with_the_error(monkeypatch):
+    state = {"fail": False}
+
+    def fake(path, params=None, signed=False):
+        if state["fail"]:
+            raise m.MexcError("MEXC rate limit reached.")
+        return [{"network": "Solana(SOL)", "address": "AddrOne"}]
+
+    monkeypatch.setattr(m, "_get", fake)
+    assert m.deposit_address("SOL")["address"] == "AddrOne"
+    state["fail"] = True
+    got = m.deposit_address("SOL", force=True)
+    assert got["address"] == "AddrOne" and "could not be read" in got["error"]

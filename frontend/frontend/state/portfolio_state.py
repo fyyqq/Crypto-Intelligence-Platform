@@ -220,6 +220,11 @@ def _summary_view(snap: dict, currency: str = "USD", rate: float = 1.0) -> dict[
         "sol_address": (snap.get("deposit_sol") or {}).get("address", ""),
         "sol_network": (snap.get("deposit_sol") or {}).get("network", ""),
         "sol_error": (snap.get("deposit_sol") or {}).get("error", ""),
+        "sol_changed": (
+            "MEXC changed this address on " + datetime.fromtimestamp(snap["deposit_sol"]["changed_at"], _TZ).strftime("%d %b %H:%M") + " (KL). Use this one."
+            if (snap.get("deposit_sol") or {}).get("changed")
+            else ""
+        ),
         "unmatched": (
             f"{_money(snap['unmatched_locked_usdt'])} USDT is held by buy orders on coins you don't hold: open that coin's page to see them."
             if snap["unmatched_locked_usdt"] >= 1

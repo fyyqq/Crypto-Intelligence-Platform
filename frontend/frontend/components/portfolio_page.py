@@ -129,6 +129,7 @@ def _deposit_box() -> rx.Component:
             align="center",
             wrap="wrap",
         ),
+        rx.cond(S.pf_summary["sol_changed"] != "", rx.text(rx.icon("triangle-alert", size=13, display="inline", vertical_align="-2px"), " ", S.pf_summary["sol_changed"], size="1", color="var(--amber-11)")),
         rx.cond(
             S.pf_summary["sol_address"] != "",
             rx.hstack(
@@ -152,6 +153,8 @@ def _deposit_box() -> rx.Component:
                 color="var(--amber-11)",
             ),
         ),
+        # an address was read before but MEXC refused the latest read: the last good address stays, with the reason
+        rx.cond((S.pf_summary["sol_address"] != "") & (S.pf_summary["sol_error"] != ""), rx.text(S.pf_summary["sol_error"], size="1", color="var(--amber-11)")),
         class_name="pf-deposit",
     )
 

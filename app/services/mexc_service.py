@@ -56,8 +56,8 @@ _TRADE_PAGES = 5  # up to 5 x 100 trades per coin
 
 # Signed calls are only ever sent to these read endpoints (GET).
 _READ_PATHS = frozenset({"/api/v3/account", "/api/v3/openOrders", "/api/v3/myTrades", "/api/v3/capital/deposit/address"})
-DEPOSIT_TTL = 3600  # seconds: a deposit address does not change, so it is read once an hour
-DEPOSIT_RETRY = 600  # seconds before asking again after MEXC refused or failed
+DEPOSIT_TTL = 60  # seconds: MEXC can change a deposit address by itself, so it is re-read about once a minute while the page is open
+DEPOSIT_RETRY = 300  # seconds before asking again after MEXC refused or failed
 
 # Priced at $1 when MEXC has no USDT pair for them (USDT itself always).
 _STABLES = frozenset({"USDT", "USDC", "FDUSD", "USDE", "DAI", "TUSD", "USD1", "PYUSD", "USDD", "BUSD"})
@@ -406,18 +406,22 @@ def _refresh(force: bool = False) -> None:
 # ---------------------------------------------------------------------------------------------- snapshot
 
 
-_deposits: dict[str, dict] = {}  # coin -> {"at", "address", "network", "memo", "error"}
+_deposits: dict[str, dict] = {}  # coin -> {"at", "address", "network", "memo", "error", "changed", "changed_at"}
 
 
-def deposit_address(coin: str = "SOL") -> dict:
-    """The account's own deposit address for `coin` (Solana by default) as {"address", "network", "memo", "error"}.
-    Read-only (GET /api/v3/capital/deposit/address: it only returns an address the account already has) and cached for
-    DEPOSIT_TTL; a refusal (for example the key lacks the permission) is remembered for DEPOSIT_RETRY and shown as `error`,
-    never raised, so the page around it keeps working. Blocking: call it from a thread."""
+def deposit_address(coin: str = "SOL", force: bool = False) -> dict:
+    """The account's own deposit address for `coin` (Solana by default) as {"address", "network", "memo", "error",
+    "changed", "changed_at"}. MEXC can change a deposit address on its own, so it is re-read (GET
+    /api/v3/capital/deposit/address: it only returns an address the account already has) every DEPOSIT_TTL seconds,
+    and at once when `force` (the page's refresh icon). When MEXC hands out a different address than the one seen
+    before, `changed` is True (with the time) so the page can say so; the new address is the one to use. A refusal
+    (for example the key lacks the permission) is remembered for DEPOSIT_RETRY and shown as `error`, never raised, so
+    the page around it keeps working, and the last good address stays shown. Blocking: call it from a thread."""
     coin = (coin or "").upper()
     hit = _deposits.get(coin)
-    if hit and time.time() - hit["at"] < (DEPOSIT_TTL if hit["address"] else DEPOSIT_RETRY):
-        return {k: hit[k] for k in ("address", "network", "memo", "error")}
+    keys = ("address", "network", "memo", "error", "changed", "changed_at")
+    if not force and hit and time.time() - hit["at"] < (DEPOSIT_TTL if hit["address"] and not hit["error"] else DEPOSIT_RETRY):
+        return {k: hit[k] for k in keys}
     result = {"address": "", "network": "", "memo": "", "error": ""}
     try:
         rows = _get("/api/v3/capital/deposit/address", {"coin": coin}, signed=True)
@@ -432,8 +436,15 @@ def deposit_address(coin: str = "SOL") -> dict:
             result["error"] = f"MEXC has no {coin} deposit address for this account yet. Open Deposit > {coin} on MEXC once to create it."
     except MexcError as err:
         result["error"] = f"The deposit address could not be read from MEXC: {err}"
-    _deposits[coin] = {"at": time.time(), **result}
-    return result
+    old = hit["address"] if hit else ""
+    changed, changed_at = (hit["changed"], hit["changed_at"]) if hit else (False, 0.0)
+    if result["error"] and old:  # MEXC refused this time: keep showing the last address that was read, with the error
+        result.update(address=old, network=hit["network"], memo=hit["memo"])
+    elif result["address"] and old and result["address"] != old:
+        changed, changed_at = True, time.time()
+        _log.warning("The MEXC %s deposit address changed.", coin)
+    _deposits[coin] = {"at": time.time(), **result, "changed": changed, "changed_at": changed_at}
+    return {k: _deposits[coin][k] for k in keys}
 
 
 def held_assets() -> dict[str, float]:
@@ -587,7 +598,7 @@ def portfolio(user_id: int | None = None, force: bool = False) -> dict:
         # coin you don't hold shows on that coin's page).
         "unmatched_locked_usdt": max(locked_usdt - buy_usdt, 0.0) if _cache["open_orders_all"] is False else 0.0,
         "trades": trades[:RECENT_FILLS],
-        "deposit_sol": deposit_address("SOL"),
+        "deposit_sol": deposit_address("SOL", force),
     }
 
 
