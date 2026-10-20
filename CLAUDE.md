@@ -23,7 +23,8 @@ Memecoin `/memecoin` (blank, navbar link after Tools) · Profile `/profile` · N
 
 ## Current State (2026-10-05)
 
-- Tools: the Profit Calculator is now the **PNL Calculator** (`/tools/pnl-calculator`; the old `/tools/profit-calculator` redirects); its second section is a Buy-tiers table (capital + ATH + drop/budget tiers -> spent, token price, tokens, loss %, loss amount, balance after loss, USD only; all sections 1180 px wide, "+ Add more" rows up to 20) (2026-10-20, **local only, not deployed**); `docs/tools.md`.
+- Tools: the Profit Calculator is now the **PNL Calculator** (`/tools/pnl-calculator`; the old `/tools/profit-calculator` redirects); its second section is a Buy-tiers table (capital + ATH + drop/budget tiers -> spent, token price, tokens, loss %, loss amount, balance after loss, USD only; all sections 1180 px wide, "+ Add more" rows up to 20) (2026-10-20, deployed); `docs/tools.md`.
+- Tools: Currency Converter has an "Add / subtract amounts" card under the converter (one USD/MYR switch, + / - between amounts, % rise/drop from the first amount, total also in the other currency) (2026-10-20, deployed); `docs/tools.md`.
 - Tools: Capital Splitter (`/tools/capital-splitter`: equal or custom-% split of a capital, USD/MYR, cents add up; 2026-10-19, deployed); `docs/tools.md`.
 - Tools: PNL Calculator (`/tools/pnl-calculator`) and Currency Converter (`/tools/currency-converter`), USD/MYR with the live rate, maths in the browser (2026-10-19, deployed) + Telegram `/currency-converter $1000` / `/pnl-calculator $1000 + 50%` (`app/services/calc_service.py`); `docs/tools.md`.
 - Telegram `/portfolio` shows money in MYR, coin prices in USD (2026-10-18); `docs/portfolio.md`.
