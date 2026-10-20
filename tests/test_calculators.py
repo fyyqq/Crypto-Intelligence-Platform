@@ -24,6 +24,23 @@ needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node is no
 
 
 @needs_node
+def test_add_amounts_each_in_its_own_currency():
+    # $1000 + $1000 shown in USD is 2000 and needs no rate; mixed currencies use the rate (MYR per USD)
+    assert run_js("c.sumAmounts([{amount:1000,cur:'USD'},{amount:1000,cur:'USD'}], 'USD', 0).total") == 2000
+    assert run_js("c.sumAmounts([{amount:1000,cur:'USD'},{amount:1000,cur:'USD'}], 'MYR', 4).total") == 8000
+    assert run_js("c.sumAmounts([{amount:1000,cur:'USD'},{amount:4000,cur:'MYR'}], 'USD', 4).total") == 2000
+    assert run_js("c.sumAmounts([{amount:1000,cur:'USD'},{amount:4000,cur:'MYR'}], 'MYR', 4).total") == 8000
+    assert run_js("c.sumAmounts([{amount:1000,cur:'USD'},{amount:4000,cur:'MYR'}], 'MYR', 4).parts") == [4000, 4000]
+
+
+def test_add_amounts_card_is_on_the_converter_page_only():
+    src = (ROOT / "frontend" / "frontend" / "components" / "calculator_pages.py").read_text()
+    conv = src[src.index("def currency_converter_content"):src.index("# ---- Capital splitter")]
+    assert "_sum_card()" in conv and '"sum"' in src[src.index("def _sum_card"):src.index("def currency_converter_content")]
+    assert "_sum_card" not in src[src.index("def capital_splitter_content"):]
+
+
+@needs_node
 def test_profit_and_loss_examples():
     assert run_js("c.profit(1000, 50, 1)") == {"change": 500, "result": 1500, "pct": 50, "clamped": False}  # the spec example
     assert run_js("c.profit(1000, 50, -1)")["result"] == 500

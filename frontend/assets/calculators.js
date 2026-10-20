@@ -36,6 +36,17 @@
     return from === "USD" ? amount * rate : amount / rate;
   }
 
+  // terms = [{amount, cur}] each in the currency the user chose; the total is shown in `target` (rate = MYR per 1 USD).
+  // $1000 + $1000 in USD = 2000; $1000 + RM1000 in USD = 1000 + 1000 / rate. Returns the total and each term in `target`.
+  function sumAmounts(terms, target, rate) {
+    var total = 0, parts = [];
+    for (var i = 0; i < terms.length; i++) {
+      var v = terms[i].cur === target ? terms[i].amount : convert(terms[i].amount, terms[i].cur, rate);
+      parts.push(v); total += v;
+    }
+    return { total: total, parts: parts };
+  }
+
   function other(cur) {
     return cur === "USD" ? "MYR" : "USD";
   }
@@ -84,7 +95,7 @@
     return { rows: rows, invested: invested, tokens: tokens, avg: avg, avgDrop: avg == null ? null : (avg / ath - 1) * 100, pctSum: pctSum };
   }
 
-  var api = { num: num, money: money, signed: signed, profit: profit, convert: convert, other: other, equalPcts: equalPcts, splitAmounts: splitAmounts, dca: dca };
+  var api = { num: num, money: money, signed: signed, profit: profit, convert: convert, sumAmounts: sumAmounts, other: other, equalPcts: equalPcts, splitAmounts: splitAmounts, dca: dca };
   if (typeof window !== "undefined") window.__calc = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof document === "undefined") return;
@@ -162,6 +173,55 @@
       for (var i = 0; i < QUICK.length; i++) rows += "<tr><td>" + money(QUICK[i], cur) + "</td><td>" + money(convert(QUICK[i], cur, rate), o) + "</td></tr>";
       body.innerHTML = rows;
     }
+  }
+
+  // ---- add amounts (Currency Converter page, second card) -------------------------------------------------------------
+  var MAX_TERMS = 10;
+
+  function buildSumRows(root) {
+    var body = q(root, '[data-o="terms"]'), terms = root.__terms || [];
+    if (!body) return;
+    var html = "";
+    for (var i = 0; i < terms.length; i++) {
+      html += '<div class="calc-term"><span class="calc-term-n">' + (i + 1) + '</span>' +
+        '<div class="calc-input-wrap"><span class="calc-affix" data-term-prefix="' + i + '"></span><input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" class="calc-input" data-term="' + i + '" placeholder="0" aria-label="Amount ' + (i + 1) + '" value="' + String(terms[i].amt == null ? "" : terms[i].amt).replace(/"/g, "") + '"></div>' +
+        '<div class="calc-segs"><button type="button" class="calc-seg" data-term-cur="USD" data-ti="' + i + '">USD</button><button type="button" class="calc-seg" data-term-cur="MYR" data-ti="' + i + '">MYR</button></div>' +
+        (terms.length > 2 ? '<button type="button" class="calc-del" aria-label="Remove amount ' + (i + 1) + '" data-del-term="' + i + '">×</button>' : "") + "</div>";
+    }
+    body.innerHTML = html;
+  }
+
+  function renderSum(root, rebuild) {
+    var target = root.dataset.cur || "USD";
+    var rate = rateOf(root);
+    mark(root, "data-cur", target);
+    if (rebuild) buildSumRows(root);
+    var terms = root.__terms || [];
+    var addButtons = root.querySelectorAll("[data-add-term]");
+    for (var b = 0; b < addButtons.length; b++) addButtons[b].style.display = terms.length >= MAX_TERMS ? "none" : "";
+    for (var i = 0; i < terms.length; i++) { // each row's chosen currency: the symbol in front of the box and the pressed button
+      var pre = q(root, '[data-term-prefix="' + i + '"]');
+      if (pre) pre.textContent = SYM[terms[i].cur];
+      var btns = root.querySelectorAll('[data-ti="' + i + '"]');
+      for (var k = 0; k < btns.length; k++) btns[k].classList.toggle("calc-seg-active", btns[k].getAttribute("data-term-cur") === terms[i].cur);
+    }
+    // A row left empty is skipped; a row with text that is not a number makes the total "check".
+    var used = [], bad = false;
+    for (var j = 0; j < terms.length; j++) {
+      var raw = String(terms[j].amt || "").trim();
+      if (raw === "") continue;
+      var v = num(raw);
+      if (v == null) { bad = true; continue; }
+      used.push({ amount: v, cur: terms[j].cur });
+    }
+    var mixed = used.some(function (t) { return t.cur !== target; });
+    if (bad) { out(root, "result", "—"); out(root, "formula", "Check the amounts: numbers only."); out(root, "rates", ""); return; }
+    if (!used.length) { out(root, "result", "—"); out(root, "formula", "Enter at least one amount."); out(root, "rates", ""); return; }
+    if (mixed && !rate) { out(root, "result", "—"); out(root, "formula", "Waiting for the live rate…"); out(root, "rates", ""); return; }
+    var r = sumAmounts(used, target, rate);
+    out(root, "result", money(r.total, target));
+    out(root, "formula", used.map(function (t) { return money(t.amount, t.cur); }).join(" + ") + " = " + money(r.total, target));
+    out(root, "rates", rate ? "1 USD = " + rateText(rate) + " MYR   ·   1 MYR = " + rateText(1 / rate) + " USD" : "");
   }
 
   // ---- capital splitter ----------------------------------------------------------------------------------------
@@ -304,6 +364,7 @@
     if (root.dataset.calc === "dca") renderDca(root, !root.__built && (root.__built = true));
     else if (root.dataset.calc === "profit") renderProfit(root);
     else if (root.dataset.calc === "convert") renderConvert(root);
+    else if (root.dataset.calc === "sum") renderSum(root, !root.__built && (root.__built = true));
     else if (root.dataset.calc === "split") renderSplit(root, !root.__built && (root.__built = true));
   }
 
@@ -314,6 +375,7 @@
     root.dataset.sign = root.dataset.sign || "1";
     root.dataset.mode = root.dataset.mode || "equal";
     root.dataset.count = root.dataset.count || "3";
+    if (root.dataset.calc === "sum" && !root.__terms) root.__terms = [{ amt: "1000", cur: "USD" }, { amt: "1000", cur: "USD" }]; // $1000 + $1000
     if (root.dataset.calc === "dca" && !root.__tiers) root.__tiers = [{ drop: "75", pct: "30" }, { drop: "80", pct: "30" }, { drop: "85", pct: "40" }]; // the example
     render(root);
   }
@@ -331,6 +393,11 @@
       renderDca(root, false); // the box being typed in is never rebuilt
       return;
     }
+    if (root.dataset.calc === "sum") {
+      if (e.target.hasAttribute("data-term")) root.__terms[parseInt(e.target.getAttribute("data-term"), 10)].amt = e.target.value;
+      renderSum(root, false); // the box being typed in is never rebuilt
+      return;
+    }
     if (root.dataset.calc === "split") {
       if (e.target.hasAttribute("data-pct")) (root.__pcts = root.__pcts || [])[parseInt(e.target.getAttribute("data-pct"), 10)] = e.target.value;
       renderSplit(root, false); // the row being typed in is never rebuilt
@@ -340,7 +407,7 @@
   }, true);
 
   document.addEventListener("click", function (e) {
-    var t = e.target.closest && e.target.closest(".calc-root [data-cur], .calc-root [data-sign], .calc-root [data-swap], .calc-root [data-mode], .calc-root [data-step], .calc-root [data-preset], .calc-root [data-equalize], .calc-root [data-add-tier], .calc-root [data-del-tier]");
+    var t = e.target.closest && e.target.closest(".calc-root [data-cur], .calc-root [data-sign], .calc-root [data-swap], .calc-root [data-mode], .calc-root [data-step], .calc-root [data-preset], .calc-root [data-equalize], .calc-root [data-add-tier], .calc-root [data-del-tier], .calc-root [data-term-cur], .calc-root [data-add-term], .calc-root [data-del-term]");
     if (!t) return;
     var root = t.closest(".calc-root");
     if (root.dataset.calc === "dca") {
@@ -348,6 +415,14 @@
       else if (t.hasAttribute("data-add-tier")) { if (root.__tiers.length < MAX_TIERS) root.__tiers.push({ drop: "", pct: "" }); }
       else if (t.hasAttribute("data-del-tier")) { if (root.__tiers.length > 1) root.__tiers.splice(parseInt(t.getAttribute("data-del-tier"), 10), 1); }
       renderDca(root, true);
+      return;
+    }
+    if (root.dataset.calc === "sum") {
+      if (t.hasAttribute("data-term-cur")) root.__terms[parseInt(t.getAttribute("data-ti"), 10)].cur = t.getAttribute("data-term-cur");
+      else if (t.hasAttribute("data-cur")) root.dataset.cur = t.getAttribute("data-cur");
+      else if (t.hasAttribute("data-add-term")) { if (root.__terms.length < MAX_TERMS) root.__terms.push({ amt: "", cur: root.dataset.cur || "USD" }); }
+      else if (t.hasAttribute("data-del-term")) { if (root.__terms.length > 2) root.__terms.splice(parseInt(t.getAttribute("data-del-term"), 10), 1); }
+      renderSum(root, !t.hasAttribute("data-term-cur") && !t.hasAttribute("data-cur"));
       return;
     }
     if (root.dataset.calc === "split" && !t.hasAttribute("data-cur")) {
