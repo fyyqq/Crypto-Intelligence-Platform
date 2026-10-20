@@ -25,10 +25,10 @@ def _field(label: str, control: rx.Component, hint: str = "") -> rx.Component:
     )
 
 
-def _input(field: str, placeholder: str, prefix: str = "", suffix: str = "", value: str = "", **attrs) -> rx.Component:
+def _input(field: str, placeholder: str, prefix: str = "", suffix: str = "", value: str = "", prefix_key: str = "prefix", **attrs) -> rx.Component:
     """A number box with an optional prefix (the currency symbol, filled in by the script) and suffix."""
     return rx.box(
-        *([rx.el.span(prefix, class_name="calc-affix", custom_attrs={"data-o": "prefix"})] if prefix else []),
+        *([rx.el.span(prefix, class_name="calc-affix", custom_attrs={"data-o": prefix_key})] if prefix else []),
         rx.el.input(
             type="text",
             input_mode="decimal",
@@ -154,14 +154,25 @@ def pnl_calculator_content() -> rx.Component:
         ),
         _field("Capital", _input("capital", "1000", prefix="$")),
         _field(
-            "Result of the trade",
-            rx.box(
-                _seg("Profit  +", **{"data-sign": "1"}),
-                _seg("Loss  −", **{"data-sign": "-1"}),
-                class_name="calc-segs",
-            ),
+            "Calculate from",
+            rx.box(_seg("Percentage", **{"data-from": "pct"}), _seg("Balance after trade", **{"data-from": "final"}), class_name="calc-segs"),
         ),
-        _field("Percentage", _input("pct", "50", suffix="%")),
+        rx.box(
+            _field(
+                "Result of the trade",
+                rx.box(
+                    _seg("Profit  +", **{"data-sign": "1"}),
+                    _seg("Loss  −", **{"data-sign": "-1"}),
+                    class_name="calc-segs",
+                ),
+            ),
+            _field("Percentage", _input("pct", "50", suffix="%")),
+            class_name="calc-from-pct calc-stack",
+        ),
+        rx.box(
+            _field("Balance after the trade", _input("final", "850", prefix="$", prefix_key="prefix2"), "What is left (or what you ended with) after the trade; the loss or profit and its % are worked out for you."),
+            class_name="calc-from-final calc-stack",
+        ),
         class_name="calc-card",
     )
     result = rx.box(
@@ -178,7 +189,7 @@ def pnl_calculator_content() -> rx.Component:
         class_name="calc-card calc-result",
     )
     return rx.vstack(
-        rx.box(_page_header("PNL Calculator", "Enter your capital and a profit or loss percentage to see the result, in USD or MYR, and plan your buy tiers below the all-time high."), width="100%", max_width=_WIDE),
+        rx.box(_page_header("PNL Calculator", "Enter your capital and either a profit or loss percentage or the balance left after a trade to see the result, in USD or MYR, and plan your buy tiers below the all-time high."), width="100%", max_width=_WIDE),
         _root(
             "profit",
             rx.box(form, result, class_name="calc-two"),

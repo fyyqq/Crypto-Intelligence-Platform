@@ -1961,6 +1961,9 @@ table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 /* Currency switch: full width, each tab 50% (the base .calc-seg is flex: 1). */
 .calc-area-sum .calc-field .calc-segs { width: 100%; }
 .calc-area-sum .calc-field .calc-seg { padding: 9px 12px; }
+/* PNL Calculator "Calculate from": the percentage fields or the balance-after-trade field, one at a time. */
+.calc-stack { display: flex; flex-direction: column; gap: 16px; }
+.calc-root:not([data-from="final"]) .calc-from-final, .calc-root[data-from="final"] .calc-from-pct { display: none; }
 .calc-big-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
 .calc-pct { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--gray-11); }
 

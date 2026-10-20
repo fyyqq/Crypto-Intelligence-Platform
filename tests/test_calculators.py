@@ -24,6 +24,19 @@ needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node is no
 
 
 @needs_node
+def test_loss_or_profit_from_the_balance_after_a_trade():
+    r = run_js("c.tradeResult(1000, 850)")  # started with $1000, $850 left
+    assert r["change"] == -150 and r["pct"] == -15 and r["kind"] == "loss"
+    r = run_js("c.tradeResult(1000, 1200)")
+    assert r["change"] == 200 and r["pct"] == 20 and r["kind"] == "profit"
+    assert run_js("c.tradeResult(1000, 1000)")["kind"] == "even"
+    r = run_js("c.tradeResult(1000, 0)")  # everything lost
+    assert r["change"] == -1000 and r["pct"] == -100
+    assert run_js("c.tradeResult(0, 50)")["pct"] is None  # no capital, no percentage
+    assert run_js("c.tradeResult(250.5, 100.25)")["change"] == pytest.approx(-150.25)
+
+
+@needs_node
 def test_percentage_change_from_the_main_value():
     assert run_js("c.pctChange(1000, 2000)") == 100  # $1000 + $1000
     assert run_js("c.pctChange(1000, 750)") == -25  # $1000 - $250

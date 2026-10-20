@@ -31,6 +31,12 @@
     return { change: change, result: capital + change, pct: p, clamped: clamped };
   }
 
+  // Started with `capital`, ended with `final`: how much was lost or made, and the percentage of the capital (null for 0 capital).
+  function tradeResult(capital, final) {
+    var change = final - capital;
+    return { change: change, pct: capital > 0 ? change / capital * 100 : null, kind: change > 0 ? "profit" : change < 0 ? "loss" : "even" };
+  }
+
   // rate = MYR per 1 USD
   function convert(amount, from, rate) {
     return from === "USD" ? amount * rate : amount / rate;
@@ -97,7 +103,7 @@
     return { rows: rows, invested: invested, tokens: tokens, avg: avg, avgDrop: avg == null ? null : (avg / ath - 1) * 100, pctSum: pctSum };
   }
 
-  var api = { num: num, money: money, signed: signed, profit: profit, convert: convert, sumTerms: sumTerms, pctChange: pctChange, other: other, equalPcts: equalPcts, splitAmounts: splitAmounts, dca: dca };
+  var api = { num: num, money: money, signed: signed, profit: profit, tradeResult: tradeResult, convert: convert, sumTerms: sumTerms, pctChange: pctChange, other: other, equalPcts: equalPcts, splitAmounts: splitAmounts, dca: dca };
   if (typeof window !== "undefined") window.__calc = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof document === "undefined") return;
@@ -127,7 +133,11 @@
     var rate = rateOf(root);
     mark(root, "data-cur", cur);
     mark(root, "data-sign", sign);
+    var from = root.dataset.from === "final" ? "final" : "pct";
+    mark(root, "data-from", from);
     out(root, "prefix", SYM[cur]);
+    out(root, "prefix2", SYM[cur]);
+    if (from === "final") return renderTrade(root, cur, rate);
     var capital = num(q(root, '[data-f="capital"]').value);
     var pctIn = num(q(root, '[data-f="pct"]').value);
     var result = q(root, '[data-o="result"]'), change = q(root, '[data-o="change"]');
@@ -146,6 +156,31 @@
     if (rate) {
       var f = function (v) { return convert(v, cur, rate); };
       out(root, "other", money(f(r.result), o) + "  (" + (r.change ? signed(f(r.change), o) : money(0, o)) + ")  ·  1 USD = " + rateText(rate) + " MYR");
+    } else {
+      out(root, "other", "Waiting for the live rate…");
+    }
+  }
+
+  // "Final balance" mode of the PNL Calculator: the capital you started with and what is left after the trade -> the loss or profit.
+  function renderTrade(root, cur, rate) {
+    var o = other(cur);
+    var capital = num(q(root, '[data-f="capital"]').value), final = num(q(root, '[data-f="final"]').value);
+    var result = q(root, '[data-o="result"]'), change = q(root, '[data-o="change"]');
+    out(root, "warn", "");
+    if (capital == null || final == null) {
+      out(root, "result", "—"); out(root, "change", ""); out(root, "formula", "Enter your starting capital and the balance after the trade.");
+      out(root, "other", ""); setTone(result, 0); setTone(change, 0);
+      return;
+    }
+    var r = tradeResult(capital, final);
+    var pctText = r.pct == null ? "" : (r.pct > 0 ? "+" : "") + fmtPct(Math.round(r.pct * 100) / 100) + "%";
+    out(root, "result", r.kind === "even" ? money(0, cur) : signed(r.change, cur));
+    out(root, "change", (r.kind === "loss" ? "Loss " : r.kind === "profit" ? "Profit " : "No profit or loss") + (r.kind === "even" || r.pct == null ? "" : "(" + pctText + ")"));
+    out(root, "formula", money(capital, cur) + " → " + money(final, cur) + " = " + (r.kind === "even" ? money(0, cur) : signed(r.change, cur)) + (r.pct == null ? "" : " (" + pctText + ")"));
+    setTone(result, r.change); setTone(change, r.change);
+    if (rate) {
+      var f = function (v) { return convert(v, cur, rate); };
+      out(root, "other", (r.kind === "even" ? money(0, o) : signed(f(r.change), o)) + "  (" + money(f(capital), o) + " → " + money(f(final), o) + ")  ·  1 USD = " + rateText(rate) + " MYR");
     } else {
       out(root, "other", "Waiting for the live rate…");
     }
@@ -419,7 +454,7 @@
   }, true);
 
   document.addEventListener("click", function (e) {
-    var t = e.target.closest && e.target.closest(".calc-root [data-cur], .calc-root [data-sign], .calc-root [data-swap], .calc-root [data-mode], .calc-root [data-step], .calc-root [data-preset], .calc-root [data-equalize], .calc-root [data-add-tier], .calc-root [data-del-tier], .calc-root [data-op], .calc-root [data-add-term], .calc-root [data-del-term]");
+    var t = e.target.closest && e.target.closest(".calc-root [data-cur], .calc-root [data-sign], .calc-root [data-swap], .calc-root [data-mode], .calc-root [data-step], .calc-root [data-preset], .calc-root [data-equalize], .calc-root [data-add-tier], .calc-root [data-del-tier], .calc-root [data-from], .calc-root [data-op], .calc-root [data-add-term], .calc-root [data-del-term]");
     if (!t) return;
     var root = t.closest(".calc-root");
     if (root.dataset.calc === "dca") {
@@ -457,6 +492,7 @@
       return;
     }
     if (t.hasAttribute("data-cur")) root.dataset.cur = t.getAttribute("data-cur");
+    else if (t.hasAttribute("data-from")) root.dataset.from = t.getAttribute("data-from");
     else if (t.hasAttribute("data-sign")) root.dataset.sign = t.getAttribute("data-sign");
     else root.dataset.cur = other(root.dataset.cur || "USD"); // swap (the amount stays)
     render(root);
