@@ -19,7 +19,6 @@ import reflex as rx
 from frontend.components.tradingview_controls import timeframe_controls
 from frontend.state.calendar_state import CalendarState as Cal
 from frontend.state.macro_calendar_state import MacroCalendarState as Mac
-from frontend.state.multichart_state import MultichartState
 from frontend.state.tools_state import ToolsState
 
 _CARD = dict(
@@ -639,57 +638,6 @@ def tools_home_content() -> rx.Component:
         ),
         spacing="6",
         align="center",
-        width="100%",
-        padding=_PAGE_PADDING,
-    )
-
-
-def _chart_slot(n) -> rx.Component:
-    """One empty multichart card: the same card look as the /tools cards, with a + in the middle (nothing is added yet).
-    With more than one card on the page every card has an x at its top right that removes it."""
-    return rx.box(
-        rx.el.button(
-            rx.center(rx.icon("plus", size=30), class_name="multichart-plus"),
-            type="button",
-            class_name="multichart-slot",
-            title="Add a chart",
-            aria_label="Add a chart to this card",
-        ),
-        rx.cond(
-            MultichartState.can_remove,
-            rx.el.button(
-                rx.icon("x", size=18),
-                type="button",
-                class_name="multichart-remove",
-                title="Remove this card",
-                aria_label="Remove this card",
-                on_click=MultichartState.remove_card(n),
-            ),
-        ),
-        class_name="multichart-card",
-    )
-
-
-def multichart_content() -> rx.Component:
-    """/tools/multichart: a full-width, two-column grid of big empty cards, each with a + (first version: no charts yet).
-    It starts with one card; the full-width "Add more chart" button under the grid adds another."""
-    return rx.vstack(
-        _page_header("Multichart", "Watch several charts side by side. Each card is a slot for a chart."),
-        rx.box(
-            rx.foreach(MultichartState.cards, _chart_slot),
-            class_name="multichart-grid",
-        ),
-        rx.cond(
-            MultichartState.can_add,
-            rx.el.button(
-                rx.icon("plus", size=18),
-                "Add more chart",
-                type="button",
-                class_name="multichart-add-more",
-                on_click=MultichartState.add_card,
-            ),
-        ),
-        spacing="5",
         width="100%",
         padding=_PAGE_PADDING,
     )

@@ -376,6 +376,45 @@ def _resolve_chart_symbol(symbol: str, coin: dict | None) -> str | None:
     return dex_symbol or None
 
 
+def tradingview_widget_src(symbol: str | None, theme: str) -> str:
+    """The public TradingView "widgetembed" iframe URL for one exchange-prefixed symbol and a theme ("light" / "dark"):
+    shared by the coin page (CoinState._tradingview_iframe_src, which explains every option) and /tools/multichart."""
+    if not symbol:
+        return ""
+    pane_color = "#000000" if theme == "dark" else "#ffffff"
+    params = {
+        "symbol": symbol,
+        "interval": "60",
+        "theme": theme,
+        "style": "1",
+        "locale": "en",
+        # Kuala Lumpur time (UTC+8) instead of the widget's own UTC
+        # default, per explicit request — Singapore ("Asia/Singapore")
+        # is the same UTC+8 offset and would be an equally valid
+        # fallback if TradingView ever drops "Asia/Kuala_Lumpur" from
+        # its supported IANA timezone list.
+        "timezone": "Asia/Kuala_Lumpur",
+        "toolbarbg": "131722" if theme == "dark" else "f1f3f6",
+        "backgroundColor": pane_color,
+        "gridColor": pane_color,
+        # Underscored key is the one this widget actually reads — the
+        # earlier "hidesidetoolbar" (no underscore) was silently
+        # ignored, leaving the drawing-tools sidebar hidden (its
+        # default) regardless of its "0" value. Confirmed live that
+        # this one shows the left toolbar while the black background/
+        # grid above stay intact.
+        "hide_side_toolbar": "0",
+        "saveimage": "0",
+        "withdateranges": "1",
+        "studies": "[]",
+        # The volume bars along the bottom of the chart are hidden on every embedded chart.
+        "hide_volume": "1",
+        "hideideas": "1",
+        "allow_symbol_change": "1",
+    }
+    return f"https://www.tradingview.com/widgetembed/?{urlencode(params)}"
+
+
 def _login_required(handler):
     """Guard for event handlers that need an account (price alerts): a
     logged-out caller is sent to /login and the handler never runs. Checked on
@@ -3819,41 +3858,7 @@ class CoinState(rx.State):
         mode, white in light mode) rather than a fixed black regardless of
         theme — matches the rest of the page's own light/dark switching.
         """
-        symbol = self._resolve_tradingview_symbol()
-        if symbol is None:
-            return ""
-        pane_color = "#000000" if theme == "dark" else "#ffffff"
-        params = {
-            "symbol": symbol,
-            "interval": "60",
-            "theme": theme,
-            "style": "1",
-            "locale": "en",
-            # Kuala Lumpur time (UTC+8) instead of the widget's own UTC
-            # default, per explicit request — Singapore ("Asia/Singapore")
-            # is the same UTC+8 offset and would be an equally valid
-            # fallback if TradingView ever drops "Asia/Kuala_Lumpur" from
-            # its supported IANA timezone list.
-            "timezone": "Asia/Kuala_Lumpur",
-            "toolbarbg": "131722" if theme == "dark" else "f1f3f6",
-            "backgroundColor": pane_color,
-            "gridColor": pane_color,
-            # Underscored key is the one this widget actually reads — the
-            # earlier "hidesidetoolbar" (no underscore) was silently
-            # ignored, leaving the drawing-tools sidebar hidden (its
-            # default) regardless of its "0" value. Confirmed live that
-            # this one shows the left toolbar while the black background/
-            # grid above stay intact.
-            "hide_side_toolbar": "0",
-            "saveimage": "0",
-            "withdateranges": "1",
-            "studies": "[]",
-            # The volume bars along the bottom of the chart are hidden on every embedded chart.
-            "hide_volume": "1",
-            "hideideas": "1",
-            "allow_symbol_change": "1",
-        }
-        return f"https://www.tradingview.com/widgetembed/?{urlencode(params)}"
+        return tradingview_widget_src(self._resolve_tradingview_symbol(), theme)
 
     @rx.var(cache=True)
     def tradingview_iframe_src_light(self) -> str:

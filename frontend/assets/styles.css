@@ -2018,6 +2018,35 @@ html.nlb-lock { overflow: hidden; }
 @media (max-width: 639px) { .multichart-slot { min-height: 320px; } }
 .multichart-plus { width: 72px; height: 72px; border-radius: 50%; border: 1px dashed var(--gray-a8); background: var(--accent-a3); }
 .multichart-slot:hover .multichart-plus { border-color: var(--accent-a8); }
+/* A card with a coin search or a chart in it (the empty card is the .multichart-slot + button above). */
+.multichart-panel {
+  display: flex; flex-direction: column; min-height: 520px; border: 1px solid var(--gray-a5); border-radius: 16px;
+  background: var(--gray-a2); overflow: hidden;
+}
+.multichart-head { padding: 10px 56px 10px 14px; min-height: 52px; border-bottom: 1px solid var(--gray-a5); }
+.multichart-change {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--gray-a6); border-radius: 999px;
+  background: transparent; color: var(--gray-11); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.multichart-change:hover { background: var(--gray-a3); color: var(--gray-12); }
+.multichart-chart { flex: 1; width: 100%; min-height: 466px; border: 0; display: block; }
+.multichart-state { display: flex; align-items: center; justify-content: center; padding: 24px; }
+.multichart-search { padding: 14px 58px 14px 14px; gap: 10px; }
+.multichart-search-bar {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px;
+  border: 1px solid var(--gray-a6); border-radius: 10px; background: var(--color-background); color: var(--gray-11);
+}
+.multichart-search-bar:focus-within { border-color: var(--accent-9); box-shadow: 0 0 0 2px var(--accent-a5); }
+.multichart-search-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; color: var(--gray-12); font: inherit; font-size: 15px; }
+.multichart-search-close {
+  flex: none; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0;
+  border: 1px solid var(--gray-a6); border-radius: 50%; background: transparent; color: var(--gray-11); cursor: pointer;
+}
+.multichart-search-close:hover { background: var(--gray-a4); color: var(--gray-12); }
+.multichart-results { flex: 1; min-height: 0; overflow-y: auto; max-height: 440px; border: 1px solid var(--gray-a5); border-radius: 10px; background: var(--gray-2); padding: 0.3em 0; }
+.multichart-result { display: block; width: 100%; text-align: left; border: none; background: transparent; color: inherit; font: inherit; }
+.multichart-hint { display: block; padding: 1em; }
+@media (max-width: 639px) { .multichart-panel { min-height: 320px; } .multichart-chart { min-height: 266px; } .multichart-results { max-height: 300px; } }
 .multichart-add-more {
   display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px 16px;
   border: 1px dashed var(--gray-a8); border-radius: 12px; background: transparent; color: var(--gray-12);
