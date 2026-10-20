@@ -1967,3 +1967,32 @@ table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 .calc-big-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
 .calc-pct { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--gray-11); }
 
+
+
+/* News reader photo viewer (assets/news_lightbox.js): a full-size popup in the middle with prev / next arrows. The scrim is
+   always dark, like any photo viewer, so the picture stands out in both themes. */
+img.news-photo { cursor: zoom-in; }
+html.nlb-lock { overflow: hidden; }
+.news-lightbox {
+  position: fixed; inset: 0; z-index: 10000; display: none; align-items: center; justify-content: center;
+  background: rgba(8, 9, 11, 0.9); padding: 56px 72px;
+}
+.news-lightbox.nlb-open { display: flex; animation: nlb-in 0.15s ease-out; }
+@keyframes nlb-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .news-lightbox.nlb-open { animation: none; } }
+.nlb-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); user-select: none; }
+.nlb-btn {
+  position: absolute; display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 50%; background: rgba(30, 32, 36, 0.75); color: #fff; cursor: pointer;
+}
+.nlb-btn:hover { background: rgba(60, 64, 70, 0.9); }
+.nlb-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.nlb-close { top: 14px; right: 14px; }
+.nlb-prev { left: 14px; top: 50%; transform: translateY(-50%); }
+.nlb-next { right: 14px; top: 50%; transform: translateY(-50%); }
+.nlb-count { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; background: rgba(30, 32, 36, 0.75); color: #fff; font-size: 13px; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .news-lightbox { padding: 56px 8px; }
+  .nlb-btn { width: 40px; height: 40px; }
+  .nlb-prev { left: 6px; } .nlb-next { right: 6px; }
+}

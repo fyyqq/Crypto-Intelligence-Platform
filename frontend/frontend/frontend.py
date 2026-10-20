@@ -1163,6 +1163,7 @@ def news_detail_page() -> rx.Component:
         _watchlist_widget(),
         _alert_popups(),
         rx.script(src="/chain_pills.js"),
+        rx.script(src="/news_lightbox.js"),  # click a photo -> full-size popup with prev / next arrows
         min_height="100vh",
         width="100%",
     )

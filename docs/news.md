@@ -337,3 +337,10 @@ Per explicit request (`el-01/02`): the Narrative Radar list lagged behind the ne
 ## @layergg DEX posts in Memecoins (2026-10-15)
 
 Posts of `t.me/layergg` whose headline (first line) contains the word **DEX** (any case; DEXs / DEXes too; not a part of a longer word) - the "🆘 What happened in DEX in the last ~24h" digests - are stored in the **Memecoins** section (`Telegram Memecoin`) instead of Crypto, for new posts (`telegram_pipeline.is_dex_post` in `store_message`, so both the poller and the live listener) and, once, for the stored ones: `python -m scripts.reclassify_layergg_dex` (34 locally). Other layergg posts stay in Crypto. Test: `tests/test_layergg_dex.py`.
+
+
+<details>
+<summary><strong>🖼️ Photo viewer in the article reader (2026-10-20)</strong></summary>
+
+Click a photo in a news article (the single hero image or any photo of the media grid, class `news-photo` in `components/news_detail.py`) and `assets/news_lightbox.js` (loaded by `news_detail_page`) opens it full size in a popup in the middle of the page on a dark scrim. When the article has more than one photo, round **left / right arrows** step through them in page order (after the last comes the first) with a `2 / 5` counter; the arrow keys and a swipe on touch screens do the same. **Esc**, the x button or a click outside the picture closes it; the page does not scroll behind it and focus returns to the photo. The generic category fallback image and a group's profile picture (shown when a post has no photo) do not open. Videos are untouched. Built on demand and delegated on the document, so it works after Reflex re-renders. Tests: `tests/test_news_lightbox.py`.
+</details>

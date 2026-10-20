@@ -342,7 +342,7 @@ def _media_cell(item: dict, article: dict) -> rx.Component:
             ),
         ),
         rx.box(
-            rx.image(src=item["src"], width="100%", height="100%", object_fit="cover", display="block"),
+            rx.image(src=item["src"], width="100%", height="100%", object_fit="cover", display="block", class_name="news-photo", alt="Article photo"),
             **frame,
         ),
     )
@@ -412,7 +412,7 @@ def _reader(article: dict) -> rx.Component:
                                 height="100%",
                                 object_fit="cover",
                                 display="block",
-                                class_name="news-reader-image",
+                                class_name="news-reader-image news-photo",
                                 custom_attrs={"data-fallback-src": article["fallback_image_url"]},
                             ),
                             width="100%",
