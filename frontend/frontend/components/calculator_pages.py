@@ -196,28 +196,29 @@ def pnl_calculator_content() -> rx.Component:
 # ---- Currency converter -----------------------------------------------------------------------------
 
 def _sum_card() -> rx.Component:
-    """Add amounts, each in the currency you pick for it ($1000 + $1000, or $1000 + RM500), and show the total in USD or MYR."""
+    """Add or subtract amounts ($1000 + $1000 - $250) in the one currency picked with the USD / MYR switch; the total is also shown in the other currency."""
     return _root(
         "sum",
         rx.box(
             rx.box(
-                rx.heading("Add amounts", size="4"),
+                rx.heading("Add / subtract amounts", size="4"),
                 rx.el.button("+ Add amount", type="button", class_name="calc-chip", custom_attrs={"data-add-term": "1"}),
                 class_name="calc-dca-head",
             ),
             rx.text(
-                "Type each amount, pick its currency, then choose the currency for the total. Example: $1,000 + $1,000.",
+                "Pick a currency, type the amounts and choose + or - between them. Example: $1,000 + $1,000 - $250.",
                 size="2",
                 color="var(--gray-11)",
             ),
             rx.box(custom_attrs={"data-o": "terms"}, class_name="calc-terms"),
             _field(
-                "Show the total in",
+                "Currency",
                 rx.box(_seg("USD ($)", **{"data-cur": "USD"}), _seg("MYR (RM)", **{"data-cur": "MYR"}), class_name="calc-segs"),
             ),
             rx.box(
                 rx.el.div("—", class_name="calc-big", custom_attrs={"data-o": "result"}),
                 rx.el.div("", class_name="calc-formula", custom_attrs={"data-o": "formula"}),
+                rx.el.div("", class_name="calc-formula", custom_attrs={"data-o": "other"}),
                 rx.el.div("", class_name="calc-rates", custom_attrs={"data-o": "rates"}),
                 class_name="calc-result-block",
             ),

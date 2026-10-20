@@ -24,13 +24,12 @@ needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node is no
 
 
 @needs_node
-def test_add_amounts_each_in_its_own_currency():
-    # $1000 + $1000 shown in USD is 2000 and needs no rate; mixed currencies use the rate (MYR per USD)
-    assert run_js("c.sumAmounts([{amount:1000,cur:'USD'},{amount:1000,cur:'USD'}], 'USD', 0).total") == 2000
-    assert run_js("c.sumAmounts([{amount:1000,cur:'USD'},{amount:1000,cur:'USD'}], 'MYR', 4).total") == 8000
-    assert run_js("c.sumAmounts([{amount:1000,cur:'USD'},{amount:4000,cur:'MYR'}], 'USD', 4).total") == 2000
-    assert run_js("c.sumAmounts([{amount:1000,cur:'USD'},{amount:4000,cur:'MYR'}], 'MYR', 4).total") == 8000
-    assert run_js("c.sumAmounts([{amount:1000,cur:'USD'},{amount:4000,cur:'MYR'}], 'MYR', 4).parts") == [4000, 4000]
+def test_add_and_subtract_amounts_left_to_right():
+    assert run_js("c.sumTerms([{amount:1000,op:'+'},{amount:1000,op:'+'}])") == 2000  # $1000 + $1000
+    assert run_js("c.sumTerms([{amount:1000,op:'+'},{amount:1000,op:'+'},{amount:250,op:'-'}])") == 1750
+    assert run_js("c.sumTerms([{amount:500,op:'-'},{amount:700,op:'-'}])") == -200  # the first term's operator is ignored
+    assert run_js("c.sumTerms([{amount:100.1,op:'+'},{amount:0.2,op:'-'}])") == pytest.approx(99.9)
+    assert run_js("c.sumTerms([{amount:42,op:'-'}])") == 42
 
 
 def test_add_amounts_card_is_on_the_converter_page_only():

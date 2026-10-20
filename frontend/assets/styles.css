@@ -1949,11 +1949,10 @@ table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 .calc-big-sm { font-size: 22px; }
 /* Currency Converter: "Add amounts" rows (amount box + its own USD / MYR switch). */
 .calc-terms { display: flex; flex-wrap: wrap; gap: 10px; } /* the amounts sit side by side in one row; a third one wraps to the next row */
-.calc-term { flex: 1 1 240px; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.calc-term { flex: 1 1 200px; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.calc-ops { flex: none; padding: 3px; }
+.calc-term .calc-ops .calc-seg { padding: 7px 12px; font-size: 16px; font-weight: 600; line-height: 1; }
 .calc-term .calc-input-wrap { flex: 1 1 auto; min-width: 0; }
-.calc-term-n { flex: none; width: 14px; font-size: 13px; color: var(--gray-11); text-align: center; }
-.calc-term .calc-segs { flex: none; padding: 3px; }
-.calc-term .calc-seg { padding: 7px 10px; font-size: 13px; }
 .calc-term .calc-del { flex: none; }
 .calc-area-sum .calc-field .calc-segs { width: fit-content; }
 .calc-area-sum .calc-field .calc-seg { padding: 8px 18px; }
