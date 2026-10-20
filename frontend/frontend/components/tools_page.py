@@ -645,13 +645,28 @@ def tools_home_content() -> rx.Component:
 
 
 def _chart_slot(n) -> rx.Component:
-    """One empty multichart card: the same card look as the /tools cards, with a + in the middle (nothing is added yet)."""
-    return rx.el.button(
-        rx.center(rx.icon("plus", size=30), class_name="multichart-plus"),
-        type="button",
-        class_name="multichart-slot",
-        title="Add a chart",
-        aria_label="Add a chart to this card",
+    """One empty multichart card: the same card look as the /tools cards, with a + in the middle (nothing is added yet).
+    With more than one card on the page every card has an x at its top right that removes it."""
+    return rx.box(
+        rx.el.button(
+            rx.center(rx.icon("plus", size=30), class_name="multichart-plus"),
+            type="button",
+            class_name="multichart-slot",
+            title="Add a chart",
+            aria_label="Add a chart to this card",
+        ),
+        rx.cond(
+            MultichartState.can_remove,
+            rx.el.button(
+                rx.icon("x", size=18),
+                type="button",
+                class_name="multichart-remove",
+                title="Remove this card",
+                aria_label="Remove this card",
+                on_click=MultichartState.remove_card(n),
+            ),
+        ),
+        class_name="multichart-card",
     )
 
 

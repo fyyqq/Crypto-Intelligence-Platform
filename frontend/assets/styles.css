@@ -2000,13 +2000,20 @@ html.nlb-lock { overflow: hidden; }
 /* /tools/multichart (components/tools_page.py::multichart_content): a full-width two-column grid of big empty chart cards with a +,
    same card look as .tool-card; a lone (or odd last) card spans the whole row; "Add more chart" is a full-width button. */
 .multichart-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; width: 100%; }
-@media (min-width: 640px) { .multichart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .multichart-grid > .multichart-slot:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+@media (min-width: 640px) { .multichart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .multichart-grid > .multichart-card:last-child:nth-child(odd) { grid-column: 1 / -1; } }
 .multichart-slot {
   display: flex; align-items: center; justify-content: center; width: 100%; min-height: 520px; padding: 1.4em 1.5em;
   border: 1px solid var(--gray-a5); border-radius: 16px; background: var(--gray-a2); color: var(--gray-11); cursor: pointer; font: inherit;
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
 }
 .multichart-slot:hover { border-color: var(--accent-a8); background: var(--gray-a3); color: var(--accent-11); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18); }
+.multichart-card { position: relative; min-width: 0; }
+.multichart-remove {
+  position: absolute; top: 12px; right: 12px; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0;
+  border: 1px solid var(--gray-a6); border-radius: 50%; background: var(--gray-a3); color: var(--gray-11); cursor: pointer;
+}
+.multichart-remove:hover { background: var(--red-a4); border-color: var(--red-a8); color: var(--red-11); }
+.multichart-remove:focus-visible { outline: 2px solid var(--accent-9); outline-offset: 2px; }
 .multichart-slot:focus-visible { outline: 2px solid var(--accent-9); outline-offset: 2px; }
 @media (max-width: 639px) { .multichart-slot { min-height: 320px; } }
 .multichart-plus { width: 72px; height: 72px; border-radius: 50%; border: 1px dashed var(--gray-a8); background: var(--accent-a3); }
