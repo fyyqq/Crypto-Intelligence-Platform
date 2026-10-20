@@ -29,6 +29,7 @@ def reset(monkeypatch):
     monkeypatch.setattr(m.settings, "mexc_viewer_emails", "")
     monkeypatch.setattr(m, "get_costs", lambda user_id: {})
     monkeypatch.setattr(m, "_rate", {"until": 0.0, "strikes": 0})
+    monkeypatch.setattr(m, "_deposits", {})
 
 
 @pytest.fixture
@@ -312,3 +313,35 @@ def test_held_assets_is_empty_when_mexc_is_not_connected_or_fails(monkeypatch):
     monkeypatch.setattr(m.settings, "mexc_api_secret", "s")
     monkeypatch.setattr(m, "_refresh", lambda force=False: (_ for _ in ()).throw(RuntimeError("boom")))
     assert m.held_assets() == {}
+
+
+def test_solana_deposit_address_is_the_solana_network_one(demo):
+    got = m.deposit_address("SOL")  # the demo lists a BEP20 and a Solana address: only the Solana one is shown
+    assert got["address"] == "DemoSo1anaDepositAddressForLocalTestOnly1111" and got["network"] == "Solana(SOL)" and not got["error"]
+    assert m.portfolio()["deposit_sol"]["address"] == got["address"]  # the dashboard snapshot carries it
+
+
+def test_deposit_address_refusal_is_an_error_text_not_an_exception_and_is_cached(monkeypatch):
+    calls = []
+
+    def refuse(path, params=None, signed=False):
+        calls.append(path)
+        raise m.MexcError("MEXC rejected the request")
+
+    monkeypatch.setattr(m, "_get", refuse)
+    first = m.deposit_address("SOL")
+    assert first["address"] == "" and "could not be read" in first["error"] and "MEXC rejected" in first["error"]
+    m.deposit_address("SOL")
+    assert calls == ["/api/v3/capital/deposit/address"]  # asked once; the refusal is remembered for DEPOSIT_RETRY
+
+
+def test_deposit_address_when_mexc_lists_no_solana_address(monkeypatch):
+    monkeypatch.setattr(m, "_get", lambda path, params=None, signed=False: [{"coin": "SOL", "network": "BNB Smart Chain(BEP20)", "address": "0xabc", "memo": None}])
+    got = m.deposit_address("SOL")
+    assert got["address"] == "" and "no SOL deposit address" in got["error"]
+
+
+def test_the_deposit_address_call_is_a_signed_get_to_a_read_path_only():
+    assert "/api/v3/capital/deposit/address" in m._READ_PATHS
+    src = Path(m.__file__).read_text()
+    assert "requests.post" not in src and "requests.put" not in src and "requests.delete" not in src  # nothing can write

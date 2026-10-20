@@ -3,7 +3,8 @@
 Safety:
 - The key is a READ-ONLY MEXC key (Spot: View Account Details + View Order Details) linked to the server's IP.
   On top of that, this module can only send signed GET requests, and only to the read endpoints in
-  _READ_PATHS: nothing here can place, change or cancel an order, or move funds.
+  _READ_PATHS: nothing here can place, change or cancel an order, or move funds. (The GET deposit-address
+  endpoint only READS an address that already exists; the POST that creates one is never called.)
 - The key and secret are read from settings on the server and used only to sign a request. They are never
   logged, never put in an exception or page state, and every network error is re-raised as a plain
   MexcError `from None` so no URL or traceback with a signature reaches the error log.
@@ -54,7 +55,9 @@ RECENT_FILLS = 50  # latest trades returned (the page shows them 5 at a time)
 _TRADE_PAGES = 5  # up to 5 x 100 trades per coin
 
 # Signed calls are only ever sent to these read endpoints (GET).
-_READ_PATHS = frozenset({"/api/v3/account", "/api/v3/openOrders", "/api/v3/myTrades"})
+_READ_PATHS = frozenset({"/api/v3/account", "/api/v3/openOrders", "/api/v3/myTrades", "/api/v3/capital/deposit/address"})
+DEPOSIT_TTL = 3600  # seconds: a deposit address does not change, so it is read once an hour
+DEPOSIT_RETRY = 600  # seconds before asking again after MEXC refused or failed
 
 # Priced at $1 when MEXC has no USDT pair for them (USDT itself always).
 _STABLES = frozenset({"USDT", "USDC", "FDUSD", "USDE", "DAI", "TUSD", "USD1", "PYUSD", "USDD", "BUSD"})
@@ -157,6 +160,8 @@ def _from_fixture(fx: dict, path: str, params: dict) -> object:
         return fx.get("myTrades", {}).get(params.get("symbol", ""), [])
     if path == "/api/v3/klines":
         return fx.get("klines", {}).get(params.get("symbol", ""), [])
+    if path == "/api/v3/capital/deposit/address":
+        return fx.get("depositAddress", {}).get(params.get("coin", ""), [])
     raise MexcError("Not available in demo data.")
 
 
@@ -401,6 +406,36 @@ def _refresh(force: bool = False) -> None:
 # ---------------------------------------------------------------------------------------------- snapshot
 
 
+_deposits: dict[str, dict] = {}  # coin -> {"at", "address", "network", "memo", "error"}
+
+
+def deposit_address(coin: str = "SOL") -> dict:
+    """The account's own deposit address for `coin` (Solana by default) as {"address", "network", "memo", "error"}.
+    Read-only (GET /api/v3/capital/deposit/address: it only returns an address the account already has) and cached for
+    DEPOSIT_TTL; a refusal (for example the key lacks the permission) is remembered for DEPOSIT_RETRY and shown as `error`,
+    never raised, so the page around it keeps working. Blocking: call it from a thread."""
+    coin = (coin or "").upper()
+    hit = _deposits.get(coin)
+    if hit and time.time() - hit["at"] < (DEPOSIT_TTL if hit["address"] else DEPOSIT_RETRY):
+        return {k: hit[k] for k in ("address", "network", "memo", "error")}
+    result = {"address": "", "network": "", "memo": "", "error": ""}
+    try:
+        rows = _get("/api/v3/capital/deposit/address", {"coin": coin}, signed=True)
+        for row in rows if isinstance(rows, list) else []:
+            network = str(row.get("network") or "")
+            if coin == "SOL" and not re.search(r"solana|^sol$", network, re.I):
+                continue  # SOL can also be sent on other networks: only the Solana network's address is shown
+            if row.get("address"):
+                result.update(address=str(row["address"]), network=network, memo=str(row.get("memo") or ""))
+                break
+        if not result["address"]:
+            result["error"] = f"MEXC has no {coin} deposit address for this account yet. Open Deposit > {coin} on MEXC once to create it."
+    except MexcError as err:
+        result["error"] = f"The deposit address could not be read from MEXC: {err}"
+    _deposits[coin] = {"at": time.time(), **result}
+    return result
+
+
 def held_assets() -> dict[str, float]:
     """{asset code: USD price} of every non-stable coin worth at least DUST_USD in the account, for marking the
     coins you hold on /gainers-losers. Shares the account cache (a read at most every ACCOUNT_TTL). Blocking.
@@ -552,6 +587,7 @@ def portfolio(user_id: int | None = None, force: bool = False) -> dict:
         # coin you don't hold shows on that coin's page).
         "unmatched_locked_usdt": max(locked_usdt - buy_usdt, 0.0) if _cache["open_orders_all"] is False else 0.0,
         "trades": trades[:RECENT_FILLS],
+        "deposit_sol": deposit_address("SOL"),
     }
 
 

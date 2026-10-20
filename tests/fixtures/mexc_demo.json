@@ -3637,5 +3637,21 @@
     "1000"
    ]
   ]
+ },
+ "depositAddress": {
+  "SOL": [
+   {
+    "coin": "SOL",
+    "network": "BNB Smart Chain(BEP20)",
+    "address": "0xDemoOnlyNotARealBscAddress00000000000000",
+    "memo": null
+   },
+   {
+    "coin": "SOL",
+    "network": "Solana(SOL)",
+    "address": "DemoSo1anaDepositAddressForLocalTestOnly1111",
+    "memo": null
+   }
+  ]
  }
 }

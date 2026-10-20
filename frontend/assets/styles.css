@@ -1743,6 +1743,13 @@ svg.wl-star-force-off {
 .pf-hero { background: linear-gradient(135deg, var(--accent-a3), var(--gray-a2) 60%); }
 .pf-total { font-size: clamp(30px, 4.2vw, 44px); font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; color: var(--gray-12); margin: 4px 0 8px; }
 .pf-num { font-variant-numeric: tabular-nums; }
+.pf-hero { display: flex; flex-direction: column; }
+/* Solana deposit address at the bottom of the Total balance card (fills the space under the tiles). */
+.pf-deposit { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+.pf-deposit { border-top: 1px solid var(--gray-a4); margin-top: auto; }
+.pf-addr { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; background: var(--gray-a2); border: 1px solid var(--gray-a4); color: var(--gray-12); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; user-select: all; }
+.pf-copy { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border: 1px solid var(--gray-a6); border-radius: 10px; background: transparent; color: var(--gray-12); font: inherit; font-size: 13px; cursor: pointer; }
+.pf-copy:hover { background: var(--gray-a3); }
 .pf-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: var(--gray-a3); }
 .pf-stat { min-width: 0; padding: 12px; border-radius: 10px; background: var(--gray-a2); border: 1px solid var(--gray-a3); }
 .pf-stat p { overflow-wrap: anywhere; }

@@ -118,6 +118,44 @@ def _currency_toggle() -> rx.Component:
     return rx.box(_currency_button("MYR"), _currency_button("USD"), class_name="pf-cur", role="group", aria_label="Card currency")
 
 
+def _deposit_box() -> rx.Component:
+    """The account's own Solana deposit address (read from MEXC), at the bottom of the Total balance card, with a copy button."""
+    return rx.box(
+        rx.hstack(
+            rx.icon("wallet", size=14, color="var(--gray-10)"),
+            rx.text("Solana deposit address", size="1", color="var(--gray-11)"),
+            rx.cond(S.pf_summary["sol_network"] != "", rx.badge(S.pf_summary["sol_network"], variant="soft", color_scheme="gray", size="1")),
+            spacing="1",
+            align="center",
+            wrap="wrap",
+        ),
+        rx.cond(
+            S.pf_summary["sol_address"] != "",
+            rx.hstack(
+                rx.text(S.pf_summary["sol_address"], class_name="pf-addr", title="Your MEXC Solana deposit address"),
+                rx.el.button(
+                    rx.icon("copy", size=15),
+                    "Copy",
+                    type="button",
+                    class_name="pf-copy",
+                    title="Copy the address",
+                    aria_label="Copy the Solana deposit address",
+                    on_click=[rx.set_clipboard(S.pf_summary["sol_address"]), rx.toast.success("Solana address copied")],
+                ),
+                spacing="2",
+                align="center",
+                width="100%",
+            ),
+            rx.text(
+                rx.cond(S.pf_summary["sol_error"] != "", S.pf_summary["sol_error"], "Reading the address from MEXC..."),
+                size="1",
+                color="var(--amber-11)",
+            ),
+        ),
+        class_name="pf-deposit",
+    )
+
+
 def _hero() -> rx.Component:
     return _card(
         rx.flex(
@@ -157,6 +195,7 @@ def _hero() -> rx.Component:
             S.pf_summary["cost_note"] != "",
             rx.text(rx.icon("info", size=13, display="inline", vertical_align="-2px"), " ", S.pf_summary["cost_note"], size="1", color="var(--gray-11)", margin_top="0.75em"),
         ),
+        _deposit_box(),
         class_name="pf-hero",
     )
 

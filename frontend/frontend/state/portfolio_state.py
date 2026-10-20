@@ -217,6 +217,9 @@ def _summary_view(snap: dict, currency: str = "USD", rate: float = 1.0) -> dict[
         "coins": str(sum(1 for h in snap["holdings"] if not h["is_stable"])),
         "updated": datetime.fromtimestamp(updated, _TZ).strftime("%H:%M:%S") if updated else "",
         "dust": f"+ {snap['dust_count']} small balance{'s' if snap['dust_count'] != 1 else ''} ({cur(snap['dust_value'])})" if snap["dust_count"] else "",
+        "sol_address": (snap.get("deposit_sol") or {}).get("address", ""),
+        "sol_network": (snap.get("deposit_sol") or {}).get("network", ""),
+        "sol_error": (snap.get("deposit_sol") or {}).get("error", ""),
         "unmatched": (
             f"{_money(snap['unmatched_locked_usdt'])} USDT is held by buy orders on coins you don't hold: open that coin's page to see them."
             if snap["unmatched_locked_usdt"] >= 1
