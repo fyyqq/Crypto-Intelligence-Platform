@@ -36,6 +36,7 @@ from frontend.components import (
     pnl_calculator_content,
     market_charts_content,
     market_indicators_content,
+    multichart_content,
     tools_home_content,
     watchlist_table,
 )
@@ -1268,6 +1269,11 @@ def market_charts_page() -> rx.Component:
     return _tools_shell(market_charts_content())
 
 
+def multichart_page() -> rx.Component:
+    # /tools/multichart: a two-column grid of empty chart slots (each with a +).
+    return _tools_shell(multichart_content())
+
+
 def cpi_fomc_page() -> rx.Component:
     # /tools/cpi-fomc: this week's CPI and FOMC events, live.
     return _tools_shell(cpi_fomc_content())
@@ -1810,6 +1816,12 @@ app.add_page(
     route="/tools/capital-splitter",
     title="Repace — Capital Splitter",
     on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch, CalcState.load_rate],
+)
+app.add_page(
+    multichart_page,
+    route="/tools/multichart",
+    title="Repace — Multichart",
+    on_load=[CoinState.restore_session, CoinState.load_coins, CoinState.start_alert_watch],
 )
 app.add_page(
     market_charts_page,

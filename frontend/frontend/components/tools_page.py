@@ -540,6 +540,13 @@ TOOL_PAGES = [
         "description": "Split your capital into equal parts or your own percentages, for example $1,000 in three entries or 20% / 20% / 60%, in US dollars or Malaysian ringgit.",
         "chips": ["Equal parts", "Custom %", "USD", "MYR"],
     },
+    {
+        "title": "Multichart",
+        "href": "/tools/multichart",
+        "icon": "layout-grid",
+        "description": "Watch several charts side by side in a two-column grid: each card is a slot you add a chart to.",
+        "chips": ["2 columns", "Charts"],
+    },
 ]
 
 
@@ -625,6 +632,38 @@ def tools_home_content() -> rx.Component:
         rx.grid(
             *[_tool_card(p) for p in TOOL_PAGES],
             columns=rx.breakpoints(initial="1", sm="2"),  # two columns from tablet width
+            spacing="4",
+            width="100%",
+            max_width="980px",
+        ),
+        spacing="6",
+        align="center",
+        width="100%",
+        padding=_PAGE_PADDING,
+    )
+
+
+def _chart_slot(n: int) -> rx.Component:
+    """One empty multichart card: the same card look as the /tools cards, with a + in the middle (nothing is added yet)."""
+    return rx.el.button(
+        rx.center(rx.icon("plus", size=30), class_name="multichart-plus"),
+        type="button",
+        class_name="multichart-slot",
+        title="Add a chart",
+        aria_label=f"Add a chart to slot {n}",
+    )
+
+
+MULTICHART_SLOTS = 4
+
+
+def multichart_content() -> rx.Component:
+    """/tools/multichart: a two-column grid of empty cards, each with a + (2026-10-20, first version: no charts yet)."""
+    return rx.vstack(
+        _page_header("Multichart", "Watch several charts side by side. Each card is a slot for a chart."),
+        rx.grid(
+            *[_chart_slot(i + 1) for i in range(MULTICHART_SLOTS)],
+            columns=rx.breakpoints(initial="1", sm="2"),  # two columns from tablet width, like the /tools cards
             spacing="4",
             width="100%",
             max_width="980px",

@@ -18,6 +18,7 @@ from frontend.components.tools_page import (
     crypto_calendar_content,
     market_charts_content,
     market_indicators_content,
+    multichart_content,
     tools_home_content,
 )
 from frontend.components.watchlist_table import watchlist_table
@@ -47,6 +48,7 @@ __all__ = [
     "crypto_calendar_content",
     "market_charts_content",
     "market_indicators_content",
+    "multichart_content",
     "tools_home_content",
     "pnl_calculator_content",
     "currency_converter_content",

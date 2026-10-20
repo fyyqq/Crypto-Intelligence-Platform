@@ -1996,3 +1996,14 @@ html.nlb-lock { overflow: hidden; }
   .nlb-btn { width: 40px; height: 40px; }
   .nlb-prev { left: 6px; } .nlb-next { right: 6px; }
 }
+
+/* /tools/multichart (components/tools_page.py::_chart_slot): empty chart cards with a + in the middle, same card look as .tool-card. */
+.multichart-slot {
+  display: flex; align-items: center; justify-content: center; width: 100%; min-height: 250px; padding: 1.4em 1.5em;
+  border: 1px solid var(--gray-a5); border-radius: 16px; background: var(--gray-a2); color: var(--gray-11); cursor: pointer; font: inherit;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+.multichart-slot:hover { transform: translateY(-3px); border-color: var(--accent-a8); background: var(--gray-a3); color: var(--accent-11); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18); }
+.multichart-slot:focus-visible { outline: 2px solid var(--accent-9); outline-offset: 2px; }
+.multichart-plus { width: 64px; height: 64px; border-radius: 50%; border: 1px dashed var(--gray-a8); background: var(--accent-a3); }
+.multichart-slot:hover .multichart-plus { border-color: var(--accent-a8); }
