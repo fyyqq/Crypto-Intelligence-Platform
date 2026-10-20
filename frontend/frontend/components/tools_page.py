@@ -19,6 +19,7 @@ import reflex as rx
 from frontend.components.tradingview_controls import timeframe_controls
 from frontend.state.calendar_state import CalendarState as Cal
 from frontend.state.macro_calendar_state import MacroCalendarState as Mac
+from frontend.state.multichart_state import MultichartState
 from frontend.state.tools_state import ToolsState
 
 _CARD = dict(
@@ -643,33 +644,37 @@ def tools_home_content() -> rx.Component:
     )
 
 
-def _chart_slot(n: int) -> rx.Component:
+def _chart_slot(n) -> rx.Component:
     """One empty multichart card: the same card look as the /tools cards, with a + in the middle (nothing is added yet)."""
     return rx.el.button(
         rx.center(rx.icon("plus", size=30), class_name="multichart-plus"),
         type="button",
         class_name="multichart-slot",
         title="Add a chart",
-        aria_label=f"Add a chart to slot {n}",
+        aria_label="Add a chart to this card",
     )
 
 
-MULTICHART_SLOTS = 4
-
-
 def multichart_content() -> rx.Component:
-    """/tools/multichart: a two-column grid of empty cards, each with a + (2026-10-20, first version: no charts yet)."""
+    """/tools/multichart: a full-width, two-column grid of big empty cards, each with a + (first version: no charts yet).
+    It starts with one card; the full-width "Add more chart" button under the grid adds another."""
     return rx.vstack(
         _page_header("Multichart", "Watch several charts side by side. Each card is a slot for a chart."),
-        rx.grid(
-            *[_chart_slot(i + 1) for i in range(MULTICHART_SLOTS)],
-            columns=rx.breakpoints(initial="1", sm="2"),  # two columns from tablet width, like the /tools cards
-            spacing="4",
-            width="100%",
-            max_width="980px",
+        rx.box(
+            rx.foreach(MultichartState.cards, _chart_slot),
+            class_name="multichart-grid",
         ),
-        spacing="6",
-        align="center",
+        rx.cond(
+            MultichartState.can_add,
+            rx.el.button(
+                rx.icon("plus", size=18),
+                "Add more chart",
+                type="button",
+                class_name="multichart-add-more",
+                on_click=MultichartState.add_card,
+            ),
+        ),
+        spacing="5",
         width="100%",
         padding=_PAGE_PADDING,
     )

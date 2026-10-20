@@ -6,9 +6,10 @@ from frontend.state.notification_state import NotificationState
 from frontend.state.home_movers_state import HomeMoversState
 from frontend.state.macro_calendar_state import MacroCalendarState
 from frontend.state.market_status_state import MarketStatusState
+from frontend.state.multichart_state import MultichartState
 from frontend.state.news_state import NewsDetailState, NewsState
 from frontend.state.portfolio_state import PortfolioState
 from frontend.state.profile_state import ProfileState
 from frontend.state.tools_state import ToolsState
 
-__all__ = ["CalcState", "CalendarState", "CoinState", "GainersLosersState", "HomeMoversState", "MacroCalendarState", "MarketStatusState", "NewsDetailState", "NewsState", "NotificationState", "PortfolioState", "ProfileState", "ToolsState"]
+__all__ = ["CalcState", "CalendarState", "CoinState", "GainersLosersState", "HomeMoversState", "MacroCalendarState", "MarketStatusState", "MultichartState", "NewsDetailState", "NewsState", "NotificationState", "PortfolioState", "ProfileState", "ToolsState"]
