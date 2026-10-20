@@ -435,7 +435,13 @@ def deposit_address(coin: str = "SOL", force: bool = False) -> dict:
         if not result["address"]:
             result["error"] = f"MEXC has no {coin} deposit address for this account yet. Open Deposit > {coin} on MEXC once to create it."
     except MexcError as err:
-        result["error"] = f"The deposit address could not be read from MEXC: {err}"
+        if str(err) == _ERRORS[700007]:  # this endpoint needs a different permission than the balance / order reads
+            result["error"] = (
+                "MEXC did not allow this API key to read the deposit address. In MEXC > API Management > Edit, tick the read-only "
+                "'View Deposit/Withdrawal Details' permission (never Withdraw or Trade)."
+            )
+        else:
+            result["error"] = f"The deposit address could not be read from MEXC: {err}"
     old = hit["address"] if hit else ""
     changed, changed_at = (hit["changed"], hit["changed_at"]) if hit else (False, 0.0)
     if result["error"] and old:  # MEXC refused this time: keep showing the last address that was read, with the error

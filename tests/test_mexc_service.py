@@ -383,3 +383,12 @@ def test_a_refused_re_read_keeps_the_last_good_address_with_the_error(monkeypatc
     state["fail"] = True
     got = m.deposit_address("SOL", force=True)
     assert got["address"] == "AddrOne" and "could not be read" in got["error"]
+
+
+def test_a_permission_refusal_on_the_deposit_address_names_the_deposit_permission(monkeypatch):
+    def refuse(path, params=None, signed=False):
+        raise m.MexcError(m._ERRORS[700007])
+
+    monkeypatch.setattr(m, "_get", refuse)
+    err = m.deposit_address("SOL")["error"]
+    assert "Deposit/Withdrawal Details" in err and "never Withdraw" in err and "View Account Details" not in err
