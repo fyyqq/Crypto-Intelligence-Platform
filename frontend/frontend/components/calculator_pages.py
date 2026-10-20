@@ -72,11 +72,11 @@ def _rate_status() -> rx.Component:
 _WIDE = "1180px"  # the PNL Calculator page: every section (and its heading) is this wide
 
 
-def _root(kind: str, *children, wide: bool = False) -> rx.Component:
+def _root(kind: str, *children, wide: bool = False, extra_class: str = "") -> rx.Component:
     """The element the script works on: its data attributes carry the live rate."""
     return rx.box(
         *children,
-        class_name="calc-root calc-wide" if wide else "calc-root",
+        class_name=("calc-root calc-wide" if wide else "calc-root") + (" " + extra_class if extra_class else ""),
         custom_attrs={"data-calc": kind, "data-rate": C.fx_rate, "data-note": C.fx_note, "data-time": C.fx_time},
     )
 
@@ -206,12 +206,11 @@ def _sum_card() -> rx.Component:
                 class_name="calc-dca-head",
             ),
             rx.text(
-                "Type each amount and pick its own currency, then choose the currency you want the total in. Example: $1,000 + $1,000.",
+                "Type each amount, pick its currency, then choose the currency for the total. Example: $1,000 + $1,000.",
                 size="2",
                 color="var(--gray-11)",
             ),
             rx.box(custom_attrs={"data-o": "terms"}, class_name="calc-terms"),
-            rx.el.button("+ Add more", type="button", class_name="calc-add-more", custom_attrs={"data-add-term": "1"}),
             _field(
                 "Show the total in",
                 rx.box(_seg("USD ($)", **{"data-cur": "USD"}), _seg("MYR (RM)", **{"data-cur": "MYR"}), class_name="calc-segs"),
@@ -224,6 +223,7 @@ def _sum_card() -> rx.Component:
             ),
             class_name="calc-card",
         ),
+        extra_class="calc-area-sum",
     )
 
 
@@ -252,7 +252,7 @@ def currency_converter_content() -> rx.Component:
             rx.el.div("", class_name="calc-rates", custom_attrs={"data-o": "rates"}),
             class_name="calc-result-block",
         ),
-        class_name="calc-card",
+        class_name="calc-card calc-area-conv",
     )
     table = rx.box(
         rx.heading("Quick conversions", size="3"),
@@ -261,15 +261,15 @@ def currency_converter_content() -> rx.Component:
             rx.el.tbody(custom_attrs={"data-o": "table"}),
             class_name="calc-table",
         ),
-        class_name="calc-card",
+        class_name="calc-card calc-area-table",
     )
     return rx.vstack(
         rx.box(_page_header("Currency Converter", "Convert between US dollars and Malaysian ringgit at the live mid-market rate."), width="100%", max_width="980px"),
-        _root(
-            "convert",
-            rx.box(card, table, class_name="calc-two calc-two-convert"),
+        rx.box(
+            _root("convert", card, table),
+            _sum_card(),
+            class_name="calc-two calc-two-convert",
         ),
-        _sum_card(),
         rx.box(
             _rate_status(),
             rx.text(

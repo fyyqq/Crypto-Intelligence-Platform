@@ -1891,8 +1891,11 @@ table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 .calc-table th { text-align: left; padding: 6px 4px; color: var(--gray-11); font-weight: 600; font-size: 12px; }
 .calc-table td { padding: 8px 4px; border-top: 1px solid var(--gray-a4); color: var(--gray-12); }
 .calc-table th:last-child, .calc-table td:last-child { text-align: right; }
-.calc-two-convert { align-items: start; }
-@media (min-width: 900px) { .calc-two-convert { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); } }
+.calc-two-convert { width: 100%; max-width: 980px; align-items: start; grid-template-areas: "conv" "sum" "table"; }
+@media (min-width: 900px) { .calc-two-convert { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); grid-template-areas: "conv table" "sum table"; } }
+/* The converter root only carries the data for the script: its card and table join the page grid (the Add amounts card sits under the converter card, the same width). */
+.calc-root[data-calc="convert"] { display: contents; }
+.calc-area-conv { grid-area: conv; } .calc-area-sum { grid-area: sum; } .calc-area-table { grid-area: table; }
 
 /* /tools/capital-splitter */
 .calc-split-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
@@ -1945,10 +1948,13 @@ table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 .calc-dca-results { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 20px; }
 .calc-big-sm { font-size: 22px; }
 /* Currency Converter: "Add amounts" rows (amount box + its own USD / MYR switch). */
-.calc-terms { display: flex; flex-direction: column; gap: 10px; }
-.calc-term { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto 28px; gap: 10px; align-items: center; }
-.calc-term-n { font-size: 13px; color: var(--gray-11); text-align: center; }
-.calc-term .calc-segs { padding: 3px; }
-.calc-term .calc-seg { padding: 7px 12px; font-size: 13px; }
-@media (max-width: 519px) { .calc-term { grid-template-columns: 18px minmax(0, 1fr) 28px; } .calc-term .calc-segs { grid-column: 2 / 3; } }
+.calc-terms { display: flex; flex-wrap: wrap; gap: 10px; } /* the amounts sit side by side in one row; a third one wraps to the next row */
+.calc-term { flex: 1 1 240px; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.calc-term .calc-input-wrap { flex: 1 1 auto; min-width: 0; }
+.calc-term-n { flex: none; width: 14px; font-size: 13px; color: var(--gray-11); text-align: center; }
+.calc-term .calc-segs { flex: none; padding: 3px; }
+.calc-term .calc-seg { padding: 7px 10px; font-size: 13px; }
+.calc-term .calc-del { flex: none; }
+.calc-area-sum .calc-field .calc-segs { width: fit-content; }
+.calc-area-sum .calc-field .calc-seg { padding: 8px 18px; }
 
