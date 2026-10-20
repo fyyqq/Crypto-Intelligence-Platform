@@ -44,6 +44,11 @@
     return total;
   }
 
+  // The rise (+) or drop (-) of the total against the main value (the first amount), in percent; null when the main value is 0.
+  function pctChange(base, total) {
+    return base > 0 ? (total - base) / base * 100 : null;
+  }
+
   function other(cur) {
     return cur === "USD" ? "MYR" : "USD";
   }
@@ -92,7 +97,7 @@
     return { rows: rows, invested: invested, tokens: tokens, avg: avg, avgDrop: avg == null ? null : (avg / ath - 1) * 100, pctSum: pctSum };
   }
 
-  var api = { num: num, money: money, signed: signed, profit: profit, convert: convert, sumTerms: sumTerms, other: other, equalPcts: equalPcts, splitAmounts: splitAmounts, dca: dca };
+  var api = { num: num, money: money, signed: signed, profit: profit, convert: convert, sumTerms: sumTerms, pctChange: pctChange, other: other, equalPcts: equalPcts, splitAmounts: splitAmounts, dca: dca };
   if (typeof window !== "undefined") window.__calc = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof document === "undefined") return;
@@ -180,7 +185,7 @@
     if (!body) return;
     var html = "";
     for (var i = 0; i < terms.length; i++) {
-      html += '<div class="calc-term">' +
+      html += '<div class="calc-term' + (i > 0 ? " calc-term-op" : "") + '">' +
         (i > 0 ? '<div class="calc-segs calc-ops"><button type="button" class="calc-seg" data-op="+" data-ti="' + i + '" aria-label="Add amount ' + (i + 1) + '">+</button><button type="button" class="calc-seg" data-op="-" data-ti="' + i + '" aria-label="Subtract amount ' + (i + 1) + '">−</button></div>' : "") +
         '<div class="calc-input-wrap"><span class="calc-affix" data-term-prefix="' + i + '"></span><input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" class="calc-input" data-term="' + i + '" placeholder="0" aria-label="Amount ' + (i + 1) + '" value="' + String(terms[i].amt == null ? "" : terms[i].amt).replace(/"/g, "") + '"></div>' +
         (terms.length > 2 ? '<button type="button" class="calc-del" aria-label="Remove amount ' + (i + 1) + '" data-del-term="' + i + '">×</button>' : "") + "</div>";
@@ -212,13 +217,20 @@
       if (v == null) { bad = true; continue; }
       used.push({ amount: v, op: terms[j].op === "-" ? "-" : "+" });
     }
-    var clear = function (msg) { out(root, "result", "—"); out(root, "formula", msg); out(root, "other", ""); out(root, "rates", ""); };
+    var clear = function (msg) { out(root, "result", "—"); out(root, "pct", ""); out(root, "formula", msg); out(root, "other", ""); out(root, "rates", ""); };
     if (bad) return clear("Check the amounts: numbers only.");
     if (!used.length) return clear("Enter at least one amount.");
     var total = sumTerms(used);
     var formula = "";
     for (var n = 0; n < used.length; n++) formula += (n > 0 ? (used[n].op === "-" ? " - " : " + ") : "") + money(used[n].amount, cur);
     out(root, "result", money(total, cur));
+    var ch = pctChange(used[0].amount, total), pctEl = out(root, "pct", "");
+    if (ch != null && pctEl) {
+      var rounded = Math.round(ch * 100) / 100;
+      pctEl.textContent = (rounded > 0 ? "+" : "") + fmtPct(rounded) + "%";
+      pctEl.title = (rounded > 0 ? "Up " : rounded < 0 ? "Down " : "No change ") + (rounded ? fmtPct(Math.abs(rounded)) + "% " : "") + "from the main value " + money(used[0].amount, cur);
+      setTone(pctEl, rounded);
+    }
     out(root, "formula", formula + " = " + money(total, cur));
     out(root, "other", rate ? "≈ " + money(convert(total, cur, rate), o) : "Waiting for the live rate…");
     out(root, "rates", rate ? "1 USD = " + rateText(rate) + " MYR   ·   1 MYR = " + rateText(1 / rate) + " USD" : "");

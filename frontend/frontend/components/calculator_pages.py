@@ -206,7 +206,7 @@ def _sum_card() -> rx.Component:
                 class_name="calc-dca-head",
             ),
             rx.text(
-                "Pick a currency, type the amounts and choose + or - between them. Example: $1,000 + $1,000 - $250.",
+                "Pick a currency, type the main value first, then the amounts with + or - between them. The % next to the total is the rise or drop from the main value. Example: $1,000 - $250 = $750 (-25%).",
                 size="2",
                 color="var(--gray-11)",
             ),
@@ -216,7 +216,11 @@ def _sum_card() -> rx.Component:
                 rx.box(_seg("USD ($)", **{"data-cur": "USD"}), _seg("MYR (RM)", **{"data-cur": "MYR"}), class_name="calc-segs"),
             ),
             rx.box(
-                rx.el.div("—", class_name="calc-big", custom_attrs={"data-o": "result"}),
+                rx.box(
+                    rx.el.div("—", class_name="calc-big", custom_attrs={"data-o": "result"}),
+                    rx.el.span("", class_name="calc-pct", custom_attrs={"data-o": "pct"}),
+                    class_name="calc-big-row",
+                ),
                 rx.el.div("", class_name="calc-formula", custom_attrs={"data-o": "formula"}),
                 rx.el.div("", class_name="calc-formula", custom_attrs={"data-o": "other"}),
                 rx.el.div("", class_name="calc-rates", custom_attrs={"data-o": "rates"}),

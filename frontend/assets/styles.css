@@ -1949,11 +1949,18 @@ table:has(.gl-held-row) { border-collapse: separate; border-spacing: 0; }
 .calc-big-sm { font-size: 22px; }
 /* Currency Converter: "Add amounts" rows (amount box + its own USD / MYR switch). */
 .calc-terms { display: flex; flex-wrap: wrap; gap: 10px; } /* the amounts sit side by side in one row; a third one wraps to the next row */
-.calc-term { flex: 1 1 200px; display: flex; align-items: center; gap: 8px; min-width: 0; }
-.calc-ops { flex: none; padding: 3px; }
-.calc-term .calc-ops .calc-seg { padding: 7px 12px; font-size: 16px; font-weight: 600; line-height: 1; }
+/* Every amount box is the same width: a row that also holds the + / - switch (76 px + 8 px gap) starts that much wider. */
+.calc-term { flex: 1 1 170px; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.calc-term-op { flex-basis: 254px; }
+.calc-ops { flex: none; width: 76px; padding: 3px; }
+.calc-term .calc-ops .calc-seg { flex: 1; padding: 7px 0; font-size: 16px; font-weight: 600; line-height: 1; }
+/* Phone: the + / - switch sits centred between two stacked boxes so every box is full width. */
+@media (max-width: 519px) { .calc-term-op { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 0; row-gap: 8px; } .calc-term-op .calc-del { margin-left: 8px; } .calc-term-op .calc-ops { grid-column: 1 / -1; justify-self: center; } }
 .calc-term .calc-input-wrap { flex: 1 1 auto; min-width: 0; }
 .calc-term .calc-del { flex: none; }
-.calc-area-sum .calc-field .calc-segs { width: fit-content; }
-.calc-area-sum .calc-field .calc-seg { padding: 8px 18px; }
+/* Currency switch: full width, each tab 50% (the base .calc-seg is flex: 1). */
+.calc-area-sum .calc-field .calc-segs { width: 100%; }
+.calc-area-sum .calc-field .calc-seg { padding: 9px 12px; }
+.calc-big-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+.calc-pct { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--gray-11); }
 

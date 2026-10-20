@@ -24,6 +24,15 @@ needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node is no
 
 
 @needs_node
+def test_percentage_change_from_the_main_value():
+    assert run_js("c.pctChange(1000, 2000)") == 100  # $1000 + $1000
+    assert run_js("c.pctChange(1000, 750)") == -25  # $1000 - $250
+    assert run_js("c.pctChange(1000, 1000)") == 0
+    assert run_js("c.pctChange(200, -100)") == -150  # can go below zero
+    assert run_js("c.pctChange(0, 50)") is None  # no main value, no percentage
+
+
+@needs_node
 def test_add_and_subtract_amounts_left_to_right():
     assert run_js("c.sumTerms([{amount:1000,op:'+'},{amount:1000,op:'+'}])") == 2000  # $1000 + $1000
     assert run_js("c.sumTerms([{amount:1000,op:'+'},{amount:1000,op:'+'},{amount:250,op:'-'}])") == 1750
