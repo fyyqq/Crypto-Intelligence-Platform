@@ -677,7 +677,7 @@ def coin_trades(asset: str) -> list[list]:
 KLINE_INTERVALS = {"1m", "5m", "15m", "30m", "60m", "4h", "1d", "1W", "1M"}  # MEXC's names
 
 
-def klines(asset: str, interval: str = "60m", limit: int = 300) -> list[list[float]]:
+def klines(asset: str, interval: str = "60m", limit: int = 500) -> list[list[float]]:
     """Public candles of <asset>USDT on MEXC for the coin page's lines chart: [[open time (s), open, high, low,
     close], ...] oldest first (the last `limit` candles of `interval`). Cached per pair and interval for KLINES_TTL
     seconds and shared; [] when MEXC has no such pair or cannot be reached (respects the rate-limit pause)."""

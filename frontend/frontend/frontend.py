@@ -46,6 +46,18 @@ from frontend.components.login_page import AuthState, LoginState, login_page, si
 from frontend.state import CalcState, CalendarState, CoinState, MacroCalendarState, GainersLosersState, HomeMoversState, MarketStatusState, MultichartState, NewsDetailState, NewsState, NotificationState, PortfolioState, ProfileState, ToolsState
 
 
+def _asset(name: str) -> str:
+    """URL of one of our own scripts in frontend/assets with a version (the file's modified time) in the query, e.g.
+    /mexc_lines_chart.js?v=1792000000. The server sends these files with `cache-control: max-age=14400` (4 hours; Cloudflare
+    and every browser keep them that long), so a changed script would otherwise keep running the OLD copy for visitors who
+    loaded it earlier the same day. A deploy (git pull) changes the file's time, so the URL changes and everyone fetches the new one."""
+    try:
+        version = int((Path(__file__).resolve().parent.parent / "assets" / name).stat().st_mtime)
+    except OSError:
+        return f"/{name}"
+    return f"/{name}?v={version}"
+
+
 def _alerts_menu_item() -> rx.Component:
     # Only once logged in (alerts are saved per account).
     return rx.cond(
@@ -1025,7 +1037,7 @@ def index() -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
     )
@@ -1055,7 +1067,7 @@ def coin_detail() -> rx.Component:
         # news) don't use the arrow-slider pattern. A direct/fresh visit to
         # /coin/[symbol] (not navigated to from "/") would otherwise never
         # load this script at all.
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
         display="flex",
@@ -1074,7 +1086,7 @@ def similar_coins_page() -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
         display="flex",
@@ -1106,7 +1118,7 @@ def _placeholder_page(heading: str) -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
     )
@@ -1130,7 +1142,7 @@ def news_page() -> rx.Component:
         # handlers (this page has the same header as every other page) and
         # this page's own #<source> anchor-scroll fix — see chain_pills.js's
         # own comment on the latter for why it's needed here specifically.
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
     )
@@ -1147,7 +1159,7 @@ def news_category_page() -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
     )
@@ -1163,8 +1175,8 @@ def news_detail_page() -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
-        rx.script(src="/news_lightbox.js"),  # click a photo -> full-size popup with prev / next arrows
+        rx.script(src=_asset("chain_pills.js")),
+        rx.script(src=_asset("news_lightbox.js")),  # click a photo -> full-size popup with prev / next arrows
         min_height="100vh",
         width="100%",
     )
@@ -1181,7 +1193,7 @@ def narrative_page() -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
     )
@@ -1197,7 +1209,7 @@ def _index_shell(content: rx.Component) -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
     )
@@ -1247,8 +1259,8 @@ def _tools_shell(content: rx.Component, *scripts: str) -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
-        *[rx.script(src=src) for src in scripts],
+        rx.script(src=_asset("chain_pills.js")),
+        *[rx.script(src=_asset(src.lstrip("/"))) for src in scripts],
         min_height="100vh",
         width="100%",
     )
@@ -1315,7 +1327,7 @@ def gainers_losers_page() -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
     )
@@ -1336,7 +1348,7 @@ def notifications_page() -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
     )
@@ -1357,7 +1369,7 @@ def alerts_page() -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
     )
@@ -1383,7 +1395,7 @@ def watchlist_page() -> rx.Component:
         _watchlist_button(),
         _watchlist_widget(),
         _alert_popups(),
-        rx.script(src="/chain_pills.js"),
+        rx.script(src=_asset("chain_pills.js")),
         min_height="100vh",
         width="100%",
     )
@@ -1514,13 +1526,13 @@ app = rx.App(
     frontend_exception_handler=frontend_exception_handler,
     # Raw <script>: rx.script wraps it in Helmet, which never runs inside the document head.
     head_components=[
-        rx.el.script(src="/loading_overlay.js"),  # first: the 5-second GIF loading screen on every page load
-        rx.el.script(src="/alert_voice.js"),
-        rx.el.script(src="/instant_ui.js"),
-        rx.el.script(src="/profile_upload.js"),  # /profile: pictures become WebP in the browser before uploading
-        rx.el.script(src="/profile_sidebar.js"),  # /profile: minimize / open the account sidebar
-        rx.el.script(src="/tradingview_timeframes.js"),
-        rx.el.script(src="/mexc_lines_chart.js"),  # coin page "My lines" chart (loads Lightweight Charts on demand)
+        rx.el.script(src=_asset("loading_overlay.js")),  # first: the 5-second GIF loading screen on every page load
+        rx.el.script(src=_asset("alert_voice.js")),
+        rx.el.script(src=_asset("instant_ui.js")),
+        rx.el.script(src=_asset("profile_upload.js")),  # /profile: pictures become WebP in the browser before uploading
+        rx.el.script(src=_asset("profile_sidebar.js")),  # /profile: minimize / open the account sidebar
+        rx.el.script(src=_asset("tradingview_timeframes.js")),
+        rx.el.script(src=_asset("mexc_lines_chart.js")),  # coin page "My lines" chart (loads Lightweight Charts on demand)
     ],
 )
 
