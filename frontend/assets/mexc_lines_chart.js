@@ -5,6 +5,9 @@
 // (blue), limit orders (green) and stop / stop-loss orders (red, dashed, at the trigger price). The server puts
 // the data on the element (data-candles, data-lines: JSON) and refreshes it; this script redraws whenever those
 // attributes change, refits the time axis when the coin or timeframe changes (data-fit), and follows light/dark.
+// Your own buys and sells of the coin (data-trades: [[time s, "B" | "S", price, qty], ...]) are drawn as green "B" and
+// red "S" circles at the price of the fill on the candle it happened in (fills of the same side in one candle share
+// one circle at their average price), by a small series primitive (Lightweight Charts plugin API).
 (function () {
   if (window.__pfLinesChart) return;
   window.__pfLinesChart = true;
@@ -50,9 +53,65 @@
     return Math.min(12, Math.ceil(-Math.log10(price)) + 3);
   }
 
+  var BUY = "#2ebd85", SELL = "#f6465d";
+
+  // The fills snapped to the candle they fall in: [{t: candle open time, side, price, n}], fills of one side in one candle merged.
+  function groupTrades(trades, candles) {
+    if (!candles.length) return [];
+    var first = candles[0][0], out = {}, list = [];
+    trades.forEach(function (tr) {
+      var when = tr[0];
+      if (when < first) return; // older than the candles on the chart
+      var lo = 0, hi = candles.length - 1;
+      while (lo < hi) { var mid = (lo + hi + 1) >> 1; if (candles[mid][0] <= when) lo = mid; else hi = mid - 1; }
+      var t = candles[lo][0], key = t + tr[1], g = out[key];
+      if (!g) { g = out[key] = { t: t, side: tr[1], cost: 0, qty: 0, n: 0 }; list.push(g); }
+      g.cost += tr[2] * tr[3]; g.qty += tr[3]; g.n += 1;
+    });
+    return list.map(function (g) { return { t: g.t, side: g.side, price: g.cost / g.qty, n: g.n }; });
+  }
+
+  // Series primitive that draws the circles; it asks the chart for coordinates on every frame, so pan / zoom just work.
+  function tradeMarks() {
+    var state = { chart: null, series: null, marks: [], update: null };
+    var renderer = {
+      draw: function (target) {
+        if (!state.chart || !state.series) return;
+        target.useMediaCoordinateSpace(function (scope) {
+          var ctx = scope.context;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.font = "bold 11px -apple-system, Segoe UI, Roboto, sans-serif";
+          state.marks.forEach(function (m) {
+            var x = state.chart.timeScale().timeToCoordinate(m.t), y = state.series.priceToCoordinate(m.price);
+            if (x === null || y === null || x < -10 || x > scope.mediaSize.width + 10) return;
+            ctx.beginPath();
+            ctx.arc(x, y, 9, 0, Math.PI * 2);
+            ctx.fillStyle = m.side === "B" ? BUY : SELL;
+            ctx.fill();
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = "rgba(255,255,255,0.9)";
+            ctx.stroke();
+            ctx.fillStyle = "#fff";
+            ctx.fillText(m.side, x, y + 0.5);
+          });
+        });
+      },
+    };
+    var view = { zOrder: function () { return "top"; }, renderer: function () { return renderer; } };
+    return {
+      attached: function (p) { state.chart = p.chart; state.series = p.series; state.update = p.requestUpdate; },
+      detached: function () { state.chart = state.series = state.update = null; },
+      paneViews: function () { return [view]; },
+      updateAllViews: function () {},
+      set: function (marks) { state.marks = marks; if (state.update) state.update(); },
+    };
+  }
+
   function render(el) {
     var candles = parse(el, "data-candles");
     var lines = parse(el, "data-lines");
+    var trades = parse(el, "data-trades");
     var empty = el.querySelector(".pf-lines-empty");
     if (!candles.length) {
       if (empty) empty.style.display = "";
@@ -65,6 +124,8 @@
         el.__chart = LWC.createChart(host, Object.assign({ autoSize: true }, themeOptions()));
         el.__series = el.__chart.addCandlestickSeries({ upColor: "#26a69a", downColor: "#ef5350", borderVisible: false, wickUpColor: "#26a69a", wickDownColor: "#ef5350" });
         el.__lines = [];
+        el.__marks = tradeMarks();
+        el.__series.attachPrimitive(el.__marks);
       }
       if (empty) empty.style.display = "none";
       var series = el.__series;
@@ -85,6 +146,7 @@
       el.__lines = lines.map(function (l) {
         return series.createPriceLine({ price: l.p, color: l.c, lineWidth: 2, lineStyle: l.s, axisLabelVisible: true, title: l.t });
       });
+      el.__marks.set(groupTrades(trades, candles));
       var fit = el.getAttribute("data-fit") || "";
       if (el.__fitted !== fit) {
         el.__chart.timeScale().fitContent();
@@ -116,7 +178,7 @@
         else if (n.querySelectorAll) n.querySelectorAll(SEL).forEach(schedule);
       });
     });
-  }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-candles", "data-lines", "data-fit"] });
+  }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-candles", "data-lines", "data-trades", "data-fit"] });
 
   // light/dark switch: restyle every chart
   new MutationObserver(function () {

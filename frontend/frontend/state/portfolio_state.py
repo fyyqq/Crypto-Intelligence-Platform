@@ -281,7 +281,8 @@ class PortfolioState(CoinState):
     # Main chart area: the "My lines" view (Lightweight Charts) for coins with a MEXC holding / order.
     coin_mexc_candles: str = "[]"  # [[time s, open, high, low, close], ...] of <coin>USDT on MEXC
     coin_mexc_lines: str = "[]"  # avg buy (blue), limit (green), stop (red): see _chart_lines
-    coin_mexc_has_lines: bool = False  # there are lines AND candles: the main chart offers the lines view
+    coin_mexc_trades: str = "[]"  # your fills of this coin: [[time s, "B" | "S", price, qty], ...] (the B / S markers)
+    coin_mexc_has_lines: bool = False  # there are lines or fills AND candles: the main chart offers the lines view
     coin_mexc_chart_mode: str = "lines"  # "lines" (default when available) or "tv" (the TradingView widget)
     coin_mexc_interval: str = "60m"
     _coin_mexc_running: bool = False
@@ -632,14 +633,16 @@ class PortfolioState(CoinState):
 
     # ----------------------------------------------------------------------------------------- coin page
 
-    def _apply_coin(self, asset: str, snap: dict, orders: list[dict], candles: list | None = None) -> None:
+    def _apply_coin(self, asset: str, snap: dict, orders: list[dict], candles: list | None = None, trades: list | None = None) -> None:
         held = next((h for h in snap.get("holdings") or [] if h["asset"] == asset), None)
         cur, rate = self._chart_currency()  # the holding's money amounts follow the Portfolio currency (MYR by default)
         fx = _fx()
         lines = _chart_lines(held, orders)
         self.coin_mexc_candles = json.dumps(candles or [], separators=(",", ":"))
         self.coin_mexc_lines = json.dumps(lines, separators=(",", ":"))
-        self.coin_mexc_has_lines = bool(lines) and bool(candles)
+        if trades is not None:
+            self.coin_mexc_trades = json.dumps(trades, separators=(",", ":"))
+        self.coin_mexc_has_lines = (bool(lines) or self.coin_mexc_trades != "[]") and bool(candles)
         self.coin_mexc_error = snap.get("error") or ""
         self.coin_mexc_orders = [_order_view(o) for o in orders]
         self.coin_mexc_holding = (
@@ -666,17 +669,21 @@ class PortfolioState(CoinState):
             if asset != shown:
                 self.coin_mexc_loaded, self.coin_mexc_orders, self.coin_mexc_holding = False, [], {}
                 self.coin_mexc_candles, self.coin_mexc_lines, self.coin_mexc_has_lines = "[]", "[]", False
+                self.coin_mexc_trades = "[]"
         if not on_page:
             return False, shown
         if not asset:
             return True, shown
         svc = _svc()
-        snap, orders, candles = None, [], []
+        snap, orders, candles, trades = None, [], [], None
         try:
             if wants_myr:
                 await asyncio.to_thread(_fx().get_rate, "MYR")  # cached for 60 s and shared; never raises
-            snap, orders, candles = await asyncio.gather(
-                self._snapshot(), asyncio.to_thread(svc.coin_orders, asset), asyncio.to_thread(svc.klines, asset, interval)
+            snap, orders, candles, trades = await asyncio.gather(
+                self._snapshot(),
+                asyncio.to_thread(svc.coin_orders, asset),
+                asyncio.to_thread(svc.klines, asset, interval),
+                asyncio.to_thread(svc.coin_trades, asset),  # your buys / sells of this coin (held or traded before)
             )
         except Exception:  # noqa: BLE001 - network/database/bad reply: log the detail, keep the loop alive
             _log.exception("MEXC coin box refresh failed")
@@ -688,7 +695,7 @@ class PortfolioState(CoinState):
                 candles = None
             if not failed:
                 try:
-                    self._apply_coin(asset, snap, orders, candles if candles is not None else json.loads(self.coin_mexc_candles))
+                    self._apply_coin(asset, snap, orders, candles if candles is not None else json.loads(self.coin_mexc_candles), trades)
                 except Exception:  # noqa: BLE001
                     _log.exception("MEXC coin box could not be displayed")
                     failed = True
@@ -718,7 +725,7 @@ class PortfolioState(CoinState):
             _log.exception("MEXC candles could not be read")
             return
         self.coin_mexc_candles = json.dumps(candles, separators=(",", ":"))
-        self.coin_mexc_has_lines = self.coin_mexc_lines != "[]" and bool(candles)
+        self.coin_mexc_has_lines = (self.coin_mexc_lines != "[]" or self.coin_mexc_trades != "[]") and bool(candles)
 
     @rx.event(background=True)
     async def coin_mexc_loop(self):

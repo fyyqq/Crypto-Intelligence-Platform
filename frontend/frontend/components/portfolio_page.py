@@ -807,6 +807,7 @@ def coin_chart_lines_view() -> rx.Component:
         custom_attrs={
             "data-candles": S.coin_mexc_candles,
             "data-lines": S.coin_mexc_lines,
+            "data-trades": S.coin_mexc_trades,
             "data-fit": S.selected_coin["symbol"].to(str) + ":" + S.coin_mexc_interval,
         },
         width="100%",

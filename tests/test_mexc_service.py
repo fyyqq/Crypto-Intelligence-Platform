@@ -392,3 +392,31 @@ def test_a_permission_refusal_on_the_deposit_address_names_the_deposit_permissio
     monkeypatch.setattr(m, "_get", refuse)
     err = m.deposit_address("SOL")["error"]
     assert "Deposit/Withdrawal Details" in err and "never Withdraw" in err and "View Account Details" not in err
+
+
+def test_coin_trades_for_a_held_coin_and_a_coin_traded_before(demo):
+    sui = m.coin_trades("sui")  # held: every fill, oldest first (the demo's SUI: one buy, one sell)
+    assert [r[1] for r in sui] == ["B", "S"]
+    assert sui == sorted(sui, key=lambda r: r[0]) and all(len(r) == 4 and r[0] > 1_000_000_000 and r[2] > 0 and r[3] > 0 for r in sui)
+    ada = m.coin_trades("ADA")  # not held, but traded before: still has its B and S
+    assert [r[1] for r in ada] == ["B", "S"]
+    assert m.portfolio()["ok"] and "ADAUSDT" not in m._cache["trades"]  # the traded-before coin does not leak into the Recent fills table
+
+
+def test_coin_trades_nothing_to_show_cases(demo, monkeypatch):
+    assert m.coin_trades("DOGE") == []  # no trades in the demo data
+    assert m.coin_trades("") == [] and m.coin_trades("bad/sym") == [] and m.coin_trades("USDT") == []
+
+
+def test_coin_trades_a_refusal_gives_nothing_and_is_not_asked_again_at_once(monkeypatch):
+    monkeypatch.setattr(m.settings, "mexc_api_key", "k")
+    monkeypatch.setattr(m.settings, "mexc_api_secret", "s")
+    calls = []
+
+    def refuse(path, params=None, signed=False):
+        calls.append(path)
+        raise m.MexcError("Invalid symbol")
+
+    monkeypatch.setattr(m, "_get", refuse)
+    assert m.coin_trades("NOPE") == [] and m.coin_trades("NOPE") == []
+    assert len(calls) == 1  # remembered for COIN_TRADES_NEGATIVE_TTL

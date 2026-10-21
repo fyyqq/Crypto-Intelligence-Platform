@@ -346,12 +346,8 @@ def _open_orders(symbols: list[str]) -> list[dict]:
     return rows
 
 
-def _trades(symbol: str, amount: float) -> list[dict]:
-    """The account's trades on one pair (newest pages first, up to _TRADE_PAGES x 100), cached; refetched when
-    the held amount changed (an order filled) or after TRADES_TTL."""
-    hit = _cache["trades"].get(symbol)
-    if hit and time.time() - hit["at"] < TRADES_TTL and abs(hit["amount"] - amount) <= max(amount, 1e-12) * 1e-9:
-        return hit["rows"]
+def _fetch_trades(symbol: str) -> list[dict]:
+    """The account's trades on one pair, newest pages first, up to _TRADE_PAGES x 100 (MEXC keeps about a month)."""
     rows: list[dict] = []
     end_time = None
     for _ in range(_TRADE_PAGES):
@@ -364,6 +360,16 @@ def _trades(symbol: str, amount: float) -> list[dict]:
         if len(page) < 100:
             break
         end_time = int(min(_f(t.get("time")) for t in page)) - 1
+    return rows
+
+
+def _trades(symbol: str, amount: float) -> list[dict]:
+    """The account's trades on one pair (see _fetch_trades), cached; refetched when the held amount changed (an
+    order filled) or after TRADES_TTL."""
+    hit = _cache["trades"].get(symbol)
+    if hit and time.time() - hit["at"] < TRADES_TTL and abs(hit["amount"] - amount) <= max(amount, 1e-12) * 1e-9:
+        return hit["rows"]
+    rows = _fetch_trades(symbol)
     _cache["trades"][symbol] = {"at": time.time(), "amount": amount, "rows": rows}
     return rows
 
@@ -629,6 +635,43 @@ def coin_orders(asset: str) -> list[dict]:
                 _cache["coin_orders"][symbol] = hit
         rows = hit["rows"]
     return sorted((_order_row(o) for o in rows), key=lambda o: o["price"], reverse=True)
+
+
+COIN_TRADES_NEGATIVE_TTL = 60  # seconds before asking again after MEXC refused / has no such pair
+
+
+def coin_trades(asset: str) -> list[list]:
+    """Your own buys and sells of one coin (the B / S markers on the coin page lines chart): [[time (s), "B" or "S",
+    price, qty], ...] oldest first, for the coin's <asset>USDT pair, from MEXC's trade history (about the last month:
+    that is all MEXC's API keeps). Works for a coin you hold (its trades are already cached) and for one you traded
+    and no longer hold. Cached per pair for TRADES_TTL; [] when there is nothing, no such pair, or MEXC cannot be
+    reached (the last good rows are kept on a hiccup). Blocking: call it from a thread."""
+    asset = (asset or "").upper()
+    if not asset or not re.fullmatch(r"[A-Z0-9]{1,20}", asset) or asset in _STABLES or not is_configured():
+        return []
+    symbol = f"{asset}USDT"
+    with _lock:
+        held = _cache["trades"].get(symbol)
+        if held:
+            rows = held["rows"]
+        else:
+            store = _cache.setdefault("coin_trades", {})
+            hit = store.get(symbol)
+            if hit and time.time() - hit["at"] < hit["ttl"]:
+                rows = hit["rows"]
+            else:
+                try:
+                    rows, ttl = _fetch_trades(symbol), TRADES_TTL
+                except MexcError:
+                    rows, ttl = (hit["rows"] if hit else []), COIN_TRADES_NEGATIVE_TTL
+                store[symbol] = {"at": time.time(), "rows": rows, "ttl": ttl}
+    out = []
+    for t in rows:
+        when, price, qty = _f(t.get("time")) / 1000, _f(t.get("price")), _f(t.get("qty"))
+        if when > 0 and price > 0 and qty > 0:
+            out.append([int(when), "B" if t.get("isBuyer") else "S", price, qty])
+    out.sort(key=lambda r: r[0])
+    return out
 
 
 KLINE_INTERVALS = {"1m", "5m", "15m", "30m", "60m", "4h", "1d", "1W", "1M"}  # MEXC's names
