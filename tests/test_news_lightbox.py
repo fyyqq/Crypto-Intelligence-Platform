@@ -9,7 +9,7 @@ def test_reader_photos_are_marked_and_the_script_is_loaded_on_the_reader_page():
     assert detail.count("news-photo") == 2  # the media grid photo and the single hero image; related-news thumbnails and videos are not marked
     page = (ROOT / "frontend" / "frontend" / "frontend.py").read_text()
     reader = page[page.index("def news_detail_page"):page.index("def narrative_page")]
-    assert '"/news_lightbox.js"' in reader
+    assert '_asset("news_lightbox.js")' in reader
 
 
 def test_the_viewer_has_arrows_keys_swipe_and_skips_fallback_images():
