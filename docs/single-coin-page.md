@@ -255,3 +255,10 @@ The stored CoinMarketCap price goes stale (frozen while CMC has no credits; wron
 **Coin page header tweaks (2026-10-15):** the Age row shows only years and days ("7 years 232 days", "42 days"), no start date (the date is still stored in `coin_launch_dates`). Linked tag badges no longer underline on hover (they just tint blue). **Price header:** from md (1024 px, desktop) the live dot and the 24h change sit **below** the price; on tablets and phones they stay beside it with a little more left spacing (`margin_left 0.5em`); the dot and the change text are vertically centred at every width.
 
 **Alert list split (2026-10-15, labels removed + order changed later that day):** the left-column **Alerts** section separates a coin's alerts into the green "above" group and the red "below" group with a divider between them (shown only when both exist); there are no "Above price" / "Below price" label rows any more (each row's green up / red down arrow shows the side), and both groups list the **highest price first** (`coin_detail.py::_alert_group`, `CoinState.coin_alerts_above` / `coin_alerts_below`); the add / edit / delete controls are unchanged.
+
+
+<details>
+<summary><strong>🔥 Liquidation Heat Map link (2026-10-24)</strong></summary>
+
+Every coin page has a direct link, **Liquidation Heat Map · Coinglass**, in the left column right above the Alerts section (below the "Your MEXC" box for viewers who have one). It opens `https://www.coinglass.com/pro/futures/LiquidationHeatMap?coin=<TICKER>` in a new tab (`CoinState.coinglass_heatmap_url`: the page coin's ticker, upper-cased and URL-encoded; the link is hidden until the coin is known). Code: `coin_detail.py::_heatmap_link`. Coinglass decides what it shows for a ticker it does not list. Tests: `tests/test_coin_links.py`.
+</details>

@@ -12,7 +12,7 @@ import sys
 from datetime import timezone
 from pathlib import Path
 from collections import Counter
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import reflex as rx
 from sqlalchemy.orm import selectinload
@@ -3782,6 +3782,12 @@ class CoinState(rx.State):
         call inside a cached var.
         """
         return _resolve_chart_symbol(self.selected_coin.get("symbol") or route_ticker(self.symbol), self.selected_coin)
+
+    @rx.var(cache=True)
+    def coinglass_heatmap_url(self) -> str:
+        """Coinglass's liquidation heat map for this coin's ticker (the link above Alerts on every coin page); "" until the coin is known."""
+        symbol = ((self.selected_coin or {}).get("symbol") or route_ticker(self.symbol) or "").strip().upper()
+        return f"https://www.coinglass.com/pro/futures/LiquidationHeatMap?coin={quote(symbol, safe='')}" if symbol else ""
 
     @rx.var(cache=True)
     def has_tradingview_chart(self) -> bool:

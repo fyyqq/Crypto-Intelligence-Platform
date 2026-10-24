@@ -906,6 +906,37 @@ def _alert_group(alerts: rx.Var) -> rx.Component:
     )
 
 
+def _heatmap_link() -> rx.Component:
+    """Direct link to Coinglass's liquidation heat map for this coin's ticker, above the Alerts section (opens a new tab)."""
+    return rx.cond(
+        CoinState.coinglass_heatmap_url != "",
+        rx.link(
+            rx.hstack(
+                rx.icon("flame", size=16, color="var(--gray-11)"),
+                rx.text("Liquidation Heat Map", size="2", weight="bold", color="var(--gray-12)"),
+                rx.spacer(),
+                rx.text("Coinglass", size="1", color="var(--gray-11)"),
+                rx.icon("external-link", size=14, color="var(--gray-11)"),
+                spacing="2",
+                align="center",
+                width="100%",
+            ),
+            href=CoinState.coinglass_heatmap_url,
+            is_external=True,  # a new tab
+            rel="noopener noreferrer",
+            underline="none",
+            width="100%",
+            padding="0.75em 1em",
+            border_radius="10px",
+            background="var(--gray-a2)",
+            border="1px solid var(--gray-a4)",
+            _hover={"background": "var(--gray-a3)", "border_color": "var(--accent-a8)"},
+            title="Open this coin's liquidation heat map on Coinglass",
+            class_name="heatmap-link",
+        ),
+    )
+
+
 def _alerts_section() -> rx.Component:
     return rx.vstack(
         rx.hstack(
@@ -1066,6 +1097,7 @@ def _info_column() -> rx.Component:
         ),
         # The viewer's MEXC holding + open limit/stop orders for this coin (MEXC_VIEWER_EMAILS accounts only).
         coin_mexc_section(),
+        _heatmap_link(),
         _alerts_section(),
         rx.divider(),
         _links_section(coin),
