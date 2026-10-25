@@ -172,8 +172,23 @@ def _fetch_target_count() -> int:
         db.close()
 
 
-def _fetch_article_by_path(news_category: str, article_slug: str) -> tuple[dict | None, list[dict]]:
-    """Resolve one permanent archive record from its readable route.
+def _neighbors(articles: list[dict], article: dict) -> dict:
+    """The articles right before and after `article` in its own category, newest first like the /news lists:
+    "prev" is the next-newer one and "next" the next-older one ({"title", "detail_url"}, or None at either end)."""
+    same = [item for item in articles if item["news_type"] == article["news_type"]]
+    index = next((i for i, item in enumerate(same) if item["id"] == article["id"]), -1)
+    if index < 0:
+        return {"prev": None, "next": None}
+
+    def pick(item: dict | None) -> dict | None:
+        return {"title": item["title"] or "Untitled", "detail_url": item["detail_url"]} if item else None
+
+    return {"prev": pick(same[index - 1] if index > 0 else None), "next": pick(same[index + 1] if index + 1 < len(same) else None)}
+
+
+def _fetch_article_by_path(news_category: str, article_slug: str) -> tuple[dict | None, list[dict], dict]:
+    """Resolve one permanent archive record from its readable route (the row, three related articles and its
+    previous / next neighbours in the same category).
 
     Title slugs are unique within their normalized category. Detail lookups
     intentionally include the whole append-only archive, not just the
@@ -210,7 +225,7 @@ def _fetch_article_by_path(news_category: str, article_slug: str) -> tuple[dict 
             None,
         )
         if article is None:
-            return None, []
+            return None, [], {}
         raw_article = next(row for row in raw_rows if row["id"] == article["id"])
         related_candidates = [
             item
@@ -221,9 +236,9 @@ def _fetch_article_by_path(news_category: str, article_slug: str) -> tuple[dict 
         # extracted source text gives the reader a meaningful related-card
         # description rather than an empty second line.
         related = sorted(related_candidates, key=lambda item: not item["has_snippet"])[:3]
-        return raw_article, related
+        return raw_article, related, _neighbors(articles, article)
     except Exception:
-        return None, []
+        return None, [], {}
     finally:
         db.close()
 
@@ -732,10 +747,11 @@ def _fetch_daily_summary(category_slug: str, news_type: str, headlines: list[tup
                 "day": "", "message": "The summary isn't available right now — please try again in a few minutes."}
 
 
-def _build_article_detail(row: dict | None, related_articles: list[dict]) -> dict:
+def _build_article_detail(row: dict | None, related_articles: list[dict], neighbors: dict | None = None) -> dict:
     if row is None:
         return {}
     article = _build_article_row(row)
+    prev_item, next_item = (neighbors or {}).get("prev"), (neighbors or {}).get("next")
     body = (row.get("full_body_text") or "").strip()
     blocks = _body_blocks(body, article["title"], linkify=_is_linkified_row(row))
     return {
@@ -746,6 +762,13 @@ def _build_article_detail(row: dict | None, related_articles: list[dict]) -> dic
         "body_blocks": blocks,
         "has_body": bool(blocks),
         "related_articles": related_articles,
+        # previous (newer) / next (older) article in the same category, for the links at the top of the reader
+        "has_prev": bool(prev_item),
+        "prev_title": prev_item["title"] if prev_item else "",
+        "prev_url": prev_item["detail_url"] if prev_item else "",
+        "has_next": bool(next_item),
+        "next_title": next_item["title"] if next_item else "",
+        "next_url": next_item["detail_url"] if next_item else "",
     }
 
 
@@ -1437,13 +1460,13 @@ class NewsDetailState(rx.State):
             article_slug = self.article_slug.strip()
             self.article = {}
             self.is_loading = True
-        row, related_articles = (
+        row, related_articles, neighbors = (
             await asyncio.to_thread(_fetch_article_by_path, news_category, article_slug)
             if news_category and article_slug
-            else (None, [])
+            else (None, [], {})
         )
         async with self:
-            self.article = _build_article_detail(row, related_articles)
+            self.article = _build_article_detail(row, related_articles, neighbors)
             self.is_loading = False
             self.summary_sections = []
             self.summary_model_badge = {}

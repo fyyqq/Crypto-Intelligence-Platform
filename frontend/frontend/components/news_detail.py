@@ -46,6 +46,71 @@ def _source_link(article: dict) -> rx.Component:
     )
 
 
+def _nav_link(label: str, title, url, icon: str, side: str) -> rx.Component:
+    """One half of the previous / next bar: a small caption (arrow + Previous / Next) over the neighbour's title."""
+    arrow = rx.icon(icon, size=14)
+    return rx.link(
+        rx.vstack(
+            rx.hstack(
+                *( [arrow, rx.text(label, size="1", weight="bold")] if side == "prev" else [rx.text(label, size="1", weight="bold"), arrow] ),
+                spacing="1",
+                align="center",
+                color="var(--gray-11)",
+                justify="start" if side == "prev" else "end",
+                width="100%",
+            ),
+            rx.text(
+                title,
+                size="2",
+                weight="medium",
+                color="var(--gray-12)",
+                line_height="1.35",
+                text_align="left" if side == "prev" else "right",
+                style={"display": "-webkit-box", "-webkit-line-clamp": "2", "-webkit-box-orient": "vertical", "overflow": "hidden"},
+            ),
+            spacing="1",
+            align="start" if side == "prev" else "end",
+            width="100%",
+        ),
+        href=url,
+        underline="none",
+        display="block",
+        width="100%",
+        min_width="0",
+        padding="0.6em 0.8em",
+        border_radius="10px",
+        border="1px solid var(--gray-a4)",
+        background="var(--gray-a2)",
+        _hover={"background": "var(--gray-a3)", "border_color": "var(--accent-a8)"},
+        title=title,
+        class_name="news-nav-link",
+    )
+
+
+def _prev_next(article: dict, columns) -> rx.Component:
+    """Previous / Next article in the same category (Previous = the next-newer one, Next = the next-older one, like the /news
+    lists). Shown at the top of the article and at the top of the sidebar; a side with no neighbour is simply left out."""
+    return rx.cond(
+        article["has_prev"] | article["has_next"],
+        rx.grid(
+            rx.cond(
+                article["has_prev"],
+                _nav_link("Previous", article["prev_title"], article["prev_url"], "arrow-left", "prev"),
+                rx.box(),
+            ),
+            rx.cond(
+                article["has_next"],
+                _nav_link("Next", article["next_title"], article["next_url"], "arrow-right", "next"),
+                rx.box(),
+            ),
+            columns=columns,
+            spacing="2",
+            width="100%",
+            class_name="news-prev-next",
+        ),
+    )
+
+
 def _article_sidebar(article: dict) -> rx.Component:
     return rx.vstack(
         rx.vstack(
@@ -56,6 +121,7 @@ def _article_sidebar(article: dict) -> rx.Component:
         ),
         _source_link(article),
         rx.vstack(
+            _prev_next(article, "1"),  # previous / next in this category, at the top of the "Other News Related" block
             rx.heading("Other News Related", size="3"),
             rx.grid(
                 rx.foreach(
@@ -392,6 +458,7 @@ def _reader(article: dict) -> rx.Component:
         ),
         rx.grid(
             rx.vstack(
+                _prev_next(article, rx.breakpoints(initial="1", sm="2")),
                 _article_metadata(article),
                 rx.heading(
                     article["title"],
