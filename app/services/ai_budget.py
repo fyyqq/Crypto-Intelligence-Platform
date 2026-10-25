@@ -132,6 +132,32 @@ def allow_call() -> bool:
         return True
 
 
+def usage(now: float | None = None) -> dict:
+    """What the /ai command shows: today's calls, the limits and whether the daily limit is blocking right now."""
+    now = now or time.time()
+    try:
+        with _state() as st:
+            used, blocked_until = int(st.get("used", 0)), float(st.get("blocked_until", 0))
+    except Exception:  # noqa: BLE001
+        used, blocked_until = 0, 0.0
+    limit = settings.openrouter_daily_limit
+    reserve = max(0, settings.openrouter_visit_reserve)
+    with _lock:
+        mono = time.monotonic()
+        last_hour = sum(1 for t in _calls if mono - t <= 3600)
+    return {
+        "used": used,
+        "daily_limit": limit,
+        "left_for_visits": max(0, limit - used) if limit else None,
+        "visit_reserve": reserve,
+        "background_stops_at": max(0, limit - reserve) if limit else None,
+        "blocked": now < blocked_until,
+        "blocked_until": blocked_until,
+        "calls_last_hour": last_hour,
+        "hourly_cap": settings.openrouter_max_calls_per_hour,
+    }
+
+
 def in_cooldown(key: str) -> bool:
     with _lock:
         failed = _failed_at.get(key)

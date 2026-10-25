@@ -43,9 +43,13 @@ def test_neighbours_carry_a_picture_and_an_excerpt_for_the_hover_popup():
 
 def test_the_neighbours_are_one_full_width_row_above_the_article_and_the_sidebar():
     src = (ROOT / "frontend" / "frontend" / "components" / "news_detail.py").read_text()
-    assert src.count("_prev_next(article),") == 1 and "in_sidebar" not in src  # only one bar now: the one in the sidebar was removed
+    assert src.count('_prev_next(article, "top"),') == 1 and src.count('_prev_next(article, "after-source"),') == 1 and "in_sidebar" not in src
     reader = src[src.index("def _reader"):src.index("def _not_found")]
-    assert reader.index("_prev_next(article),") < reader.index("rx.grid(") < reader.index("_article_metadata(article)") < reader.index("_article_sidebar(article)")  # above both columns
+    assert reader.index('_prev_next(article, "top"),') < reader.index("rx.grid(") < reader.index("_article_metadata(article)") < reader.index("_article_sidebar(article)")  # above both columns on desktop
+    side = src[src.index("def _article_sidebar"):src.index("def _body_segment")]
+    assert side.index("_source_link(article),") < side.index('_prev_next(article, "after-source"),') < side.index('rx.heading("Other News Related"')  # tablet / phone: under the article source
+    assert "@media (min-width: 1024px) { .news-nav-after-source { display: none; } }" in (ROOT / "frontend" / "assets" / "styles.css").read_text()
+    assert "@media (max-width: 1023px) { .news-nav-top { display: none; } }" in (ROOT / "frontend" / "assets" / "styles.css").read_text()
     card = src[src.index("def _nav_card"):src.index("def _prev_next")]
     assert "news-nav-img" in card and "_title" in card and "_snippet" in card  # picture left, title + excerpt right
     assert "_hover" not in card and "popup" not in card.lower()  # no hover effect: the card is just there

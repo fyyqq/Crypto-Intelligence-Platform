@@ -169,6 +169,7 @@ COMMANDS = [
     {"command": "view_all_command", "description": "Show all commands"},
     {"command": "clear_chat", "description": "Delete this chat's messages (last 48 hours)"},
     {"command": "site_health", "description": "Site and data health check"},
+    {"command": "ai", "description": "AI usage today and the free AI limit left"},
     {"command": "fear_greed_index", "description": "Fear & Greed Index: now and yesterday"},
     {"command": "forex_factory", "description": "This month's CPI, PPI, FOMC, jobs report & Fed speeches"},
     {"command": "alerts", "description": "Show list of active alerts"},
@@ -205,6 +206,7 @@ def commands_overview() -> str:
         "",
         "<b>System</b>",
         "/site_health - is the site and its data (prices, news, CoinMarketCap, alerts, server) healthy?",
+        "/ai - how many free AI calls are used today, how many are left and when the limit resets (08:00 KL)",
         "/clear_chat - deletes this chat's messages (Telegram lets a bot delete only the last 48 hours)",
         "",
         "<b>Gainers &amp; Losers</b> (Top 100, 10 gainers + 10 losers)",
@@ -415,7 +417,9 @@ def handle_message(msg: dict) -> None:
         _send(chat["id"], commands_overview())
         return
     parsed = digest.parse_command(cmd)
-    if cmd not in ("alerts", "command1", "fear_greed_index", "site_health", "forex_factory", "price", "portfolio", "currency_converter", "pnl_calculator") and not parsed:
+    if cmd == "ai_usage":  # a longer name that works too
+        cmd = "ai"
+    if cmd not in ("alerts", "command1", "fear_greed_index", "site_health", "ai", "forex_factory", "price", "portfolio", "currency_converter", "pnl_calculator") and not parsed:
         return
     user_id = _user_for_chat(chat["id"])
     if not user_id:
@@ -424,6 +428,10 @@ def handle_message(msg: dict) -> None:
         from app.services import site_health_service
 
         _send(chat["id"], site_health_service.build_message())
+    elif cmd == "ai":
+        from app.services import ai_usage_service
+
+        _send(chat["id"], ai_usage_service.build_message())
     elif cmd == "portfolio":
         _send(chat["id"], format_portfolio(user_id))
     elif cmd in ("currency_converter", "pnl_calculator"):

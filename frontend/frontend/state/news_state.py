@@ -741,6 +741,20 @@ def _fetch_summary_translation(article_id: int) -> tuple[str, str] | None:
         return None
 
 
+def _summary_unavailable_reason(article_id: int) -> str:
+    import sys
+
+    root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    try:
+        from app.services.news_summary_service import summary_unavailable_reason
+
+        return summary_unavailable_reason(article_id)
+    except Exception:
+        return "No AI summary could be made for this story right now."
+
+
 def _translation_unavailable_reason() -> str:
     import sys
 
@@ -1505,6 +1519,7 @@ class NewsDetailState(rx.State):
     summary_sections_ms: list[dict] = []
     summary_ms_status: str = "idle"
     summary_ms_note: str = ""  # why the Malay version is missing (shown when summary_ms_status == "none")
+    summary_note: str = ""  # why there is no AI summary at all (shown when summary_status == "none")
 
     @rx.event(background=True)
     async def load_article(self):
@@ -1527,16 +1542,19 @@ class NewsDetailState(rx.State):
             self.summary_sections_ms = []
             self.summary_ms_status = "idle"
             self.summary_ms_note = ""
+            self.summary_note = ""
             article_id = row.get("id") if row else None
             self.summary_status = "loading" if article_id else "none"
         if not article_id:
             return
         result = await asyncio.to_thread(_fetch_news_summary, int(article_id))
+        note = "" if result else await asyncio.to_thread(_summary_unavailable_reason, int(article_id))
         async with self:
             if self.article.get("id") != article_id:
                 return  # the viewer already moved to another article
             if result is None:
                 self.summary_status = "none"
+                self.summary_note = note
                 return
             raw, model = result
             self.summary_sections = _parse_summary_sections(raw)

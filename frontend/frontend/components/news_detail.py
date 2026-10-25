@@ -101,7 +101,7 @@ def _nav_card(article: dict, prefix: str, label: str) -> rx.Component:
     )
 
 
-def _prev_next(article: dict) -> rx.Component:
+def _prev_next(article: dict, where: str = "top") -> rx.Component:
     """The neighbouring stories of the same category as two cards (Previous = the next-newer one on the left, Next = the
     next-older one on the right, like the /news lists): at the top of the article and, stacked, under the article source in the
     sidebar. A side with no neighbour (the newest story has no Previous, the oldest no Next) is simply not there."""
@@ -110,7 +110,7 @@ def _prev_next(article: dict) -> rx.Component:
         rx.box(
             rx.cond(article["has_prev"], _nav_card(article, "prev", "Previous")),
             rx.cond(article["has_next"], _nav_card(article, "next", "Next")),
-            class_name="news-prev-next news-nav-main",
+            class_name="news-prev-next news-nav-main news-nav-" + where,
         ),
     )
 
@@ -124,6 +124,7 @@ def _article_sidebar(article: dict) -> rx.Component:
             align="start",
         ),
         _source_link(article),
+        _prev_next(article, "after-source"),  # tablet / phone only: the same pair right below the article source section
         rx.vstack(
             rx.heading("Other News Related", size="3"),
             rx.grid(
@@ -290,6 +291,19 @@ def _ai_summary() -> rx.Component:
         NewsDetailState.summary_status == "loading",
         rx.vstack(_summary_heading(False), skeleton, spacing="3", align="start", width="100%"),
         rx.cond(
+            NewsDetailState.summary_status == "none",
+            # no summary could be made: say why instead of leaving the card out (usually the free AI daily limit)
+            rx.cond(
+                NewsDetailState.summary_note != "",
+                rx.vstack(
+                    _summary_heading(False),
+                    rx.text(NewsDetailState.summary_note, size="2", color="var(--amber-11)"),
+                    spacing="2",
+                    align="start",
+                    width="100%",
+                ),
+            ),
+        rx.cond(
             NewsDetailState.summary_status == "ready",
             rx.vstack(
                 _summary_heading(True),
@@ -353,6 +367,7 @@ def _ai_summary() -> rx.Component:
                 align="start",
                 width="100%",
             ),
+        ),
         ),
     )
 
@@ -497,7 +512,7 @@ def _media_grid(article: dict) -> rx.Component:
 
 def _reader(article: dict) -> rx.Component:
     return rx.vstack(
-        _prev_next(article),  # previous / next story: one full-width row ABOVE the article column and the sidebar
+        _prev_next(article, "top"),  # previous / next story: one full-width row ABOVE the article column and the sidebar (desktop only)
         rx.grid(
             rx.vstack(
                 _article_metadata(article),

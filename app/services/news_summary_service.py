@@ -276,6 +276,17 @@ def _translate_local(source: str) -> tuple[str, str] | None:
     return "\n\n".join(out), LOCAL_MODEL_NAME
 
 
+def summary_unavailable_reason(article_id: int) -> str:
+    """Why this story has no AI summary right now, in one sentence for the reader (the card used to just vanish)."""
+    if ai_budget.blocked():
+        return "The free AI daily limit is used up, so new summaries are paused until 08:00 Malaysia time."
+    if not settings.openrouter_api_key:
+        return "AI summaries are not set up on this server."
+    if ai_budget.in_cooldown(f"news:{article_id}"):
+        return "The AI could not summarize this story a moment ago. It will try again in a few minutes."
+    return "No AI summary could be made for this story right now."
+
+
 def unavailable_reason() -> str:
     """Why a Malay translation could not be made, in one short sentence for the reader's note."""
     if not local_translate_service.is_available():
