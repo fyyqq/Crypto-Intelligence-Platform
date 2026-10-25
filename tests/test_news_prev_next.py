@@ -41,11 +41,11 @@ def test_neighbours_carry_a_picture_and_an_excerpt_for_the_hover_popup():
     assert _build_article_detail(None, [], {}) == {}
 
 
-def test_the_neighbours_are_always_visible_cards_under_the_article_source_and_at_the_top():
+def test_the_neighbours_are_one_full_width_row_above_the_article_and_the_sidebar():
     src = (ROOT / "frontend" / "frontend" / "components" / "news_detail.py").read_text()
-    assert src.count("_prev_next(article),") + src.count("_prev_next(article, in_sidebar=True),") == 2  # top of the article column + under the article source
-    side = src[src.index("def _article_sidebar"):]
-    assert side.index("_source_link(article),") < side.index("_prev_next(article, in_sidebar=True),") < side.index('rx.heading("Other News Related"')
+    assert src.count("_prev_next(article),") == 1 and "in_sidebar" not in src  # only one bar now: the one in the sidebar was removed
+    reader = src[src.index("def _reader"):src.index("def _not_found")]
+    assert reader.index("_prev_next(article),") < reader.index("rx.grid(") < reader.index("_article_metadata(article)") < reader.index("_article_sidebar(article)")  # above both columns
     card = src[src.index("def _nav_card"):src.index("def _prev_next")]
     assert "news-nav-img" in card and "_title" in card and "_snippet" in card  # picture left, title + excerpt right
     assert "_hover" not in card and "popup" not in card.lower()  # no hover effect: the card is just there
@@ -53,11 +53,9 @@ def test_the_neighbours_are_always_visible_cards_under_the_article_source_and_at
     css = (ROOT / "frontend" / "assets" / "styles.css").read_text()
     assert ".news-nav-card-next { grid-template-columns: 120px minmax(0, 1fr) auto; }" in css and ".news-nav-card-prev { grid-template-columns: auto 120px minmax(0, 1fr); }" in css
     assert ".news-nav-main .news-nav-next { grid-column: 2; }" in css
-    assert ".news-nav-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }" in css  # the sidebar bar is two columns too (Previous | Next)
+    assert "news-nav-side" not in css and "news-nav-side" not in src  # the sidebar variant is gone
     assert ".news-nav-arrow { flex: none; color: var(--gray-12);" in css and "scaleX(-1)" in css  # theme colour, flipped on Previous
     assert "_double_chevron()" in card and "[arrow, image, text] if prefix == \"prev\" else [image, text, arrow]" in card  # left of Previous, right of Next
-    assert 'lg="minmax(0, 1fr) 340px"' in src
-    assert ":hover .news-nav-pop" not in css
     state = (ROOT / "frontend" / "frontend" / "state" / "news_state.py").read_text()
     assert 'f"has_{prefix}": bool(item)' in state
     # a side with no neighbour is not rendered at all (no empty disabled card)

@@ -101,7 +101,7 @@ def _nav_card(article: dict, prefix: str, label: str) -> rx.Component:
     )
 
 
-def _prev_next(article: dict, in_sidebar: bool = False) -> rx.Component:
+def _prev_next(article: dict) -> rx.Component:
     """The neighbouring stories of the same category as two cards (Previous = the next-newer one on the left, Next = the
     next-older one on the right, like the /news lists): at the top of the article and, stacked, under the article source in the
     sidebar. A side with no neighbour (the newest story has no Previous, the oldest no Next) is simply not there."""
@@ -110,7 +110,7 @@ def _prev_next(article: dict, in_sidebar: bool = False) -> rx.Component:
         rx.box(
             rx.cond(article["has_prev"], _nav_card(article, "prev", "Previous")),
             rx.cond(article["has_next"], _nav_card(article, "next", "Next")),
-            class_name="news-prev-next news-nav-side" if in_sidebar else "news-prev-next news-nav-main",
+            class_name="news-prev-next news-nav-main",
         ),
     )
 
@@ -124,7 +124,6 @@ def _article_sidebar(article: dict) -> rx.Component:
             align="start",
         ),
         _source_link(article),
-        _prev_next(article, in_sidebar=True),  # previous / next in this category, right below the article source section
         rx.vstack(
             rx.heading("Other News Related", size="3"),
             rx.grid(
@@ -200,7 +199,7 @@ def _article_sidebar(article: dict) -> rx.Component:
         align="start",
         border_left=rx.breakpoints(initial="none", lg="1px solid var(--gray-a5)"),
         padding_left=rx.breakpoints(initial="0", lg="1.5em"),
-        margin_top=rx.breakpoints(initial="0", lg="5.4em"),
+        margin_top="0",
         width="100%",
     )
 
@@ -498,9 +497,9 @@ def _media_grid(article: dict) -> rx.Component:
 
 def _reader(article: dict) -> rx.Component:
     return rx.vstack(
+        _prev_next(article),  # previous / next story: one full-width row ABOVE the article column and the sidebar
         rx.grid(
             rx.vstack(
-                _prev_next(article),
                 _article_metadata(article),
                 rx.heading(
                     article["title"],
@@ -540,7 +539,7 @@ def _reader(article: dict) -> rx.Component:
                 width="100%",
             ),
             _article_sidebar(article),
-            columns=rx.breakpoints(initial="1", lg="minmax(0, 1fr) 340px"),  # wide enough for the same picture + text cards as the top of the article
+            columns=rx.breakpoints(initial="1", lg="minmax(0, 1fr) 340px"),
             column_gap=rx.breakpoints(initial="2em", lg="3.5em"),
             row_gap="2.5em",
             width="100%",
