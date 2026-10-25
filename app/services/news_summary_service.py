@@ -15,6 +15,7 @@ Malaysia) on first request and caches it on the row too (ai_summary_ms / ai_summ
 translated at most once.
 """
 
+import html
 import logging
 import re
 import time
@@ -215,6 +216,11 @@ def get_news_summary(article_id: int) -> tuple[str, str] | None:
         db.close()
 
 
+def translation_is_valid_google(source: str, translated: str) -> bool:
+    """A Google result only has to keep the same number of `TITLE:` sections (it translates every heading by itself)."""
+    return len(_titles(source)) == len(_titles(translated)) and len(translated.strip()) >= 20
+
+
 def _titles(text_: str) -> list[str]:
     return [t.strip().lower() for t in re.findall(r"(?m)^TITLE:\s*(.+)$", text_ or "")]
 
@@ -233,8 +239,71 @@ def translation_is_valid(source: str, translated: str) -> bool:
     return True
 
 
+def _split_summary(source: str) -> list[tuple[str, str]]:
+    """The summary as [(heading, paragraph), ...]: the `TITLE:` sections the model wrote (one ("", text) when there are none)."""
+    parts = re.split(r"(?m)^TITLE:\s*(.+)$", source.strip())
+    if len(parts) == 1:
+        return [("", source.strip())] if source.strip() else []
+    sections = [("", parts[0].strip())] if parts[0].strip() else []
+    for i in range(1, len(parts), 2):
+        body = parts[i + 1].strip() if i + 1 < len(parts) else ""
+        if body:
+            sections.append((parts[i].strip(), body))
+    return sections
+
+
+GOOGLE_ENDPOINT = "https://translation.googleapis.com/language/translate/v2"
+GOOGLE_MODEL_NAME = "Google Translate"
+
+
+def _translate_google(source: str) -> tuple[str, str] | None:
+    """Translates the summary to Malay with Google's official Cloud Translation API (needs GOOGLE_TRANSLATE_API_KEY). Every
+    heading and paragraph is sent as its own string in ONE request, so the sections come back in the same order and are put
+    back as the same `TITLE:` format. None when no key is set or Google refuses / is unreachable (the caller falls back)."""
+    key = settings.google_translate_api_key
+    sections = _split_summary(source)
+    if not key or not sections:
+        return None
+    strings = [s for heading, body in sections for s in ((heading, body) if heading else (body,))]
+    try:
+        response = requests.post(
+            GOOGLE_ENDPOINT,
+            params={"key": key},
+            json={"q": strings, "source": "en", "target": "ms", "format": "text"},
+            timeout=20,
+        )
+        response.raise_for_status()
+        translated = [html.unescape(t.get("translatedText", "")) for t in response.json()["data"]["translations"]]
+    except (requests.RequestException, ValueError, KeyError, TypeError):
+        logger.warning("Google Translate request failed")  # never log the URL: it carries the key
+        return None
+    if len(translated) != len(strings) or not all(t.strip() for t in translated):
+        return None
+    out, i = [], 0
+    for heading, _body in sections:
+        if heading:
+            out.append(f"TITLE: {translated[i].strip()}\n{translated[i + 1].strip()}")
+            i += 2
+        else:
+            out.append(translated[i].strip())
+            i += 1
+    return "\n\n".join(out), GOOGLE_MODEL_NAME
+
+
+def unavailable_reason() -> str:
+    """Why a Malay translation could not be made, in one short sentence for the reader's note."""
+    if ai_budget.blocked():
+        return "The free AI daily limit is used up and resets at 08:00 Malaysia time."
+    if not settings.openrouter_api_key and not settings.google_translate_api_key:
+        return "No translation service is set up on this server."
+    return "The Malay translation is not available right now."
+
+
 def _translate(source: str) -> tuple[str, str] | None:
-    """Translates with the configured model, then the fallbacks, until one returns a valid Malay version."""
+    """Google Translate first when a key is set, then the AI models in turn, until one returns a valid Malay version."""
+    google = _translate_google(source)
+    if google is not None and translation_is_valid_google(source, google[0]):
+        return google
     for model in [settings.openrouter_model, *_FALLBACK_MODELS]:
         result = _call_model(source, model, _TRANSLATE_SYSTEM_MS, 1400)
         if result is not None and translation_is_valid(source, result[0]):
@@ -261,8 +330,8 @@ def get_news_summary_translation(article_id: int, lang: str = "ms") -> tuple[str
             return None
         if row["ai_summary_ms"]:
             return row["ai_summary_ms"], row["ai_summary_ms_model"] or ""
-        if ai_budget.in_cooldown(cooldown_key):
-            return None
+        if ai_budget.in_cooldown(cooldown_key) and not settings.google_translate_api_key:
+            return None  # the AI models failed recently (Google, when set up, is not affected by that)
         result = _translate(row["ai_summary"])
         if result is None:
             ai_budget.mark_failed(cooldown_key)

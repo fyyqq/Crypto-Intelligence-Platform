@@ -307,7 +307,8 @@ def _ai_summary() -> rx.Component:
                         rx.cond(
                             (NewsDetailState.summary_lang == "ms") & (NewsDetailState.summary_ms_status == "none"),
                             rx.text(
-                                "The Malay translation is not available right now. Showing the English summary.",
+                                NewsDetailState.summary_ms_note,
+                                " Showing the English summary.",
                                 size="1",
                                 color="var(--amber-11)",
                                 margin_bottom="0.75em",

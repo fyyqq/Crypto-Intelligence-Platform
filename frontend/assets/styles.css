@@ -2090,4 +2090,14 @@ html.nlb-lock { overflow: hidden; }
 /* The double-chevron arrow follows the theme text colour: white on dark, near-black on light. */
 .news-nav-arrow { flex: none; color: var(--gray-12); align-self: center; }
 .news-nav-card-prev .news-nav-arrow { transform: scaleX(-1); }
+/* Sidebar bar: also two columns (Previous | Next), each a narrow vertical card (picture on top, title + excerpt under it, the arrow on the
+   picture's outer edge) because two horizontal cards do not fit in the 340 px column. */
+.news-nav-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.news-nav-side .news-nav-next { grid-column: 2; }
+.news-nav-side .news-nav-card { position: relative; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 8px; }
+.news-nav-side .news-nav-img { width: 100%; }
+.news-nav-side .news-nav-arrow { position: absolute; top: 10px; width: 26px; height: 26px; padding: 3px; border-radius: 50%; background: var(--color-panel-solid); border: 1px solid var(--gray-a6); }
+.news-nav-side .news-nav-card-prev .news-nav-arrow { left: 16px; }
+.news-nav-side .news-nav-card-next .news-nav-arrow { right: 16px; }
+.news-nav-side .news-nav-card-prev .news-nav-arrow { transform: scaleX(-1); }
 @media (max-width: 520px) { .news-nav-card-next { grid-template-columns: 96px minmax(0, 1fr) auto; } .news-nav-card-prev { grid-template-columns: auto 96px minmax(0, 1fr); } .news-nav-img { width: 96px; } }

@@ -741,6 +741,20 @@ def _fetch_summary_translation(article_id: int) -> tuple[str, str] | None:
         return None
 
 
+def _translation_unavailable_reason() -> str:
+    import sys
+
+    root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    try:
+        from app.services.news_summary_service import unavailable_reason
+
+        return unavailable_reason()
+    except Exception:
+        return "The Malay translation is not available right now."
+
+
 def _parse_summary_sections(raw: str) -> list[dict]:
     """Splits the model's `TITLE: <heading>` + paragraph output into sections."""
     parts = re.split(r"(?m)^TITLE:\s*(.+)$", raw.strip())
@@ -1490,6 +1504,7 @@ class NewsDetailState(rx.State):
     summary_lang: str = "en"
     summary_sections_ms: list[dict] = []
     summary_ms_status: str = "idle"
+    summary_ms_note: str = ""  # why the Malay version is missing (shown when summary_ms_status == "none")
 
     @rx.event(background=True)
     async def load_article(self):
@@ -1511,6 +1526,7 @@ class NewsDetailState(rx.State):
             self.summary_lang = "en"  # every article opens in English
             self.summary_sections_ms = []
             self.summary_ms_status = "idle"
+            self.summary_ms_note = ""
             article_id = row.get("id") if row else None
             self.summary_status = "loading" if article_id else "none"
         if not article_id:
@@ -1551,12 +1567,14 @@ class NewsDetailState(rx.State):
         if not article_id:
             return
         result = await asyncio.to_thread(_fetch_summary_translation, int(article_id))
+        reason = "" if result else await asyncio.to_thread(_translation_unavailable_reason)
         async with self:
             if self.article.get("id") != article_id:
                 return  # the viewer already moved to another article
             sections = _parse_summary_sections(result[0]) if result else []
             self.summary_sections_ms = sections
             self.summary_ms_status = "ready" if sections else "none"
+            self.summary_ms_note = "" if sections else reason
 
     @rx.var(cache=True)
     def article_found(self) -> bool:

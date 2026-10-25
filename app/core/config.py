@@ -136,6 +136,10 @@ class Settings(BaseSettings):
     # have room (app/services/ai_budget.py).
     openrouter_daily_limit: int = 50
     openrouter_visit_reserve: int = 30
+    # Google Cloud Translation API key (official, v2): when set, the reader's EN | MY tabs translate the AI summary with
+    # Google Translate instead of the free AI models (500,000 characters a month are free on Google's side; the
+    # AI models stay as the fallback). Leave empty to keep using the AI models. Never log or print it.
+    google_translate_api_key: str = ""
     # Weekly coin business-model category check (app/services/
     # coin_category_service.py): one OpenRouter call (8 coins) per interval.
     # 120 min = 12 calls/day, sized for the free tier's ~50 requests/day;
