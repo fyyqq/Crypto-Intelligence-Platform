@@ -2061,3 +2061,9 @@ html.nlb-lock { overflow: hidden; }
 }
 .multichart-add-more:hover { background: var(--gray-a3); border-color: var(--accent-a8); }
 .multichart-add-more:focus-visible { outline: 2px solid var(--accent-9); outline-offset: 2px; }
+
+/* News reader: EN | MY tabs on the AI summary heading row. */
+.ai-lang { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--gray-a3); }
+.ai-lang-btn { padding: 4px 14px; border: none; border-radius: 999px; background: transparent; color: var(--gray-11); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.ai-lang-btn:hover { color: var(--gray-12); }
+.ai-lang-active, .ai-lang-active:hover { background: var(--accent-9); color: #fff; }

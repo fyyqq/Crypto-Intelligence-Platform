@@ -1,0 +1,37 @@
+"""News reader AI summary: the EN | MY (Malay) tabs and the cached translation."""
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+EN = "TITLE: Stablecoin Shutdown\nKyrgyzstan has shut down USDKG.\n\nTITLE: Wider Rules\nSouth Korea tightens cross-border rules."
+MS_OK = "TITLE: Penutupan Stablecoin\nKyrgyzstan telah menutup USDKG.\n\nTITLE: Peraturan Lebih Luas\nKorea Selatan memperketat peraturan rentas sempadan."
+
+
+def test_a_translation_is_kept_only_with_the_same_title_sections():
+    from app.services.news_summary_service import translation_is_valid
+
+    assert translation_is_valid(EN, MS_OK)
+    assert not translation_is_valid(EN, "Kyrgyzstan telah menutup USDKG tanpa sebarang bahagian tajuk dalam teks ini.")  # headings lost
+    assert not translation_is_valid(EN, MS_OK.split("\n\n")[0])  # a section went missing
+    assert not translation_is_valid(EN, "") and not translation_is_valid(EN, "ok")
+    assert translation_is_valid("Plain English paragraph without headings at all.", "Perenggan Melayu biasa tanpa sebarang tajuk sama sekali.")
+    untranslated_headings = "TITLE: Stablecoin Shutdown\nKyrgyzstan telah menutup USDKG.\n\nTITLE: Wider Rules\nKorea Selatan memperketat peraturan rentas sempadan."
+    assert not translation_is_valid(EN, untranslated_headings)  # the model left the headings in English
+
+
+def test_only_malay_is_offered_and_the_prompt_keeps_the_title_markers():
+    from app.services import news_summary_service as s
+
+    assert s.get_news_summary_translation(1, "fr") is None
+    assert "TITLE:" in s._TRANSLATE_SYSTEM_MS and "Malay" in s._TRANSLATE_SYSTEM_MS and "do NOT translate the word TITLE" in s._TRANSLATE_SYSTEM_MS
+
+
+def test_the_reader_has_en_my_tabs_that_default_to_english_and_translate_the_whole_summary():
+    page = (ROOT / "frontend" / "frontend" / "components" / "news_detail.py").read_text()
+    assert '_lang_tab("en", "EN")' in page and '_lang_tab("ms", "MY")' in page and "NewsDetailState.summary_shown" in page
+    assert 'justify="between"' in page[page.index("def _summary_heading"):page.index("def _ai_summary")]  # heading left, tabs right, full width
+    state = (ROOT / "frontend" / "frontend" / "state" / "news_state.py").read_text()
+    assert 'summary_lang: str = "en"' in state and 'self.summary_lang = "en"  # every article opens in English' in state
+    assert "get_news_summary_translation" in state and "def translate_summary" in state

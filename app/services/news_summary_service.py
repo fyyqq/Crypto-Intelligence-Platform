@@ -8,6 +8,11 @@ context. Generated via OpenRouter with the same free model the coin
 
 Text-only: the configured free OpenRouter model can't read images, so the
 article's picture is not part of the input.
+
+
+The reader's EN | MY tabs: get_news_summary_translation() translates that same cached summary into Malay (Bahasa
+Malaysia) on first request and caches it on the row too (ai_summary_ms / ai_summary_ms_model), so each article is
+translated at most once.
 """
 
 import logging
@@ -45,6 +50,18 @@ _SYSTEM_PROMPT = (
 )
 
 
+_TRANSLATE_SYSTEM_MS = (
+    "You are a professional translator from English to Malay (Bahasa Malaysia, as written in Malaysia). You get a short "
+    "news summary made of paragraphs, each introduced by a line reading exactly `TITLE: <heading>`. Translate the "
+    "headings and the paragraphs into natural, neutral Malay. Keep the structure identical: the same number of "
+    "sections, every heading still on its own line starting with exactly `TITLE:` (do NOT translate the word TITLE), "
+    "then the paragraph prose. The heading text after `TITLE:` MUST be translated into Malay too, never left in "
+    "English. Keep numbers, dates, names of people, companies, coins and tickers, currency codes and URLs unchanged. "
+    "Plain prose only: no markdown, no notes, no explanations, nothing before or after the translation.\n\n"
+    "Example input:\nTITLE: Market Rally\nBitcoin rose 5% today as traders returned.\n\n"
+    "Example output:\nTITLE: Kenaikan Pasaran\nBitcoin naik 5% hari ini apabila pedagang kembali."
+)
+
 _columns_ready = False
 
 
@@ -59,12 +76,14 @@ def _ensure_columns() -> None:
         # Only ALTER when missing (ALTER locks the table even if the column exists).
         have = db.execute(text(
             "SELECT count(*) FROM information_schema.columns WHERE table_name = 'news_articles' "
-            "AND column_name IN ('ai_summary', 'ai_summary_model')"
+            "AND column_name IN ('ai_summary', 'ai_summary_model', 'ai_summary_ms', 'ai_summary_ms_model')"
         )).scalar()
-        if have < 2:
+        if have < 4:
             db.execute(text("SET lock_timeout = '3s'"))
             db.execute(text("ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS ai_summary TEXT"))
             db.execute(text("ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS ai_summary_model TEXT"))
+            db.execute(text("ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS ai_summary_ms TEXT"))
+            db.execute(text("ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS ai_summary_ms_model TEXT"))
         db.commit()
         _columns_ready = True
     finally:
@@ -192,5 +211,68 @@ def get_news_summary(article_id: int) -> tuple[str, str] | None:
         )
         db.commit()
         return summary, model
+    finally:
+        db.close()
+
+
+def _titles(text_: str) -> list[str]:
+    return [t.strip().lower() for t in re.findall(r"(?m)^TITLE:\s*(.+)$", text_ or "")]
+
+
+def translation_is_valid(source: str, translated: str) -> bool:
+    """A translation is kept only when it is non-trivial, still has the same `TITLE:` sections as the English summary,
+    and its headings were really translated (a model that leaves every heading in English is rejected)."""
+    translated = (translated or "").strip()
+    if len(translated) < 20:
+        return False
+    src_titles, new_titles = _titles(source), _titles(translated)
+    if len(new_titles) != len(src_titles):
+        return False
+    if src_titles and sum(1 for a, b in zip(src_titles, new_titles) if a != b) * 2 < len(src_titles):
+        return False  # at least half of the headings must differ from the English ones
+    return True
+
+
+def _translate(source: str) -> tuple[str, str] | None:
+    """Translates with the configured model, then the fallbacks, until one returns a valid Malay version."""
+    for model in [settings.openrouter_model, *_FALLBACK_MODELS]:
+        result = _call_model(source, model, _TRANSLATE_SYSTEM_MS, 1400)
+        if result is not None and translation_is_valid(source, result[0]):
+            return result
+        if ai_budget.blocked():  # daily limit: the other models share it
+            break
+    return None
+
+
+def get_news_summary_translation(article_id: int, lang: str = "ms") -> tuple[str, str] | None:
+    """Returns (malay_summary_text, model) for this article's cached English summary: cached if present, otherwise
+    translated and stored. None if it can't be produced (no English summary yet, budget, model errors, bad output)."""
+    if lang != "ms":
+        return None
+    _ensure_columns()
+    cooldown_key = f"news-ms:{article_id}"
+    db = SessionLocal()
+    try:
+        row = db.execute(
+            text("SELECT ai_summary, ai_summary_ms, ai_summary_ms_model FROM news_articles WHERE id = :id"),
+            {"id": article_id},
+        ).mappings().first()
+        if row is None or not row["ai_summary"]:
+            return None
+        if row["ai_summary_ms"]:
+            return row["ai_summary_ms"], row["ai_summary_ms_model"] or ""
+        if ai_budget.in_cooldown(cooldown_key):
+            return None
+        result = _translate(row["ai_summary"])
+        if result is None:
+            ai_budget.mark_failed(cooldown_key)
+            return None
+        translated, model = result[0].strip(), result[1]
+        db.execute(
+            text("UPDATE news_articles SET ai_summary_ms = :s, ai_summary_ms_model = :m WHERE id = :id"),
+            {"s": translated, "m": model, "id": article_id},
+        )
+        db.commit()
+        return translated, model
     finally:
         db.close()

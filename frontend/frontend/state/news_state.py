@@ -717,6 +717,21 @@ def _fetch_news_summary(article_id: int) -> tuple[str, str] | None:
         return None
 
 
+def _fetch_summary_translation(article_id: int) -> tuple[str, str] | None:
+    """The cached (or freshly made) Malay version of the article's AI summary: (text, model) or None."""
+    import sys
+
+    root = str(Path(__file__).resolve().parent.parent.parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from app.services.news_summary_service import get_news_summary_translation
+
+    try:
+        return get_news_summary_translation(article_id, "ms")
+    except Exception:
+        return None
+
+
 def _parse_summary_sections(raw: str) -> list[dict]:
     """Splits the model's `TITLE: <heading>` + paragraph output into sections."""
     parts = re.split(r"(?m)^TITLE:\s*(.+)$", raw.strip())
@@ -1452,6 +1467,11 @@ class NewsDetailState(rx.State):
     summary_status: str = "none"
     summary_sections: list[dict] = []
     summary_model_badge: dict = {}
+    # EN | MY tabs on the AI summary: "en" (default) or "ms" (Malay). The Malay text is made on the first click (and
+    # cached on the article row): "idle" until asked, "loading", "ready" or "none" (could not be produced).
+    summary_lang: str = "en"
+    summary_sections_ms: list[dict] = []
+    summary_ms_status: str = "idle"
 
     @rx.event(background=True)
     async def load_article(self):
@@ -1470,6 +1490,9 @@ class NewsDetailState(rx.State):
             self.is_loading = False
             self.summary_sections = []
             self.summary_model_badge = {}
+            self.summary_lang = "en"  # every article opens in English
+            self.summary_sections_ms = []
+            self.summary_ms_status = "idle"
             article_id = row.get("id") if row else None
             self.summary_status = "loading" if article_id else "none"
         if not article_id:
@@ -1485,6 +1508,37 @@ class NewsDetailState(rx.State):
             self.summary_sections = _parse_summary_sections(raw)
             self.summary_model_badge = _format_model_badge(model)
             self.summary_status = "ready" if self.summary_sections else "none"
+
+    @rx.var(cache=True)
+    def summary_shown(self) -> list[dict]:
+        """The summary sections on screen: the Malay ones once MY is chosen and translated, else the English ones."""
+        if self.summary_lang == "ms" and self.summary_ms_status == "ready":
+            return self.summary_sections_ms
+        return self.summary_sections
+
+    @rx.event
+    async def set_summary_lang(self, lang: str):
+        """The EN | MY tabs. EN is instant; MY translates the whole summary (headings and paragraphs) on its first use."""
+        if lang not in ("en", "ms"):
+            return
+        self.summary_lang = lang
+        if lang == "ms" and self.summary_ms_status in ("idle", "none") and self.summary_status == "ready":
+            self.summary_ms_status = "loading"
+            return NewsDetailState.translate_summary
+
+    @rx.event(background=True)
+    async def translate_summary(self):
+        async with self:
+            article_id = self.article.get("id")
+        if not article_id:
+            return
+        result = await asyncio.to_thread(_fetch_summary_translation, int(article_id))
+        async with self:
+            if self.article.get("id") != article_id:
+                return  # the viewer already moved to another article
+            sections = _parse_summary_sections(result[0]) if result else []
+            self.summary_sections_ms = sections
+            self.summary_ms_status = "ready" if sections else "none"
 
     @rx.var(cache=True)
     def article_found(self) -> bool:

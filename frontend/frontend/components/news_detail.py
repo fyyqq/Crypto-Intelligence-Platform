@@ -47,27 +47,20 @@ def _source_link(article: dict) -> rx.Component:
 
 
 def _nav_link(label: str, title, url, icon: str, side: str) -> rx.Component:
-    """One button of the previous / next bar: just an arrow and Previous / Next (the neighbour's title is only the hover tooltip)."""
+    """One side of the previous / next row: only the link text and an arrow, no button box; Previous sits on the left and Next on
+    the right (the neighbour's title is only the hover tooltip)."""
     arrow = rx.icon(icon, size=16)
     return rx.link(
         rx.hstack(
             *([arrow, rx.text(label, size="2", weight="medium")] if side == "prev" else [rx.text(label, size="2", weight="medium"), arrow]),
-            spacing="2",
+            spacing="1",
             align="center",
-            justify="center",
-            width="100%",
         ),
         href=url,
         underline="none",
-        display="block",
-        width="100%",
-        min_width="0",
-        padding="0.55em 1em",
-        border_radius="10px",
-        border="1px solid var(--gray-a5)",
-        background="var(--gray-a2)",
-        color="var(--gray-12)",
-        _hover={"background": "var(--gray-a3)", "border_color": "var(--accent-a8)"},
+        color="var(--accent-11)",
+        justify_self="start" if side == "prev" else "end",
+        _hover={"color": "var(--accent-12)"},
         title=title,
         aria_label=label + " story",
         class_name="news-nav-link",
@@ -75,7 +68,7 @@ def _nav_link(label: str, title, url, icon: str, side: str) -> rx.Component:
 
 
 def _prev_next(article: dict) -> rx.Component:
-    """Previous / Next buttons for the neighbouring story of the same category (Previous = the next-newer one, Next = the
+    """Previous / Next links for the neighbouring story of the same category (Previous = the next-newer one, Next = the
     next-older one, like the /news lists). Shown at the top of the article and at the top of "Other News Related"; a side
     with no neighbour is left empty so the other button keeps its place."""
     return rx.cond(
@@ -108,8 +101,8 @@ def _article_sidebar(article: dict) -> rx.Component:
             align="start",
         ),
         _source_link(article),
+        _prev_next(article),  # previous / next in this category, right below the article source section
         rx.vstack(
-            _prev_next(article),  # previous / next in this category, at the top of the "Other News Related" block
             rx.heading("Other News Related", size="3"),
             rx.grid(
                 rx.foreach(
@@ -223,72 +216,119 @@ def _ai_provider_badge() -> rx.Component:
     )
 
 
-def _ai_summary() -> rx.Component:
-    """AI summary card above the article body (same look as the coin page's
-    "AI Summarizations" card)."""
-    heading = rx.hstack(
-        rx.heading("AI Summarizations", size="4"),
-        rx.icon("sparkles", size=16, color="var(--gray-9)"),
-        spacing="2",
+def _lang_tab(code: str, label: str) -> rx.Component:
+    return rx.el.button(
+        label,
+        type="button",
+        class_name=rx.cond(NewsDetailState.summary_lang == code, "ai-lang-btn ai-lang-active", "ai-lang-btn"),
+        aria_pressed=rx.cond(NewsDetailState.summary_lang == code, "true", "false"),
+        title="English" if code == "en" else "Bahasa Malaysia",
+        on_click=NewsDetailState.set_summary_lang(code),
+    )
+
+
+def _summary_heading(show_tabs: bool) -> rx.Component:
+    """"AI Summarizations" + sparkles on the left (Malay once MY is chosen), the EN | MY tabs on the right, full width."""
+    return rx.hstack(
+        rx.hstack(
+            rx.heading(rx.cond(NewsDetailState.summary_lang == "ms", "Ringkasan AI", "AI Summarizations"), size="4"),
+            rx.icon("sparkles", size=16, color="var(--gray-9)"),
+            spacing="2",
+            align="center",
+        ),
+        rx.cond(
+            show_tabs,
+            rx.box(_lang_tab("en", "EN"), _lang_tab("ms", "MY"), class_name="ai-lang", role="group", aria_label="Summary language"),
+        ),
+        width="100%",
+        justify="between",
         align="center",
+    )
+
+
+def _ai_summary() -> rx.Component:
+    """AI summary card above the article body (same look as the coin page's "AI Summarizations" card), with EN | MY tabs:
+    MY translates the whole summary to Malay (first use asks the AI and caches it on the article)."""
+    skeleton = rx.box(
+        rx.vstack(
+            rx.skeleton(height="14px", width="35%"),
+            rx.skeleton(height="12px", width="100%"),
+            rx.skeleton(height="12px", width="92%"),
+            rx.skeleton(height="12px", width="70%"),
+            spacing="2",
+            width="100%",
+        ),
+        padding="1.25em",
+        border_radius="10px",
+        background="var(--gray-a2)",
+        width="100%",
+        border="2px solid royalblue",
     )
     return rx.cond(
         NewsDetailState.summary_status == "loading",
-        rx.vstack(
-            heading,
-            rx.box(
-                rx.vstack(
-                    rx.skeleton(height="14px", width="35%"),
-                    rx.skeleton(height="12px", width="100%"),
-                    rx.skeleton(height="12px", width="92%"),
-                    rx.skeleton(height="12px", width="70%"),
-                    spacing="2",
-                    width="100%",
-                ),
-                padding="1.25em",
-                border_radius="10px",
-                background="var(--gray-a2)",
-                width="100%",
-                border="2px solid royalblue",
-            ),
-            spacing="3",
-            align="start",
-            width="100%",
-        ),
+        rx.vstack(_summary_heading(False), skeleton, spacing="3", align="start", width="100%"),
         rx.cond(
             NewsDetailState.summary_status == "ready",
             rx.vstack(
-                heading,
-                rx.box(
+                _summary_heading(True),
+                rx.cond(
+                    (NewsDetailState.summary_lang == "ms") & (NewsDetailState.summary_ms_status == "loading"),
                     rx.vstack(
-                        rx.foreach(
-                            NewsDetailState.summary_sections,
-                            lambda section: rx.vstack(
-                                rx.cond(section["title"] != "", rx.text(section["title"], size="2", weight="bold")),
-                                rx.text(section["text"], size="2", line_height="1.6", color="var(--gray-12)"),
-                                spacing="1",
-                                width="100%",
-                                align="start",
+                        rx.text("Menterjemah ke Bahasa Malaysia…", size="1", color_scheme="gray"),
+                        skeleton,
+                        spacing="2",
+                        align="start",
+                        width="100%",
+                    ),
+                    rx.box(
+                        rx.cond(
+                            (NewsDetailState.summary_lang == "ms") & (NewsDetailState.summary_ms_status == "none"),
+                            rx.text(
+                                "The Malay translation is not available right now. Showing the English summary.",
+                                size="1",
+                                color="var(--amber-11)",
+                                margin_bottom="0.75em",
                             ),
                         ),
-                        spacing="3",
+                        rx.vstack(
+                            rx.foreach(
+                                NewsDetailState.summary_shown,
+                                lambda section: rx.vstack(
+                                    rx.cond(section["title"] != "", rx.text(section["title"], size="2", weight="bold")),
+                                    rx.text(section["text"], size="2", line_height="1.6", color="var(--gray-12)"),
+                                    spacing="1",
+                                    width="100%",
+                                    align="start",
+                                ),
+                            ),
+                            spacing="3",
+                            width="100%",
+                            align="start",
+                        ),
+                        rx.divider(margin_y="0.75em"),
+                        rx.hstack(
+                            rx.text(
+                                rx.cond(
+                                    (NewsDetailState.summary_lang == "ms") & (NewsDetailState.summary_ms_status == "ready"),
+                                    "Dijana oleh AI",
+                                    "Generated by AI",
+                                ),
+                                size="1",
+                                color_scheme="gray",
+                                style={"font-style": "italic"},
+                            ),
+                            _ai_provider_badge(),
+                            width="100%",
+                            justify="between",
+                            align="center",
+                            wrap="wrap",
+                        ),
+                        padding="1.25em",
+                        border_radius="10px",
+                        background="var(--gray-a2)",
                         width="100%",
-                        align="start",
+                        border="2px solid royalblue",
                     ),
-                    rx.divider(margin_y="0.75em"),
-                    rx.hstack(
-                        rx.text("Generated by AI", size="1", color_scheme="gray", style={"font-style": "italic"}),
-                        _ai_provider_badge(),
-                        width="100%",
-                        justify="between",
-                        align="center",
-                        wrap="wrap",
-                    ),
-                    padding="1.25em",
-                    border_radius="10px",
-                    background="var(--gray-a2)",
-                    width="100%",
-                    border="2px solid royalblue",
                 ),
                 spacing="3",
                 align="start",
