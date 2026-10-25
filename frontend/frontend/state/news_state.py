@@ -181,7 +181,16 @@ def _neighbors(articles: list[dict], article: dict) -> dict:
         return {"prev": None, "next": None}
 
     def pick(item: dict | None) -> dict | None:
-        return {"title": item["title"] or "Untitled", "detail_url": item["detail_url"]} if item else None
+        if not item:
+            return None
+        return {
+            "title": item["title"] or "Untitled",
+            "detail_url": item["detail_url"],
+            # for the hover popup on the Previous / Next links: picture + excerpt
+            "image_url": item.get("image_url") or "",
+            "fallback_image_url": item.get("fallback_image_url") or "",
+            "snippet": (item.get("snippet") or "") if item.get("has_snippet") else "",
+        }
 
     return {"prev": pick(same[index - 1] if index > 0 else None), "next": pick(same[index + 1] if index + 1 < len(same) else None)}
 
@@ -762,6 +771,19 @@ def _fetch_daily_summary(category_slug: str, news_type: str, headlines: list[tup
                 "day": "", "message": "The summary isn't available right now — please try again in a few minutes."}
 
 
+def _neighbor_fields(prefix: str, item: dict | None) -> dict:
+    """has_<prefix> / <prefix>_title / _url / _image / _fallback / _snippet of the previous or next story (empty when none)."""
+    item = item or {}
+    return {
+        f"has_{prefix}": bool(item),
+        f"{prefix}_title": item.get("title", ""),
+        f"{prefix}_url": item.get("detail_url", ""),
+        f"{prefix}_image": item.get("image_url", ""),
+        f"{prefix}_fallback": item.get("fallback_image_url", ""),
+        f"{prefix}_snippet": item.get("snippet", ""),
+    }
+
+
 def _build_article_detail(row: dict | None, related_articles: list[dict], neighbors: dict | None = None) -> dict:
     if row is None:
         return {}
@@ -778,12 +800,8 @@ def _build_article_detail(row: dict | None, related_articles: list[dict], neighb
         "has_body": bool(blocks),
         "related_articles": related_articles,
         # previous (newer) / next (older) article in the same category, for the links at the top of the reader
-        "has_prev": bool(prev_item),
-        "prev_title": prev_item["title"] if prev_item else "",
-        "prev_url": prev_item["detail_url"] if prev_item else "",
-        "has_next": bool(next_item),
-        "next_title": next_item["title"] if next_item else "",
-        "next_url": next_item["detail_url"] if next_item else "",
+        **_neighbor_fields("prev", prev_item),
+        **_neighbor_fields("next", next_item),
     }
 
 

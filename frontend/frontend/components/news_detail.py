@@ -46,48 +46,80 @@ def _source_link(article: dict) -> rx.Component:
     )
 
 
-def _nav_link(label: str, title, url, icon: str, side: str) -> rx.Component:
-    """One side of the previous / next row: only the link text and an arrow, no button box; Previous sits on the left and Next on
-    the right (the neighbour's title is only the hover tooltip)."""
-    arrow = rx.icon(icon, size=16)
+def _nav_popup(article: dict, prefix: str) -> rx.Component:
+    """The hover popup of a Previous / Next link: two columns, the story's picture on the left, its title and excerpt on the right.
+    It is itself a link to that story, so moving the mouse into it keeps it open and a click opens the story."""
     return rx.link(
-        rx.hstack(
-            *([arrow, rx.text(label, size="2", weight="medium")] if side == "prev" else [rx.text(label, size="2", weight="medium"), arrow]),
-            spacing="1",
-            align="center",
+        rx.box(
+            rx.box(
+                rx.image(
+                    src=article[f"{prefix}_image"],
+                    width="100%",
+                    height="100%",
+                    object_fit="cover",
+                    display="block",
+                    custom_attrs={"data-fallback-src": article[f"{prefix}_fallback"]},
+                ),
+                class_name="news-nav-pop-img",
+            ),
+            rx.vstack(
+                rx.text(article[f"{prefix}_title"], size="2", weight="bold", color="var(--gray-12)", line_height="1.3", class_name="news-nav-pop-title"),
+                rx.cond(
+                    article[f"{prefix}_snippet"] != "",
+                    rx.text(article[f"{prefix}_snippet"], size="1", color="var(--gray-11)", line_height="1.45", class_name="news-nav-pop-excerpt"),
+                ),
+                spacing="1",
+                align="start",
+                min_width="0",
+            ),
+            class_name="news-nav-card",
         ),
-        href=url,
+        href=article[f"{prefix}_url"],
         underline="none",
-        color="var(--accent-11)",
-        justify_self="start" if side == "prev" else "end",
-        _hover={"color": "var(--accent-12)"},
-        title=title,
-        aria_label=label + " story",
-        class_name="news-nav-link",
+        tab_index=-1,
+        aria_hidden="true",  # the link next to it is the accessible one
+        class_name="news-nav-pop",
     )
 
 
-def _prev_next(article: dict) -> rx.Component:
+def _nav_link(label: str, article: dict, prefix: str, icon: str) -> rx.Component:
+    """One side of the previous / next row: only the link text and an arrow (no button box), Previous on the left and Next on the
+    right. Hovering (or focusing) it shows the story's picture, title and excerpt in a popup."""
+    side = "prev" if prefix == "prev" else "next"
+    arrow = rx.icon(icon, size=16)
+    return rx.box(
+        rx.link(
+            rx.hstack(
+                *([arrow, rx.text(label, size="2", weight="medium")] if side == "prev" else [rx.text(label, size="2", weight="medium"), arrow]),
+                spacing="1",
+                align="center",
+            ),
+            href=article[f"{prefix}_url"],
+            underline="none",
+            color="var(--accent-11)",
+            _hover={"color": "var(--accent-12)"},
+            aria_label=label + " story",
+            class_name="news-nav-link",
+        ),
+        _nav_popup(article, prefix),
+        justify_self="start" if side == "prev" else "end",
+        class_name="news-nav-item news-nav-" + side,
+    )
+
+
+def _prev_next(article: dict, in_sidebar: bool = False) -> rx.Component:
     """Previous / Next links for the neighbouring story of the same category (Previous = the next-newer one, Next = the
-    next-older one, like the /news lists). Shown at the top of the article and at the top of "Other News Related"; a side
-    with no neighbour is left empty so the other button keeps its place."""
+    next-older one, like the /news lists). Shown at the top of the article and under the article source in the sidebar; a side
+    with no neighbour (the newest story has no Previous, the oldest no Next) is hidden, and the other link keeps its side."""
     return rx.cond(
         article["has_prev"] | article["has_next"],
         rx.grid(
-            rx.cond(
-                article["has_prev"],
-                _nav_link("Previous", article["prev_title"], article["prev_url"], "arrow-left", "prev"),
-                rx.box(),
-            ),
-            rx.cond(
-                article["has_next"],
-                _nav_link("Next", article["next_title"], article["next_url"], "arrow-right", "next"),
-                rx.box(),
-            ),
+            rx.cond(article["has_prev"], _nav_link("Previous", article, "prev", "arrow-left"), rx.box()),
+            rx.cond(article["has_next"], _nav_link("Next", article, "next", "arrow-right"), rx.box()),
             columns="2",
             spacing="2",
             width="100%",
-            class_name="news-prev-next",
+            class_name="news-prev-next news-nav-side" if in_sidebar else "news-prev-next",
         ),
     )
 
@@ -101,7 +133,7 @@ def _article_sidebar(article: dict) -> rx.Component:
             align="start",
         ),
         _source_link(article),
-        _prev_next(article),  # previous / next in this category, right below the article source section
+        _prev_next(article, in_sidebar=True),  # previous / next in this category, right below the article source section
         rx.vstack(
             rx.heading("Other News Related", size="3"),
             rx.grid(
@@ -228,10 +260,10 @@ def _lang_tab(code: str, label: str) -> rx.Component:
 
 
 def _summary_heading(show_tabs: bool) -> rx.Component:
-    """"AI Summarizations" + sparkles on the left (Malay once MY is chosen), the EN | MY tabs on the right, full width."""
+    """"AI Summarizations" + sparkles on the left (always English), the EN | MY tabs on the right, full width."""
     return rx.hstack(
         rx.hstack(
-            rx.heading(rx.cond(NewsDetailState.summary_lang == "ms", "Ringkasan AI", "AI Summarizations"), size="4"),
+            rx.heading("AI Summarizations", size="4"),
             rx.icon("sparkles", size=16, color="var(--gray-9)"),
             spacing="2",
             align="center",
@@ -274,7 +306,7 @@ def _ai_summary() -> rx.Component:
                 rx.cond(
                     (NewsDetailState.summary_lang == "ms") & (NewsDetailState.summary_ms_status == "loading"),
                     rx.vstack(
-                        rx.text("Menterjemah ke Bahasa Malaysia…", size="1", color_scheme="gray"),
+                        rx.text("Translating the summary to Malay…", size="1", color_scheme="gray"),
                         skeleton,
                         spacing="2",
                         align="start",
@@ -308,11 +340,7 @@ def _ai_summary() -> rx.Component:
                         rx.divider(margin_y="0.75em"),
                         rx.hstack(
                             rx.text(
-                                rx.cond(
-                                    (NewsDetailState.summary_lang == "ms") & (NewsDetailState.summary_ms_status == "ready"),
-                                    "Dijana oleh AI",
-                                    "Generated by AI",
-                                ),
+                                "Generated by AI",
                                 size="1",
                                 color_scheme="gray",
                                 style={"font-style": "italic"},
