@@ -41,20 +41,24 @@ def test_neighbours_carry_a_picture_and_an_excerpt_for_the_hover_popup():
     assert _build_article_detail(None, [], {}) == {}
 
 
-def test_the_links_are_plain_with_a_hover_popup_and_sit_under_the_article_source():
+def test_the_neighbours_are_always_visible_cards_under_the_article_source_and_at_the_top():
     src = (ROOT / "frontend" / "frontend" / "components" / "news_detail.py").read_text()
     assert src.count("_prev_next(article),") + src.count("_prev_next(article, in_sidebar=True),") == 2  # top of the article column + under the article source
     side = src[src.index("def _article_sidebar"):]
     assert side.index("_source_link(article),") < side.index("_prev_next(article, in_sidebar=True),") < side.index('rx.heading("Other News Related"')
-    link = src[src.index("def _nav_link"):src.index("def _prev_next")]
-    assert "border" not in link and "background" not in link and "padding" not in link  # plain link text + icon, no button box
-    assert 'justify_self="start" if side == "prev" else "end"' in link  # Previous on the left, Next on the right
-    assert "_nav_popup(article, prefix)" in link
-    popup = src[src.index("def _nav_popup"):src.index("def _nav_link")]
-    assert "news-nav-pop-img" in popup and "_title" in popup and "_snippet" in popup  # picture left, title + excerpt right
+    card = src[src.index("def _nav_card"):src.index("def _prev_next")]
+    assert "news-nav-img" in card and "_title" in card and "_snippet" in card  # picture left, title + excerpt right
+    assert "_hover" not in card and "popup" not in card.lower()  # no hover effect: the card is just there
+    assert "def _nav_popup" not in src and "news-nav-pop" not in src
     css = (ROOT / "frontend" / "assets" / "styles.css").read_text()
-    assert ".news-nav-item:hover .news-nav-pop" in css and "grid-template-columns: 120px minmax(0, 1fr)" in css
+    assert "grid-template-columns: 120px minmax(0, 1fr)" in css and ".news-nav-main .news-nav-next { grid-column: 2; }" in css
+    assert ":hover .news-nav-pop" not in css
     state = (ROOT / "frontend" / "frontend" / "state" / "news_state.py").read_text()
     assert 'f"has_{prefix}": bool(item)' in state
-    # a side with no neighbour is hidden, not shown disabled
-    assert src.count('rx.cond(article["has_prev"], _nav_link') == 1 and src.count('rx.cond(article["has_next"], _nav_link') == 1
+    # a side with no neighbour is not rendered at all (no empty disabled card)
+    assert src.count('rx.cond(article["has_prev"], _nav_card(') == 1 and src.count('rx.cond(article["has_next"], _nav_card(') == 1
+
+
+def test_the_reader_no_longer_has_the_all_news_back_link():
+    src = (ROOT / "frontend" / "frontend" / "components" / "news_detail.py").read_text()
+    assert "All news" not in src

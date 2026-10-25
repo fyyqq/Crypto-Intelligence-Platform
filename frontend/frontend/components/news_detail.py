@@ -46,9 +46,9 @@ def _source_link(article: dict) -> rx.Component:
     )
 
 
-def _nav_popup(article: dict, prefix: str) -> rx.Component:
-    """The hover popup of a Previous / Next link: two columns, the story's picture on the left, its title and excerpt on the right.
-    It is itself a link to that story, so moving the mouse into it keeps it open and a click opens the story."""
+def _nav_card(article: dict, prefix: str, label: str) -> rx.Component:
+    """The previous / next story as a card that is always shown (no hover): the picture on the left, the title and excerpt on the
+    right. The whole card is the link; Previous sits in the left column and Next in the right one."""
     return rx.link(
         rx.box(
             rx.box(
@@ -60,13 +60,13 @@ def _nav_popup(article: dict, prefix: str) -> rx.Component:
                     display="block",
                     custom_attrs={"data-fallback-src": article[f"{prefix}_fallback"]},
                 ),
-                class_name="news-nav-pop-img",
+                class_name="news-nav-img",
             ),
             rx.vstack(
-                rx.text(article[f"{prefix}_title"], size="2", weight="bold", color="var(--gray-12)", line_height="1.3", class_name="news-nav-pop-title"),
+                rx.text(article[f"{prefix}_title"], size="2", weight="bold", color="var(--gray-12)", line_height="1.3", class_name="news-nav-title"),
                 rx.cond(
                     article[f"{prefix}_snippet"] != "",
-                    rx.text(article[f"{prefix}_snippet"], size="1", color="var(--gray-11)", line_height="1.45", class_name="news-nav-pop-excerpt"),
+                    rx.text(article[f"{prefix}_snippet"], size="1", color="var(--gray-11)", line_height="1.45", class_name="news-nav-excerpt"),
                 ),
                 spacing="1",
                 align="start",
@@ -76,50 +76,22 @@ def _nav_popup(article: dict, prefix: str) -> rx.Component:
         ),
         href=article[f"{prefix}_url"],
         underline="none",
-        tab_index=-1,
-        aria_hidden="true",  # the link next to it is the accessible one
-        class_name="news-nav-pop",
-    )
-
-
-def _nav_link(label: str, article: dict, prefix: str, icon: str) -> rx.Component:
-    """One side of the previous / next row: only the link text and an arrow (no button box), Previous on the left and Next on the
-    right. Hovering (or focusing) it shows the story's picture, title and excerpt in a popup."""
-    side = "prev" if prefix == "prev" else "next"
-    arrow = rx.icon(icon, size=16)
-    return rx.box(
-        rx.link(
-            rx.hstack(
-                *([arrow, rx.text(label, size="2", weight="medium")] if side == "prev" else [rx.text(label, size="2", weight="medium"), arrow]),
-                spacing="1",
-                align="center",
-            ),
-            href=article[f"{prefix}_url"],
-            underline="none",
-            color="var(--accent-11)",
-            _hover={"color": "var(--accent-12)"},
-            aria_label=label + " story",
-            class_name="news-nav-link",
-        ),
-        _nav_popup(article, prefix),
-        justify_self="start" if side == "prev" else "end",
-        class_name="news-nav-item news-nav-" + side,
+        aria_label=label + " story",
+        title=label + " story",
+        class_name="news-nav-link news-nav-" + prefix,
     )
 
 
 def _prev_next(article: dict, in_sidebar: bool = False) -> rx.Component:
-    """Previous / Next links for the neighbouring story of the same category (Previous = the next-newer one, Next = the
-    next-older one, like the /news lists). Shown at the top of the article and under the article source in the sidebar; a side
-    with no neighbour (the newest story has no Previous, the oldest no Next) is hidden, and the other link keeps its side."""
+    """The neighbouring stories of the same category as two cards (Previous = the next-newer one on the left, Next = the
+    next-older one on the right, like the /news lists): at the top of the article and, stacked, under the article source in the
+    sidebar. A side with no neighbour (the newest story has no Previous, the oldest no Next) is simply not there."""
     return rx.cond(
         article["has_prev"] | article["has_next"],
-        rx.grid(
-            rx.cond(article["has_prev"], _nav_link("Previous", article, "prev", "arrow-left"), rx.box()),
-            rx.cond(article["has_next"], _nav_link("Next", article, "next", "arrow-right"), rx.box()),
-            columns="2",
-            spacing="2",
-            width="100%",
-            class_name="news-prev-next news-nav-side" if in_sidebar else "news-prev-next",
+        rx.box(
+            rx.cond(article["has_prev"], _nav_card(article, "prev", "Previous")),
+            rx.cond(article["has_next"], _nav_card(article, "next", "Next")),
+            class_name="news-prev-next news-nav-side" if in_sidebar else "news-prev-next news-nav-main",
         ),
     )
 
@@ -506,12 +478,6 @@ def _media_grid(article: dict) -> rx.Component:
 
 def _reader(article: dict) -> rx.Component:
     return rx.vstack(
-        rx.link(
-            rx.hstack(rx.icon("arrow-left", size=16), rx.text("All news", size="2"), spacing="1", align="center"),
-            href="/news",
-            underline="none",
-            color="var(--gray-11)",
-        ),
         rx.grid(
             rx.vstack(
                 _prev_next(article),
