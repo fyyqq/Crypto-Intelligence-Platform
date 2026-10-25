@@ -139,7 +139,7 @@ def verify_recaptcha(token: str, action: str) -> bool:
     try:
         resp = requests.post(
             "https://www.google.com/recaptcha/api/siteverify",
-            data={"secret": settings.recaptcha_secret_key, "response": token},
+            data={"secret": settings.recaptcha_keys()[1], "response": token},
             timeout=8,
         )
         data = resp.json()

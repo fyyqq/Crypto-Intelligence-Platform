@@ -13,7 +13,7 @@ paths:
 
 - All validation is re-checked server-side in `auth_service` (never trust the form). Argon2id hashes; SQLAlchemy parameterised queries only.
 - Login failures are generic ("Invalid email or password."), verify against a dummy hash for unknown emails, lock 15 min after 5 failures. Signup duplicate email is deliberately explicit (user's choice). Format errors are specific.
-- reCAPTCHA v3 is OFF by default (`RECAPTCHA_ENABLED`); re-enable only after the key's domains are set.
+- reCAPTCHA v3 is OFF by default (`RECAPTCHA_ENABLED`). Two key pairs: `RECAPTCHA_SITE_KEY_LOCAL/_SECRET_KEY_LOCAL` (dev machine, the default) and `..._PROD` (live; the live `.env` has `RECAPTCHA_ENV=prod` + `RECAPTCHA_ENABLED=true`); `Settings.recaptcha_keys()` picks the pair. A key only works on the domains listed for it in Google's reCAPTCHA admin: check with a real browser (the anchor frame says "... is not in the list of supported domains"), because Google's `browser-error` from siteverify is the only symptom otherwise. Status 2026-10-25: PROD key verified end to end on repace.fyqqflow.com (success, score 0.9, action login); the LOCAL key does not list `localhost` yet, so the local flag stays false.
 - "Remember me" is opt-in: ticked -> `create_session` + `repace_session` cookie (30 days, SameSite=Strict, token stored as SHA-256 in `user_sessions`). Unticked/signup -> tab session only. `CoinState.restore_session` is the first `on_load` event on every page.
 - Watchlist, price alerts and alert history are scoped by the server-side `CoinState.user_id` (set at login, never from the browser). Alert events are wrapped by `_login_required`; `/alerts` uses `require_login`.
 - Password eye state is per field and reset on page load (`LoginState.reset_visibility`).

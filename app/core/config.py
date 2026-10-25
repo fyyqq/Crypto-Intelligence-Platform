@@ -153,8 +153,22 @@ class Settings(BaseSettings):
     # RECAPTCHA_SITE_KEY / RECAPTCHA_SECRET_KEY in .env (v3 keys; v2 keys will not work).
     # Off by default until the v3 keys are confirmed to work for the domain in use.
     recaptcha_enabled: bool = False
-    recaptcha_site_key: str = ""
+    recaptcha_site_key: str = ""  # legacy single pair: only used when the pair for the chosen environment below is empty
     recaptcha_secret_key: str = ""
+    # One key pair per place the site runs (a key only works on the domains registered for it): RECAPTCHA_ENV picks which one is
+    # used: "local" (default; localhost) or "prod" (set to prod in the live server's .env). See recaptcha_keys().
+    recaptcha_env: str = "local"
+    recaptcha_site_key_local: str = ""
+    recaptcha_secret_key_local: str = ""
+    recaptcha_site_key_prod: str = ""
+    recaptcha_secret_key_prod: str = ""
+
+    def recaptcha_keys(self) -> tuple[str, str]:
+        """(site key, secret key) of this machine: the _PROD pair when RECAPTCHA_ENV=prod, else the _LOCAL pair (the legacy single pair is the fallback)."""
+        prod = (self.recaptcha_env or "").strip().lower() == "prod"
+        site = (self.recaptcha_site_key_prod if prod else self.recaptcha_site_key_local) or self.recaptcha_site_key
+        secret = (self.recaptcha_secret_key_prod if prod else self.recaptcha_secret_key_local) or self.recaptcha_secret_key
+        return site, secret
 
     # On-demand CEX/DEX market-pair listing (see
     # app/services/market_pairs_service.py) — refreshed far more often than

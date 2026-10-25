@@ -17,8 +17,13 @@ try:
     load_dotenv(_REPO_ROOT / ".env")
 except Exception:
     pass
-_RECAPTCHA_ENABLED = os.getenv("RECAPTCHA_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
-_RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY", "")
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.append(_REPO_ROOT.as_posix())
+from app.core.config import settings as _settings  # noqa: E402
+
+# On or off (RECAPTCHA_ENABLED) and which site key (RECAPTCHA_ENV=local / prod picks the _LOCAL or _PROD pair, Settings.recaptcha_keys).
+_RECAPTCHA_ENABLED = bool(_settings.recaptcha_enabled) and bool(_settings.recaptcha_keys()[0]) and bool(_settings.recaptcha_keys()[1])  # no keys: never half-on
+_RECAPTCHA_SITE_KEY = _settings.recaptcha_keys()[0]
 
 _INPUT_STYLE = {
     "width": "100%",
