@@ -123,7 +123,7 @@ def translate_texts(texts: list[str], target: str = "ms") -> list[str] | None:
             results = translator.translate_batch(
                 sources,
                 target_prefix=[[code]] * len(sources),
-                beam_size=4,
+                beam_size=max(1, int(settings.translation_beam_size)),
                 no_repeat_ngram_size=3,
                 repetition_penalty=1.1,
                 max_decoding_length=256,

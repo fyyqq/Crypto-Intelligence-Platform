@@ -140,6 +140,9 @@ class Settings(BaseSettings):
     # (fetched by `python -m scripts.download_translation_model`) and how many CPU threads one translation may use.
     translation_model_dir: str = "models/nllb-600m-ct2-int8"
     translation_threads: int = 2
+    # Beam width of the translation search: 2 is about 2.3x faster than 4 on the live server (a whole summary in ~11 s instead of ~24 s)
+    # with a small quality cost; 4 threads were slower than 2 on that 4-vCPU server.
+    translation_beam_size: int = 2
     # Weekly coin business-model category check (app/services/
     # coin_category_service.py): one OpenRouter call (8 coins) per interval.
     # 120 min = 12 calls/day, sized for the free tier's ~50 requests/day;
