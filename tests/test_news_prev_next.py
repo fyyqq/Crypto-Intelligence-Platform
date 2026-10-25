@@ -51,7 +51,12 @@ def test_the_neighbours_are_always_visible_cards_under_the_article_source_and_at
     assert "_hover" not in card and "popup" not in card.lower()  # no hover effect: the card is just there
     assert "def _nav_popup" not in src and "news-nav-pop" not in src
     css = (ROOT / "frontend" / "assets" / "styles.css").read_text()
-    assert "grid-template-columns: 120px minmax(0, 1fr)" in css and ".news-nav-main .news-nav-next { grid-column: 2; }" in css
+    assert ".news-nav-card-next { grid-template-columns: 120px minmax(0, 1fr) auto; }" in css and ".news-nav-card-prev { grid-template-columns: auto 120px minmax(0, 1fr); }" in css
+    assert ".news-nav-main .news-nav-next { grid-column: 2; }" in css
+    assert ".news-nav-side .news-nav-card" not in css and ".news-nav-side .news-nav-img" not in css  # the sidebar uses exactly the same card style
+    assert ".news-nav-arrow { flex: none; color: var(--gray-12);" in css and "scaleX(-1)" in css  # theme colour, flipped on Previous
+    assert "_double_chevron()" in card and "[arrow, image, text] if prefix == \"prev\" else [image, text, arrow]" in card  # left of Previous, right of Next
+    assert 'lg="minmax(0, 1fr) 340px"' in src
     assert ":hover .news-nav-pop" not in css
     state = (ROOT / "frontend" / "frontend" / "state" / "news_state.py").read_text()
     assert 'f"has_{prefix}": bool(item)' in state

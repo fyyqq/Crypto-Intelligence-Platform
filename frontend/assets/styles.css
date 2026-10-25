@@ -2078,13 +2078,16 @@ html.nlb-lock { overflow: hidden; }
 .news-nav-link { display: block; min-width: 0; color: inherit; border-radius: 12px; }
 .news-nav-link:focus-visible { outline: 2px solid var(--accent-9); outline-offset: 2px; }
 .news-nav-card {
-  display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: start; height: 100%; padding: 10px; border-radius: 12px;
+  display: grid; gap: 12px; align-items: center; height: 100%; padding: 10px; border-radius: 12px;
   border: 1px solid var(--gray-a5); background: var(--gray-a2);
 }
-.news-nav-img { width: 120px; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; background: var(--gray-a3); }
+.news-nav-card-next { grid-template-columns: 120px minmax(0, 1fr) auto; } /* picture | title + excerpt | arrow on the right */
+.news-nav-card-prev { grid-template-columns: auto 120px minmax(0, 1fr); } /* arrow on the left | picture | title + excerpt */
+.news-nav-img { width: 120px; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; background: var(--gray-a3); align-self: start; }
+.news-nav-card > div:not(.news-nav-img) { align-self: start; }
 .news-nav-title { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .news-nav-excerpt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.news-nav-side .news-nav-card { grid-template-columns: 84px minmax(0, 1fr); gap: 10px; }
-.news-nav-side .news-nav-img { width: 84px; }
-.news-nav-side .news-nav-excerpt { -webkit-line-clamp: 2; }
-@media (max-width: 520px) { .news-nav-main .news-nav-card { grid-template-columns: 96px minmax(0, 1fr); } .news-nav-main .news-nav-img { width: 96px; } }
+/* The double-chevron arrow follows the theme text colour: white on dark, near-black on light. */
+.news-nav-arrow { flex: none; color: var(--gray-12); align-self: center; }
+.news-nav-card-prev .news-nav-arrow { transform: scaleX(-1); }
+@media (max-width: 520px) { .news-nav-card-next { grid-template-columns: 96px minmax(0, 1fr) auto; } .news-nav-card-prev { grid-template-columns: auto 96px minmax(0, 1fr); } .news-nav-img { width: 96px; } }

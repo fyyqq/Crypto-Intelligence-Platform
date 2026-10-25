@@ -46,34 +46,53 @@ def _source_link(article: dict) -> rx.Component:
     )
 
 
+def _double_chevron() -> rx.Component:
+    """The bold double-chevron arrow (the picture you gave): two thick rounded chevrons drawn in currentColor, so it is white on the
+    dark theme and dark on the light one (CSS `.news-nav-arrow`). Pointing right; the Previous card flips it with CSS."""
+    return rx.el.svg(
+        rx.el.path(d="M5 5l7 7-7 7"),
+        rx.el.path(d="M12 5l7 7-7 7"),
+        view_box="0 0 24 24",
+        fill="none",
+        stroke="currentColor",
+        stroke_width="3.4",
+        stroke_linecap="round",
+        stroke_linejoin="round",
+        width="22",
+        height="22",
+        aria_hidden="true",
+        class_name="news-nav-arrow",
+    )
+
+
 def _nav_card(article: dict, prefix: str, label: str) -> rx.Component:
     """The previous / next story as a card that is always shown (no hover): the picture on the left, the title and excerpt on the
-    right. The whole card is the link; Previous sits in the left column and Next in the right one."""
-    return rx.link(
-        rx.box(
-            rx.box(
-                rx.image(
-                    src=article[f"{prefix}_image"],
-                    width="100%",
-                    height="100%",
-                    object_fit="cover",
-                    display="block",
-                    custom_attrs={"data-fallback-src": article[f"{prefix}_fallback"]},
-                ),
-                class_name="news-nav-img",
-            ),
-            rx.vstack(
-                rx.text(article[f"{prefix}_title"], size="2", weight="bold", color="var(--gray-12)", line_height="1.3", class_name="news-nav-title"),
-                rx.cond(
-                    article[f"{prefix}_snippet"] != "",
-                    rx.text(article[f"{prefix}_snippet"], size="1", color="var(--gray-11)", line_height="1.45", class_name="news-nav-excerpt"),
-                ),
-                spacing="1",
-                align="start",
-                min_width="0",
-            ),
-            class_name="news-nav-card",
+    right, and the double-chevron arrow at the card's outer edge (left of the Previous card, right of the Next card, flipped to point
+    that way). The whole card is the link; the sidebar uses exactly the same card as the top of the article."""
+    image = rx.box(
+        rx.image(
+            src=article[f"{prefix}_image"],
+            width="100%",
+            height="100%",
+            object_fit="cover",
+            display="block",
+            custom_attrs={"data-fallback-src": article[f"{prefix}_fallback"]},
         ),
+        class_name="news-nav-img",
+    )
+    text = rx.vstack(
+        rx.text(article[f"{prefix}_title"], size="2", weight="bold", color="var(--gray-12)", line_height="1.3", class_name="news-nav-title"),
+        rx.cond(
+            article[f"{prefix}_snippet"] != "",
+            rx.text(article[f"{prefix}_snippet"], size="1", color="var(--gray-11)", line_height="1.45", class_name="news-nav-excerpt"),
+        ),
+        spacing="1",
+        align="start",
+        min_width="0",
+    )
+    arrow = _double_chevron()
+    return rx.link(
+        rx.box(*([arrow, image, text] if prefix == "prev" else [image, text, arrow]), class_name="news-nav-card news-nav-card-" + prefix),
         href=article[f"{prefix}_url"],
         underline="none",
         aria_label=label + " story",
@@ -520,14 +539,14 @@ def _reader(article: dict) -> rx.Component:
                 width="100%",
             ),
             _article_sidebar(article),
-            columns=rx.breakpoints(initial="1", lg="minmax(0, 1fr) 260px"),
+            columns=rx.breakpoints(initial="1", lg="minmax(0, 1fr) 340px"),  # wide enough for the same picture + text cards as the top of the article
             column_gap=rx.breakpoints(initial="2em", lg="3.5em"),
             row_gap="2.5em",
             width="100%",
         ),
         spacing="6",
         width="100%",
-        max_width="1120px",
+        max_width="1200px",
         margin_x="auto",
         padding=["1.25em", "1.5em", "2em", "3em", "4em"],
     )
