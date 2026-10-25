@@ -29,3 +29,6 @@ logs/
 
 # User-uploaded profile pictures and banners (served at /user_uploads/, see app/services/profile_service.py)
 user_uploads/
+
+# local translation model (scripts/download_translation_model.py)
+models/

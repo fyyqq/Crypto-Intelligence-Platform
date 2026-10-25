@@ -11,11 +11,10 @@ article's picture is not part of the input.
 
 
 The reader's EN | MY tabs: get_news_summary_translation() translates that same cached summary into Malay (Bahasa
-Malaysia) on first request and caches it on the row too (ai_summary_ms / ai_summary_ms_model), so each article is
-translated at most once.
+Malaysia) on first request, with the local NLLB model (offline, no limit; the free AI models are only the fallback), and
+caches it on the row too (ai_summary_ms / ai_summary_ms_model), so each article is translated at most once.
 """
 
-import html
 import logging
 import re
 import time
@@ -27,7 +26,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.services import ai_budget
+from app.services import ai_budget, local_translate_service
 
 logger = logging.getLogger(__name__)
 
@@ -216,8 +215,8 @@ def get_news_summary(article_id: int) -> tuple[str, str] | None:
         db.close()
 
 
-def translation_is_valid_google(source: str, translated: str) -> bool:
-    """A Google result only has to keep the same number of `TITLE:` sections (it translates every heading by itself)."""
+def translation_has_same_sections(source: str, translated: str) -> bool:
+    """A locally made translation only has to keep the same number of `TITLE:` sections (every heading is translated by construction)."""
     return len(_titles(source)) == len(_titles(translated)) and len(translated.strip()) >= 20
 
 
@@ -252,58 +251,45 @@ def _split_summary(source: str) -> list[tuple[str, str]]:
     return sections
 
 
-GOOGLE_ENDPOINT = "https://translation.googleapis.com/language/translate/v2"
-GOOGLE_MODEL_NAME = "Google Translate"
+LOCAL_MODEL_NAME = "NLLB-200 (local)"
 
 
-def _translate_google(source: str) -> tuple[str, str] | None:
-    """Translates the summary to Malay with Google's official Cloud Translation API (needs GOOGLE_TRANSLATE_API_KEY). Every
-    heading and paragraph is sent as its own string in ONE request, so the sections come back in the same order and are put
-    back as the same `TITLE:` format. None when no key is set or Google refuses / is unreachable (the caller falls back)."""
-    key = settings.google_translate_api_key
+def _translate_local(source: str) -> tuple[str, str] | None:
+    """Translates the summary to Malay with the local NLLB model (app/services/local_translate_service.py: offline, no key, no
+    limit). Every heading and paragraph is translated on its own and put back in the same `TITLE:` format. None when the model
+    is not installed or fails (the caller falls back to the AI models)."""
     sections = _split_summary(source)
-    if not key or not sections:
+    if not sections:
         return None
     strings = [s for heading, body in sections for s in ((heading, body) if heading else (body,))]
-    try:
-        response = requests.post(
-            GOOGLE_ENDPOINT,
-            params={"key": key},
-            json={"q": strings, "source": "en", "target": "ms", "format": "text"},
-            timeout=20,
-        )
-        response.raise_for_status()
-        translated = [html.unescape(t.get("translatedText", "")) for t in response.json()["data"]["translations"]]
-    except (requests.RequestException, ValueError, KeyError, TypeError):
-        logger.warning("Google Translate request failed")  # never log the URL: it carries the key
-        return None
-    if len(translated) != len(strings) or not all(t.strip() for t in translated):
+    translated = local_translate_service.translate_texts(strings, "ms")
+    if translated is None or len(translated) != len(strings) or not all(t.strip() for t in translated):
         return None
     out, i = [], 0
     for heading, _body in sections:
         if heading:
-            out.append(f"TITLE: {translated[i].strip()}\n{translated[i + 1].strip()}")
+            out.append(f"TITLE: {translated[i]}\n{translated[i + 1]}")
             i += 2
         else:
-            out.append(translated[i].strip())
+            out.append(translated[i])
             i += 1
-    return "\n\n".join(out), GOOGLE_MODEL_NAME
+    return "\n\n".join(out), LOCAL_MODEL_NAME
 
 
 def unavailable_reason() -> str:
     """Why a Malay translation could not be made, in one short sentence for the reader's note."""
-    if ai_budget.blocked():
-        return "The free AI daily limit is used up and resets at 08:00 Malaysia time."
-    if not settings.openrouter_api_key and not settings.google_translate_api_key:
-        return "No translation service is set up on this server."
+    if not local_translate_service.is_available():
+        if ai_budget.blocked():
+            return "The local translation model is not installed on this server, and the free AI daily limit is used up (it resets at 08:00 Malaysia time)."
+        return "The local translation model is not installed on this server."
     return "The Malay translation is not available right now."
 
 
 def _translate(source: str) -> tuple[str, str] | None:
-    """Google Translate first when a key is set, then the AI models in turn, until one returns a valid Malay version."""
-    google = _translate_google(source)
-    if google is not None and translation_is_valid_google(source, google[0]):
-        return google
+    """The local model first (free, offline, unlimited), then the AI models in turn, until one returns a valid Malay version."""
+    local = _translate_local(source)
+    if local is not None and translation_has_same_sections(source, local[0]):
+        return local
     for model in [settings.openrouter_model, *_FALLBACK_MODELS]:
         result = _call_model(source, model, _TRANSLATE_SYSTEM_MS, 1400)
         if result is not None and translation_is_valid(source, result[0]):
@@ -330,8 +316,8 @@ def get_news_summary_translation(article_id: int, lang: str = "ms") -> tuple[str
             return None
         if row["ai_summary_ms"]:
             return row["ai_summary_ms"], row["ai_summary_ms_model"] or ""
-        if ai_budget.in_cooldown(cooldown_key) and not settings.google_translate_api_key:
-            return None  # the AI models failed recently (Google, when set up, is not affected by that)
+        if ai_budget.in_cooldown(cooldown_key) and not local_translate_service.is_available():
+            return None  # the AI models failed recently (the local model is not affected by that)
         result = _translate(row["ai_summary"])
         if result is None:
             ai_budget.mark_failed(cooldown_key)
