@@ -28,7 +28,9 @@ def test_the_article_detail_carries_the_links_and_both_places_use_them():
 
     assert _build_article_detail(None, [], {}) == {}
     src = (ROOT / "frontend" / "frontend" / "components" / "news_detail.py").read_text()
-    assert src.count("_prev_next(article,") == 2  # top of the article column and top of "Other News Related"
-    assert src.index('_prev_next(article, "1")') < src.index('rx.heading("Other News Related"')
+    assert src.count("_prev_next(article),") == 2  # top of the article column and top of "Other News Related"
+    assert src.index('_prev_next(article),  # previous / next in this category') < src.index('rx.heading("Other News Related"')
+    nav = src[src.index("def _nav_link"):src.index("def _prev_next")]
+    assert 'rx.text(title' not in nav and "line_clamp" not in nav and "-webkit-line-clamp" not in nav  # buttons only: no visible story title
     state = (ROOT / "frontend" / "frontend" / "state" / "news_state.py").read_text()
     assert '"has_prev": bool(prev_item)' in state and '"next_url"' in state
