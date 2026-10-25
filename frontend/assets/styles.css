@@ -2090,8 +2090,8 @@ html.nlb-lock { overflow: hidden; }
 /* The double-chevron arrow follows the theme text colour: white on dark, near-black on light. */
 .news-nav-arrow { flex: none; color: var(--gray-12); align-self: center; }
 .news-nav-card-prev .news-nav-arrow { transform: scaleX(-1); }
-/* One pair, two places: on desktop (the sidebar is beside the article) it is the full-width row on top; on tablet and phone (one column,
-   the article source block is at the bottom) it is the copy right below the article source section. */
-@media (min-width: 1024px) { .news-nav-after-source { display: none; } }
-@media (max-width: 1023px) { .news-nav-top { display: none; } }
+/* One pair, two places: on desktop (>= 1280 px = the reader's `lg` breakpoint, where the sidebar sits beside the article) it is the row right below the article; on tablet and phone (one
+   column, the article source block is at the bottom) it is the copy right below the article source section. */
+@media (min-width: 1280px) { .news-nav-after-source { display: none; } }
+@media (max-width: 1279px) { .news-nav-bottom { display: none; } }
 @media (max-width: 520px) { .news-nav-card-next { grid-template-columns: 96px minmax(0, 1fr) auto; } .news-nav-card-prev { grid-template-columns: auto 96px minmax(0, 1fr); } .news-nav-img { width: 96px; } }

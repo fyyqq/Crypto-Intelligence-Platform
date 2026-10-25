@@ -101,7 +101,7 @@ def _nav_card(article: dict, prefix: str, label: str) -> rx.Component:
     )
 
 
-def _prev_next(article: dict, where: str = "top") -> rx.Component:
+def _prev_next(article: dict, where: str = "bottom") -> rx.Component:
     """The neighbouring stories of the same category as two cards (Previous = the next-newer one on the left, Next = the
     next-older one on the right, like the /news lists): at the top of the article and, stacked, under the article source in the
     sidebar. A side with no neighbour (the newest story has no Previous, the oldest no Next) is simply not there."""
@@ -512,7 +512,6 @@ def _media_grid(article: dict) -> rx.Component:
 
 def _reader(article: dict) -> rx.Component:
     return rx.vstack(
-        _prev_next(article, "top"),  # previous / next story: one full-width row ABOVE the article column and the sidebar (desktop only)
         rx.grid(
             rx.vstack(
                 _article_metadata(article),
@@ -548,6 +547,7 @@ def _reader(article: dict) -> rx.Component:
                 ),
                 _ai_summary(),
                 _article_body(article),
+                _prev_next(article, "bottom"),  # desktop only: previous / next story right below the article
                 spacing="5",
                 align="start",
                 min_width="0",
